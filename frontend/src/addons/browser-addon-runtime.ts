@@ -54,9 +54,7 @@ export class BrowserAddonRuntime {
     return operation;
   }
 
-  reset(
-    reason: GenerationStopReason = "disabled",
-  ): Promise<readonly BrowserDisposalFailure[]> {
+  reset(reason: GenerationStopReason = "disabled"): Promise<readonly BrowserDisposalFailure[]> {
     this.#authorityEpoch += 1;
     this.#client.reset();
     const operation = this.#tail.then(() => this.#manager.dispose(reason));

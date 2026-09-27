@@ -25,10 +25,10 @@ export const campaignPages: readonly CampaignPageDefinition[] = Object.freeze([
 ]);
 
 export const contextCreationActions = {
-  "character-here": {source: "locations", target: "characters", field: "location"},
-  "event-here": {source: "locations", target: "events", field: "locations"},
-  "sub-location": {source: "locations", target: "locations", field: "parentId"},
-  "faction-member": {source: "factions", target: "characters", field: "faction"},
+  "character-here": { source: "locations", target: "characters", field: "location" },
+  "event-here": { source: "locations", target: "events", field: "locations" },
+  "sub-location": { source: "locations", target: "locations", field: "parentId" },
+  "faction-member": { source: "factions", target: "characters", field: "faction" },
 } as const;
 export type ContextCreationAction = keyof typeof contextCreationActions;
 
@@ -39,24 +39,58 @@ export type AppRoute =
   | { readonly kind: "party" }
   | { readonly kind: "timeline" }
   | { readonly kind: "campaign-graph"; readonly mode: GraphSelection }
-  | { readonly kind: "map"; readonly parentId: string | null;
+  | {
+      readonly kind: "map";
+      readonly parentId: string | null;
       readonly event?: { readonly key: string; readonly mode: "show" | "place" };
-      readonly location?: { readonly key: string; readonly mode: "show" | "place" } }
-  | { readonly kind: "create"; readonly page: CampaignPageDefinition; readonly preset: "blank" | "party" | "event" | "context"; readonly sitting?: number; readonly context?: {readonly action: ContextCreationAction; readonly key: string} }
-  | { readonly kind: "settings"; readonly mapParentId?: string | null; readonly addonId?: string | null; readonly generationId?: string }
+      readonly location?: { readonly key: string; readonly mode: "show" | "place" };
+    }
+  | {
+      readonly kind: "create";
+      readonly page: CampaignPageDefinition;
+      readonly preset: "blank" | "party" | "event" | "context";
+      readonly sitting?: number;
+      readonly context?: { readonly action: ContextCreationAction; readonly key: string };
+    }
+  | {
+      readonly kind: "settings";
+      readonly mapParentId?: string | null;
+      readonly addonId?: string | null;
+      readonly generationId?: string;
+    }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition; readonly view?: string }
-  | { readonly kind: "record"; readonly page: CampaignPageDefinition; readonly key: string; readonly editing?: boolean; readonly returnTo?: string }
+  | {
+      readonly kind: "record";
+      readonly page: CampaignPageDefinition;
+      readonly key: string;
+      readonly editing?: boolean;
+      readonly returnTo?: string;
+    }
   | { readonly kind: "addon" }
   | { readonly kind: "not-found"; readonly path: string };
 
 const savedLists: Readonly<Record<string, string>> = {
-  postavy: "characters", mista: "locations", udalosti: "timeline", zahady: "mysteries",
-  frakce: "factions", mazlicci: "companions", panteon: "pantheon", artefakty: "artifacts",
-  historie: "history", parta: "party", nastaveni: "settings",
+  postavy: "characters",
+  mista: "locations",
+  udalosti: "timeline",
+  zahady: "mysteries",
+  frakce: "factions",
+  mazlicci: "companions",
+  panteon: "pantheon",
+  artefakty: "artifacts",
+  historie: "history",
+  parta: "party",
+  nastaveni: "settings",
 };
 const savedArticles: Readonly<Record<string, string>> = {
-  postava: "characters", misto: "locations", udalost: "events", zahada: "mysteries",
-  frakce: "factions", buh: "pantheon", artefakt: "artifacts", "historicka-udalost": "history",
+  postava: "characters",
+  misto: "locations",
+  udalost: "events",
+  zahada: "mysteries",
+  frakce: "factions",
+  buh: "pantheon",
+  artefakt: "artifacts",
+  "historicka-udalost": "history",
 };
 
 /** Normalize only the preserved core namespace; IDs are decoded exactly once by the parser. */
@@ -64,18 +98,35 @@ export function canonicalAppHash(hash: string): string {
   if (hash === "") return "#/";
   const match = /^#\/([^/?]+)(?:\/([^/?]+))?$/u.exec(hash);
   if (!match) return hash;
-  const section = match[1]!, key = match[2];
+  const section = match[1]!,
+    key = match[2];
   if (key === undefined && Object.hasOwn(savedLists, section)) return `#/${savedLists[section]}`;
   if (key !== undefined && Object.hasOwn(savedArticles, section)) {
-    try { if (!decodeURIComponent(key) || /\p{Cc}/u.test(decodeURIComponent(key))) return hash; } catch { return hash; }
-    return key === "new" ? `#/create/${savedArticles[section]}` : `#/${savedArticles[section]}/${key}`;
+    try {
+      if (!decodeURIComponent(key) || /\p{Cc}/u.test(decodeURIComponent(key))) return hash;
+    } catch {
+      return hash;
+    }
+    return key === "new"
+      ? `#/create/${savedArticles[section]}`
+      : `#/${savedArticles[section]}/${key}`;
   }
   return hash;
 }
 
-export function createReturnHash(route: Extract<AppRoute, {kind: "create"}>): string {
-  if (route.context) return recordHash(campaignPages.find(page => page.collection === contextCreationActions[route.context!.action].source)!, route.context.key);
-  return route.preset === "party" ? "#/party" : route.preset === "event" ? "#/timeline" : collectionHash(route.page);
+export function createReturnHash(route: Extract<AppRoute, { kind: "create" }>): string {
+  if (route.context)
+    return recordHash(
+      campaignPages.find(
+        (page) => page.collection === contextCreationActions[route.context!.action].source,
+      )!,
+      route.context.key,
+    );
+  return route.preset === "party"
+    ? "#/party"
+    : route.preset === "event"
+      ? "#/timeline"
+      : collectionHash(route.page);
 }
 
 export function parseAppRoute(hash: string): AppRoute {
@@ -86,39 +137,66 @@ export function parseAppRoute(hash: string): AppRoute {
       const key = decodeURIComponent(contextual[2]!);
       if (key && !/\p{Cc}/u.test(key)) {
         const action = contextual[1] as ContextCreationAction;
-        return {kind: "create", preset: "context", context: {action, key},
-          page: campaignPages.find(page => page.collection === contextCreationActions[action].target)!};
+        return {
+          kind: "create",
+          preset: "context",
+          context: { action, key },
+          page: campaignPages.find(
+            (page) => page.collection === contextCreationActions[action].target,
+          )!,
+        };
       }
-    } catch { /* Malformed links remain unavailable. */ }
-    return {kind: "not-found", path: hash};
+    } catch {
+      /* Malformed links remain unavailable. */
+    }
+    return { kind: "not-found", path: hash };
   }
   const edit = /^#\/([^/?]+)\/([^/?]+)\/edit(?:\?([^#]*))?$/u.exec(hash);
   if (edit) {
     try {
-      const page = campaignPages.find(page => page.id === edit[1]), key = decodeURIComponent(edit[2]!);
-      const params = new URLSearchParams(edit[3]), returnTo = params.get("return") ?? undefined;
-      if (page && key && !/\p{Cc}/u.test(key) && [...params.keys()].every(key => key === "return") &&
-        params.getAll("return").length <= 1 && (returnTo === undefined || validEditorReturnHash(returnTo))) {
-        return {kind: "record", page, key, editing: true, ...(returnTo ? {returnTo} : {})};
+      const page = campaignPages.find((page) => page.id === edit[1]),
+        key = decodeURIComponent(edit[2]!);
+      const params = new URLSearchParams(edit[3]),
+        returnTo = params.get("return") ?? undefined;
+      if (
+        page &&
+        key &&
+        !/\p{Cc}/u.test(key) &&
+        [...params.keys()].every((key) => key === "return") &&
+        params.getAll("return").length <= 1 &&
+        (returnTo === undefined || validEditorReturnHash(returnTo))
+      ) {
+        return { kind: "record", page, key, editing: true, ...(returnTo ? { returnTo } : {}) };
       }
-    } catch { /* Malformed links remain unavailable. */ }
-    return {kind: "not-found", path: hash};
+    } catch {
+      /* Malformed links remain unavailable. */
+    }
+    return { kind: "not-found", path: hash };
   }
   const create = /^#\/create\/([^/]+)$/u.exec(hash);
   if (create) {
-    const page = campaignPages.find(page => page.id === create[1]);
-    if (page) return {kind: "create", page, preset: "blank"};
+    const page = campaignPages.find((page) => page.id === create[1]);
+    if (page) return { kind: "create", page, preset: "blank" };
   }
   if (hash === "#/dm") return { kind: "dm" };
   const addonGraph = parseAddonGraphHash(hash);
   if (addonGraph) return { kind: "campaign-graph", mode: addonGraph };
-  if (["#/graph/relationships", "#/mapa/vztahy"].includes(hash)) return { kind: "campaign-graph", mode: "relationships" };
-  if (["#/graph/factions", "#/mapa/palac", "#/mapa/frakce"].includes(hash)) return { kind: "campaign-graph", mode: "factions" };
-  if (["#/graph/mysteries", "#/mapa/tajemstvi"].includes(hash)) return { kind: "campaign-graph", mode: "mysteries" };
-  if (["#/timeline", "#/casova-osa", "#/mapa/casova-osa"].includes(hash)) return { kind: "timeline" };
+  if (["#/graph/relationships", "#/mapa/vztahy"].includes(hash))
+    return { kind: "campaign-graph", mode: "relationships" };
+  if (["#/graph/factions", "#/mapa/palac", "#/mapa/frakce"].includes(hash))
+    return { kind: "campaign-graph", mode: "factions" };
+  if (["#/graph/mysteries", "#/mapa/tajemstvi"].includes(hash))
+    return { kind: "campaign-graph", mode: "mysteries" };
+  if (["#/timeline", "#/casova-osa", "#/mapa/casova-osa"].includes(hash))
+    return { kind: "timeline" };
   const newEvent = /^#\/timeline\/new\/([1-9]\d*)$/u.exec(hash);
   if (newEvent !== null && Number.isSafeInteger(Number(newEvent[1]))) {
-    return { kind: "create", preset: "event", sitting: Number(newEvent[1]), page: campaignPages.find(page => page.id === "events")! };
+    return {
+      kind: "create",
+      preset: "event",
+      sitting: Number(newEvent[1]),
+      page: campaignPages.find((page) => page.id === "events")!,
+    };
   }
   if (hash === "" || hash === "#" || hash === "#/" || hash === "#/dashboard") {
     return { kind: "dashboard" };
@@ -127,43 +205,64 @@ export function parseAppRoute(hash: string): AppRoute {
     return { kind: "party" };
   }
   if (hash === "#/party/new") {
-    return { kind: "create", page: campaignPages.find(({ id }) => id === "characters")!, preset: "party" };
+    return {
+      kind: "create",
+      page: campaignPages.find(({ id }) => id === "characters")!,
+      preset: "party",
+    };
   }
   if (hash === "#/search") {
     return { kind: "search" };
   }
   if (hash.startsWith("#/search?") && hash.length <= 4_096) {
-    return { kind: "search", query: (new URLSearchParams(hash.slice(9)).get("q") ?? "").slice(0, 200) };
+    return {
+      kind: "search",
+      query: (new URLSearchParams(hash.slice(9)).get("q") ?? "").slice(0, 200),
+    };
   }
   if (hash === "#/settings") {
     return { kind: "settings" };
   }
   if (hash === "#/settings/addons") return { kind: "settings", addonId: null };
-  const packageReview = /^#\/settings\/addons\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\/packages\/([a-f0-9]{64})$/u.exec(hash);
-  if (packageReview && packageReview[1]!.length <= 80) return { kind: "settings", addonId: packageReview[1]!, generationId: packageReview[2]! };
+  const packageReview =
+    /^#\/settings\/addons\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\/packages\/([a-f0-9]{64})$/u.exec(hash);
+  if (packageReview && packageReview[1]!.length <= 80)
+    return { kind: "settings", addonId: packageReview[1]!, generationId: packageReview[2]! };
   const addonSettings = /^#\/settings\/addons\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)$/u.exec(hash);
-  if (addonSettings && addonSettings[1]!.length <= 100) return { kind: "settings", addonId: addonSettings[1]! };
+  if (addonSettings && addonSettings[1]!.length <= 100)
+    return { kind: "settings", addonId: addonSettings[1]! };
   if (hash === "#/settings/maps") return { kind: "settings", mapParentId: null };
   const mapSettings = /^#\/settings\/maps\/local\/([^/]+)$/u.exec(hash);
   if (mapSettings !== null) {
     try {
       const mapParentId = decodeURIComponent(mapSettings[1]!);
       if (mapParentId && !/\p{Cc}/u.test(mapParentId)) return { kind: "settings", mapParentId };
-    } catch { /* Malformed paths use the ordinary not-found route. */ }
+    } catch {
+      /* Malformed paths use the ordinary not-found route. */
+    }
     return { kind: "not-found", path: hash };
   }
-  const map = /^#\/(?:map\/world|mapa\/svet|(?:map|mapa)\/local\/([^/]+))(?:\/(event|location)\/([^/]+)\/(show|place))?$/u.exec(hash);
+  const map =
+    /^#\/(?:map\/world|mapa\/svet|(?:map|mapa)\/local\/([^/]+))(?:\/(event|location)\/([^/]+)\/(show|place))?$/u.exec(
+      hash,
+    );
   if (map !== null) {
     try {
       const parentId = map[1] === undefined ? null : decodeURIComponent(map[1]);
       const key = map[3] === undefined ? undefined : decodeURIComponent(map[3]);
-      if ((parentId === null || (parentId !== "" && !/\p{Cc}/u.test(parentId))) &&
-        (key === undefined || (key !== "" && !/\p{Cc}/u.test(key)))) {
+      if (
+        (parentId === null || (parentId !== "" && !/\p{Cc}/u.test(parentId))) &&
+        (key === undefined || (key !== "" && !/\p{Cc}/u.test(key)))
+      ) {
         if (key === undefined) return { kind: "map", parentId };
-        const target = { key, mode: map[4] === "place" ? "place" as const : "show" as const };
-        return map[2] === "event" ? { kind: "map", parentId, event: target } : { kind: "map", parentId, location: target };
+        const target = { key, mode: map[4] === "place" ? ("place" as const) : ("show" as const) };
+        return map[2] === "event"
+          ? { kind: "map", parentId, event: target }
+          : { kind: "map", parentId, location: target };
       }
-    } catch { /* Malformed paths use the ordinary not-found route. */ }
+    } catch {
+      /* Malformed paths use the ordinary not-found route. */
+    }
     return { kind: "not-found", path: hash };
   }
   if (isBrowserAddonRouteHash(hash)) {
@@ -171,7 +270,7 @@ export function parseAppRoute(hash: string): AppRoute {
   }
   const collectionView = /^#\/([^/?]+)\?([^#]*)$/u.exec(hash);
   if (collectionView && collectionView[2]!.length <= 64_000) {
-    const page = campaignPages.find(page => page.id === collectionView[1]);
+    const page = campaignPages.find((page) => page.id === collectionView[1]);
     if (page) return { kind: "collection", page, view: collectionView[2]! };
   }
   const path = hash.startsWith("#/") ? hash.slice(2) : hash;
@@ -211,24 +310,34 @@ export function mapHash(parentId: string | null): string {
 export function eventMapHash(parentId: string | null, key: string, mode: "show" | "place"): string {
   return `${mapHash(parentId)}/event/${encodeURIComponent(key)}/${mode}`;
 }
-export function locationMapHash(parentId: string | null, key: string, mode: "show" | "place"): string {
+export function locationMapHash(
+  parentId: string | null,
+  key: string,
+  mode: "show" | "place",
+): string {
   return `${mapHash(parentId)}/location/${encodeURIComponent(key)}/${mode}`;
 }
 export function mapSettingsHash(parentId: string | null): string {
-  return parentId === null ? "#/settings/maps" : `#/settings/maps/local/${encodeURIComponent(parentId)}`;
+  return parentId === null
+    ? "#/settings/maps"
+    : `#/settings/maps/local/${encodeURIComponent(parentId)}`;
 }
 
 export function contextualCreateHash(action: ContextCreationAction, key: string): string {
   return `#/create/${action}/${encodeURIComponent(key)}`;
 }
-export function recordEditHash(page: CampaignPageDefinition, key: string, returnTo?: string): string {
+export function recordEditHash(
+  page: CampaignPageDefinition,
+  key: string,
+  returnTo?: string,
+): string {
   return `${recordHash(page, key)}/edit${returnTo && validEditorReturnHash(returnTo) ? "?return=" + encodeURIComponent(returnTo) : ""}`;
 }
 function validEditorReturnHash(hash: string): boolean {
   if (["#/", "#/party", "#/timeline"].includes(hash)) return true;
   if (hash.length > 64_000) return false;
   const match = /^#\/([^/?]+)(?:\?[^#]*)?$/u.exec(hash);
-  return !!match && campaignPages.some(page => page.id === match[1]);
+  return !!match && campaignPages.some((page) => page.id === match[1]);
 }
 
 export function recordHash(page: CampaignPageDefinition, key: string): string {
@@ -243,7 +352,16 @@ function page(
   icon: string,
   group: CampaignPageDefinition["group"],
 ): CampaignPageDefinition {
-  return Object.freeze({ id, collection,
-    get singular() { return uiCollectionLabel(id, "one") || singular; },
-    get plural() { return uiCollectionLabel(id, "other") || plural; }, icon, group });
+  return Object.freeze({
+    id,
+    collection,
+    get singular() {
+      return uiCollectionLabel(id, "one") || singular;
+    },
+    get plural() {
+      return uiCollectionLabel(id, "other") || plural;
+    },
+    icon,
+    group,
+  });
 }

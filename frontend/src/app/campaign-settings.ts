@@ -12,7 +12,8 @@ import {
   type CampaignMutation,
 } from "../core/campaign-mutations.js";
 
-export type CampaignSettingFieldKind = "text" | "color" | "integer" | "decimal" | "select" | "directions";
+export type CampaignSettingFieldKind =
+  "text" | "color" | "integer" | "decimal" | "select" | "directions";
 
 export interface CampaignSettingField {
   readonly key: string;
@@ -50,15 +51,25 @@ export interface CampaignEnumSaveDetail {
 export class CampaignSettingsEditError extends Error {
   override readonly name = "CampaignSettingsEditError";
 
-  constructor(message: string, readonly kind: "invalid" | "stale" = "invalid") { super(message); }
+  constructor(
+    message: string,
+    readonly kind: "invalid" | "stale" = "invalid",
+  ) {
+    super(message);
+  }
 }
 
 const colorField = (key: string, label: string, help?: string): CampaignSettingField =>
   field(key, label, "color", true, help === undefined ? {} : { help });
 
 export const campaignEnumDescriptors: readonly CampaignEnumDescriptor[] = Object.freeze([
-  descriptor("relationshipTypes", "Relationships", "relationship", "◇",
-    "Names and drawing rules used by character relationships and later graph views.", [
+  descriptor(
+    "relationshipTypes",
+    "Relationships",
+    "relationship",
+    "◇",
+    "Names and drawing rules used by character relationships and later graph views.",
+    [
       field("label", "Display name", "text", true),
       colorField("color", "Line color"),
       field("style", "Line style", "select", true, {
@@ -70,39 +81,67 @@ export const campaignEnumDescriptors: readonly CampaignEnumDescriptor[] = Object
           Object.freeze({ value: "location", label: "Location" }),
         ]),
       }),
-      field("dirs", "Allowed directions", "directions", true,
-        { help: "Location relationships always point from the character to the location." }),
-    ]),
-  descriptor("genders", "Genders", "gender", "⚥",
-    "Choices offered by the character editor. Stored IDs remain unchanged when labels change.", [
+      field("dirs", "Allowed directions", "directions", true, {
+        help: "Location relationships always point from the character to the location.",
+      }),
+    ],
+  ),
+  descriptor(
+    "genders",
+    "Genders",
+    "gender",
+    "⚥",
+    "Choices offered by the character editor. Stored IDs remain unchanged when labels change.",
+    [field("label", "Display name", "text", true)],
+  ),
+  descriptor(
+    "pinTypes",
+    "Map markers",
+    "marker type",
+    "⌖",
+    "Marker definitions shared by the map editor. Artwork remains part of the later map workflow.",
+    [
       field("label", "Display name", "text", true),
-    ]),
-  descriptor("pinTypes", "Map markers", "marker type", "⌖",
-    "Marker definitions shared by the map editor. Artwork remains part of the later map workflow.", [
-      field("label", "Display name", "text", true),
-      field("defaultIconId", "Bundled icon ID", "text", false,
-        { help: "Leave blank to use the marker type ID." }),
+      field("defaultIconId", "Bundled icon ID", "text", false, {
+        help: "Leave blank to use the marker type ID.",
+      }),
       field("size", "Default size", "integer", true, { minimum: 8, maximum: 256 }),
-    ]),
-  descriptor("characterStatuses", "Character statuses", "status", "●",
-    "Life-state choices used by character records.", [
+    ],
+  ),
+  descriptor(
+    "characterStatuses",
+    "Character statuses",
+    "status",
+    "●",
+    "Life-state choices used by character records.",
+    [
       field("label", "Display name", "text", true),
       field("icon", "Symbol", "text", true),
       colorField("color", "Color"),
-    ]),
-  descriptor("eventPriorities", "Event priorities", "priority", "⚑",
-    "Priority choices used by campaign events.", [
-      field("label", "Display name", "text", true),
-      colorField("color", "Color"),
-    ]),
-  descriptor("attitudes", "Party attitudes", "attitude", "✦",
-    "The shared palette behind character, location, and faction attitude glows.", [
+    ],
+  ),
+  descriptor(
+    "eventPriorities",
+    "Event priorities",
+    "priority",
+    "⚑",
+    "Priority choices used by campaign events.",
+    [field("label", "Display name", "text", true), colorField("color", "Color")],
+  ),
+  descriptor(
+    "attitudes",
+    "Party attitudes",
+    "attitude",
+    "✦",
+    "The shared palette behind character, location, and faction attitude glows.",
+    [
       field("label", "Display name", "text", true),
       colorField("bg", "Marker color"),
       colorField("fg", "Marker text"),
       colorField("labelColor", "Label and glow"),
       field("strength", "Glow strength", "decimal", true, { minimum: 0, maximum: 1 }),
-    ]),
+    ],
+  ),
 ]);
 
 export function campaignEnumDescriptor(category: CampaignEnumCategory): CampaignEnumDescriptor {
@@ -132,7 +171,9 @@ export function campaignEnumItems(
     const id = boundedIdentity(candidate["id"]);
     if (seen.has(id)) throw invalidEdit();
     seen.add(id);
-    result.push(Object.freeze({ id, label: boundedText(candidate["label"] ?? id, 200), value: candidate }));
+    result.push(
+      Object.freeze({ id, label: boundedText(candidate["label"] ?? id, 200), value: candidate }),
+    );
   }
   return Object.freeze(result);
 }
@@ -147,7 +188,9 @@ export function campaignEnumDisplayLabel(
   if (id === "") return "";
   const record = campaignEnumRecord(campaign, category);
   if (!Array.isArray(record?.value)) return id;
-  const definition = record.value.find((candidate) => isRecord(candidate) && candidate["id"] === id);
+  const definition = record.value.find(
+    (candidate) => isRecord(candidate) && candidate["id"] === id,
+  );
   if (!isRecord(definition)) return id;
   const label = definition["label"];
   return typeof label === "string" && label.trim() !== "" ? label.trim() : id;
@@ -165,7 +208,8 @@ export function prepareCampaignEnumSave(
   if (record !== undefined && !Array.isArray(record.value)) throw invalidEdit();
   const existingItems = campaignEnumItems(campaign, detail.category);
   const values = [...(Array.isArray(record?.value) ? record.value : [])];
-  const existingIndex = detail.originalId === null ? -1 : existingItems.findIndex(({ id }) => id === detail.originalId);
+  const existingIndex =
+    detail.originalId === null ? -1 : existingItems.findIndex(({ id }) => id === detail.originalId);
   if (detail.originalId !== null && existingIndex < 0) throw invalidEdit();
   const existing = existingIndex < 0 ? {} : values[existingIndex];
   if (!isRecord(existing) || !isRecord(detail.fields)) throw invalidEdit();
@@ -193,7 +237,8 @@ export function prepareCampaignEnumDelete(
   if (record === undefined || record.revision !== mutation.expectedRevision) throw staleEdit();
   const items = campaignEnumItems(campaign, mutation.category);
   if (!items.some(({ id }) => id === mutation.itemId)) throw invalidEdit();
-  if (mutation.mode === "replace" && !items.some(({ id }) => id === mutation.replacementId)) throw invalidEdit();
+  if (mutation.mode === "replace" && !items.some(({ id }) => id === mutation.replacementId))
+    throw invalidEdit();
   return Object.freeze(mutation);
 }
 
@@ -208,7 +253,8 @@ export function campaignEnumUsageCount(
     for (const record of campaignCollection(campaign, binding.collection).records) {
       if (!isRecord(record.value)) continue;
       const value = record.value[binding.field];
-      if (("array" in binding && binding.array) ? enumArrayContains(value, itemID) : value === itemID) count += 1;
+      if ("array" in binding && binding.array ? enumArrayContains(value, itemID) : value === itemID)
+        count += 1;
     }
   }
   return count;
@@ -251,15 +297,21 @@ function normalizedEnumValue(
       }
       case "select": {
         const selected = boundedText(raw, 100);
-        if (!definition.options?.some(({ value: option }) => option === selected)) throw invalidEdit();
+        if (!definition.options?.some(({ value: option }) => option === selected))
+          throw invalidEdit();
         value[definition.key] = selected;
         break;
       }
       case "directions": {
         if (!Array.isArray(raw)) throw invalidEdit();
         const directions = [...new Set(raw.map((candidate) => boundedText(candidate, 20)))];
-        if (directions.length === 0 || directions.some((direction) =>
-          direction !== "from" && direction !== "to" && direction !== "both")) throw invalidEdit();
+        if (
+          directions.length === 0 ||
+          directions.some(
+            (direction) => direction !== "from" && direction !== "to" && direction !== "both",
+          )
+        )
+          throw invalidEdit();
         value[definition.key] = directions;
         break;
       }
@@ -279,9 +331,20 @@ function descriptor(
   summary: string,
   fields: readonly CampaignSettingField[],
 ): CampaignEnumDescriptor {
-  return Object.freeze({ category, get label() { return uiSourceLabel(label); },
-    get singular() { return uiSourceLabel(singular); }, icon,
-    get summary() { return uiSourceLabel(summary); }, fields: Object.freeze(fields) });
+  return Object.freeze({
+    category,
+    get label() {
+      return uiSourceLabel(label);
+    },
+    get singular() {
+      return uiSourceLabel(singular);
+    },
+    icon,
+    get summary() {
+      return uiSourceLabel(summary);
+    },
+    fields: Object.freeze(fields),
+  });
 }
 
 function field(
@@ -291,23 +354,53 @@ function field(
   required = false,
   options: Partial<Omit<CampaignSettingField, "key" | "label" | "kind" | "required">> = {},
 ): CampaignSettingField {
-  const result: CampaignSettingField = { key, get label() { return uiSourceLabel(label); }, kind, required, ...options,
-    ...(options.options === undefined ? {} : { options: options.options.map(option => Object.freeze({
-      value: option.value, get label() { return uiSourceLabel(option.label); },
-    })) }),
+  const result: CampaignSettingField = {
+    key,
+    get label() {
+      return uiSourceLabel(label);
+    },
+    kind,
+    required,
+    ...options,
+    ...(options.options === undefined
+      ? {}
+      : {
+          options: options.options.map((option) =>
+            Object.freeze({
+              value: option.value,
+              get label() {
+                return uiSourceLabel(option.label);
+              },
+            }),
+          ),
+        }),
   };
-  if (options.help !== undefined) Object.defineProperty(result, "help", { enumerable: true, get: () => uiSourceLabel(options.help!) });
+  if (options.help !== undefined)
+    Object.defineProperty(result, "help", {
+      enumerable: true,
+      get: () => uiSourceLabel(options.help!),
+    });
   return Object.freeze(result);
 }
 
-function choices(values: readonly string[]): readonly { readonly value: string; readonly label: string }[] {
-  return Object.freeze(values.map((value) => Object.freeze({
-    value,
-    label: `${value[0]?.toLocaleUpperCase() ?? ""}${value.slice(1)}`,
-  })));
+function choices(
+  values: readonly string[],
+): readonly { readonly value: string; readonly label: string }[] {
+  return Object.freeze(
+    values.map((value) =>
+      Object.freeze({
+        value,
+        label: `${value[0]?.toLocaleUpperCase() ?? ""}${value.slice(1)}`,
+      }),
+    ),
+  );
 }
 
-interface EnumBinding { readonly collection: CampaignCollectionName; readonly field: string; readonly array?: boolean }
+interface EnumBinding {
+  readonly collection: CampaignCollectionName;
+  readonly field: string;
+  readonly array?: boolean;
+}
 
 const enumBindings = Object.freeze({
   relationshipTypes: Object.freeze([{ collection: "relationships", field: "type" }]),
@@ -323,13 +416,16 @@ const enumBindings = Object.freeze({
 } satisfies Record<CampaignEnumCategory, readonly EnumBinding[]>);
 
 function enumArrayContains(value: unknown, id: string): boolean {
-  return Array.isArray(value) && value.some((candidate) =>
-    candidate === id || isRecord(candidate) && candidate["id"] === id);
+  return (
+    Array.isArray(value) &&
+    value.some((candidate) => candidate === id || (isRecord(candidate) && candidate["id"] === id))
+  );
 }
 
 function boundedIdentity(value: unknown): string {
   const result = boundedText(value, 200);
-  if (result === "" || new TextEncoder().encode(result).byteLength > 200 || /\p{Cc}/u.test(result)) throw invalidEdit();
+  if (result === "" || new TextEncoder().encode(result).byteLength > 200 || /\p{Cc}/u.test(result))
+    throw invalidEdit();
   return result;
 }
 
@@ -345,8 +441,10 @@ function numericValue(value: unknown): number {
 }
 
 function inRange(value: number, field: CampaignSettingField): boolean {
-  return (field.minimum === undefined || value >= field.minimum) &&
-    (field.maximum === undefined || value <= field.maximum);
+  return (
+    (field.minimum === undefined || value >= field.minimum) &&
+    (field.maximum === undefined || value <= field.maximum)
+  );
 }
 
 function staleEdit(): CampaignSettingsEditError {

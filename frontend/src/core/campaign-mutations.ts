@@ -1,9 +1,6 @@
 import { sessionFetch } from "./player-preview.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
-import {
-  isCampaignCollectionName,
-  type CampaignCollectionName,
-} from "./campaign-data.js";
+import { isCampaignCollectionName, type CampaignCollectionName } from "./campaign-data.js";
 
 const boundary = "POST /api/campaign/transactions";
 const twinBoundary = "POST /api/campaign/twins";
@@ -16,13 +13,7 @@ const receiptKeys = new Set([
   "results",
   "collectionRevisions",
 ]);
-const resultKeys = new Set([
-  "collection",
-  "key",
-  "beforeRevision",
-  "afterRevision",
-  "deleted",
-]);
+const resultKeys = new Set(["collection", "key", "beforeRevision", "afterRevision", "deleted"]);
 const twinResultKeys = new Set([
   "contractVersion",
   "twinKey",
@@ -42,18 +33,18 @@ const enumResultKeys = new Set([
 
 export type CampaignMutation =
   | {
-    readonly operation: "put";
-    readonly collection: CampaignCollectionName;
-    readonly key: string;
-    readonly expectedRevision: number;
-    readonly value: unknown;
-  }
+      readonly operation: "put";
+      readonly collection: CampaignCollectionName;
+      readonly key: string;
+      readonly expectedRevision: number;
+      readonly value: unknown;
+    }
   | {
-    readonly operation: "delete";
-    readonly collection: CampaignCollectionName;
-    readonly key: string;
-    readonly expectedRevision: number;
-  };
+      readonly operation: "delete";
+      readonly collection: CampaignCollectionName;
+      readonly key: string;
+      readonly expectedRevision: number;
+    };
 
 export interface CampaignMutationResult {
   readonly collection: CampaignCollectionName;
@@ -73,19 +64,19 @@ export interface CampaignCommitReceipt {
 
 export type CampaignTwinMutation =
   | {
-    readonly action: "create" | "unlink";
-    readonly collection: CampaignCollectionName;
-    readonly sourceKey: string;
-    readonly sourceExpectedRevision: number;
-  }
+      readonly action: "create" | "unlink";
+      readonly collection: CampaignCollectionName;
+      readonly sourceKey: string;
+      readonly sourceExpectedRevision: number;
+    }
   | {
-    readonly action: "link";
-    readonly collection: CampaignCollectionName;
-    readonly sourceKey: string;
-    readonly sourceExpectedRevision: number;
-    readonly targetKey: string;
-    readonly targetExpectedRevision: number;
-  };
+      readonly action: "link";
+      readonly collection: CampaignCollectionName;
+      readonly sourceKey: string;
+      readonly sourceExpectedRevision: number;
+      readonly targetKey: string;
+      readonly targetExpectedRevision: number;
+    };
 
 export interface CampaignTwinResult extends Omit<CampaignCommitReceipt, "contractVersion"> {
   readonly contractVersion: "campaign-twin-result.v1";
@@ -102,33 +93,33 @@ export type CampaignEnumCategory =
 
 export type CampaignEnumDeleteMutation =
   | {
-    readonly category: CampaignEnumCategory;
-    readonly itemId: string;
-    readonly expectedRevision: number;
-    readonly mode: "reject-if-used" | "clear";
-  }
+      readonly category: CampaignEnumCategory;
+      readonly itemId: string;
+      readonly expectedRevision: number;
+      readonly mode: "reject-if-used" | "clear";
+    }
   | {
-    readonly category: CampaignEnumCategory;
-    readonly itemId: string;
-    readonly expectedRevision: number;
-    readonly mode: "replace";
-    readonly replacementId: string;
-  };
+      readonly category: CampaignEnumCategory;
+      readonly itemId: string;
+      readonly expectedRevision: number;
+      readonly mode: "replace";
+      readonly replacementId: string;
+    };
 
 export interface CampaignEnumDeleteResult extends Omit<CampaignCommitReceipt, "contractVersion"> {
   readonly contractVersion: "campaign-enum-delete-result.v1";
   readonly usageCount: number;
 }
 
-export type CampaignMutationFetch = (
-  input: string,
-  init: RequestInit,
-) => Promise<Response>;
+export type CampaignMutationFetch = (input: string, init: RequestInit) => Promise<Response>;
 
 export class CampaignMutationHTTPError extends Error {
   override readonly name = "CampaignMutationHTTPError";
 
-  constructor(readonly status: number, readonly endpoint = boundary) {
+  constructor(
+    readonly status: number,
+    readonly endpoint = boundary,
+  ) {
     super(`${endpoint} returned ${status}`);
   }
 }
@@ -205,7 +196,11 @@ export class CampaignMutationClient {
     if (!response.ok) {
       throw new CampaignMutationHTTPError(response.status);
     }
-    const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    const contentType = response.headers
+      .get("Content-Type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
     if (contentType !== "application/json") {
       throw new BoundaryValidationError(boundary, "response must be application/json");
     }
@@ -228,10 +223,13 @@ export class CampaignMutationClient {
     signal: AbortSignal,
   ): Promise<CampaignTwinResult> {
     signal.throwIfAborted();
-    if (csrfToken.length < 32 || mutation.sourceKey === "" ||
+    if (
+      csrfToken.length < 32 ||
+      mutation.sourceKey === "" ||
       !positiveInteger(mutation.sourceExpectedRevision) ||
       (mutation.action === "link" &&
-        (mutation.targetKey === "" || !positiveInteger(mutation.targetExpectedRevision)))) {
+        (mutation.targetKey === "" || !positiveInteger(mutation.targetExpectedRevision)))
+    ) {
       throw new BoundaryValidationError(twinBoundary, "twin mutation request is invalid");
     }
     const response = await this.#fetchMutation("/api/campaign/twins", {
@@ -249,7 +247,11 @@ export class CampaignMutationClient {
     if (!response.ok) {
       throw new CampaignMutationHTTPError(response.status, twinBoundary);
     }
-    const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    const contentType = response.headers
+      .get("Content-Type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
     if (contentType !== "application/json") {
       throw new BoundaryValidationError(twinBoundary, "response must be application/json");
     }
@@ -272,10 +274,13 @@ export class CampaignMutationClient {
     signal: AbortSignal,
   ): Promise<CampaignEnumDeleteResult> {
     signal.throwIfAborted();
-    if (csrfToken.length < 32 || mutation.itemId === "" ||
+    if (
+      csrfToken.length < 32 ||
+      mutation.itemId === "" ||
       !positiveInteger(mutation.expectedRevision) ||
       (mutation.mode === "replace" &&
-        (mutation.replacementId === "" || mutation.replacementId === mutation.itemId))) {
+        (mutation.replacementId === "" || mutation.replacementId === mutation.itemId))
+    ) {
       throw new BoundaryValidationError(enumBoundary, "enum deletion request is invalid");
     }
     const response = await this.#fetchMutation("/api/campaign/enums/delete", {
@@ -293,7 +298,11 @@ export class CampaignMutationClient {
     if (!response.ok) {
       throw new CampaignMutationHTTPError(response.status, enumBoundary);
     }
-    const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    const contentType = response.headers
+      .get("Content-Type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
     if (contentType !== "application/json") {
       throw new BoundaryValidationError(enumBoundary, "response must be application/json");
     }
@@ -312,12 +321,17 @@ export class CampaignMutationClient {
 }
 
 export function parseCampaignCommitReceipt(value: unknown): CampaignCommitReceipt {
-  if (!isRecord(value) || !hasOnlyKeys(value, receiptKeys) ||
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, receiptKeys) ||
     value["contractVersion"] !== "campaign-commit.v1" ||
     !positiveInteger(value["commitId"]) ||
-    typeof value["occurredAt"] !== "string" || !validTimestamp(value["occurredAt"]) ||
-    !Array.isArray(value["results"]) || value["results"].length === 0 ||
-    !isRecord(value["collectionRevisions"])) {
+    typeof value["occurredAt"] !== "string" ||
+    !validTimestamp(value["occurredAt"]) ||
+    !Array.isArray(value["results"]) ||
+    value["results"].length === 0 ||
+    !isRecord(value["collectionRevisions"])
+  ) {
     throw new BoundaryValidationError(boundary, "response must be an exact commit receipt");
   }
   const results = value["results"].map((candidate, index) => parseResult(candidate, index));
@@ -341,9 +355,13 @@ export function parseCampaignCommitReceipt(value: unknown): CampaignCommitReceip
 }
 
 export function parseCampaignTwinResult(value: unknown): CampaignTwinResult {
-  if (!isRecord(value) || !hasOnlyKeys(value, twinResultKeys) ||
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, twinResultKeys) ||
     value["contractVersion"] !== "campaign-twin-result.v1" ||
-    typeof value["twinKey"] !== "string" || value["twinKey"].length === 0) {
+    typeof value["twinKey"] !== "string" ||
+    value["twinKey"].length === 0
+  ) {
     throw new BoundaryValidationError(twinBoundary, "response must be an exact twin result");
   }
   const commit = parseCampaignCommitReceipt({
@@ -364,9 +382,12 @@ export function parseCampaignTwinResult(value: unknown): CampaignTwinResult {
 }
 
 export function parseCampaignEnumDeleteResult(value: unknown): CampaignEnumDeleteResult {
-  if (!isRecord(value) || !hasOnlyKeys(value, enumResultKeys) ||
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, enumResultKeys) ||
     value["contractVersion"] !== "campaign-enum-delete-result.v1" ||
-    !nonNegativeInteger(value["usageCount"])) {
+    !nonNegativeInteger(value["usageCount"])
+  ) {
     throw new BoundaryValidationError(enumBoundary, "response must be an exact enum result");
   }
   const commit = parseCampaignCommitReceipt({
@@ -387,13 +408,17 @@ export function parseCampaignEnumDeleteResult(value: unknown): CampaignEnumDelet
 }
 
 function parseResult(value: unknown, index: number): CampaignMutationResult {
-  if (!isRecord(value) || !hasOnlyKeys(value, resultKeys) ||
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, resultKeys) ||
     !isCampaignCollectionName(value["collection"]) ||
-    typeof value["key"] !== "string" || value["key"].length === 0 ||
+    typeof value["key"] !== "string" ||
+    value["key"].length === 0 ||
     !nonNegativeInteger(value["beforeRevision"]) ||
     !positiveInteger(value["afterRevision"]) ||
     value["afterRevision"] <= value["beforeRevision"] ||
-    typeof value["deleted"] !== "boolean") {
+    typeof value["deleted"] !== "boolean"
+  ) {
     throw new BoundaryValidationError(boundary, `results[${index}] is invalid`);
   }
   return {

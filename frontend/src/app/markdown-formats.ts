@@ -13,21 +13,38 @@ export interface MarkdownFormat {
 }
 
 const formats: Readonly<Record<string, readonly string[]>> = {
-  color: markdownColors, highlight: markdownHighlights, effect: markdownEffects,
-  size: markdownSizes.map(String), font: markdownFonts, align: markdownAlignments,
+  color: markdownColors,
+  highlight: markdownHighlights,
+  effect: markdownEffects,
+  size: markdownSizes.map(String),
+  font: markdownFonts,
+  align: markdownAlignments,
 };
 
 export function parseMarkdownFormat(raw: string): MarkdownFormat | undefined {
   if (/^<sup>$/iu.test(raw)) return { tag: "sup", mark: "sup" };
   if (/^<sub>$/iu.test(raw)) return { tag: "sub", mark: "sub" };
-  const match = /^<(span|mark)\s+data-md-(color|highlight|effect|size|font|align)=["']([a-z0-9-]+)["']\s*>$/iu.exec(raw);
+  const match =
+    /^<(span|mark)\s+data-md-(color|highlight|effect|size|font|align)=["']([a-z0-9-]+)["']\s*>$/iu.exec(
+      raw,
+    );
   if (!match) return undefined;
   const [, tag, kind, value] = match;
-  if (!kind || !value || !formats[kind]?.includes(value) || (tag === "mark") !== (kind === "highlight")) return undefined;
+  if (
+    !kind ||
+    !value ||
+    !formats[kind]?.includes(value) ||
+    (tag === "mark") !== (kind === "highlight")
+  )
+    return undefined;
   return { tag: tag as "span" | "mark", mark: kind, value, className: `md-${kind}-${value}` };
 }
 
-export function markdownFormatClose(tokens: readonly { readonly type: string; readonly raw: string }[], start: number, tag: string): number {
+export function markdownFormatClose(
+  tokens: readonly { readonly type: string; readonly raw: string }[],
+  start: number,
+  tag: string,
+): number {
   let depth = 1;
   for (let index = start; index < tokens.length; index++) {
     const token = tokens[index];

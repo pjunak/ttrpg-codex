@@ -16,24 +16,45 @@ import type {
 describe("campaign settings", () => {
   it("defines the six enum categories owned by the host", () => {
     expect(campaignEnumDescriptors.map(({ category }) => category)).toEqual([
-      "relationshipTypes", "genders", "pinTypes", "characterStatuses", "eventPriorities", "attitudes",
+      "relationshipTypes",
+      "genders",
+      "pinTypes",
+      "characterStatuses",
+      "eventPriorities",
+      "attitudes",
     ]);
   });
 
   it("updates a definition without changing its ID or extension fields", () => {
     const campaign = dataset({
-      settings: [{
-        key: "attitudes", revision: 4,
-        value: [{ id: "ally", label: "Ally", bg: "#2E7D32", fg: "#fff", labelColor: "#4CAF50", strength: 1,
-          addonPalette: { ring: true } }],
-      }],
+      settings: [
+        {
+          key: "attitudes",
+          revision: 4,
+          value: [
+            {
+              id: "ally",
+              label: "Ally",
+              bg: "#2E7D32",
+              fg: "#fff",
+              labelColor: "#4CAF50",
+              strength: 1,
+              addonPalette: { ring: true },
+            },
+          ],
+        },
+      ],
     });
     const mutation = prepareCampaignEnumSave(campaign, {
       category: "attitudes",
       originalId: "ally",
       expectedRevision: 4,
       fields: {
-        label: "Trusted ally", bg: "#287132", fg: "#ffffff", labelColor: "#51af59", strength: "0.75",
+        label: "Trusted ally",
+        bg: "#287132",
+        fg: "#ffffff",
+        labelColor: "#51af59",
+        strength: "0.75",
       },
     });
 
@@ -42,10 +63,17 @@ describe("campaign settings", () => {
       collection: "settings",
       key: "attitudes",
       expectedRevision: 4,
-      value: [{
-        id: "ally", label: "Trusted ally", bg: "#287132", fg: "#ffffff", labelColor: "#51af59",
-        strength: 0.75, addonPalette: { ring: true },
-      }],
+      value: [
+        {
+          id: "ally",
+          label: "Trusted ally",
+          bg: "#287132",
+          fg: "#ffffff",
+          labelColor: "#51af59",
+          strength: 0.75,
+          addonPalette: { ring: true },
+        },
+      ],
     });
   });
 
@@ -55,16 +83,29 @@ describe("campaign settings", () => {
       originalId: null,
       expectedRevision: 0,
       fields: {
-        id: "guards", label: "guards", color: "#84552a", style: "dashed",
-        target: "location", dirs: ["from", "to", "both"],
+        id: "guards",
+        label: "guards",
+        color: "#84552a",
+        style: "dashed",
+        target: "location",
+        dirs: ["from", "to", "both"],
       },
     });
     expect(mutation).toMatchObject({
-      operation: "put", collection: "settings", key: "relationshipTypes", expectedRevision: 0,
-      value: [{
-        id: "guards", label: "guards", color: "#84552a", style: "dashed",
-        target: "location", dirs: ["from"],
-      }],
+      operation: "put",
+      collection: "settings",
+      key: "relationshipTypes",
+      expectedRevision: 0,
+      value: [
+        {
+          id: "guards",
+          label: "guards",
+          color: "#84552a",
+          style: "dashed",
+          target: "location",
+          dirs: ["from"],
+        },
+      ],
     });
   });
 
@@ -92,34 +133,76 @@ describe("campaign settings", () => {
 
   it("prepares only current, valid enum deletion requests", () => {
     const campaign = dataset({
-      settings: [{ key: "genders", revision: 3, value: [{ id: "old", label: "Old" }, { id: "new", label: "New" }] }],
+      settings: [
+        {
+          key: "genders",
+          revision: 3,
+          value: [
+            { id: "old", label: "Old" },
+            { id: "new", label: "New" },
+          ],
+        },
+      ],
     });
-    expect(prepareCampaignEnumDelete(campaign, {
-      category: "genders", itemId: "old", expectedRevision: 3, mode: "replace", replacementId: "new",
-    })).toMatchObject({ mode: "replace", replacementId: "new" });
-    expect(() => prepareCampaignEnumDelete(campaign, {
-      category: "genders", itemId: "old", expectedRevision: 2, mode: "clear",
-    })).toThrow("campaign settings revision is stale");
+    expect(
+      prepareCampaignEnumDelete(campaign, {
+        category: "genders",
+        itemId: "old",
+        expectedRevision: 3,
+        mode: "replace",
+        replacementId: "new",
+      }),
+    ).toMatchObject({ mode: "replace", replacementId: "new" });
+    expect(() =>
+      prepareCampaignEnumDelete(campaign, {
+        category: "genders",
+        itemId: "old",
+        expectedRevision: 2,
+        mode: "clear",
+      }),
+    ).toThrow("campaign settings revision is stale");
   });
 
   it("fails closed on duplicate IDs and malformed edited values", () => {
     const malformed = dataset({
       settings: [{ key: "genders", revision: 1, value: [{ id: "same" }, { id: "same" }] }],
     });
-    expect(() => campaignEnumItems(malformed, "genders")).toThrow("campaign settings edit is invalid");
-    expect(() => prepareCampaignEnumSave(malformed, {
-      category: "genders", originalId: "same", expectedRevision: 1, fields: { label: "Same" },
-    })).toThrow("campaign settings edit is invalid");
-    expect(() => prepareCampaignEnumSave(dataset(), {
-      category: "eventPriorities", originalId: null, expectedRevision: 0,
-      fields: { id: "urgent", label: "Urgent", color: "red" },
-    })).toThrow("campaign settings edit is invalid");
+    expect(() => campaignEnumItems(malformed, "genders")).toThrow(
+      "campaign settings edit is invalid",
+    );
+    expect(() =>
+      prepareCampaignEnumSave(malformed, {
+        category: "genders",
+        originalId: "same",
+        expectedRevision: 1,
+        fields: { label: "Same" },
+      }),
+    ).toThrow("campaign settings edit is invalid");
+    expect(() =>
+      prepareCampaignEnumSave(dataset(), {
+        category: "eventPriorities",
+        originalId: null,
+        expectedRevision: 0,
+        fields: { id: "urgent", label: "Urgent", color: "red" },
+      }),
+    ).toThrow("campaign settings edit is invalid");
   });
 });
 
 const names: readonly CampaignCollectionName[] = [
-  "characters", "relationships", "locations", "events", "mysteries", "factions", "deletedDefaults",
-  "pantheon", "artifacts", "settings", "historicalEvents", "campaign", "pets",
+  "characters",
+  "relationships",
+  "locations",
+  "events",
+  "mysteries",
+  "factions",
+  "deletedDefaults",
+  "pantheon",
+  "artifacts",
+  "settings",
+  "historicalEvents",
+  "campaign",
+  "pets",
 ];
 
 function dataset(
@@ -129,9 +212,13 @@ function dataset(
     contractVersion: "campaign-data.v1",
     collections: names.map((name) => ({
       name,
-      shape: name === "factions" || name === "deletedDefaults" || name === "settings" || name === "campaign"
-        ? "keyed" as const
-        : "list" as const,
+      shape:
+        name === "factions" ||
+        name === "deletedDefaults" ||
+        name === "settings" ||
+        name === "campaign"
+          ? ("keyed" as const)
+          : ("list" as const),
       materialized: true,
       revision: 1,
       records: overrides[name] ?? [],

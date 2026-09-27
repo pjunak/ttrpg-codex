@@ -1,2 +1,14 @@
-# Migration checksums cover the exact bytes embedded in every host and maintenance build.
+# Keep text stable across development platforms. Migration checksums cover the
+# exact LF bytes embedded in every host and maintenance build.
+* text=auto eol=lf
 /internal/storage/sqlite/migrations/*.sql text eol=lf
+
+# Keep Go tooling deterministic across Windows and Unix checkouts.
+*.go text eol=lf
+*.mod text eol=lf
+*.sum text eol=lf
+*.ts text eol=lf
+*.mts text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.html text eol=lf

@@ -4,22 +4,22 @@
     {
       "id": "dm-tools",
       "repository": "pjunak/addon-dm-tools",
-      "revision": "7f1d02b8d761cd4846e76bf6b8082464de6d0217"
+      "revision": "d6ed281b2a62b49db20cce45d16e2f8c1bcccd98"
     },
     {
       "id": "dnd-engine",
       "repository": "pjunak/addon-dnd-engine",
-      "revision": "ffbde98f1f692bb1799bf8ce2f269f7780d979f4"
+      "revision": "3f59578a6e0d8e8b0674c50a65ca968312d3e6f9"
     },
     {
       "id": "dnd-sheets",
       "repository": "pjunak/addon-dnd-character-sheets",
-      "revision": "6d5807aa4759ccf75ecce9018afd23c87a984f43"
+      "revision": "a0659a32aded4a5f03f16e60ad6a28bc04bf9ad9"
     },
     {
       "id": "dnd-2024-compendium",
       "repository": "pjunak/addon-dnd-2024-compendium",
-      "revision": "65eefab4d600b68176893a37fa95adc37fafb323"
+      "revision": "80e3fd04c81a4748c402a24ad84a64c0e36a795c"
     }
   ]
 }

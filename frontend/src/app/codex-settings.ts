@@ -1,7 +1,11 @@
+import { formText, formTextValues } from "../core/forms.js";
 import { uiText } from "./ui-localization.js";
 import { LitElement, html, nothing } from "lit";
 import type { CampaignDataset } from "../core/campaign-data.js";
-import type { CampaignEnumCategory, CampaignEnumDeleteMutation } from "../core/campaign-mutations.js";
+import type {
+  CampaignEnumCategory,
+  CampaignEnumDeleteMutation,
+} from "../core/campaign-mutations.js";
 import {
   campaignEnumDescriptor,
   campaignEnumDescriptors,
@@ -34,7 +38,16 @@ import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { AddonContributionsController } from "./addon-contributions-controller.js";
 
-type SettingsCategory = "language" | "appearance" | "maps" | "playerParty" | "sidebar" | "addons" | "account" | "backup" | CampaignEnumCategory;
+type SettingsCategory =
+  | "language"
+  | "appearance"
+  | "maps"
+  | "playerParty"
+  | "sidebar"
+  | "addons"
+  | "account"
+  | "backup"
+  | CampaignEnumCategory;
 
 export class CodexSettings extends LitElement {
   static override properties = {
@@ -48,7 +61,10 @@ export class CodexSettings extends LitElement {
     csrfToken: { attribute: false },
     editingId: { state: true },
     deleteId: { state: true },
-    registry: { attribute: false }, actorRole: { attribute: false }, addonTarget: { attribute: false }, addonGeneration: { attribute: false },
+    registry: { attribute: false },
+    actorRole: { attribute: false },
+    addonTarget: { attribute: false },
+    addonGeneration: { attribute: false },
   };
 
   declare campaign: CampaignDataset | undefined;
@@ -57,7 +73,7 @@ export class CodexSettings extends LitElement {
   declare saving: boolean;
   declare editCompletion: number;
   declare private activeCategory: SettingsCategory;
-  declare private editingId: string | null | "__new__";
+  declare private editingId: string | null;
   declare private deleteId: string | null;
   declare addonPages: readonly BrowserNavigationEntry[];
   declare csrfToken: string;
@@ -65,7 +81,10 @@ export class CodexSettings extends LitElement {
   declare actorRole: BrowserRole | undefined;
   declare addonTarget: string | null | undefined;
   declare addonGeneration: string | undefined;
-  readonly #contributions = new AddonContributionsController(this, () => ({ registry: this.registry, role: this.actorRole }));
+  readonly #contributions = new AddonContributionsController(this, () => ({
+    registry: this.registry,
+    role: this.actorRole,
+  }));
   readonly #ui = new UiLocalizationController(this);
   #dirty = false;
   #credentialsSaving = false;
@@ -85,14 +104,26 @@ export class CodexSettings extends LitElement {
     this.deleteId = null;
   }
 
-  protected override createRenderRoot(): HTMLElement | DocumentFragment { return this; }
+  protected override createRenderRoot(): HTMLElement | DocumentFragment {
+    return this;
+  }
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if ((changed.has("mapTarget") || changed.has("canManageCampaign")) && this.mapTarget !== undefined && this.canManageCampaign) {
+    if (
+      (changed.has("mapTarget") || changed.has("canManageCampaign")) &&
+      this.mapTarget !== undefined &&
+      this.canManageCampaign
+    ) {
       this.activeCategory = "maps";
     }
-    if (changed.has("addonTarget") && this.addonTarget !== undefined) this.activeCategory = "addons";
-    if (changed.has("canManageCampaign") && !this.canManageCampaign && this.activeCategory !== "language" && this.activeCategory !== "addons") {
+    if (changed.has("addonTarget") && this.addonTarget !== undefined)
+      this.activeCategory = "addons";
+    if (
+      changed.has("canManageCampaign") &&
+      !this.canManageCampaign &&
+      this.activeCategory !== "language" &&
+      this.activeCategory !== "addons"
+    ) {
       this.activeCategory = "language";
       this.editingId = null;
       this.deleteId = null;
@@ -112,38 +143,60 @@ export class CodexSettings extends LitElement {
     const campaign = this.#editCampaign ?? this.campaign;
     if (this.activeCategory === "language") return this.#shell(this.#languagePanel());
     if (this.activeCategory === "appearance") return this.#shell(this.#appearancePanel());
-    if (this.activeCategory === "addons") return this.#shell(html`<codex-addon-manager .csrfToken=${this.csrfToken}
+    if (this.activeCategory === "addons")
+      return this.#shell(html`<codex-addon-manager .csrfToken=${this.csrfToken}
       .registry=${this.registry} .actorRole=${this.actorRole} .canManage=${this.canManageCampaign}
       .addonTarget=${this.addonTarget}
       .addonGeneration=${this.addonGeneration}
-      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}></codex-addon-manager>`);
+      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
+        this.#dirty = event.detail.dirty;
+      }}></codex-addon-manager>`);
     if (!this.canManageCampaign) return this.#shell(this.#languagePanel());
-    if (this.activeCategory === "account") return this.#shell(html`<codex-credential-settings .csrfToken=${this.csrfToken}
+    if (this.activeCategory === "account")
+      return this.#shell(html`<codex-credential-settings .csrfToken=${this.csrfToken}
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean; saving?: boolean }>) => {
-        this.#dirty = event.detail.dirty; this.#credentialsSaving = event.detail.saving === true; this.requestUpdate();
+        this.#dirty = event.detail.dirty;
+        this.#credentialsSaving = event.detail.saving === true;
+        this.requestUpdate();
       }}></codex-credential-settings>`);
-    if (this.activeCategory === "backup") return this.#shell(html`<codex-recovery-settings .csrfToken=${this.csrfToken}
+    if (this.activeCategory === "backup")
+      return this.#shell(html`<codex-recovery-settings .csrfToken=${this.csrfToken}
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean; saving?: boolean }>) => {
-        this.#dirty = event.detail.dirty; this.#credentialsSaving = event.detail.saving === true; this.requestUpdate();
+        this.#dirty = event.detail.dirty;
+        this.#credentialsSaving = event.detail.saving === true;
+        this.requestUpdate();
       }}></codex-recovery-settings>`);
-    if (this.activeCategory === "sidebar") return this.#shell(html`<codex-sidebar-settings .campaign=${this.campaign} .addonPages=${this.addonPages} .saving=${this.saving} .editCompletion=${this.editCompletion}
-      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}></codex-sidebar-settings>`);
-    if (this.activeCategory === "playerParty") return this.#shell(html`<codex-party-settings
+    if (this.activeCategory === "sidebar")
+      return this
+        .#shell(html`<codex-sidebar-settings .campaign=${this.campaign} .addonPages=${this.addonPages} .saving=${this.saving} .editCompletion=${this.editCompletion}
+      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
+        this.#dirty = event.detail.dirty;
+      }}></codex-sidebar-settings>`);
+    if (this.activeCategory === "playerParty")
+      return this.#shell(html`<codex-party-settings
       .campaign=${this.campaign} .saving=${this.saving} .editCompletion=${this.editCompletion}
-      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}
+      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
+        this.#dirty = event.detail.dirty;
+      }}
     ></codex-party-settings>`);
-    if (this.activeCategory === "maps") return this.#shell(html`<codex-map-settings .campaign=${this.campaign}
+    if (this.activeCategory === "maps")
+      return this.#shell(html`<codex-map-settings .campaign=${this.campaign}
       .initialParentId=${this.mapTarget ?? null} .saving=${this.saving} .editCompletion=${this.editCompletion}
-      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => { this.#dirty = event.detail.dirty; }}></codex-map-settings>`);
+      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
+        this.#dirty = event.detail.dirty;
+      }}></codex-map-settings>`);
     const descriptor = campaignEnumDescriptor(this.activeCategory);
     let items: readonly CampaignEnumItem[];
     try {
       items = campaignEnumItems(campaign, descriptor.category);
     } catch (cause: unknown) {
-      const message = cause instanceof CampaignSettingsEditError
-        ? uiText("This category has an invalid stored shape and was left untouched.")
-        : uiText("This category could not be opened.");
-      return this.#shell(html`<section class="settings-invalid" role="alert"><h2>${descriptor.label}</h2><p>${message}</p></section>`);
+      const message =
+        cause instanceof CampaignSettingsEditError
+          ? uiText("This category has an invalid stored shape and was left untouched.")
+          : uiText("This category could not be opened.");
+      return this.#shell(
+        html`<section class="settings-invalid" role="alert"><h2>${descriptor.label}</h2><p>${message}</p></section>`,
+      );
     }
     const record = campaignEnumRecord(campaign, descriptor.category);
     return this.#shell(html`
@@ -161,36 +214,48 @@ export class CodexSettings extends LitElement {
           </button>
         </header>
         ${this.editingId === "__new__" ? this.#editForm(undefined, record?.revision ?? 0) : nothing}
-        ${items.length === 0 && this.editingId !== "__new__"
-          ? html`<p class="settings-empty">${uiText("No {0} are defined yet.", { "0": descriptor.label.toLocaleLowerCase() })}</p>`
-          : html`<div class="settings-definition-list">
-              ${items.map((item) => this.editingId === item.id
-                ? this.#editForm(item, record?.revision ?? 0)
-                : this.#definitionRow(item, record?.revision ?? 0, items))}
-            </div>`}
+        ${
+          items.length === 0 && this.editingId !== "__new__"
+            ? html`<p class="settings-empty">${uiText("No {0} are defined yet.", { "0": descriptor.label.toLocaleLowerCase() })}</p>`
+            : html`<div class="settings-definition-list">
+              ${items.map((item) =>
+                this.editingId === item.id
+                  ? this.#editForm(item, record?.revision ?? 0)
+                  : this.#definitionRow(item, record?.revision ?? 0, items),
+              )}
+            </div>`
+        }
       </section>
     `);
   }
 
   #shell(content: unknown) {
-    const categories: readonly { readonly id: SettingsCategory; readonly label: string; readonly icon: string }[] = [
+    const categories: readonly {
+      readonly id: SettingsCategory;
+      readonly label: string;
+      readonly icon: string;
+    }[] = [
       { id: "language", label: this.#ui.t("settings.language"), icon: "文" },
-      ...(!this.canManageCampaign && (this.#contributions.list("settings").length > 0 || this.activeCategory === "addons")
-        ? [{ id: "addons" as const, label: this.#ui.t("addons.title"), icon: "🧩" }] : []),
-      ...(this.canManageCampaign ? [
-        { id: "appearance" as const, label: this.#ui.t("settings.appearance"), icon: "◐" },
-        { id: "maps" as const, label: this.#ui.t("map.settings"), icon: "🗺" },
-        { id: "playerParty" as const, label: this.#ui.t("settings.playerParty"), icon: "🛡" },
-        { id: "sidebar" as const, label: this.#ui.t("sidebar.title"), icon: "🧭" },
-        { id: "addons" as const, label: this.#ui.t("addons.title"), icon: "🧩" },
-        { id: "account" as const, label: this.#ui.t("credentials.title"), icon: "🖥" },
-        { id: "backup" as const, label: this.#ui.t("recovery.title"), icon: "💾" },
-        ...campaignEnumDescriptors.map((descriptor) => ({
-          id: descriptor.category as SettingsCategory,
-          label: descriptor.label,
-          icon: descriptor.icon,
-        })),
-      ] : []),
+      ...(!this.canManageCampaign &&
+      (this.#contributions.list("settings").length > 0 || this.activeCategory === "addons")
+        ? [{ id: "addons" as const, label: this.#ui.t("addons.title"), icon: "🧩" }]
+        : []),
+      ...(this.canManageCampaign
+        ? [
+            { id: "appearance" as const, label: this.#ui.t("settings.appearance"), icon: "◐" },
+            { id: "maps" as const, label: this.#ui.t("map.settings"), icon: "🗺" },
+            { id: "playerParty" as const, label: this.#ui.t("settings.playerParty"), icon: "🛡" },
+            { id: "sidebar" as const, label: this.#ui.t("sidebar.title"), icon: "🧭" },
+            { id: "addons" as const, label: this.#ui.t("addons.title"), icon: "🧩" },
+            { id: "account" as const, label: this.#ui.t("credentials.title"), icon: "🖥" },
+            { id: "backup" as const, label: this.#ui.t("recovery.title"), icon: "💾" },
+            ...campaignEnumDescriptors.map((descriptor) => ({
+              id: descriptor.category as SettingsCategory,
+              label: descriptor.label,
+              icon: descriptor.icon,
+            })),
+          ]
+        : []),
     ];
     return html`
       <section class="settings-page">
@@ -201,14 +266,16 @@ export class CodexSettings extends LitElement {
         </header>
         <div class="settings-workspace">
           <nav class="settings-index" aria-label=${this.#ui.t("settings.categories")}>
-            ${categories.map((category) => html`
+            ${categories.map(
+              (category) => html`
               <button type="button" data-category=${category.id}
                 aria-current=${category.id === this.activeCategory ? "page" : nothing}
                 @click=${this.#selectCategory} ?disabled=${this.saving || this.#credentialsSaving}>
                 <span aria-hidden="true">${category.icon}</span>
                 <span>${category.label}</span>
               </button>
-            `)}
+            `,
+            )}
           </nav>
           ${content}
         </div>
@@ -230,8 +297,10 @@ export class CodexSettings extends LitElement {
         <label class="settings-preference-field">
           <span>${this.#ui.t("settings.languageLabel")}</span>
           <select @change=${this.#changeLocale}>
-            ${availableUiLocales.map((locale) => html`
-              <option value=${locale.id} ?selected=${locale.id === this.#ui.locale}>${locale.endonym}</option>`)}
+            ${availableUiLocales.map(
+              (locale) => html`
+              <option value=${locale.id} ?selected=${locale.id === this.#ui.locale}>${locale.endonym}</option>`,
+            )}
           </select>
         </label>
         <p class="settings-progress-note">${this.#ui.t("settings.languageProgress")}</p>
@@ -258,12 +327,14 @@ export class CodexSettings extends LitElement {
           <fieldset ?disabled=${this.saving || this.#brandingDirty}>
             <legend>${this.#ui.t("settings.appearanceLabel")}</legend>
             <div class="settings-theme-list">
-              ${campaignThemes.map((theme) => html`
+              ${campaignThemes.map(
+                (theme) => html`
                 <label class=${`settings-theme-choice theme-sample-${theme.id}`}>
                   <input type="radio" name="theme" value=${theme.id} .checked=${theme.id === current} />
                   <span class="settings-theme-sample" aria-hidden="true"><i></i><b></b><em></em></span>
                   <span><strong>${this.#ui.t(theme.labelKey)}</strong><small>${this.#ui.t(theme.hintKey)}</small></span>
-                </label>`)}
+                </label>`,
+              )}
             </div>
           </fieldset>
           <input type="hidden" name="expectedRevision" value=${String(record?.revision ?? 0)} />
@@ -277,20 +348,29 @@ export class CodexSettings extends LitElement {
           @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
             event.stopPropagation();
             if (this.#brandingDirty || event.detail.dirty) this.#setDirty(event.detail.dirty);
-            this.#brandingDirty = event.detail.dirty; this.requestUpdate();
+            this.#brandingDirty = event.detail.dirty;
+            this.requestUpdate();
           }}></codex-branding-settings>
       </section>`;
   }
 
   #definitionRow(item: CampaignEnumItem, revision: number, items: readonly CampaignEnumItem[]) {
     const descriptor = campaignEnumDescriptor(this.#activeEnumCategory());
-    const usage = campaignEnumUsageCount(this.#editCampaign ?? this.campaign!, descriptor.category, item.id);
+    const usage = campaignEnumUsageCount(
+      this.#editCampaign ?? this.campaign!,
+      descriptor.category,
+      item.id,
+    );
     const color = firstColor(item.value);
     return html`
       <article class="settings-definition">
         <div class="settings-definition-identity">
-          ${color === undefined ? html`<span class="settings-definition-glyph" aria-hidden="true">${itemIcon(item)}</span>` : html`
-            <span class="settings-definition-swatch" style=${`--setting-color: ${color}`} aria-hidden="true"></span>`}
+          ${
+            color === undefined
+              ? html`<span class="settings-definition-glyph" aria-hidden="true">${itemIcon(item)}</span>`
+              : html`
+            <span class="settings-definition-swatch" style=${`--setting-color: ${color}`} aria-hidden="true"></span>`
+          }
           <div><h3>${item.label || item.id}</h3><code>${item.id}</code></div>
         </div>
         <p class="settings-definition-usage">${usage === 0 ? uiText("Not used") : this.#ui.plural("settings.usedRecords", usage)}</p>
@@ -312,16 +392,24 @@ export class CodexSettings extends LitElement {
         <header>
           <div>
             <h3>${item === undefined ? uiText("New {0}", { "0": descriptor.singular }) : uiText("Edit {0}", { "0": item.label || item.id })}</h3>
-            <p>${item === undefined
-              ? uiText("Choose a permanent ID before saving. It becomes the value stored on campaign records.")
-              : html`${uiText("Stored ID:")} <code>${item.id}</code>`}</p>
+            <p>${
+              item === undefined
+                ? uiText(
+                    "Choose a permanent ID before saving. It becomes the value stored on campaign records.",
+                  )
+                : html`${uiText("Stored ID:")} <code>${item.id}</code>`
+            }</p>
           </div>
         </header>
         <div class="settings-edit-grid">
-          ${item === undefined ? html`
+          ${
+            item === undefined
+              ? html`
             <label><span>${uiText("Permanent ID")}</span><input name="id" maxlength="200" required
               autocomplete="off" placeholder=${uiText("short-stable-id")} /></label>
-          ` : nothing}
+          `
+              : nothing
+          }
           ${descriptor.fields.map((definition) => this.#settingField(definition, values))}
         </div>
         <div class="settings-edit-actions">
@@ -334,17 +422,26 @@ export class CodexSettings extends LitElement {
 
   #settingField(definition: CampaignSettingField, values: Readonly<Record<string, unknown>>) {
     const raw = values[definition.key];
-    if (definition.kind === "select") return html`
+    if (definition.kind === "select")
+      return html`
       <label><span>${definition.label}</span><select name=${definition.key} ?required=${definition.required === true}>
-        ${definition.options?.map((option) => html`
-          <option value=${option.value} ?selected=${option.value === text(raw)}>${option.label}</option>`)}
+        ${definition.options?.map(
+          (option) => html`
+          <option value=${option.value} ?selected=${option.value === text(raw)}>${option.label}</option>`,
+        )}
       </select>${fieldHelp(definition)}</label>`;
     if (definition.kind === "directions") {
-      const selected = new Set(Array.isArray(raw) ? raw.filter((candidate): candidate is string => typeof candidate === "string") : []);
+      const selected = new Set(
+        Array.isArray(raw)
+          ? raw.filter((candidate): candidate is string => typeof candidate === "string")
+          : [],
+      );
       return html`
         <fieldset class="settings-direction-field"><legend>${definition.label}</legend>
-          ${directionOptions.map((option) => html`<label><input type="checkbox" name=${definition.key}
-            value=${option.value} .checked=${selected.has(option.value)} /><span>${option.label}</span></label>`)}
+          ${directionOptions.map(
+            (option) => html`<label><input type="checkbox" name=${definition.key}
+            value=${option.value} .checked=${selected.has(option.value)} /><span>${option.label}</span></label>`,
+          )}
           ${fieldHelp(definition)}
         </fieldset>`;
     }
@@ -374,16 +471,21 @@ export class CodexSettings extends LitElement {
     return html`
       <section class="settings-delete-panel" aria-labelledby=${`delete-${item.id}`}>
         <div><h3 id=${`delete-${item.id}`}>${uiText("Delete {0}?", { "0": item.label || item.id })}</h3>
-          <p>${usage === 0
-            ? uiText("The definition is not used by any campaign record.")
-            : this.#ui.plural("settings.replaceRecords", usage)}</p></div>
-        ${usage === 0 ? html`
+          <p>${
+            usage === 0
+              ? uiText("The definition is not used by any campaign record.")
+              : this.#ui.plural("settings.replaceRecords", usage)
+          }</p></div>
+        ${
+          usage === 0
+            ? html`
           <div class="settings-delete-actions">
             <button type="button" @click=${this.#cancelDelete}>${uiText("Keep it")}</button>
             <button class="danger" type="button" data-id=${item.id} data-revision=${String(expectedRevision)}
               data-mode="reject-if-used" @click=${this.#delete}>${uiText("Delete definition")}</button>
           </div>
-        ` : html`
+        `
+            : html`
           <label class="settings-replacement"><span>${uiText("Replacement")}</span>
             <select id=${`replacement-${item.id}`} ?disabled=${replacements.length === 0}>
               ${replacements.map((replacement) => html`<option value=${replacement.id}>${replacement.label || replacement.id}</option>`)}
@@ -396,14 +498,21 @@ export class CodexSettings extends LitElement {
             <button class="danger" type="button" data-id=${item.id} data-revision=${String(expectedRevision)}
               data-mode="clear" @click=${this.#delete}>${uiText("Clear uses and delete")}</button>
           </div>
-        `}
+        `
+        }
       </section>`;
   }
 
   readonly #selectCategory = (event: Event): void => {
-    const category = (event.currentTarget as HTMLButtonElement).dataset["category"] as SettingsCategory | undefined;
-    if (category === undefined || category === this.activeCategory || !this.#visibleCategory(category) ||
-      !this.#confirmDiscard()) return;
+    const category = (event.currentTarget as HTMLButtonElement).dataset["category"] as
+      SettingsCategory | undefined;
+    if (
+      category === undefined ||
+      category === this.activeCategory ||
+      !this.#visibleCategory(category) ||
+      !this.#confirmDiscard()
+    )
+      return;
     this.activeCategory = category;
     this.#editCampaign = category === "appearance" ? this.campaign : undefined;
     this.editingId = null;
@@ -445,17 +554,23 @@ export class CodexSettings extends LitElement {
 
   readonly #save = (event: SubmitEvent): void => {
     event.preventDefault();
-    if (this.saving || this.campaign === undefined || this.editingId === null ||
-      !isEnumCategory(this.activeCategory)) return;
+    if (
+      this.saving ||
+      this.campaign === undefined ||
+      this.editingId === null ||
+      !isEnumCategory(this.activeCategory)
+    )
+      return;
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
     const descriptor = campaignEnumDescriptor(this.activeCategory);
     const fields: Record<string, unknown> = {};
-    if (this.editingId === "__new__") fields["id"] = String(data.get("id") ?? "");
+    if (this.editingId === "__new__") fields["id"] = formText(data, "id");
     for (const definition of descriptor.fields) {
-      fields[definition.key] = definition.kind === "directions"
-        ? data.getAll(definition.key).map(String)
-        : String(data.get(definition.key) ?? "");
+      fields[definition.key] =
+        definition.kind === "directions"
+          ? formTextValues(data, definition.key)
+          : formText(data, definition.key);
     }
     const detail: CampaignEnumSaveDetail = Object.freeze({
       category: descriptor.category,
@@ -463,9 +578,13 @@ export class CodexSettings extends LitElement {
       expectedRevision: Number(data.get("expectedRevision")),
       fields: Object.freeze(fields),
     });
-    this.dispatchEvent(new CustomEvent<CampaignEnumSaveDetail>("campaign-enum-save", {
-      detail, bubbles: true, composed: true,
-    }));
+    this.dispatchEvent(
+      new CustomEvent<CampaignEnumSaveDetail>("campaign-enum-save", {
+        detail,
+        bubbles: true,
+        composed: true,
+      }),
+    );
   };
 
   readonly #delete = (event: Event): void => {
@@ -473,23 +592,43 @@ export class CodexSettings extends LitElement {
     const button = event.currentTarget as HTMLButtonElement;
     const itemId = button.dataset["id"];
     const mode = button.dataset["mode"];
-    if (itemId === undefined || (mode !== "reject-if-used" && mode !== "replace" && mode !== "clear")) return;
+    if (
+      itemId === undefined ||
+      (mode !== "reject-if-used" && mode !== "replace" && mode !== "clear")
+    )
+      return;
     let detail: CampaignEnumDeleteMutation;
     if (mode === "replace") {
-      const replacementId = this.querySelector<HTMLSelectElement>(`#replacement-${CSS.escape(itemId)}`)?.value ?? "";
+      const replacementId =
+        this.querySelector<HTMLSelectElement>(`#replacement-${CSS.escape(itemId)}`)?.value ?? "";
       if (replacementId === "") return;
-      detail = { category: this.activeCategory, itemId,
-        expectedRevision: Number(button.dataset["revision"]), mode, replacementId };
+      detail = {
+        category: this.activeCategory,
+        itemId,
+        expectedRevision: Number(button.dataset["revision"]),
+        mode,
+        replacementId,
+      };
     } else {
-      detail = { category: this.activeCategory, itemId,
-        expectedRevision: Number(button.dataset["revision"]), mode };
+      detail = {
+        category: this.activeCategory,
+        itemId,
+        expectedRevision: Number(button.dataset["revision"]),
+        mode,
+      };
     }
-    this.dispatchEvent(new CustomEvent<CampaignEnumDeleteMutation>("campaign-enum-delete", {
-      detail: Object.freeze(detail), bubbles: true, composed: true,
-    }));
+    this.dispatchEvent(
+      new CustomEvent<CampaignEnumDeleteMutation>("campaign-enum-delete", {
+        detail: Object.freeze(detail),
+        bubbles: true,
+        composed: true,
+      }),
+    );
   };
 
-  readonly #markDirty = (): void => { this.#setDirty(true); };
+  readonly #markDirty = (): void => {
+    this.#setDirty(true);
+  };
 
   readonly #changeLocale = (event: Event): void => {
     const locale = (event.currentTarget as HTMLSelectElement).value;
@@ -498,22 +637,43 @@ export class CodexSettings extends LitElement {
 
   readonly #saveAppearance = (event: SubmitEvent): void => {
     event.preventDefault();
-    if (this.saving || this.#brandingDirty || this.campaign === undefined || !this.canManageCampaign) return;
+    if (
+      this.saving ||
+      this.#brandingDirty ||
+      this.campaign === undefined ||
+      !this.canManageCampaign
+    )
+      return;
     const data = new FormData(event.currentTarget as HTMLFormElement);
-    const theme = String(data.get("theme") ?? "") as CampaignThemeID;
+    const theme = formText(data, "theme") as CampaignThemeID;
     if (!campaignThemes.some(({ id }) => id === theme)) return;
     const detail: CampaignAppearanceSaveDetail = Object.freeze({
       theme,
       expectedRevision: Number(data.get("expectedRevision")),
     });
-    this.dispatchEvent(new CustomEvent<CampaignAppearanceSaveDetail>("campaign-appearance-save", {
-      detail, bubbles: true, composed: true,
-    }));
+    this.dispatchEvent(
+      new CustomEvent<CampaignAppearanceSaveDetail>("campaign-appearance-save", {
+        detail,
+        bubbles: true,
+        composed: true,
+      }),
+    );
   };
 
   #visibleCategory(category: SettingsCategory): boolean {
-    return category === "language" || category === "addons" && this.#contributions.list("settings").length > 0 || this.canManageCampaign &&
-      (category === "appearance" || category === "maps" || category === "playerParty" || category === "sidebar" || category === "addons" || category === "account" || category === "backup" || isEnumCategory(category));
+    return (
+      category === "language" ||
+      (category === "addons" && this.#contributions.list("settings").length > 0) ||
+      (this.canManageCampaign &&
+        (category === "appearance" ||
+          category === "maps" ||
+          category === "playerParty" ||
+          category === "sidebar" ||
+          category === "addons" ||
+          category === "account" ||
+          category === "backup" ||
+          isEnumCategory(category)))
+    );
   }
 
   #activeEnumCategory(): CampaignEnumCategory {
@@ -526,7 +686,12 @@ export class CodexSettings extends LitElement {
   #confirmDiscard(): boolean {
     const edits = this.registry?.edits.state();
     if (this.saving || this.#credentialsSaving || edits?.saving) return false;
-    if (!confirmDiscardUnsavedEdit(this.#dirty || edits?.dirty === true, (message) => window.confirm(message))) return false;
+    if (
+      !confirmDiscardUnsavedEdit(this.#dirty || edits?.dirty === true, (message) =>
+        window.confirm(message),
+      )
+    )
+      return false;
     this.#setDirty(false);
     return true;
   }
@@ -536,30 +701,67 @@ export class CodexSettings extends LitElement {
     if (dirty === this.#dirty) return;
     this.#dirty = dirty;
     this.requestUpdate();
-    this.dispatchEvent(new CustomEvent("campaign-edit-dirty", {
-      detail: Object.freeze({ dirty }), bubbles: true, composed: true,
-    }));
+    this.dispatchEvent(
+      new CustomEvent("campaign-edit-dirty", {
+        detail: Object.freeze({ dirty }),
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 }
 
 function isEnumCategory(category: SettingsCategory): category is CampaignEnumCategory {
-  return campaignEnumDescriptors.some(descriptor => descriptor.category === category);
+  return campaignEnumDescriptors.some((descriptor) => descriptor.category === category);
 }
 
 const directionOptions = Object.freeze([
-  Object.freeze({ value: "from", get label() { return uiText("Character → target"); } }),
-  Object.freeze({ value: "to", get label() { return uiText("Target → character"); } }),
-  Object.freeze({ value: "both", get label() { return uiText("Both directions"); } }),
+  Object.freeze({
+    value: "from",
+    get label() {
+      return uiText("Character → target");
+    },
+  }),
+  Object.freeze({
+    value: "to",
+    get label() {
+      return uiText("Target → character");
+    },
+  }),
+  Object.freeze({
+    value: "both",
+    get label() {
+      return uiText("Both directions");
+    },
+  }),
 ]);
 
 function newItemDefaults(category: CampaignEnumCategory): Readonly<Record<string, unknown>> {
   switch (category) {
-    case "relationshipTypes": return Object.freeze({ label: "", color: "#555555", style: "solid", target: "character", dirs: ["from", "to", "both"] });
-    case "genders": return Object.freeze({ label: "" });
-    case "pinTypes": return Object.freeze({ label: "", defaultIconId: "", size: 28 });
-    case "characterStatuses": return Object.freeze({ label: "", icon: "●", color: "#555555" });
-    case "eventPriorities": return Object.freeze({ label: "", color: "#555555" });
-    case "attitudes": return Object.freeze({ label: "", bg: "#555555", fg: "#ffffff", labelColor: "#777777", strength: 1 });
+    case "relationshipTypes":
+      return Object.freeze({
+        label: "",
+        color: "#555555",
+        style: "solid",
+        target: "character",
+        dirs: ["from", "to", "both"],
+      });
+    case "genders":
+      return Object.freeze({ label: "" });
+    case "pinTypes":
+      return Object.freeze({ label: "", defaultIconId: "", size: 28 });
+    case "characterStatuses":
+      return Object.freeze({ label: "", icon: "●", color: "#555555" });
+    case "eventPriorities":
+      return Object.freeze({ label: "", color: "#555555" });
+    case "attitudes":
+      return Object.freeze({
+        label: "",
+        bg: "#555555",
+        fg: "#ffffff",
+        labelColor: "#777777",
+        strength: 1,
+      });
   }
 }
 
@@ -573,7 +775,7 @@ function firstColor(value: Readonly<Record<string, unknown>>): string | undefine
 
 function itemIcon(item: CampaignEnumItem): string {
   const icon = text(item.value["icon"]);
-  return icon === "" ? (item.label || item.id)[0]?.toLocaleUpperCase() ?? "·" : icon;
+  return icon === "" ? ((item.label || item.id)[0]?.toLocaleUpperCase() ?? "·") : icon;
 }
 
 function normalizedColor(value: unknown): string | undefined {
@@ -585,7 +787,11 @@ function fieldHelp(field: CampaignSettingField) {
   return field.help === undefined ? nothing : html`<small>${field.help}</small>`;
 }
 
-function text(value: unknown): string { return typeof value === "string" ? value : ""; }
-function inputValue(value: unknown): string { return typeof value === "string" || typeof value === "number" ? String(value) : ""; }
+function text(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+function inputValue(value: unknown): string {
+  return typeof value === "string" || typeof value === "number" ? String(value) : "";
+}
 
 if (!customElements.get("codex-settings")) customElements.define("codex-settings", CodexSettings);

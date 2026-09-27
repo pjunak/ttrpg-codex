@@ -26,7 +26,7 @@ downloaded backups protect it outside that browser and server.
 ## Run locally
 
 Use the Go version in [go.mod](go.mod) and Node.js from [.nvmrc](.nvmrc).
-Node 24 or newer is supported; development and CI use Node 26.
+Node 26 or newer is required; development and CI use Node 26.
 
 From the repository root:
 

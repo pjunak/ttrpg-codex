@@ -102,27 +102,29 @@ jobs:
           cache: true
           cache-dependency-path: |
             ttrpg-codex/go.sum
+            ttrpg-codex/go.tools.sum
             addon-*/go.sum
+            addon-*/go.tools.sum
 
       - name: Install host and browser dependencies
         run: npm ci && npx playwright install --with-deps chromium
         working-directory: ttrpg-codex
 
       - name: Test and package DM Tools against the candidate host
-        run: npm ci && npm run check && go test ./... && go vet ./... && go run ./cmd/build-package
+        run: npm ci && go mod download -modfile=go.tools.mod && npm run check && go run ./cmd/build-package
         working-directory: addon-dm-tools
 
       - name: Test and package D&D Engine against the candidate host
-        run: go test ./... && go vet ./... && go run ./cmd/build-package
+        run: go mod download -modfile=go.tools.mod && go run ./tools/check.go && go run ./cmd/build-package
         working-directory: addon-dnd-engine
 
       - name: Test and package Character Sheets against the candidate host
-        run: npm ci && npm run package && npm test && go test ./... && go vet ./...
+        run: npm ci && go mod download -modfile=go.tools.mod && npm run check && npm run package
         working-directory: addon-dnd-character-sheets
 
       - name: Test and package Compendium against the candidate host
         if: steps.coverage.outputs.mode == 'full'
-        run: npm ci && npm run package && npm run typecheck:tools && npm test
+        run: npm ci && npm run check && npm run package
         working-directory: addon-dnd-2024-compendium
 
       - name: Inspect exact built ZIPs and record source provenance

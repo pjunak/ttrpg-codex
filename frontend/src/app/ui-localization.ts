@@ -37,18 +37,24 @@ const enCatalog = {
   ...storageEn,
   ...ruleDetailsEn,
   "settings.usedRecords": { one: "Used by {n} record", other: "Used by {n} records" },
-  "settings.replaceRecords": { one: "{n} campaign record uses this definition. Choose how those records should change.", other: "{n} campaign records use this definition. Choose how those records should change." },
+  "settings.replaceRecords": {
+    one: "{n} campaign record uses this definition. Choose how those records should change.",
+    other: "{n} campaign records use this definition. Choose how those records should change.",
+  },
   "recovery.title": "Backup & recovery",
   "recovery.download": "Download ZIP",
   "recovery.create": "Create recovery point",
   "recovery.refresh": "Refresh",
-  "recovery.intro": "Recover the campaign or one add-on independently. Campaign recovery works even if an add-on's old build or saved context is gone. Edits are grouped at most once a minute; the newest 50 snapshots are retained.",
+  "recovery.intro":
+    "Recover the campaign or one add-on independently. Campaign recovery works even if an add-on's old build or saved context is gone. Edits are grouped at most once a minute; the newest 50 snapshots are retained.",
   "recovery.scope": "Recovery data",
   "recovery.campaign": "Campaign",
   "recovery.addon": "Add-on: {addon}",
-  "recovery.addonEffect": "This restores only the selected add-on's documents and files. Campaign records and other add-ons stay as they are. The current state is saved first. Linked records must still match; restore the campaign first if needed.",
+  "recovery.addonEffect":
+    "This restores only the selected add-on's documents and files. Campaign records and other add-ons stay as they are. The current state is saved first. Linked records must still match; restore the campaign first if needed.",
   "recovery.guide": "Verify and restore a full backup (opens in a new tab)",
-  "recovery.offline": "Download a full ZIP for an independent backup. Full archive restore is performed with the host stopped, using the maintenance command.",
+  "recovery.offline":
+    "Download a full ZIP for an independent backup. Full archive restore is performed with the host stopped, using the maintenance command.",
   "recovery.busy": "Working…",
   "recovery.revertCount": "Revert recent edit groups",
   "recovery.revert": "Undo",
@@ -62,18 +68,25 @@ const enCatalog = {
   "recovery.restoreReview": "Restore this saved state?",
   "recovery.deleteReview": "Delete this recovery data?",
   "recovery.summary": "{records} records · {documents} add-on documents · {media} files",
-  "recovery.restoreEffect": "This restores campaign records and campaign files, saving the current state first. Add-on saves, installed packages and passwords stay as they are. Missing add-on context does not block campaign recovery.",
-  "recovery.deleteEffect": "This deletes only the selected campaign or add-on recovery data. Other recovery data in this snapshot and all current saves stay as they are.",
+  "recovery.restoreEffect":
+    "This restores campaign records and campaign files, saving the current state first. Add-on saves, installed packages and passwords stay as they are. Missing add-on context does not block campaign recovery.",
+  "recovery.deleteEffect":
+    "This deletes only the selected campaign or add-on recovery data. Other recovery data in this snapshot and all current saves stay as they are.",
   "recovery.cancel": "Cancel",
   "recovery.created": "Recovery point created.",
   "recovery.deleted": "Recovery point deleted.",
-  "recovery.restored": "Selected data restored. A copy of the previous state is available in the list.",
-  "recovery.conflict": "The campaign or recovery list changed. Refresh, then review the point again.",
-  "recovery.compatibility": "This add-on requires its matching active build, data definitions and linked campaign records. Check its version in Add-ons or restore the campaign first. Campaign recovery remains available independently.",
+  "recovery.restored":
+    "Selected data restored. A copy of the previous state is available in the list.",
+  "recovery.conflict":
+    "The campaign or recovery list changed. Refresh, then review the point again.",
+  "recovery.compatibility":
+    "This add-on requires its matching active build, data definitions and linked campaign records. Check its version in Add-ons or restore the campaign first. Campaign recovery remains available independently.",
   "recovery.forbidden": "Sign in as DM and leave player preview to manage recovery.",
   "recovery.missing": "That recovery point or edit group is no longer available. Refresh the list.",
-  "recovery.failed": "Could not confirm the result. Refresh before retrying; a completed action may already be in the list.",
-  "recovery.openEdits": "The campaign was restored. Your unsaved edits are still open; reload before editing the restored data.",
+  "recovery.failed":
+    "Could not confirm the result. Refresh before retrying; a completed action may already be in the list.",
+  "recovery.openEdits":
+    "The campaign was restored. Your unsaved edits are still open; reload before editing the restored data.",
   "credentials.title": "Server access",
   "credentials.intro": "Manage the shared DM and player passwords for this site.",
   "credentials.refresh": "Refresh password status",
@@ -88,17 +101,22 @@ const enCatalog = {
   "credentials.save": "Change password",
   "credentials.disable": "Disable player sign-in",
   "credentials.disableSave": "Disable player access",
-  "credentials.dmEffect": "Other DM sessions and player previews will sign out. This tab stays signed in.",
-  "credentials.playerEffect": "Existing player sessions and previews will sign out. Public campaign reading stays available.",
+  "credentials.dmEffect":
+    "Other DM sessions and player previews will sign out. This tab stays signed in.",
+  "credentials.playerEffect":
+    "Existing player sessions and previews will sign out. Public campaign reading stays available.",
   "credentials.saved": "Password settings saved. This tab is still signed in.",
   "credentials.mismatch": "The new passwords do not match.",
   "credentials.currentIncorrect": "The current DM password is incorrect.",
   "credentials.policy": "Use 4–4096 bytes and a different password for each role.",
   "credentials.forbidden": "Sign in as DM and leave player preview to manage passwords.",
-  "credentials.conflict": "Password settings changed in another tab. Refresh status, review your entries, and try again.",
+  "credentials.conflict":
+    "Password settings changed in another tab. Refresh status, review your entries, and try again.",
   "credentials.rateLimited": "Too many password attempts. Wait a minute before trying again.",
-  "credentials.loadFailed": "Could not load password settings. Your entries are retained; try refreshing again.",
-  "credentials.failed": "Could not confirm the save. Refresh status before retrying. If the DM password changed, enter the new password as the current one.",
+  "credentials.loadFailed":
+    "Could not load password settings. Your entries are retained; try refreshing again.",
+  "credentials.failed":
+    "Could not confirm the save. Refresh status before retrying. If the DM password changed, enter the new password as the current one.",
   "wiki.loading": "Loading reference links…",
   "wiki.failed": "Some add-on references could not be loaded.",
   "wiki.missing": "No unique visible entry matches this link. Check its kind or record ID.",
@@ -114,7 +132,8 @@ const enCatalog = {
   "addons.reload": "Reload",
   "addons.disable": "Disable",
   "addons.versions": "Saved packages",
-  "addons.versionsHint": "Only the active package runs. Other packages are kept for review or rollback; they do not run alongside it.",
+  "addons.versionsHint":
+    "Only the active package runs. Other packages are kept for review or rollback; they do not run alongside it.",
   "addons.savedInactive": "Inactive",
   "addons.review": "Review activation",
   "addons.rollback": "Review rollback",
@@ -132,7 +151,8 @@ const enCatalog = {
   "addons.changed": "Changed",
   "addons.removed": "Removed",
   "addons.done": "Add-on state updated.",
-  "addons.failed": "The action could not be confirmed. Review the current state before trying again.",
+  "addons.failed":
+    "The action could not be confirmed. Review the current state before trying again.",
   "addons.fileRequired": "Choose a nonempty release ZIP up to 128 MiB.",
   "addons.generation": "Package fingerprint",
   "addons.grantHint": "Select the access you approve for this exact package.",
@@ -150,16 +170,19 @@ const enCatalog = {
   "addons.noChanges": "No declaration changes.",
   "dm.title": "DM panel",
   "dm.refusal": "This page is available only in DM view.",
-  "dm.fallback": "Your campaign tools and hidden content remain accessible here when no add-on dashboard is available.",
+  "dm.fallback":
+    "Your campaign tools and hidden content remain accessible here when no add-on dashboard is available.",
   "dm.tools": "Campaign tools",
   "dm.addonHealth": "Add-on status",
   "dm.addonHealthHint": "Status of the browser add-ons loaded for this session.",
   "dm.noAddons": "No browser add-ons are loaded.",
   "dm.loading": "Loading add-on tools…",
-  "dm.failed": "Some add-on tools could not be displayed. You can use the available tools below or retry.",
+  "dm.failed":
+    "Some add-on tools could not be displayed. You can use the available tools below or retry.",
   "dm.retry": "Reload add-on tools",
   "preview.notice": "Player preview — this tab has player access. Your DM tab remains signed in.",
-  "preview.unavailable": "Player preview is unavailable or expired. Open a new preview from your DM tab.",
+  "preview.unavailable":
+    "Player preview is unavailable or expired. Open a new preview from your DM tab.",
   "preview.close": "Close player preview",
   "preview.openHint": "Open the player view in a separate tab",
   "preview.blocked": "Allow pop-ups for this site to open player preview.",
@@ -169,7 +192,10 @@ const enCatalog = {
   "dm.state.failed": "Failed",
   "dm.hiddenContent": "Hidden content",
   "dm.hiddenEmpty": "No records are marked as DM-only.",
-  "dm.hiddenCount": { one: "{n} record is marked as DM-only.", other: "{n} records are marked as DM-only." },
+  "dm.hiddenCount": {
+    one: "{n} record is marked as DM-only.",
+    other: "{n} records are marked as DM-only.",
+  },
   "dm.onlyDm": "DM-only / total",
   "graph.title": "Mind Palace",
   "graph.relationships": "Relationships",
@@ -205,15 +231,18 @@ const enCatalog = {
   "graph.focus": "Focus",
   "graph.focusHops": "Neighborhood depth",
   "graph.clearFilters": "Clear filters",
-  "graph.storageFailed": "This browser could not save your arrangement and filters. They remain available until you leave this page.",
-  "graph.storageChanged": "Another tab changed the arrangement. Current movement was cancelled and the saved view was loaded.",
+  "graph.storageFailed":
+    "This browser could not save your arrangement and filters. They remain available until you leave this page.",
+  "graph.storageChanged":
+    "Another tab changed the arrangement. Current movement was cancelled and the saved view was loaded.",
   "graph.retry": "Retry",
   "graph.addonLoading": "Loading add-on cards…",
   "timeline.addonFailed": "Could not display this timeline add-on.",
   "graph.addonFailed": "Could not load graph content: {names}.",
   "graph.addonUnavailable": "This add-on view is currently unavailable for your role.",
   "graph.canvas": "Relationship graph",
-  "graph.keyboardHelp": "Tab to a card and press Enter to open it. Arrow keys move the focused card; Shift moves farther. Arrow keys on the canvas pan. Escape cancels a drag. Shift+F10 opens card actions.",
+  "graph.keyboardHelp":
+    "Tab to a card and press Enter to open it. Arrow keys move the focused card; Shift moves farther. Arrow keys on the canvas pan. Escape cancels a drag. Shift+F10 opens card actions.",
   "graph.connectionCount": { one: "{n} relationship", other: "{n} relationships" },
   "graph.empty": "No characters to display",
   "graph.emptyHint": "Add characters to the campaign or clear the faction filters.",
@@ -239,7 +268,8 @@ const enCatalog = {
   "timeline.down": "Move {name} down",
   "timeline.move": "Move {name} to session",
   "timeline.back": "Back to timeline",
-  "timeline.stale": "The events changed. Your order is kept; cancel to review the current timeline before trying again.",
+  "timeline.stale":
+    "The events changed. Your order is kept; cancel to review the current timeline before trying again.",
   "timeline.invalid": "This order cannot be saved. Your draft is kept.",
   "timeline.limit": "This move changes too many events at once. Cancel and move a smaller group.",
   "timeline.failed": "The order could not be saved. Your draft is kept; try again.",
@@ -251,7 +281,10 @@ const enCatalog = {
   "shell.signInForTools": "Sign in to open campaign tools.",
   "shell.addonsIdle": "Add-ons are idle",
   "shell.addonsLoading": "Loading add-ons…",
-  "shell.addonGenerationsActive": { one: "{n} add-on generation active", other: "{n} add-on generations active" },
+  "shell.addonGenerationsActive": {
+    one: "{n} add-on generation active",
+    other: "{n} add-on generations active",
+  },
   "shell.addonsActiveFailed": "{active} active · {failed} failed",
   "shell.addonsAttention": "Add-ons need attention",
   "shell.campaignAddons": "Campaign add-ons",
@@ -287,16 +320,19 @@ const enCatalog = {
   "shell.live": "Live",
   "shell.reconnecting": "Reconnecting",
   "session.recoverTitle": "Sign in again to continue",
-  "session.recoverHint": "Your session needs to be restored. Your core edits are kept here. After signing in, review and save them again.",
+  "session.recoverHint":
+    "Your session needs to be restored. Your core edits are kept here. After signing in, review and save them again.",
   "session.resume": "Resume editing",
   "session.restored": "Signed in again. Review your edits and save when ready.",
   "session.sameRole": "Use the password for the same role as this editing session.",
-  "session.resumeFailed": "Sign-in could not be confirmed. Your edits are kept; check the password and connection, then try again.",
+  "session.resumeFailed":
+    "Sign-in could not be confirmed. Your edits are kept; check the password and connection, then try again.",
   "shell.openingCampaign": "Opening the campaign chronicle…",
   "shell.campaignOpenFailed": "The chronicle could not be opened.",
   "shell.tryAgain": "Try again",
   "shell.signInSettings": "Sign in to open settings.",
-  "shell.settingsAuthHint": "Personal preferences are available to everyone; campaign configuration requires a DM session.",
+  "shell.settingsAuthHint":
+    "Personal preferences are available to everyone; campaign configuration requires a DM session.",
   "shell.signInAddon": "Sign in to open this page.",
   "shell.addonRoleHint": "Add-on tools inherit your current campaign role.",
   "shell.openingAddon": "Opening add-on page…",
@@ -367,7 +403,8 @@ const enCatalog = {
   "map.openMap": "Open map",
   "map.configInvalid": "This map configuration has an invalid stored shape and was left untouched.",
   "map.markerZoom": "Marker scaling with zoom",
-  "map.markerZoomHint": "0% keeps markers the same size on screen. 100% scales them with the map. Values in between give a gentler change.",
+  "map.markerZoomHint":
+    "0% keeps markers the same size on screen. 100% scales them with the map. Values in between give a gentler change.",
   "map.savedViews": "Saved views",
   "map.noViews": "No saved views for this map.",
   "map.manageViews": "Manage views on map",
@@ -394,8 +431,10 @@ const enCatalog = {
   "map.x": "Horizontal position (%)",
   "map.y": "Vertical position (%)",
   "map.removePin": "Remove from map",
-  "map.stale": "This map entry changed. Your draft is kept; cancel and reopen it to review the current version.",
-  "map.saveFailed": "The map change could not be saved. Check the values and try again; your draft is kept.",
+  "map.stale":
+    "This map entry changed. Your draft is kept; cancel and reopen it to review the current version.",
+  "map.saveFailed":
+    "The map change could not be saved. Check the values and try again; your draft is kept.",
   "dashboard.editName": "Edit campaign name",
   "dashboard.editTagline": "Edit campaign tagline",
   "dashboard.dmIdentity": "Campaign name and tagline require DM mode.",
@@ -404,8 +443,10 @@ const enCatalog = {
   "dashboard.cancel": "Cancel",
   "dashboard.add": "Add",
   "dashboard.addPartyMember": "Add party member",
-  "dashboard.identityStale": "Campaign details changed. Your draft is kept; copy any text you need, then cancel and reopen to review the current version.",
-  "dashboard.identityInvalid": "Enter a campaign name and use at most 500 characters per field, on one line.",
+  "dashboard.identityStale":
+    "Campaign details changed. Your draft is kept; copy any text you need, then cancel and reopen to review the current version.",
+  "dashboard.identityInvalid":
+    "Enter a campaign name and use at most 500 characters per field, on one line.",
   "dashboard.identityFailed": "Campaign details could not be saved. Your draft is kept; try again.",
   "dashboard.company": "Our party",
   "dashboard.openRoster": "Whole party →",
@@ -425,7 +466,8 @@ const enCatalog = {
   "dashboard.daysAgo": "{n} days ago",
   "search.kicker": "Campaign index",
   "search.title": "Search the chronicle",
-  "search.intro": "Find people, places, events, mysteries, factions, lore, and companions in your current view.",
+  "search.intro":
+    "Find people, places, events, mysteries, factions, lore, and companions in your current view.",
   "search.label": "Search the campaign",
   "search.placeholder": "Name, title, tag, or remembered phrase",
   "search.prompt": "Begin typing to search every visible part of the campaign archive.",
@@ -433,22 +475,28 @@ const enCatalog = {
   "search.count": { one: "{n} entry found", other: "{n} entries found" },
   "settings.kicker": "Campaign administration",
   "settings.title": "Settings",
-  "settings.intro": "Choose your reading language and manage the campaign’s shared presentation and vocabulary.",
+  "settings.intro":
+    "Choose your reading language and manage the campaign’s shared presentation and vocabulary.",
   "settings.categories": "Settings categories",
   "settings.language": "Language",
-  "settings.languageIntro": "Choose the language used by this browser. It does not change campaign data or another player’s preference.",
+  "settings.languageIntro":
+    "Choose the language used by this browser. It does not change campaign data or another player’s preference.",
   "settings.languageLabel": "Interface language",
-  "settings.languageProgress": "Interface language applies to the campaign tools and first-party add-ons. Authored campaign text and reference content keep their original language.",
+  "settings.languageProgress":
+    "Interface language applies to the campaign tools and first-party add-ons. Authored campaign text and reference content keep their original language.",
   "settings.appearance": "Appearance",
-  "settings.appearanceIntro": "The campaign theme is shared by everyone. Only the DM can change it.",
+  "settings.appearanceIntro":
+    "The campaign theme is shared by everyone. Only the DM can change it.",
   "settings.appearanceLabel": "Campaign theme",
   "settings.appearanceClassic": "Classic archive",
-  "settings.appearanceClassicHint": "The original dark brown canvas, parchment text, and gold headings.",
+  "settings.appearanceClassicHint":
+    "The original dark brown canvas, parchment text, and gold headings.",
   "settings.appearanceMoonlit": "Moonlit archive",
   "settings.appearanceMoonlitHint": "Dark slate surfaces with silver blue headings.",
   "settings.saveAppearance": "Save appearance",
   "branding.title": "Site branding",
-  "branding.intro": "Choose the logo and wordmark shown in the sidebar and the browser tab. Save to apply your changes.",
+  "branding.intro":
+    "Choose the logo and wordmark shown in the sidebar and the browser tab. Save to apply your changes.",
   "branding.logo": "Campaign logo",
   "branding.customLogo": "Custom logo",
   "branding.defaultLogo": "Default logo",
@@ -458,14 +506,17 @@ const enCatalog = {
   "branding.subtitle": "Subtitle",
   "branding.invalid": "The branding settings are invalid. Check the stored values before saving.",
   "branding.stale": "Branding changed. Your draft is kept; cancel to review the current values.",
-  "branding.failed": "Branding could not be saved. Your draft and selected file are kept; try again.",
+  "branding.failed":
+    "Branding could not be saved. Your draft and selected file are kept; try again.",
   "sidebar.title": "Sidebar",
   "sidebar.addonPages": "Add-on pages",
-  "sidebar.addonHint": "Choose which installed pages appear in the sidebar. Add-on role restrictions still apply.",
+  "sidebar.addonHint":
+    "Choose which installed pages appear in the sidebar. Add-on role restrictions still apply.",
   "sidebar.noAddons": "No active add-on pages.",
   "sidebar.addonVisibility": "Visibility of {name}",
   "sidebar.everyone": "Everyone",
-  "sidebar.intro": "Arrange pages and sections by dragging or using the arrow and move controls. Save to update the shared sidebar.",
+  "sidebar.intro":
+    "Arrange pages and sections by dragging or using the arrow and move controls. Save to update the shared sidebar.",
   "sidebar.addSection": "Add section",
   "sidebar.defaults": "Reset layout",
   "sidebar.hidden": "Hidden pages",
@@ -494,11 +545,14 @@ const enCatalog = {
   "settings.partyColor": "Color (glow / chip)",
   "settings.partyTextColor": "Text color",
   "settings.partyMembers": { one: "{n} party member", other: "{n} party members" },
-  "settings.partyMembersHint": "To add or remove a member, change the faction on their character page.",
+  "settings.partyMembersHint":
+    "To add or remove a member, change the faction on their character page.",
   "settings.partyNoMembers": "No members yet.",
   "settings.partyOpen": "Open →",
-  "settings.partyInvalid": "The party settings are invalid. Check the name, symbol, and colors before saving.",
-  "settings.partyStale": "The party settings changed. Your draft is kept; cancel to review the current values before saving.",
+  "settings.partyInvalid":
+    "The party settings are invalid. Check the name, symbol, and colors before saving.",
+  "settings.partyStale":
+    "The party settings changed. Your draft is kept; cancel to review the current values before saving.",
   "settings.partyFailed": "The party settings could not be saved. Your draft is kept; try again.",
   "settings.saving": "Saving…",
 } satisfies Record<string, Message>;
@@ -518,19 +572,30 @@ const csCatalog = {
   ...disableCs,
   ...storageCs,
   ...ruleDetailsCs,
-  "settings.usedRecords": { one: "Používá {n} záznam", few: "Používají {n} záznamy", other: "Používá {n} záznamů" },
-  "settings.replaceRecords": { one: "Tuto definici používá {n} záznam kampaně. Vyberte, jak se mají použití změnit.", few: "Tuto definici používají {n} záznamy kampaně. Vyberte, jak se mají použití změnit.", other: "Tuto definici používá {n} záznamů kampaně. Vyberte, jak se mají použití změnit." },
+  "settings.usedRecords": {
+    one: "Používá {n} záznam",
+    few: "Používají {n} záznamy",
+    other: "Používá {n} záznamů",
+  },
+  "settings.replaceRecords": {
+    one: "Tuto definici používá {n} záznam kampaně. Vyberte, jak se mají použití změnit.",
+    few: "Tuto definici používají {n} záznamy kampaně. Vyberte, jak se mají použití změnit.",
+    other: "Tuto definici používá {n} záznamů kampaně. Vyberte, jak se mají použití změnit.",
+  },
   "recovery.title": "Zálohy a obnova",
   "recovery.download": "Stáhnout ZIP",
   "recovery.create": "Vytvořit bod obnovy",
   "recovery.refresh": "Obnovit seznam",
-  "recovery.intro": "Kampaň a jednotlivé doplňky lze obnovit nezávisle. Kampaň lze obnovit i bez starého sestavení nebo uloženého stavu doplňku. Úpravy se seskupují nejvýše jednou za minutu; uchovává se posledních 50 snímků.",
+  "recovery.intro":
+    "Kampaň a jednotlivé doplňky lze obnovit nezávisle. Kampaň lze obnovit i bez starého sestavení nebo uloženého stavu doplňku. Úpravy se seskupují nejvýše jednou za minutu; uchovává se posledních 50 snímků.",
   "recovery.scope": "Obnovovaná data",
   "recovery.campaign": "Kampaň",
   "recovery.addon": "Doplněk: {addon}",
-  "recovery.addonEffect": "Obnoví se pouze dokumenty a soubory vybraného doplňku. Záznamy kampaně a ostatní doplňky zůstanou beze změny. Současný stav se nejprve uloží. Propojené záznamy musí odpovídat; podle potřeby nejprve obnovte kampaň.",
+  "recovery.addonEffect":
+    "Obnoví se pouze dokumenty a soubory vybraného doplňku. Záznamy kampaně a ostatní doplňky zůstanou beze změny. Současný stav se nejprve uloží. Propojené záznamy musí odpovídat; podle potřeby nejprve obnovte kampaň.",
   "recovery.guide": "Ověření a obnova úplné zálohy (anglicky, otevře novou kartu)",
-  "recovery.offline": "Pro nezávislou zálohu stáhněte úplný ZIP. Obnova z archivu se provádí příkazem údržby při zastaveném serveru.",
+  "recovery.offline":
+    "Pro nezávislou zálohu stáhněte úplný ZIP. Obnova z archivu se provádí příkazem údržby při zastaveném serveru.",
   "recovery.busy": "Pracuji…",
   "recovery.revertCount": "Vrátit poslední skupiny úprav",
   "recovery.revert": "Vrátit",
@@ -544,18 +609,24 @@ const csCatalog = {
   "recovery.restoreReview": "Obnovit tento uložený stav?",
   "recovery.deleteReview": "Smazat tato data obnovy?",
   "recovery.summary": "Záznamy: {records} · dokumenty doplňků: {documents} · soubory: {media}",
-  "recovery.restoreEffect": "Obnoví se záznamy a soubory kampaně. Současný stav se nejprve uloží. Uložená data doplňků, nainstalované balíčky a hesla zůstanou beze změny. Chybějící stav doplňku nebrání obnově kampaně.",
-  "recovery.deleteEffect": "Smažou se pouze vybraná data obnovy kampaně nebo doplňku. Ostatní data obnovy v tomto snímku i všechna současná uložená data zůstanou beze změny.",
+  "recovery.restoreEffect":
+    "Obnoví se záznamy a soubory kampaně. Současný stav se nejprve uloží. Uložená data doplňků, nainstalované balíčky a hesla zůstanou beze změny. Chybějící stav doplňku nebrání obnově kampaně.",
+  "recovery.deleteEffect":
+    "Smažou se pouze vybraná data obnovy kampaně nebo doplňku. Ostatní data obnovy v tomto snímku i všechna současná uložená data zůstanou beze změny.",
   "recovery.cancel": "Zrušit",
   "recovery.created": "Bod obnovy byl vytvořen.",
   "recovery.deleted": "Bod obnovy byl smazán.",
   "recovery.restored": "Vybraná data byla obnovena. Kopie předchozího stavu je dostupná v seznamu.",
-  "recovery.conflict": "Kampaň nebo seznam bodů se změnil. Obnovte seznam a znovu zkontrolujte vybraný bod.",
-  "recovery.compatibility": "Tento doplněk vyžaduje odpovídající aktivní sestavení, definice dat a propojené záznamy kampaně. Zkontrolujte verzi v Doplňcích nebo nejprve obnovte kampaň. Kampaň lze obnovit nezávisle.",
+  "recovery.conflict":
+    "Kampaň nebo seznam bodů se změnil. Obnovte seznam a znovu zkontrolujte vybraný bod.",
+  "recovery.compatibility":
+    "Tento doplněk vyžaduje odpovídající aktivní sestavení, definice dat a propojené záznamy kampaně. Zkontrolujte verzi v Doplňcích nebo nejprve obnovte kampaň. Kampaň lze obnovit nezávisle.",
   "recovery.forbidden": "Pro správu obnovy se přihlaste jako DM a opusťte náhled hráče.",
   "recovery.missing": "Tento bod nebo skupina úprav už není dostupná. Obnovte seznam.",
-  "recovery.failed": "Výsledek se nepodařilo potvrdit. Před dalším pokusem obnovte seznam; dokončená akce už v něm může být.",
-  "recovery.openEdits": "Kampaň byla obnovena. Vaše neuložené úpravy zůstávají otevřené; před úpravou obnovených dat znovu načtěte stránku.",
+  "recovery.failed":
+    "Výsledek se nepodařilo potvrdit. Před dalším pokusem obnovte seznam; dokončená akce už v něm může být.",
+  "recovery.openEdits":
+    "Kampaň byla obnovena. Vaše neuložené úpravy zůstávají otevřené; před úpravou obnovených dat znovu načtěte stránku.",
   "credentials.title": "Přístup k serveru",
   "credentials.intro": "Spravujte společná hesla PJ a hráčů pro tento web.",
   "credentials.refresh": "Obnovit stav hesel",
@@ -570,17 +641,23 @@ const csCatalog = {
   "credentials.save": "Změnit heslo",
   "credentials.disable": "Vypnout přihlášení hráčů",
   "credentials.disableSave": "Vypnout přístup hráčů",
-  "credentials.dmEffect": "Ostatní relace PJ a hráčské náhledy budou odhlášeny. Tato karta zůstane přihlášená.",
-  "credentials.playerEffect": "Stávající relace hráčů a náhledy budou odhlášeny. Veřejné čtení kampaně zůstane dostupné.",
+  "credentials.dmEffect":
+    "Ostatní relace PJ a hráčské náhledy budou odhlášeny. Tato karta zůstane přihlášená.",
+  "credentials.playerEffect":
+    "Stávající relace hráčů a náhledy budou odhlášeny. Veřejné čtení kampaně zůstane dostupné.",
   "credentials.saved": "Nastavení hesel bylo uloženo. Tato karta je stále přihlášená.",
   "credentials.mismatch": "Nová hesla se neshodují.",
   "credentials.currentIncorrect": "Současné heslo PJ není správné.",
   "credentials.policy": "Použijte 4–4096 bajtů a jiné heslo pro každou roli.",
   "credentials.forbidden": "Pro správu hesel se přihlaste jako PJ a opusťte hráčský náhled.",
-  "credentials.conflict": "Nastavení hesel se změnilo v jiné kartě. Obnovte stav, zkontrolujte údaje a zkuste to znovu.",
-  "credentials.rateLimited": "Příliš mnoho pokusů o zadání hesla. Počkejte minutu a zkuste to znovu.",
-  "credentials.loadFailed": "Nastavení hesel se nepodařilo načíst. Zadané údaje zůstaly zachovány; zkuste stav obnovit znovu.",
-  "credentials.failed": "Uložení se nepodařilo potvrdit. Před dalším pokusem obnovte stav. Pokud se heslo PJ změnilo, zadejte nové heslo jako současné.",
+  "credentials.conflict":
+    "Nastavení hesel se změnilo v jiné kartě. Obnovte stav, zkontrolujte údaje a zkuste to znovu.",
+  "credentials.rateLimited":
+    "Příliš mnoho pokusů o zadání hesla. Počkejte minutu a zkuste to znovu.",
+  "credentials.loadFailed":
+    "Nastavení hesel se nepodařilo načíst. Zadané údaje zůstaly zachovány; zkuste stav obnovit znovu.",
+  "credentials.failed":
+    "Uložení se nepodařilo potvrdit. Před dalším pokusem obnovte stav. Pokud se heslo PJ změnilo, zadejte nové heslo jako současné.",
   "wiki.loading": "Načítání odkazů na příručky…",
   "wiki.failed": "Některé odkazy doplňků se nepodařilo načíst.",
   "wiki.missing": "Odkazu neodpovídá jediný dostupný záznam. Zkontroluj druh nebo ID záznamu.",
@@ -596,7 +673,8 @@ const csCatalog = {
   "addons.reload": "Znovu načíst",
   "addons.disable": "Vypnout",
   "addons.versions": "Uložené balíčky",
-  "addons.versionsHint": "Spuštěný je pouze aktivní balíček. Ostatní balíčky jsou uložené pro kontrolu nebo návrat k předchozí verzi; neběží současně s ním.",
+  "addons.versionsHint":
+    "Spuštěný je pouze aktivní balíček. Ostatní balíčky jsou uložené pro kontrolu nebo návrat k předchozí verzi; neběží současně s ním.",
   "addons.savedInactive": "Neaktivní",
   "addons.review": "Zkontrolovat aktivaci",
   "addons.rollback": "Zkontrolovat návrat verze",
@@ -632,26 +710,35 @@ const csCatalog = {
   "addons.noChanges": "Žádné změny deklarací.",
   "dm.title": "DM panel",
   "dm.refusal": "Tato stránka je dostupná pouze v pohledu DM.",
-  "dm.fallback": "Nástroje kampaně a skrytý obsah jsou zde dostupné i bez funkčního přehledu doplňku.",
+  "dm.fallback":
+    "Nástroje kampaně a skrytý obsah jsou zde dostupné i bez funkčního přehledu doplňku.",
   "dm.tools": "Nástroje kampaně",
   "dm.addonHealth": "Stav doplňků",
   "dm.addonHealthHint": "Stav doplňků načtených v prohlížeči pro toto přihlášení.",
   "dm.noAddons": "Žádné doplňky prohlížeče nejsou načtené.",
   "dm.loading": "Načítání nástrojů doplňků…",
-  "dm.failed": "Některé nástroje doplňků se nepodařilo zobrazit. Můžete použít dostupné nástroje níže nebo načtení zopakovat.",
+  "dm.failed":
+    "Některé nástroje doplňků se nepodařilo zobrazit. Můžete použít dostupné nástroje níže nebo načtení zopakovat.",
   "dm.retry": "Znovu načíst nástroje doplňků",
-  "preview.notice": "Náhled hráče — tato karta má hráčský přístup. Vaše DM karta zůstává přihlášená.",
-  "preview.unavailable": "Náhled hráče není dostupný nebo vypršel. Otevřete nový náhled z DM karty.",
+  "preview.notice":
+    "Náhled hráče — tato karta má hráčský přístup. Vaše DM karta zůstává přihlášená.",
+  "preview.unavailable":
+    "Náhled hráče není dostupný nebo vypršel. Otevřete nový náhled z DM karty.",
   "preview.close": "Zavřít náhled hráče",
   "preview.openHint": "Otevřít hráčský pohled v samostatné kartě",
   "preview.blocked": "Pro otevření náhledu hráče povolte vyskakovací okna pro tento web.",
-  "preview.failed": "Náhled hráče se nepodařilo otevřít. Zavřete existující náhled a zkuste to znovu.",
+  "preview.failed":
+    "Náhled hráče se nepodařilo otevřít. Zavřete existující náhled a zkuste to znovu.",
   "dm.state.ready": "Připraveno",
   "dm.state.blocked": "Blokováno",
   "dm.state.failed": "Chyba",
   "dm.hiddenContent": "Skrytý obsah",
   "dm.hiddenEmpty": "Žádný záznam není označen jako pouze pro DM.",
-  "dm.hiddenCount": { one: "{n} záznam je označen jako pouze pro DM.", few: "{n} záznamy jsou označené jako pouze pro DM.", other: "{n} záznamů je označených jako pouze pro DM." },
+  "dm.hiddenCount": {
+    one: "{n} záznam je označen jako pouze pro DM.",
+    few: "{n} záznamy jsou označené jako pouze pro DM.",
+    other: "{n} záznamů je označených jako pouze pro DM.",
+  },
   "dm.onlyDm": "Pouze DM / celkem",
   "graph.title": "Myšlenkový palác",
   "graph.relationships": "Vztahy",
@@ -687,15 +774,18 @@ const csCatalog = {
   "graph.focus": "Zaměřit",
   "graph.focusHops": "Hloubka okolí",
   "graph.clearFilters": "Vymazat filtry",
-  "graph.storageFailed": "Prohlížeč nemohl uložit rozložení a filtry. Zůstanou dostupné do opuštění této stránky.",
-  "graph.storageChanged": "Jiná karta změnila rozložení. Pohyb byl zrušen a načetlo se uložené zobrazení.",
+  "graph.storageFailed":
+    "Prohlížeč nemohl uložit rozložení a filtry. Zůstanou dostupné do opuštění této stránky.",
+  "graph.storageChanged":
+    "Jiná karta změnila rozložení. Pohyb byl zrušen a načetlo se uložené zobrazení.",
   "graph.retry": "Zkusit znovu",
   "graph.addonLoading": "Načítání karet doplňků…",
   "timeline.addonFailed": "Nepodařilo se zobrazit doplněk časové osy.",
   "graph.addonFailed": "Nepodařilo se načíst obsah grafu: {names}.",
   "graph.addonUnavailable": "Tento pohled doplňku není pro vaši roli nyní dostupný.",
   "graph.canvas": "Graf vztahů",
-  "graph.keyboardHelp": "Tabulátorem vyberte kartu a Enterem ji otevřete. Šipky přesouvají vybranou kartu, se Shiftem dále. Šipky na plátně posouvají pohled. Escape zruší přesun. Shift+F10 otevře akce karty.",
+  "graph.keyboardHelp":
+    "Tabulátorem vyberte kartu a Enterem ji otevřete. Šipky přesouvají vybranou kartu, se Shiftem dále. Šipky na plátně posouvají pohled. Escape zruší přesun. Shift+F10 otevře akce karty.",
   "graph.connectionCount": { one: "{n} vztah", few: "{n} vztahy", other: "{n} vztahů" },
   "graph.empty": "Žádné postavy k zobrazení",
   "graph.emptyHint": "Přidejte postavy do kampaně nebo vymažte filtry frakcí.",
@@ -721,9 +811,11 @@ const csCatalog = {
   "timeline.down": "Přesunout {name} níž",
   "timeline.move": "Přesunout {name} do sezení",
   "timeline.back": "Zpět na časovou osu",
-  "timeline.stale": "Události se změnily. Vaše pořadí zůstalo zachováno; zrušte úpravy a zkontrolujte aktuální osu.",
+  "timeline.stale":
+    "Události se změnily. Vaše pořadí zůstalo zachováno; zrušte úpravy a zkontrolujte aktuální osu.",
   "timeline.invalid": "Toto pořadí nelze uložit. Vaše úpravy zůstaly zachovány.",
-  "timeline.limit": "Tento přesun mění příliš mnoho událostí najednou. Zrušte úpravy a přesuňte menší skupinu.",
+  "timeline.limit":
+    "Tento přesun mění příliš mnoho událostí najednou. Zrušte úpravy a přesuňte menší skupinu.",
   "timeline.failed": "Pořadí se nepodařilo uložit. Vaše úpravy zůstaly zachovány; zkuste to znovu.",
   "shell.skip": "Přeskočit na obsah kampaně",
   "shell.campaignArchive": "Archiv kampaně",
@@ -733,7 +825,11 @@ const csCatalog = {
   "shell.signInForTools": "Přihlas se pro přístup k nástrojům kampaně.",
   "shell.addonsIdle": "Doplňky jsou nečinné",
   "shell.addonsLoading": "Načítám doplňky…",
-  "shell.addonGenerationsActive": { one: "Aktivní je {n} generace doplňku", few: "Aktivní jsou {n} generace doplňků", other: "Aktivních generací doplňků: {n}" },
+  "shell.addonGenerationsActive": {
+    one: "Aktivní je {n} generace doplňku",
+    few: "Aktivní jsou {n} generace doplňků",
+    other: "Aktivních generací doplňků: {n}",
+  },
   "shell.addonsActiveFailed": "Aktivní: {active} · selhalo: {failed}",
   "shell.addonsAttention": "Doplňky vyžadují pozornost",
   "shell.campaignAddons": "Doplňky kampaně",
@@ -769,16 +865,20 @@ const csCatalog = {
   "shell.live": "Živě",
   "shell.reconnecting": "Obnovuji spojení",
   "session.recoverTitle": "Pro pokračování se znovu přihlaste",
-  "session.recoverHint": "Je třeba obnovit přihlášení. Vaše rozepsané úpravy v hlavní aplikaci zůstávají zachované. Po přihlášení je zkontrolujte a znovu uložte.",
+  "session.recoverHint":
+    "Je třeba obnovit přihlášení. Vaše rozepsané úpravy v hlavní aplikaci zůstávají zachované. Po přihlášení je zkontrolujte a znovu uložte.",
   "session.resume": "Pokračovat v úpravách",
-  "session.restored": "Jste znovu přihlášeni. Zkontrolujte úpravy a uložte je, až budete připraveni.",
+  "session.restored":
+    "Jste znovu přihlášeni. Zkontrolujte úpravy a uložte je, až budete připraveni.",
   "session.sameRole": "Použijte heslo pro stejnou roli jako při zahájení úprav.",
-  "session.resumeFailed": "Přihlášení se nepodařilo potvrdit. Úpravy zůstávají zachované; zkontrolujte heslo a připojení a zkuste to znovu.",
+  "session.resumeFailed":
+    "Přihlášení se nepodařilo potvrdit. Úpravy zůstávají zachované; zkontrolujte heslo a připojení a zkuste to znovu.",
   "shell.openingCampaign": "Otevírám kroniku kampaně…",
   "shell.campaignOpenFailed": "Kroniku se nepodařilo otevřít.",
   "shell.tryAgain": "Zkusit znovu",
   "shell.signInSettings": "Přihlas se pro nastavení kampaně.",
-  "shell.settingsAuthHint": "Osobní volby jsou dostupné všem; nastavení kampaně vyžaduje přihlášení DM.",
+  "shell.settingsAuthHint":
+    "Osobní volby jsou dostupné všem; nastavení kampaně vyžaduje přihlášení DM.",
   "shell.signInAddon": "Přihlas se pro otevření této stránky.",
   "shell.addonRoleHint": "Nástroje doplňků používají tvou současnou roli v kampani.",
   "shell.openingAddon": "Otevírám stránku doplňku…",
@@ -849,7 +949,8 @@ const csCatalog = {
   "map.openMap": "Otevřít mapu",
   "map.configInvalid": "Uložené nastavení této mapy má neplatný formát a zůstalo beze změny.",
   "map.markerZoom": "Změna velikosti značek při přiblížení",
-  "map.markerZoomHint": "0 % zachová stejnou velikost značek na obrazovce. 100 % mění velikost spolu s mapou. Hodnoty mezi tím změnu zmírní.",
+  "map.markerZoomHint":
+    "0 % zachová stejnou velikost značek na obrazovce. 100 % mění velikost spolu s mapou. Hodnoty mezi tím změnu zmírní.",
   "map.savedViews": "Uložené pohledy",
   "map.noViews": "Pro tuto mapu nejsou uložené pohledy.",
   "map.manageViews": "Spravovat pohledy na mapě",
@@ -876,8 +977,10 @@ const csCatalog = {
   "map.x": "Vodorovná poloha (%)",
   "map.y": "Svislá poloha (%)",
   "map.removePin": "Odebrat z mapy",
-  "map.stale": "Záznam mapy se změnil. Rozepsané změny zůstávají zachovány. Zruš úpravu a znovu ji otevři pro zobrazení aktuální verze.",
-  "map.saveFailed": "Změnu mapy se nepodařilo uložit. Zkontroluj hodnoty a zkus to znovu. Rozepsané změny zůstávají zachovány.",
+  "map.stale":
+    "Záznam mapy se změnil. Rozepsané změny zůstávají zachovány. Zruš úpravu a znovu ji otevři pro zobrazení aktuální verze.",
+  "map.saveFailed":
+    "Změnu mapy se nepodařilo uložit. Zkontroluj hodnoty a zkus to znovu. Rozepsané změny zůstávají zachovány.",
   "dashboard.editName": "Upravit název kampaně",
   "dashboard.editTagline": "Upravit podtitul kampaně",
   "dashboard.dmIdentity": "Název a podtitul kampaně lze upravit v režimu DM.",
@@ -886,9 +989,12 @@ const csCatalog = {
   "dashboard.cancel": "Zrušit",
   "dashboard.add": "Přidat",
   "dashboard.addPartyMember": "Přidat člena družiny",
-  "dashboard.identityStale": "Údaje kampaně se změnily. Rozepsaný text zůstává zachován. Zkopíruj si potřebný text, zruš úpravu a znovu ji otevři pro zobrazení aktuální verze.",
-  "dashboard.identityInvalid": "Vyplň název kampaně. Každé pole může mít nejvýše 500 znaků na jednom řádku.",
-  "dashboard.identityFailed": "Údaje kampaně se nepodařilo uložit. Rozepsaný text zůstává zachován; zkus to znovu.",
+  "dashboard.identityStale":
+    "Údaje kampaně se změnily. Rozepsaný text zůstává zachován. Zkopíruj si potřebný text, zruš úpravu a znovu ji otevři pro zobrazení aktuální verze.",
+  "dashboard.identityInvalid":
+    "Vyplň název kampaně. Každé pole může mít nejvýše 500 znaků na jednom řádku.",
+  "dashboard.identityFailed":
+    "Údaje kampaně se nepodařilo uložit. Rozepsaný text zůstává zachován; zkus to znovu.",
   "dashboard.company": "Družina",
   "dashboard.openRoster": "Otevřít seznam družiny",
   "dashboard.emptyParty": "Zatím nejsou zapsáni žádní členové družiny.",
@@ -907,20 +1013,27 @@ const csCatalog = {
   "dashboard.daysAgo": "před {n} dny",
   "search.kicker": "Rejstřík kampaně",
   "search.title": "Hledat v kronice",
-  "search.intro": "Najdi postavy, místa, události, záhady, frakce, příběhy a společníky v aktuálním zobrazení.",
+  "search.intro":
+    "Najdi postavy, místa, události, záhady, frakce, příběhy a společníky v aktuálním zobrazení.",
   "search.label": "Hledat v kampani",
   "search.placeholder": "Jméno, titul, štítek nebo zapamatovaná fráze",
   "search.prompt": "Začni psát a prohledej všechny viditelné části archivu kampaně.",
   "search.empty": "V aktuálním zobrazení kampaně nic neodpovídá „{query}“.",
-  "search.count": { one: "Nalezen {n} záznam", few: "Nalezeny {n} záznamy", other: "Nalezeno {n} záznamů" },
+  "search.count": {
+    one: "Nalezen {n} záznam",
+    few: "Nalezeny {n} záznamy",
+    other: "Nalezeno {n} záznamů",
+  },
   "settings.kicker": "Správa kampaně",
   "settings.title": "Kniha nastavení",
   "settings.intro": "Vyber jazyk rozhraní a spravuj společný vzhled a pojmy kampaně.",
   "settings.categories": "Kategorie nastavení",
   "settings.language": "Jazyk",
-  "settings.languageIntro": "Vyber jazyk pro tento prohlížeč. Data kampaně ani volbu jiného hráče to nezmění.",
+  "settings.languageIntro":
+    "Vyber jazyk pro tento prohlížeč. Data kampaně ani volbu jiného hráče to nezmění.",
   "settings.languageLabel": "Jazyk rozhraní",
-  "settings.languageProgress": "Jazyk rozhraní platí pro nástroje kampaně i doplňky této sady. Vlastní text kampaně a obsah příruček si zachovávají původní jazyk.",
+  "settings.languageProgress":
+    "Jazyk rozhraní platí pro nástroje kampaně i doplňky této sady. Vlastní text kampaně a obsah příruček si zachovávají původní jazyk.",
   "settings.appearance": "Vzhled",
   "settings.appearanceIntro": "Vzhled kampaně je společný pro všechny. Změnit jej může pouze DM.",
   "settings.appearanceLabel": "Vzhled kampaně",
@@ -930,7 +1043,8 @@ const csCatalog = {
   "settings.appearanceMoonlitHint": "Tmavé břidlicové plochy se stříbřitě modrými nadpisy.",
   "settings.saveAppearance": "Uložit vzhled",
   "branding.title": "Značka webu",
-  "branding.intro": "Vyberte logo a název v postranním panelu a na kartě prohlížeče. Změny potvrďte uložením.",
+  "branding.intro":
+    "Vyberte logo a název v postranním panelu a na kartě prohlížeče. Změny potvrďte uložením.",
   "branding.logo": "Logo kampaně",
   "branding.customLogo": "Vlastní logo",
   "branding.defaultLogo": "Výchozí logo",
@@ -939,15 +1053,19 @@ const csCatalog = {
   "branding.name": "Název webu",
   "branding.subtitle": "Podtitulek",
   "branding.invalid": "Nastavení značky není platné. Před uložením zkontrolujte uložené hodnoty.",
-  "branding.stale": "Značka se změnila. Rozepsané úpravy zůstaly zachovány; tlačítkem Zrušit načtete aktuální hodnoty.",
-  "branding.failed": "Značku se nepodařilo uložit. Rozepsané úpravy i vybraný soubor zůstaly zachovány; zkuste to znovu.",
+  "branding.stale":
+    "Značka se změnila. Rozepsané úpravy zůstaly zachovány; tlačítkem Zrušit načtete aktuální hodnoty.",
+  "branding.failed":
+    "Značku se nepodařilo uložit. Rozepsané úpravy i vybraný soubor zůstaly zachovány; zkuste to znovu.",
   "sidebar.title": "Postranní panel",
   "sidebar.addonPages": "Stránky doplňků",
-  "sidebar.addonHint": "Vyberte stránky nainstalovaných doplňků do postranního panelu. Omezení rolí doplňku stále platí.",
+  "sidebar.addonHint":
+    "Vyberte stránky nainstalovaných doplňků do postranního panelu. Omezení rolí doplňku stále platí.",
   "sidebar.noAddons": "Žádné aktivní stránky doplňků.",
   "sidebar.addonVisibility": "Viditelnost stránky {name}",
   "sidebar.everyone": "Všichni",
-  "sidebar.intro": "Stránky a sekce uspořádáte přetažením, šipkami nebo výběrem cílové sekce. Uložením změníte společný postranní panel.",
+  "sidebar.intro":
+    "Stránky a sekce uspořádáte přetažením, šipkami nebo výběrem cílové sekce. Uložením změníte společný postranní panel.",
   "sidebar.addSection": "Přidat sekci",
   "sidebar.defaults": "Obnovit rozložení",
   "sidebar.hidden": "Skryté stránky",
@@ -965,23 +1083,34 @@ const csCatalog = {
   "sidebar.movePage": "Přesunout {name} do",
   "sidebar.newSection": "Nová sekce",
   "sidebar.dropHere": "Sem přetáhněte stránku",
-  "sidebar.confirmDefaults": "Obnovit rozložení postranního panelu? Před uložením můžete změny zrušit.",
+  "sidebar.confirmDefaults":
+    "Obnovit rozložení postranního panelu? Před uložením můžete změny zrušit.",
   "sidebar.invalid": "Uložené rozložení postranního panelu není platné. Zůstalo beze změny.",
-  "sidebar.stale": "Postranní panel se změnil. Rozepsané úpravy zůstaly zachovány; tlačítkem Zrušit načtete aktuální rozložení.",
-  "sidebar.failed": "Postranní panel se nepodařilo uložit. Rozepsané úpravy zůstaly zachovány; zkuste to znovu.",
+  "sidebar.stale":
+    "Postranní panel se změnil. Rozepsané úpravy zůstaly zachovány; tlačítkem Zrušit načtete aktuální rozložení.",
+  "sidebar.failed":
+    "Postranní panel se nepodařilo uložit. Rozepsané úpravy zůstaly zachovány; zkuste to znovu.",
   "settings.playerParty": "Hráčská družina",
   "settings.partyIntro": "Nastavte název, symbol a barvy družiny používané v celé kampani.",
   "settings.partyName": "Název",
   "settings.partyIcon": "Ikona / emoji",
   "settings.partyColor": "Barva (záře / štítek)",
   "settings.partyTextColor": "Barva textu",
-  "settings.partyMembers": { one: "{n} člen družiny", few: "{n} členové družiny", other: "{n} členů družiny" },
-  "settings.partyMembersHint": "Člena přidáte nebo odeberete změnou frakce na stránce jeho postavy.",
+  "settings.partyMembers": {
+    one: "{n} člen družiny",
+    few: "{n} členové družiny",
+    other: "{n} členů družiny",
+  },
+  "settings.partyMembersHint":
+    "Člena přidáte nebo odeberete změnou frakce na stránce jeho postavy.",
   "settings.partyNoMembers": "Zatím žádní členové.",
   "settings.partyOpen": "Otevřít →",
-  "settings.partyInvalid": "Nastavení družiny není platné. Před uložením zkontrolujte název, symbol a barvy.",
-  "settings.partyStale": "Nastavení družiny se změnilo. Rozepsané úpravy zůstaly zachovány; tlačítkem Zrušit načtete aktuální hodnoty.",
-  "settings.partyFailed": "Nastavení družiny se nepodařilo uložit. Rozepsané úpravy zůstaly zachovány; zkuste to znovu.",
+  "settings.partyInvalid":
+    "Nastavení družiny není platné. Před uložením zkontrolujte název, symbol a barvy.",
+  "settings.partyStale":
+    "Nastavení družiny se změnilo. Rozepsané úpravy zůstaly zachovány; tlačítkem Zrušit načtete aktuální hodnoty.",
+  "settings.partyFailed":
+    "Nastavení družiny se nepodařilo uložit. Rozepsané úpravy zůstaly zachovány; zkuste to znovu.",
   "settings.saving": "Ukládám…",
 } satisfies Record<MessageKey, Message>;
 
@@ -1000,33 +1129,53 @@ let activeLocale: UiLocale = resolveUiLocale(readStorage("codex_lang"));
 
 export class UiLocalizationController implements ReactiveController {
   readonly #host: ReactiveControllerHost;
-  readonly #onChange = (): void => { this.#host.requestUpdate(); };
+  readonly #onChange = (): void => {
+    this.#host.requestUpdate();
+  };
 
   constructor(host: ReactiveControllerHost) {
     this.#host = host;
     host.addController(this);
   }
 
-  hostConnected(): void { localeChangeTarget.addEventListener("change", this.#onChange); }
-  hostDisconnected(): void { localeChangeTarget.removeEventListener("change", this.#onChange); }
-  get locale(): UiLocale { return activeLocale; }
+  hostConnected(): void {
+    localeChangeTarget.addEventListener("change", this.#onChange);
+  }
+  hostDisconnected(): void {
+    localeChangeTarget.removeEventListener("change", this.#onChange);
+  }
+  get locale(): UiLocale {
+    return activeLocale;
+  }
   t(key: MessageKey, parameters: Readonly<Record<string, string | number>> = {}): string {
     return uiText(key, parameters);
   }
-  plural(key: MessageKey, count: number, parameters: Readonly<Record<string, string | number>> = {}): string {
+  plural(
+    key: MessageKey,
+    count: number,
+    parameters: Readonly<Record<string, string | number>> = {},
+  ): string {
     return uiPlural(key, count, parameters);
   }
-  relativeDate(value: string | undefined): string { return uiRelativeDate(value); }
-  setLocale(locale: UiLocale): void { setUiLocale(locale); }
+  relativeDate(value: string | undefined): string {
+    return uiRelativeDate(value);
+  }
+  setLocale(locale: UiLocale): void {
+    setUiLocale(locale);
+  }
 }
 
-export function initializeUiLocalization(): void { applyLocale(); }
+export function initializeUiLocalization(): void {
+  applyLocale();
+}
 
 export function resolveUiLocale(stored: string | null | undefined): UiLocale {
   return stored === "cs" ? "cs" : "en";
 }
 
-export function currentUiLocale(): UiLocale { return activeLocale; }
+export function currentUiLocale(): UiLocale {
+  return activeLocale;
+}
 
 export function setUiLocale(locale: UiLocale): void {
   if (locale === activeLocale) return;
@@ -1058,10 +1207,14 @@ export function uiPlural(
   const message = catalogs[activeLocale][key] ?? catalogs.en[key];
   if (typeof message === "string") return interpolate(message, { n: count, ...parameters });
   const category = new Intl.PluralRules(activeLocale).select(Math.abs(count));
-  const template = category === "one" ? message.one
-    : category === "few" ? message.few ?? message.other
-      : category === "many" ? message.many ?? message.other
-        : message.other;
+  const template =
+    category === "one"
+      ? message.one
+      : category === "few"
+        ? (message.few ?? message.other)
+        : category === "many"
+          ? (message.many ?? message.other)
+          : message.other;
   return interpolate(template, { n: count, ...parameters });
 }
 
@@ -1082,26 +1235,49 @@ export function uiRelativeDate(value: string | undefined, now = Date.now()): str
   return formatDate(instant);
 }
 
-const collectionKeys: Readonly<Record<string, Readonly<Record<"one" | "other", MessageKey>>>> = Object.freeze({
-  characters: Object.freeze({ one: "collection.characters.one", other: "collection.characters.other" }),
-  locations: Object.freeze({ one: "collection.locations.one", other: "collection.locations.other" }),
-  events: Object.freeze({ one: "collection.events.one", other: "collection.events.other" }),
-  mysteries: Object.freeze({ one: "collection.mysteries.one", other: "collection.mysteries.other" }),
-  factions: Object.freeze({ one: "collection.factions.one", other: "collection.factions.other" }),
-  pantheon: Object.freeze({ one: "collection.pantheon.one", other: "collection.pantheon.other" }),
-  artifacts: Object.freeze({ one: "collection.artifacts.one", other: "collection.artifacts.other" }),
-  history: Object.freeze({ one: "collection.history.one", other: "collection.history.other" }),
-  companions: Object.freeze({ one: "collection.companions.one", other: "collection.companions.other" }),
-});
+const collectionKeys: Readonly<Record<string, Readonly<Record<"one" | "other", MessageKey>>>> =
+  Object.freeze({
+    characters: Object.freeze({
+      one: "collection.characters.one",
+      other: "collection.characters.other",
+    }),
+    locations: Object.freeze({
+      one: "collection.locations.one",
+      other: "collection.locations.other",
+    }),
+    events: Object.freeze({ one: "collection.events.one", other: "collection.events.other" }),
+    mysteries: Object.freeze({
+      one: "collection.mysteries.one",
+      other: "collection.mysteries.other",
+    }),
+    factions: Object.freeze({ one: "collection.factions.one", other: "collection.factions.other" }),
+    pantheon: Object.freeze({ one: "collection.pantheon.one", other: "collection.pantheon.other" }),
+    artifacts: Object.freeze({
+      one: "collection.artifacts.one",
+      other: "collection.artifacts.other",
+    }),
+    history: Object.freeze({ one: "collection.history.one", other: "collection.history.other" }),
+    companions: Object.freeze({
+      one: "collection.companions.one",
+      other: "collection.companions.other",
+    }),
+  });
 
-function interpolate(template: string, parameters: Readonly<Record<string, string | number>>): string {
+function interpolate(
+  template: string,
+  parameters: Readonly<Record<string, string | number>>,
+): string {
   return template.replace(/\{([A-Za-z0-9_]+)\}/gu, (match, key: string) =>
-    Object.prototype.hasOwnProperty.call(parameters, key) ? String(parameters[key]) : match);
+    Object.prototype.hasOwnProperty.call(parameters, key) ? String(parameters[key]) : match,
+  );
 }
 
 function formatDate(instant: number): string {
-  try { return new Intl.DateTimeFormat(activeLocale).format(new Date(instant)); }
-  catch { return new Date(instant).toLocaleDateString(); }
+  try {
+    return new Intl.DateTimeFormat(activeLocale).format(new Date(instant));
+  } catch {
+    return new Date(instant).toLocaleDateString();
+  }
 }
 
 function applyLocale(): void {
@@ -1109,11 +1285,17 @@ function applyLocale(): void {
 }
 
 function readStorage(key: string): string | null {
-  try { return typeof window === "undefined" ? null : window.localStorage.getItem(key); }
-  catch { return null; }
+  try {
+    return typeof window === "undefined" ? null : window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 
 function writeStorage(key: string, value: string): void {
-  try { if (typeof window !== "undefined") window.localStorage.setItem(key, value); }
-  catch { /* A blocked preference store must not break the campaign UI. */ }
+  try {
+    if (typeof window !== "undefined") window.localStorage.setItem(key, value);
+  } catch {
+    /* A blocked preference store must not break the campaign UI. */
+  }
 }

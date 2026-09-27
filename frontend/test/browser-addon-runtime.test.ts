@@ -16,19 +16,21 @@ const generationId = "e".repeat(64);
 const graph: BrowserGenerationSet = {
   contractVersion: 2,
   graphRevision,
-  addons: [{
-    addonId: "dm-tools",
-    addonVersion: "1.0.0",
-    generationId,
-    mode: "integrated",
-    entryUrl: `/api/addons/dm-tools/generations/${generationId}/assets/web/index.js`,
-    styleUrls: [],
-    sandbox: [],
-    dependencies: [],
-    capabilities: [],
-    permissions: [],
-    contributions: [],
-  }],
+  addons: [
+    {
+      addonId: "dm-tools",
+      addonVersion: "1.0.0",
+      generationId,
+      mode: "integrated",
+      entryUrl: `/api/addons/dm-tools/generations/${generationId}/assets/web/index.js`,
+      styleUrls: [],
+      sandbox: [],
+      dependencies: [],
+      capabilities: [],
+      permissions: [],
+      contributions: [],
+    },
+  ],
 };
 
 describe("BrowserAddonRuntime", () => {
@@ -68,9 +70,7 @@ describe("BrowserAddonRuntime", () => {
     });
     const fetchGraph: BrowserGraphFetch = async () => {
       fetchCalls += 1;
-      return fetchCalls === 1
-        ? jsonGraphResponse(graph)
-        : new Response(null, { status: 304 });
+      return fetchCalls === 1 ? jsonGraphResponse(graph) : new Response(null, { status: 304 });
     };
     const manager = new BrowserGenerationManager(async () => {
       markActivationStarted?.();
@@ -101,10 +101,9 @@ describe("BrowserAddonRuntime", () => {
       return () => undefined;
     });
     const runtime = new BrowserAddonRuntime(
-      new BrowserGraphClient(queuedFetch([
-        jsonGraphResponse(graph),
-        new Response(null, { status: 304 }),
-      ])),
+      new BrowserGraphClient(
+        queuedFetch([jsonGraphResponse(graph), new Response(null, { status: 304 })]),
+      ),
       manager,
     );
     const signal = new AbortController().signal;

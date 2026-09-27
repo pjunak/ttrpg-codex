@@ -37,13 +37,14 @@ describe("BrowserContributionOutlet", () => {
     second.context.ui.bind("first.panel", { kind: "element", tag: "a-tools-panel" });
 
     expect(root.hidden).toBe(false);
-    expect(root.children.map((child) => child.dataset["addonId"])).toEqual([
-      "a-tools",
-      "z-tools",
-    ]);
+    expect(root.children.map((child) => child.dataset["addonId"])).toEqual(["a-tools", "z-tools"]);
     const firstWrapper = root.children[0] as FakeElement;
     const element = firstWrapper.children[1] as FakeElement & {
-      codexContribution: { addon: { id: string }; signal: AbortSignal; edits: BrowserContributionEditHandle };
+      codexContribution: {
+        addon: { id: string };
+        signal: AbortSignal;
+        edits: BrowserContributionEditHandle;
+      };
     };
     expect(element.tagName).toBe("a-tools-panel");
     expect(element.codexContribution.addon.id).toBe("a-tools");
@@ -84,8 +85,13 @@ describe("BrowserContributionOutlet", () => {
       surface: "article-section",
       role: "player",
       hostContext: () => ({
-        kind: "campaign-record", collection: "characters", key: "ryn",
-        revision, locale, value: { name: "Ryn" }, canEdit: false,
+        kind: "campaign-record",
+        collection: "characters",
+        key: "ryn",
+        revision,
+        locale,
+        value: { name: "Ryn" },
+        canEdit: false,
       }),
     });
     const element = (root.children[0] as FakeElement).children[1] as FakeElement & {
@@ -99,9 +105,12 @@ describe("BrowserContributionOutlet", () => {
     revision = 4;
     outlet.refresh();
     expect(element.codexContribution.host.revision).toBe(4);
-    locale = "cs"; outlet.refresh();
+    locale = "cs";
+    outlet.refresh();
     expect(element.codexContribution.host.locale).toBe("cs");
-    expect(((root.children[0] as FakeElement).children[0] as FakeElement).children[0]?.textContent).toBe("Deník postavy");
+    expect(
+      ((root.children[0] as FakeElement).children[0] as FakeElement).children[0]?.textContent,
+    ).toBe("Deník postavy");
     expect((root.children[0] as FakeElement).children[1]).toBe(element);
     outlet.dispose();
   });
@@ -195,10 +204,12 @@ class FakeElement {
   insertBefore(node: FakeElement, before: FakeElement | null): void {
     node.remove();
     const index = before === null ? this.children.length : this.children.indexOf(before);
-    this.children.splice(index, 0, node); node.parentNode = this;
+    this.children.splice(index, 0, node);
+    node.parentNode = this;
   }
   remove(): void {
-    if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(node => node !== this);
+    if (this.parentNode)
+      this.parentNode.children = this.parentNode.children.filter((node) => node !== this);
     this.parentNode = null;
   }
   readonly dataset: Record<string, string> = {};
@@ -259,36 +270,51 @@ function contribution(
 }
 
 it("keeps recovery visible through a graph gap and clears it when the record or outlet changes", async () => {
-  const registry = new BrowserContributionRegistry(), root = new FakeElement("div");
+  const registry = new BrowserContributionRegistry(),
+    root = new FakeElement("div");
   let key: string | undefined = "characters:ryn";
   const outlet = new BrowserContributionOutlet({
-    document: new FakeDocument() as unknown as Document, root: root as unknown as HTMLElement,
-    registry, surface: "slot", role: "dm", compact: true, handoffKey: () => key,
+    document: new FakeDocument() as unknown as Document,
+    root: root as unknown as HTMLElement,
+    registry,
+    surface: "slot",
+    role: "dm",
+    compact: true,
+    handoffKey: () => key,
     hostContext: () => ({ locale: "cs" }),
   });
   const mount = () => {
-    const scope = new GenerationScope("test"), sdk = registry.open(descriptor("sheets", contribution("sheet", 0)), scope);
+    const scope = new GenerationScope("test"),
+      sdk = registry.open(descriptor("sheets", contribution("sheet", 0)), scope);
     sdk.context.ui.bind("sheet", { kind: "element", tag: "test-sheet" });
-    const element = root.children[0]!.children[0] as FakeElement & { codexContribution: { edits: BrowserContributionEditHandle } };
+    const element = root.children[0]!.children[0] as FakeElement & {
+      codexContribution: { edits: BrowserContributionEditHandle };
+    };
     return { scope, edits: element.codexContribution.edits };
   };
   const first = mount();
-  first.edits.set({ dirty: true, saving: true }); first.edits.handoff!.checkpoint({ revision: 2, draft: "Ryn" });
+  first.edits.set({ dirty: true, saving: true });
+  first.edits.handoff!.checkpoint({ revision: 2, draft: "Ryn" });
   await first.scope.dispose("reload");
   expect(root.children[0]!.textContent).toContain("Neuložené změny");
   expect(registry.edits.state()).toEqual({ dirty: true, saving: false });
   const second = mount();
-  second.edits.set({ dirty: false, saving: false }); outlet.refresh();
+  second.edits.set({ dirty: false, saving: false });
+  outlet.refresh();
   expect(root.children[1]!.textContent).toContain("Neuložené změny");
   expect(second.edits.handoff!.take()).toEqual({ revision: 2, draft: "Ryn" });
   await Promise.resolve();
   expect(root.children).toHaveLength(1);
   expect(registry.edits.state().dirty).toBe(true);
   await second.scope.dispose("updated");
-  key = "characters:another"; outlet.refresh();
+  key = "characters:another";
+  outlet.refresh();
   expect(registry.edits.state().dirty).toBe(false);
-  const third = mount(); expect(third.edits.handoff!.take()).toBeUndefined();
-  third.edits.set({ dirty: true, saving: false }); third.edits.handoff!.checkpoint({ draft: "Another" });
-  await third.scope.dispose("reload"); outlet.dispose();
+  const third = mount();
+  expect(third.edits.handoff!.take()).toBeUndefined();
+  third.edits.set({ dirty: true, saving: false });
+  third.edits.handoff!.checkpoint({ draft: "Another" });
+  await third.scope.dispose("reload");
+  outlet.dispose();
   expect(registry.edits.state()).toEqual({ dirty: false, saving: false });
 });

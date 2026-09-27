@@ -2,13 +2,7 @@ import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 
 const anonymousAuthKeys = new Set(["role", "realRole"]);
-const authenticatedAuthKeys = new Set([
-  "ok",
-  "role",
-  "realRole",
-  "csrfToken",
-  "expiresAt",
-]);
+const authenticatedAuthKeys = new Set(["ok", "role", "realRole", "csrfToken", "expiresAt"]);
 const sessionTokenPattern = /^[A-Za-z0-9_-]{32,512}$/;
 
 export interface Health {
@@ -19,17 +13,21 @@ export interface Health {
 export type AuthState =
   | { readonly authenticated: false; readonly role: null; readonly realRole: null }
   | {
-    readonly authenticated: true;
-    readonly role: "dm" | "player";
-    readonly realRole: "dm" | "player";
-    readonly csrfToken: string;
-    readonly expiresAt: string;
-  };
+      readonly authenticated: true;
+      readonly role: "dm" | "player";
+      readonly realRole: "dm" | "player";
+      readonly csrfToken: string;
+      readonly expiresAt: string;
+    };
 
 export { BoundaryValidationError } from "./boundary.js";
 
 export class HostRequestError extends Error {
-  constructor(readonly status: number, boundary: string, message?: string) {
+  constructor(
+    readonly status: number,
+    boundary: string,
+    message?: string,
+  ) {
     super(message ?? `${boundary} returned ${status}`);
   }
 }
@@ -74,14 +72,21 @@ export function parseAuthState(value: unknown): AuthState {
   }
   const role = value["role"];
   const realRole = value["realRole"];
-  if ((role !== "dm" && role !== "player") || (realRole !== "dm" && realRole !== "player") ||
-    (realRole === "player" && role !== "player")) {
+  if (
+    (role !== "dm" && role !== "player") ||
+    (realRole !== "dm" && realRole !== "player") ||
+    (realRole === "player" && role !== "player")
+  ) {
     throw new BoundaryValidationError(boundary, "roles contain an invalid authority transition");
   }
   const csrfToken = value["csrfToken"];
   const expiresAt = value["expiresAt"];
-  if (typeof csrfToken !== "string" || !sessionTokenPattern.test(csrfToken) ||
-    typeof expiresAt !== "string" || !validTimestamp(expiresAt)) {
+  if (
+    typeof csrfToken !== "string" ||
+    !sessionTokenPattern.test(csrfToken) ||
+    typeof expiresAt !== "string" ||
+    !validTimestamp(expiresAt)
+  ) {
     throw new BoundaryValidationError(boundary, "session metadata is invalid");
   }
   return { authenticated: true, role, realRole, csrfToken, expiresAt };
@@ -92,12 +97,14 @@ export async function getAuth(signal: AbortSignal): Promise<AuthState> {
 }
 
 export async function login(password: string, signal: AbortSignal): Promise<AuthState> {
-  return parseAuthState(await requestJSON("POST /api/login", "/api/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password }),
-    signal,
-  }));
+  return parseAuthState(
+    await requestJSON("POST /api/login", "/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+      signal,
+    }),
+  );
 }
 
 export async function logout(signal: AbortSignal): Promise<void> {
@@ -115,24 +122,34 @@ export async function switchRole(
   if (csrfToken.length < 32) {
     throw new BoundaryValidationError("POST /api/view-as", "CSRF token is invalid");
   }
-  return parseAuthState(await requestJSON("POST /api/view-as", "/api/view-as", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Codex-CSRF": csrfToken,
-    },
-    body: JSON.stringify({ role }),
-    signal,
-  }));
+  return parseAuthState(
+    await requestJSON("POST /api/view-as", "/api/view-as", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Codex-CSRF": csrfToken,
+      },
+      body: JSON.stringify({ role }),
+      signal,
+    }),
+  );
 }
 
 export async function createPlayerPreview(csrfToken: string, signal: AbortSignal): Promise<string> {
   const value = await requestJSON("POST /api/player-preview", "/api/player-preview", {
-    method: "POST", headers: { "X-Codex-CSRF": csrfToken }, signal,
+    method: "POST",
+    headers: { "X-Codex-CSRF": csrfToken },
+    signal,
   });
-  if (!isRecord(value) || !hasOnlyKeys(value, new Set(["contractVersion", "token", "expiresAt"])) ||
-    value["contractVersion"] !== "player-preview.v1" || typeof value["token"] !== "string" ||
-    !sessionTokenPattern.test(value["token"]) || typeof value["expiresAt"] !== "string" || !validTimestamp(value["expiresAt"])) {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, new Set(["contractVersion", "token", "expiresAt"])) ||
+    value["contractVersion"] !== "player-preview.v1" ||
+    typeof value["token"] !== "string" ||
+    !sessionTokenPattern.test(value["token"]) ||
+    typeof value["expiresAt"] !== "string" ||
+    !validTimestamp(value["expiresAt"])
+  ) {
     throw new BoundaryValidationError("POST /api/player-preview", "invalid preview session");
   }
   return value["token"];

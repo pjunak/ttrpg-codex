@@ -11,39 +11,52 @@ export const githubEn = {
   "github.openRelease": "Open release on GitHub",
   "github.openBuild": "Open build on GitHub",
   "github.packageIdentity": "Package identity",
-  "github.metadataHint": "GitHub source details are informational. Compatibility is checked after download; activation requires your review.",
-  "github.incompatible": "This package is incompatible with this host. Choose a compatible package or update the host before activation.",
+  "github.metadataHint":
+    "GitHub source details are informational. Compatibility is checked after download; activation requires your review.",
+  "github.incompatible":
+    "This package is incompatible with this host. Choose a compatible package or update the host before activation.",
   "github.chooseSource": "Choose a source",
-  "github.wizardIntro": "Add a package, review its permissions, then activate it when you are ready.",
+  "github.wizardIntro":
+    "Add a package, review its permissions, then activate it when you are ready.",
   "github.githubHelp": "Install from a repository and check for future updates here.",
   "github.zip": "ZIP file",
   "github.zipHelp": "Upload an add-on package from your computer.",
-  "github.zipHint": "Choose a prebuilt add-on ZIP, up to 128 MiB. GitHub source-code archives cannot be installed.",
+  "github.zipHint":
+    "Choose a prebuilt add-on ZIP, up to 128 MiB. GitHub source-code archives cannot be installed.",
   "github.back": "Back to sources",
   "github.close": "Cancel",
   "github.repositorySetup": "Connect a GitHub repository",
   "github.private": "Private repository",
   "github.createToken": "Create a fine-grained token on GitHub.",
   "github.tokenOwner": "Choose the repository owner and an expiration date.",
-  "github.tokenRepository": "Under Repository access, choose Only select repositories and select this repository.",
-  "github.tokenPermissions": "Set Contents to Read-only for releases. For Actions builds, also set Actions to Read-only.",
-  "github.tokenPaste": "Generate the token and paste it here. Organization repositories may require owner approval.",
-  "github.tokenStorage": "The token is saved on this server for this repository and future update checks. It is never returned to the browser or included in campaign backups.",
+  "github.tokenRepository":
+    "Under Repository access, choose Only select repositories and select this repository.",
+  "github.tokenPermissions":
+    "Set Contents to Read-only for releases. For Actions builds, also set Actions to Read-only.",
+  "github.tokenPaste":
+    "Generate the token and paste it here. Organization repositories may require owner approval.",
+  "github.tokenStorage":
+    "The token is saved on this server for this repository and future update checks. It is never returned to the browser or included in campaign backups.",
   "github.tokenGuide": "Read GitHub's token guide",
   "github.tokenInstructions": "How to create an access token",
-  "github.actionsToken": "GitHub requires a token to download Actions builds, including from public repositories.",
+  "github.actionsToken":
+    "GitHub requires a token to download Actions builds, including from public repositories.",
   "github.savedAccess": "Saved GitHub access is available. Leave the token blank to reuse it.",
   "github.replaceToken": "Replace access token (optional)",
   "github.buildOptions": "Build options",
-  "github.buildDefaults": "Uses the default branch and the reviewed-package artifact unless you change these options.",
+  "github.buildDefaults":
+    "Uses the default branch and the reviewed-package artifact unless you change these options.",
   "github.choosePackage": "Choose a package",
-  "github.reviewHint": "The download opens a permission and compatibility review. Nothing is activated yet.",
+  "github.reviewHint":
+    "The download opens a permission and compatibility review. Nothing is activated yet.",
   "github.preparing": "Preparing review…",
   "github.finding": "Checking repository…",
   "github.checking": "Checking for updates…",
   "github.checked": "Update check finished. Results are shown on each add-on.",
-  "github.noSources": "No GitHub repositories are linked yet. Open an add-on's Update source to connect one.",
-  "github.manualSource": "This add-on uses uploaded ZIP packages. Connect a GitHub repository to check for updates here.",
+  "github.noSources":
+    "No GitHub repositories are linked yet. Open an add-on's Update source to connect one.",
+  "github.manualSource":
+    "This add-on uses uploaded ZIP packages. Connect a GitHub repository to check for updates here.",
   "github.updateSource": "Update source",
   "github.editSource": "Edit GitHub source",
   "github.connectSource": "Connect GitHub",
@@ -54,9 +67,12 @@ export const githubEn = {
   "github.channel": "Package source",
   "github.actions": "Test build (advanced)",
   "github.release": "Latest published package (recommended)",
-  "github.releaseHelp": "Use this for normal installation and updates. Downloads the latest package published by the add-on author. Updates can be available without a version number change. Public packages need no token. You still choose when to activate an update.",
-  "github.actionsHelp": "For add-on developers or repositories that do not publish packages. Downloads a successful GitHub Actions build; these downloads can expire and always need a token, even for public repositories.",
-  "github.tls": "This server could not verify GitHub's secure connection. The server administrator needs to check its trusted certificates; changing your repository token will not fix this.",
+  "github.releaseHelp":
+    "Use this for normal installation and updates. Downloads the latest package published by the add-on author. Updates can be available without a version number change. Public packages need no token. You still choose when to activate an update.",
+  "github.actionsHelp":
+    "For add-on developers or repositories that do not publish packages. Downloads a successful GitHub Actions build; these downloads can expire and always need a token, even for public repositories.",
+  "github.tls":
+    "This server could not verify GitHub's secure connection. The server administrator needs to check its trusted certificates; changing your repository token will not fix this.",
   "github.branch": "Branch (optional)",
   "github.defaultBranch": "Default branch",
   "github.artifact": "Build artifact name",
@@ -67,7 +83,8 @@ export const githubEn = {
   "github.current": "Up to date",
   "github.download": "Download and review",
   "github.tokens": "GitHub access tokens",
-  "github.tokenHint": "For private releases, grant Contents: read. Actions downloads also need Actions: read, even for public repositories. A repository token overrides the default. Tokens stay on this server and are excluded from campaign backups.",
+  "github.tokenHint":
+    "For private releases, grant Contents: read. Actions downloads also need Actions: read, even for public repositories. A repository token overrides the default. Tokens stay on this server and are excluded from campaign backups.",
   "github.defaultToken": "Default token",
   "github.tokenScope": "Repository scope (blank for default)",
   "github.token": "Access token",
@@ -78,12 +95,18 @@ export const githubEn = {
   "github.token.none": "Not configured",
   "github.token.stored": "Stored on this server",
   "github.token.environment": "Server environment",
-  "github.environmentHint": "An environment token is available as a fallback. Change it in the server configuration.",
-  "github.invalid": "Enter a GitHub owner/repository or repository URL, and a valid access token when needed.",
-  "github.identity": "This package belongs to a different add-on. Check the repository and selected package.",
-  "github.invalidPackage": "The download must contain one prebuilt Add-on API v3 ZIP, up to 128 MiB. Source archives cannot be installed.",
-  "github.noPackage": "No package is available. Publish a stable release ZIP or a successful push/manual build with the named artifact. Expired artifacts cannot be downloaded.",
-  "github.unavailable": "GitHub could not be reached or access was denied. Check the repository, token permissions, and GitHub rate limits, then try again.",
+  "github.environmentHint":
+    "An environment token is available as a fallback. Change it in the server configuration.",
+  "github.invalid":
+    "Enter a GitHub owner/repository or repository URL, and a valid access token when needed.",
+  "github.identity":
+    "This package belongs to a different add-on. Check the repository and selected package.",
+  "github.invalidPackage":
+    "The download must contain one prebuilt Add-on API v3 ZIP, up to 128 MiB. Source archives cannot be installed.",
+  "github.noPackage":
+    "No package is available. Publish a stable release ZIP or a successful push/manual build with the named artifact. Expired artifacts cannot be downloaded.",
+  "github.unavailable":
+    "GitHub could not be reached or access was denied. Check the repository, token permissions, and GitHub rate limits, then try again.",
 } as const;
 
 export const githubCs: Record<keyof typeof githubEn, string> = {
@@ -99,39 +122,52 @@ export const githubCs: Record<keyof typeof githubEn, string> = {
   "github.openRelease": "Otevřít vydání na GitHubu",
   "github.openBuild": "Otevřít sestavení na GitHubu",
   "github.packageIdentity": "Identita balíčku",
-  "github.metadataHint": "Údaje o zdroji na GitHubu jsou informativní. Kompatibilita se ověří po stažení; aktivace vyžaduje vaše posouzení.",
-  "github.incompatible": "Tento balíček není kompatibilní s tímto serverem. Před aktivací vyberte kompatibilní balíček nebo aktualizujte server.",
+  "github.metadataHint":
+    "Údaje o zdroji na GitHubu jsou informativní. Kompatibilita se ověří po stažení; aktivace vyžaduje vaše posouzení.",
+  "github.incompatible":
+    "Tento balíček není kompatibilní s tímto serverem. Před aktivací vyberte kompatibilní balíček nebo aktualizujte server.",
   "github.chooseSource": "Vyberte zdroj",
   "github.wizardIntro": "Přidejte balíček, zkontrolujte jeho oprávnění a poté jej aktivujte.",
   "github.githubHelp": "Instalujte z repozitáře a kontrolujte zde budoucí aktualizace.",
   "github.zip": "Soubor ZIP",
   "github.zipHelp": "Nahrajte balíček doplňku ze svého počítače.",
-  "github.zipHint": "Vyberte sestavený ZIP doplňku do 128 MiB. Archivy zdrojového kódu z GitHubu nelze instalovat.",
+  "github.zipHint":
+    "Vyberte sestavený ZIP doplňku do 128 MiB. Archivy zdrojového kódu z GitHubu nelze instalovat.",
   "github.back": "Zpět na výběr zdroje",
   "github.close": "Zrušit",
   "github.repositorySetup": "Připojte repozitář GitHub",
   "github.private": "Soukromý repozitář",
   "github.createToken": "Vytvořte podrobný přístupový token na GitHubu.",
   "github.tokenOwner": "Vyberte vlastníka repozitáře a datum vypršení platnosti.",
-  "github.tokenRepository": "V části Repository access zvolte Only select repositories a vyberte tento repozitář.",
-  "github.tokenPermissions": "Pro vydání nastavte Contents na Read-only. Pro sestavení Actions nastavte také Actions na Read-only.",
-  "github.tokenPaste": "Vygenerujte token a vložte jej sem. Repozitáře organizací mohou vyžadovat schválení vlastníkem.",
-  "github.tokenStorage": "Token se uloží na tomto serveru pro tento repozitář a budoucí kontroly aktualizací. Nevrací se do prohlížeče a není součástí záloh kampaně.",
+  "github.tokenRepository":
+    "V části Repository access zvolte Only select repositories a vyberte tento repozitář.",
+  "github.tokenPermissions":
+    "Pro vydání nastavte Contents na Read-only. Pro sestavení Actions nastavte také Actions na Read-only.",
+  "github.tokenPaste":
+    "Vygenerujte token a vložte jej sem. Repozitáře organizací mohou vyžadovat schválení vlastníkem.",
+  "github.tokenStorage":
+    "Token se uloží na tomto serveru pro tento repozitář a budoucí kontroly aktualizací. Nevrací se do prohlížeče a není součástí záloh kampaně.",
   "github.tokenGuide": "Přečíst návod GitHubu k tokenům",
   "github.tokenInstructions": "Jak vytvořit přístupový token",
-  "github.actionsToken": "GitHub vyžaduje token ke stažení sestavení Actions, a to i z veřejných repozitářů.",
-  "github.savedAccess": "Uložený přístup ke GitHubu je dostupný. Pro jeho použití nechte token prázdný.",
+  "github.actionsToken":
+    "GitHub vyžaduje token ke stažení sestavení Actions, a to i z veřejných repozitářů.",
+  "github.savedAccess":
+    "Uložený přístup ke GitHubu je dostupný. Pro jeho použití nechte token prázdný.",
   "github.replaceToken": "Nahradit přístupový token (volitelné)",
   "github.buildOptions": "Možnosti sestavení",
-  "github.buildDefaults": "Pokud nastavení nezměníte, použije se výchozí větev a artefakt reviewed-package.",
+  "github.buildDefaults":
+    "Pokud nastavení nezměníte, použije se výchozí větev a artefakt reviewed-package.",
   "github.choosePackage": "Vyberte balíček",
-  "github.reviewHint": "Po stažení zkontrolujete oprávnění a kompatibilitu. Zatím se nic neaktivuje.",
+  "github.reviewHint":
+    "Po stažení zkontrolujete oprávnění a kompatibilitu. Zatím se nic neaktivuje.",
   "github.preparing": "Příprava kontroly…",
   "github.finding": "Kontrola repozitáře…",
   "github.checking": "Kontrola aktualizací…",
   "github.checked": "Kontrola aktualizací dokončena. Výsledky jsou uvedeny u jednotlivých doplňků.",
-  "github.noSources": "Zatím nejsou připojeny žádné repozitáře GitHub. Pro připojení otevřete Zdroj aktualizací u doplňku.",
-  "github.manualSource": "Tento doplněk používá nahrané ZIP balíčky. Pro kontrolu aktualizací připojte repozitář GitHub.",
+  "github.noSources":
+    "Zatím nejsou připojeny žádné repozitáře GitHub. Pro připojení otevřete Zdroj aktualizací u doplňku.",
+  "github.manualSource":
+    "Tento doplněk používá nahrané ZIP balíčky. Pro kontrolu aktualizací připojte repozitář GitHub.",
   "github.updateSource": "Zdroj aktualizací",
   "github.editSource": "Upravit zdroj GitHub",
   "github.connectSource": "Připojit GitHub",
@@ -142,9 +178,12 @@ export const githubCs: Record<keyof typeof githubEn, string> = {
   "github.channel": "Zdroj balíčku",
   "github.actions": "Testovací sestavení (pokročilé)",
   "github.release": "Nejnovější publikovaný balíček (doporučeno)",
-  "github.releaseHelp": "Použijte pro běžnou instalaci a aktualizace. Stáhne nejnovější balíček publikovaný autorem doplňku. Aktualizace může být dostupná i bez změny čísla verze. Veřejné balíčky nepotřebují token. O aktivaci aktualizace rozhodujete vy.",
-  "github.actionsHelp": "Pro vývojáře doplňků nebo repozitáře, které nepublikují balíčky. Stahuje úspěšné sestavení GitHub Actions; soubory mohou vypršet a vždy vyžadují token, i z veřejných repozitářů.",
-  "github.tls": "Tento server nemohl ověřit zabezpečené spojení s GitHubem. Správce serveru musí zkontrolovat důvěryhodné certifikáty; změna tokenu repozitáře tento problém nevyřeší.",
+  "github.releaseHelp":
+    "Použijte pro běžnou instalaci a aktualizace. Stáhne nejnovější balíček publikovaný autorem doplňku. Aktualizace může být dostupná i bez změny čísla verze. Veřejné balíčky nepotřebují token. O aktivaci aktualizace rozhodujete vy.",
+  "github.actionsHelp":
+    "Pro vývojáře doplňků nebo repozitáře, které nepublikují balíčky. Stahuje úspěšné sestavení GitHub Actions; soubory mohou vypršet a vždy vyžadují token, i z veřejných repozitářů.",
+  "github.tls":
+    "Tento server nemohl ověřit zabezpečené spojení s GitHubem. Správce serveru musí zkontrolovat důvěryhodné certifikáty; změna tokenu repozitáře tento problém nevyřeší.",
   "github.branch": "Větev (volitelné)",
   "github.defaultBranch": "Výchozí větev",
   "github.artifact": "Název artefaktu sestavení",
@@ -155,7 +194,8 @@ export const githubCs: Record<keyof typeof githubEn, string> = {
   "github.current": "Aktuální verze",
   "github.download": "Stáhnout a zkontrolovat",
   "github.tokens": "Přístupové tokeny GitHub",
-  "github.tokenHint": "Pro soukromá vydání povolte Contents: read. Stahování z Actions vyžaduje také Actions: read, i pro veřejné repozitáře. Token repozitáře má přednost před výchozím. Tokeny zůstávají na serveru a nejsou součástí záloh kampaně.",
+  "github.tokenHint":
+    "Pro soukromá vydání povolte Contents: read. Stahování z Actions vyžaduje také Actions: read, i pro veřejné repozitáře. Token repozitáře má přednost před výchozím. Tokeny zůstávají na serveru a nejsou součástí záloh kampaně.",
   "github.defaultToken": "Výchozí token",
   "github.tokenScope": "Repozitář (prázdné pro výchozí token)",
   "github.token": "Přístupový token",
@@ -166,10 +206,15 @@ export const githubCs: Record<keyof typeof githubEn, string> = {
   "github.token.none": "Nenastaveno",
   "github.token.stored": "Uložen na tomto serveru",
   "github.token.environment": "Prostředí serveru",
-  "github.environmentHint": "Jako záloha je dostupný token z prostředí serveru. Změníte jej v konfiguraci serveru.",
-  "github.invalid": "Zadejte vlastníka/repozitář nebo URL repozitáře GitHub a v případě potřeby platný přístupový token.",
+  "github.environmentHint":
+    "Jako záloha je dostupný token z prostředí serveru. Změníte jej v konfiguraci serveru.",
+  "github.invalid":
+    "Zadejte vlastníka/repozitář nebo URL repozitáře GitHub a v případě potřeby platný přístupový token.",
   "github.identity": "Balíček patří jinému doplňku. Zkontrolujte repozitář a vybraný balíček.",
-  "github.invalidPackage": "Stažený soubor musí obsahovat jeden sestavený ZIP pro Add-on API v3, nejvýše 128 MiB. Archiv zdrojového kódu nelze nainstalovat.",
-  "github.noPackage": "Balíček není dostupný. Zveřejněte ZIP stabilního vydání nebo úspěšné sestavení po odeslání změn či ručním spuštění s požadovaným artefaktem. Artefakty po vypršení platnosti nelze stáhnout.",
-  "github.unavailable": "GitHub není dostupný nebo byl přístup zamítnut. Zkontrolujte repozitář, oprávnění tokenu a limity GitHubu a zkuste to znovu.",
+  "github.invalidPackage":
+    "Stažený soubor musí obsahovat jeden sestavený ZIP pro Add-on API v3, nejvýše 128 MiB. Archiv zdrojového kódu nelze nainstalovat.",
+  "github.noPackage":
+    "Balíček není dostupný. Zveřejněte ZIP stabilního vydání nebo úspěšné sestavení po odeslání změn či ručním spuštění s požadovaným artefaktem. Artefakty po vypršení platnosti nelze stáhnout.",
+  "github.unavailable":
+    "GitHub není dostupný nebo byl přístup zamítnut. Zkontrolujte repozitář, oprávnění tokenu a limity GitHubu a zkuste to znovu.",
 };

@@ -11,27 +11,40 @@ const digest = "b".repeat(64);
 
 describe("BrowserAddonContentClient", () => {
   it("reads and validates the immutable generation catalog", async () => {
-    const fetchContent = vi.fn<AddonContentFetch>(async () => jsonResponse({
-      contractVersion: "addon-content-catalog.v1",
-      addonId: "compendium",
-      generationId,
-      sets: [{
-        id: "rules",
-        revision: "2026.09.1",
-        groups: { field: "source.book", additionalField: "source.license", label: "Sourcebook" },
-        schemaSha256: digest,
-        recordCount: 3,
-        kinds: { class: 1, spell: 2 },
-      }],
-    }));
+    const fetchContent = vi.fn<AddonContentFetch>(async () =>
+      jsonResponse({
+        contractVersion: "addon-content-catalog.v1",
+        addonId: "compendium",
+        generationId,
+        sets: [
+          {
+            id: "rules",
+            revision: "2026.09.1",
+            groups: {
+              field: "source.book",
+              additionalField: "source.license",
+              label: "Sourcebook",
+            },
+            schemaSha256: digest,
+            recordCount: 3,
+            kinds: { class: 1, spell: 2 },
+          },
+        ],
+      }),
+    );
     const api = createClient(fetchContent).api();
 
     await expect(api.catalog()).resolves.toEqual({
-      sets: [{
-        id: "rules", revision: "2026.09.1",
-        groups: { field: "source.book", additionalField: "source.license", label: "Sourcebook" },
-        schemaSha256: digest, recordCount: 3, kinds: { class: 1, spell: 2 },
-      }],
+      sets: [
+        {
+          id: "rules",
+          revision: "2026.09.1",
+          groups: { field: "source.book", additionalField: "source.license", label: "Sourcebook" },
+          schemaSha256: digest,
+          recordCount: 3,
+          kinds: { class: 1, spell: 2 },
+        },
+      ],
     });
     expect(fetchContent).toHaveBeenCalledWith(
       `/api/addons/compendium/generations/${generationId}/content`,
@@ -41,44 +54,66 @@ describe("BrowserAddonContentClient", () => {
 
   it("accepts a fully disabled effective set and rejects inconsistent or negative counts", async () => {
     let recordCount = 0;
-    const fetchContent: AddonContentFetch = async () => jsonResponse({ contractVersion: "addon-content-catalog.v1", addonId: "compendium", generationId,
-      sets: [{ id: "rules", revision: "source-policy-2", schemaSha256: digest, recordCount, kinds: {} }] });
+    const fetchContent: AddonContentFetch = async () =>
+      jsonResponse({
+        contractVersion: "addon-content-catalog.v1",
+        addonId: "compendium",
+        generationId,
+        sets: [
+          {
+            id: "rules",
+            revision: "source-policy-2",
+            schemaSha256: digest,
+            recordCount,
+            kinds: {},
+          },
+        ],
+      });
     const api = createClient(fetchContent).api();
     await expect(api.catalog()).resolves.toMatchObject({ sets: [{ recordCount: 0, kinds: {} }] });
-    for (recordCount of [-1, 1, 100001]) await expect(api.catalog()).rejects.toThrow(BoundaryValidationError);
+    for (recordCount of [-1, 1, 100001])
+      await expect(api.catalog()).rejects.toThrow(BoundaryValidationError);
   });
 
   it("gets records with encoded identities and verifies their envelope", async () => {
-    const fetchContent = vi.fn<AddonContentFetch>(async () => jsonResponse({
-      contractVersion: "addon-content-record.v1",
-      addonId: "compendium",
-      generationId,
-      setId: "rules",
-      revision: "2026.09.1",
-      record: {
-        kind: "magic item", id: "amulet/health",
-        value: { kind: "magic item", id: "amulet/health", name: "Amulet of Health" },
-      },
-    }));
+    const fetchContent = vi.fn<AddonContentFetch>(async () =>
+      jsonResponse({
+        contractVersion: "addon-content-record.v1",
+        addonId: "compendium",
+        generationId,
+        setId: "rules",
+        revision: "2026.09.1",
+        record: {
+          kind: "magic item",
+          id: "amulet/health",
+          value: { kind: "magic item", id: "amulet/health", name: "Amulet of Health" },
+        },
+      }),
+    );
 
-    await expect(createClient(fetchContent).api().set<{ name: string }>("rules")
-      .get("magic item", "amulet/health"))
-      .resolves.toMatchObject({ id: "amulet/health", value: { name: "Amulet of Health" } });
+    await expect(
+      createClient(fetchContent)
+        .api()
+        .set<{ name: string }>("rules")
+        .get("magic item", "amulet/health"),
+    ).resolves.toMatchObject({ id: "amulet/health", value: { name: "Amulet of Health" } });
     expect(fetchContent.mock.calls[0]?.[0]).toBe(
       `/api/addons/compendium/generations/${generationId}/content/records?set=rules&kind=magic+item&id=amulet%2Fhealth`,
     );
   });
 
   it("uses bounded queries and parses stable cursors", async () => {
-    const fetchContent = vi.fn<AddonContentFetch>(async () => jsonResponse({
-      contractVersion: "addon-content-query-result.v1",
-      addonId: "compendium",
-      generationId,
-      setId: "rules",
-      revision: "2026.09.1",
-      records: [{ kind: "spell", id: "shield", value: { kind: "spell", id: "shield" } }],
-      nextCursor: "MTA",
-    }));
+    const fetchContent = vi.fn<AddonContentFetch>(async () =>
+      jsonResponse({
+        contractVersion: "addon-content-query-result.v1",
+        addonId: "compendium",
+        generationId,
+        setId: "rules",
+        revision: "2026.09.1",
+        records: [{ kind: "spell", id: "shield", value: { kind: "spell", id: "shield" } }],
+        nextCursor: "MTA",
+      }),
+    );
     const rules = createClient(fetchContent).api().set("rules");
 
     await expect(rules.query({ kind: "spell", limit: 25, cursor: "Mg" })).resolves.toEqual({
@@ -93,14 +128,16 @@ describe("BrowserAddonContentClient", () => {
 
   it("rejects malformed responses and revoked generations", async () => {
     const owner = new AbortController();
-    const fetchContent = vi.fn<AddonContentFetch>(async () => jsonResponse({
-      contractVersion: "addon-content-query-result.v1",
-      addonId: "compendium",
-      generationId,
-      setId: "rules",
-      revision: "1",
-      records: [{ kind: "spell", id: "shield", value: { kind: "spell", id: "wrong" } }],
-    }));
+    const fetchContent = vi.fn<AddonContentFetch>(async () =>
+      jsonResponse({
+        contractVersion: "addon-content-query-result.v1",
+        addonId: "compendium",
+        generationId,
+        setId: "rules",
+        revision: "1",
+        records: [{ kind: "spell", id: "shield", value: { kind: "spell", id: "wrong" } }],
+      }),
+    );
     const rules = createClient(fetchContent, owner.signal).api().set("rules");
 
     await expect(rules.query()).rejects.toThrow(BoundaryValidationError);
@@ -110,13 +147,17 @@ describe("BrowserAddonContentClient", () => {
   });
 
   it("reports status without exposing server details", async () => {
-    const client = createClient(async () => new Response(
-      JSON.stringify({ error: { message: "private package path" } }),
-      { status: 409, headers: { "Content-Type": "application/json" } },
-    ));
+    const client = createClient(
+      async () =>
+        new Response(JSON.stringify({ error: { message: "private package path" } }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
 
-    await expect(client.api().set("rules").get("spell", "shield"))
-      .rejects.toEqual(new AddonContentHTTPError(409, "get"));
+    await expect(client.api().set("rules").get("spell", "shield")).rejects.toEqual(
+      new AddonContentHTTPError(409, "get"),
+    );
   });
 });
 
@@ -125,7 +166,10 @@ function createClient(
   signal: AbortSignal = new AbortController().signal,
 ): BrowserAddonContentClient {
   return new BrowserAddonContentClient({
-    addonId: "compendium", generationId, signal, fetchContent,
+    addonId: "compendium",
+    generationId,
+    signal,
+    fetchContent,
   });
 }
 

@@ -47,10 +47,7 @@ export interface CampaignDataset {
   readonly collections: readonly CampaignCollection[];
 }
 
-export type CampaignDataFetch = (
-  input: string,
-  init: RequestInit,
-) => Promise<Response>;
+export type CampaignDataFetch = (input: string, init: RequestInit) => Promise<Response>;
 
 export class CampaignDataHTTPError extends Error {
   override readonly name = "CampaignDataHTTPError";
@@ -113,12 +110,19 @@ export class CampaignDataClient {
     if (!response.ok) {
       throw new CampaignDataHTTPError(response.status);
     }
-    const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    const contentType = response.headers
+      .get("Content-Type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
     if (contentType !== "application/json") {
       throw new BoundaryValidationError(boundary, "response must be application/json");
     }
     const declaredLength = response.headers.get("Content-Length");
-    if (declaredLength !== null && (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maximumDatasetBytes)) {
+    if (
+      declaredLength !== null &&
+      (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maximumDatasetBytes)
+    ) {
       throw new BoundaryValidationError(boundary, "response exceeds 64 MiB");
     }
     const body = await response.text();
@@ -149,7 +153,10 @@ export function parseCampaignDataset(value: unknown): CampaignDataset {
   }
   const expectedNames = Object.keys(collectionShapes) as CampaignCollectionName[];
   if (value["collections"].length !== expectedNames.length) {
-    throw new BoundaryValidationError(boundary, "dataset must contain every core collection exactly once");
+    throw new BoundaryValidationError(
+      boundary,
+      "dataset must contain every core collection exactly once",
+    );
   }
   let totalRecords = 0;
   const seen = new Set<CampaignCollectionName>();
@@ -199,8 +206,11 @@ function parseCollection(value: unknown, index: number): CampaignCollection {
   if (value["shape"] !== collectionShapes[typedName]) {
     throw new BoundaryValidationError(boundary, `${location}.shape does not match ${name}`);
   }
-  if (typeof value["materialized"] !== "boolean" || !validRevision(value["revision"], false) ||
-    !Array.isArray(value["records"])) {
+  if (
+    typeof value["materialized"] !== "boolean" ||
+    !validRevision(value["revision"], false) ||
+    !Array.isArray(value["records"])
+  ) {
     throw new BoundaryValidationError(boundary, `${location} contains invalid collection state`);
   }
   const recordKeysSeen = new Set<string>();
@@ -225,9 +235,14 @@ function parseCollection(value: unknown, index: number): CampaignCollection {
 }
 
 function parseRecord(value: unknown, location: string): CampaignRecord {
-  if (!isRecord(value) || !hasOnlyKeys(value, recordKeys) ||
-    typeof value["key"] !== "string" || !validRecordKey(value["key"]) ||
-    !validRevision(value["revision"], true) || !isJSONValue(value["value"])) {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, recordKeys) ||
+    typeof value["key"] !== "string" ||
+    !validRecordKey(value["key"]) ||
+    !validRevision(value["revision"], true) ||
+    !isJSONValue(value["value"])
+  ) {
     throw new BoundaryValidationError(boundary, `${location} is invalid`);
   }
   return { key: value["key"], revision: value["revision"] as number, value: value["value"] };
@@ -238,8 +253,9 @@ function validRevision(value: unknown, positive: boolean): boolean {
 }
 
 function validRecordKey(value: string): boolean {
-  return value.length > 0 && new TextEncoder().encode(value).byteLength <= 1024 &&
-    !/\p{Cc}/u.test(value);
+  return (
+    value.length > 0 && new TextEncoder().encode(value).byteLength <= 1024 && !/\p{Cc}/u.test(value)
+  );
 }
 
 function isJSONValue(value: unknown): boolean {

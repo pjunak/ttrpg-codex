@@ -27,15 +27,22 @@ describe("BrowserGenerationManager", () => {
       };
     });
 
-    await manager.reconcile({ contractVersion: 2, graphRevision: "graph-1", addons: [consumer, providerV1] });
-    const result = await manager.reconcile({ contractVersion: 2, graphRevision: "graph-2", addons: [consumer, providerV2] });
+    await manager.reconcile({
+      contractVersion: 2,
+      graphRevision: "graph-1",
+      addons: [consumer, providerV1],
+    });
+    const result = await manager.reconcile({
+      contractVersion: 2,
+      graphRevision: "graph-2",
+      addons: [consumer, providerV2],
+    });
 
     expect(result.activationFailures).toEqual([]);
     expect(result.disposalFailures).toEqual([]);
-    expect(result.active.map((descriptor) => `${descriptor.addonId}:${descriptor.generationId}`)).toEqual([
-      "character-sheets:generation-sheets",
-      "rules-engine:generation-2",
-    ]);
+    expect(
+      result.active.map((descriptor) => `${descriptor.addonId}:${descriptor.generationId}`),
+    ).toEqual(["character-sheets:generation-sheets", "rules-engine:generation-2"]);
     expect(events).toEqual([
       "start:rules-engine:generation-1",
       "start:character-sheets:generation-sheets",
@@ -77,76 +84,100 @@ describe("BrowserGenerationManager", () => {
 
     const left = generation("left-addon", "left", ["right-addon"]);
     const right = generation("right-addon", "right", ["left-addon"]);
-    expect(() => manager.reconcile({ contractVersion: 2, graphRevision: "graph-2", addons: [left, right] })).toThrow(
-      BrowserGenerationPlanError,
-    );
+    expect(() =>
+      manager.reconcile({ contractVersion: 2, graphRevision: "graph-2", addons: [left, right] }),
+    ).toThrow(BrowserGenerationPlanError);
 
     expect(stop).not.toHaveBeenCalled();
     expect(manager.activeGenerations()).toEqual([providerV1]);
 
-    expect(() => manager.reconcile({
-      contractVersion: 2,
-      graphRevision: "graph-2",
-      addons: [{ ...providerV2, entryUrl: "https://example.invalid/addon.js" }],
-    })).toThrow(BrowserGenerationPlanError);
-    expect(() => manager.reconcile({
-      contractVersion: 2,
-      graphRevision: "graph-2",
-      addons: [{ ...providerV2, entryUrl: "/api/addons/provider/assets/web/index.html" }],
-    })).toThrow(BrowserGenerationPlanError);
-    expect(() => manager.reconcile({
-      contractVersion: 2,
-      graphRevision: "graph-2",
-      addons: [generation("orphan-addon", "orphan", ["missing-addon"])],
-    })).toThrow(BrowserGenerationPlanError);
-    expect(() => manager.reconcile({
-      contractVersion: 2,
-      graphRevision: "graph-2",
-      addons: [{
-        ...providerV2,
-        contributions: [{
-          id: "planner.route",
-          surface: "route",
-          label: "Planner",
-          roles: ["dm"],
-          order: 0,
-          requires: ["ui.contributions"],
-          config: {},
-        }],
-      }],
-    })).toThrow(BrowserGenerationPlanError);
-    expect(() => manager.reconcile({
-      contractVersion: 2,
-      graphRevision: "graph-2",
-      addons: [{
-        ...providerV2,
-        contributions: [{
-          id: "planner.route",
-          surface: "route",
-          label: "Planner",
-          roles: ["dm"],
-          order: 0,
-          requires: [],
-          config: { path: "../planner" },
-        }],
-      }],
-    })).toThrow("requires exact config");
-    expect(() => manager.reconcile({
-      contractVersion: 2,
-      graphRevision: "graph-2",
-      addons: [{
-        ...providerV2,
-        contributions: [{
-          id: "planner.sidebar",
-          surface: "sidebar",
-          label: "Planner",
-          roles: ["dm"],
-          order: 0,
-          requires: [],
-          config: { route: "planner.route", href: "https://invalid" },
-        }],
-      }],
-    })).toThrow("requires exact config");
+    expect(() =>
+      manager.reconcile({
+        contractVersion: 2,
+        graphRevision: "graph-2",
+        addons: [{ ...providerV2, entryUrl: "https://example.invalid/addon.js" }],
+      }),
+    ).toThrow(BrowserGenerationPlanError);
+    expect(() =>
+      manager.reconcile({
+        contractVersion: 2,
+        graphRevision: "graph-2",
+        addons: [{ ...providerV2, entryUrl: "/api/addons/provider/assets/web/index.html" }],
+      }),
+    ).toThrow(BrowserGenerationPlanError);
+    expect(() =>
+      manager.reconcile({
+        contractVersion: 2,
+        graphRevision: "graph-2",
+        addons: [generation("orphan-addon", "orphan", ["missing-addon"])],
+      }),
+    ).toThrow(BrowserGenerationPlanError);
+    expect(() =>
+      manager.reconcile({
+        contractVersion: 2,
+        graphRevision: "graph-2",
+        addons: [
+          {
+            ...providerV2,
+            contributions: [
+              {
+                id: "planner.route",
+                surface: "route",
+                label: "Planner",
+                roles: ["dm"],
+                order: 0,
+                requires: ["ui.contributions"],
+                config: {},
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow(BrowserGenerationPlanError);
+    expect(() =>
+      manager.reconcile({
+        contractVersion: 2,
+        graphRevision: "graph-2",
+        addons: [
+          {
+            ...providerV2,
+            contributions: [
+              {
+                id: "planner.route",
+                surface: "route",
+                label: "Planner",
+                roles: ["dm"],
+                order: 0,
+                requires: [],
+                config: { path: "../planner" },
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow("requires exact config");
+    expect(() =>
+      manager.reconcile({
+        contractVersion: 2,
+        graphRevision: "graph-2",
+        addons: [
+          {
+            ...providerV2,
+            contributions: [
+              {
+                id: "planner.sidebar",
+                surface: "sidebar",
+                label: "Planner",
+                roles: ["dm"],
+                order: 0,
+                requires: [],
+                config: { route: "planner.route", href: "https://invalid" },
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow("requires exact config");
     expect(stop).not.toHaveBeenCalled();
   });
 
@@ -166,8 +197,16 @@ describe("BrowserGenerationManager", () => {
       };
     });
 
-    const first = manager.reconcile({ contractVersion: 2, graphRevision: "graph-1", addons: [providerV1] });
-    const second = manager.reconcile({ contractVersion: 2, graphRevision: "graph-2", addons: [providerV2] });
+    const first = manager.reconcile({
+      contractVersion: 2,
+      graphRevision: "graph-1",
+      addons: [providerV1],
+    });
+    const second = manager.reconcile({
+      contractVersion: 2,
+      graphRevision: "graph-2",
+      addons: [providerV2],
+    });
     releaseFirst?.();
     await Promise.all([first, second]);
 
@@ -212,7 +251,11 @@ describe("BrowserGenerationManager", () => {
       createModuleActivator(importer, (descriptor, scope) => registry.open(descriptor, scope)),
     );
 
-    const result = await manager.reconcile({ contractVersion: 2, graphRevision: "graph-1", addons: [providerV1] });
+    const result = await manager.reconcile({
+      contractVersion: 2,
+      graphRevision: "graph-1",
+      addons: [providerV1],
+    });
 
     expect(result.active).toEqual([]);
     expect(result.activationFailures).toHaveLength(1);

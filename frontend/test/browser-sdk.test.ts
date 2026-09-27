@@ -23,30 +23,48 @@ const graphView = contribution("planner.graph", "graph-view", 300);
 
 describe("BrowserContributionRegistry", () => {
   it("requires the controls capability, integrated mode and a live SDK session", () => {
-    const root = {} as HTMLElement, registry = new BrowserContributionRegistry();
-    const absent = registry.open(descriptor("controls", []), new GenerationScope("controls@absent"));
+    const root = {} as HTMLElement,
+      registry = new BrowserContributionRegistry();
+    const absent = registry.open(
+      descriptor("controls", []),
+      new GenerationScope("controls@absent"),
+    );
     expect(() => absent.context.ui.enhance(root)).toThrow("ui.controls.v1");
-    const isolated = registry.open({ ...descriptor("controls", []), mode: "isolated", capabilities: ["ui.controls.v1"] }, new GenerationScope("controls@isolated"));
+    const isolated = registry.open(
+      { ...descriptor("controls", []), mode: "isolated", capabilities: ["ui.controls.v1"] },
+      new GenerationScope("controls@isolated"),
+    );
     expect(() => isolated.context.ui.enhance(root)).toThrow("integrated");
-    isolated.dispose(); expect(() => isolated.context.ui.enhance(root)).toThrow();
+    isolated.dispose();
+    expect(() => isolated.context.ui.enhance(root)).toThrow();
     absent.dispose();
   });
   it("binds wiki providers as generation-scoped callbacks rather than visual elements", () => {
     const registry = new BrowserContributionRegistry();
-    const declaration = { ...contribution("library.wiki", "wiki-kind", 0), config: { contractVersion: 1, kinds: ["spell"] } };
+    const declaration = {
+      ...contribution("library.wiki", "wiki-kind", 0),
+      config: { contractVersion: 1, kinds: ["spell"] },
+    };
     const scope = new GenerationScope("library@generation");
     const session = registry.open(descriptor("library", [declaration]), scope);
-    expect(() => session.context.ui.bind(declaration.id, { kind: "element", tag: "library-wiki" })).toThrow("requires a model-provider binding");
-    const provide = vi.fn(); session.context.ui.bind(declaration.id, { kind: "model-provider", provide });
+    expect(() =>
+      session.context.ui.bind(declaration.id, { kind: "element", tag: "library-wiki" }),
+    ).toThrow("requires a model-provider binding");
+    const provide = vi.fn();
+    session.context.ui.bind(declaration.id, { kind: "model-provider", provide });
     const binding = registry.list("wiki-kind", "player")[0]?.binding;
     if (binding?.kind !== "model-provider") throw Error("Wiki binding missing");
     binding.provide({ references: [] }, { signal: new AbortController().signal });
-    expect(provide).toHaveBeenCalledOnce(); session.dispose();
+    expect(provide).toHaveBeenCalledOnce();
+    session.dispose();
     expect(registry.list("wiki-kind", "player")).toEqual([]);
   });
   it("creates one generation-scoped data API for add-on code", () => {
     const handle: AddonDataHandle<unknown> = {
-      get: vi.fn(), query: vi.fn(), put: vi.fn(), delete: vi.fn(),
+      get: vi.fn(),
+      query: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
     };
     const dataAPI: BrowserDataAPI = {
       collection: <T>() => handle as AddonDataHandle<T>,
@@ -71,11 +89,10 @@ describe("BrowserContributionRegistry", () => {
     const createContentAPI = vi.fn(() => contentAPI);
     const source = descriptor("compendium", [route]);
     const scope = new GenerationScope("compendium@generation");
-    const session = new BrowserContributionRegistry(
-      undefined,
-      undefined,
-      createContentAPI,
-    ).open(source, scope);
+    const session = new BrowserContributionRegistry(undefined, undefined, createContentAPI).open(
+      source,
+      scope,
+    );
 
     expect(createContentAPI).toHaveBeenCalledWith(source, scope.signal);
     expect(session.context.content.set("rules")).toBe(set);
@@ -95,9 +112,12 @@ describe("BrowserContributionRegistry", () => {
     ).open(source, scope);
 
     expect(createServiceAPI).toHaveBeenCalledWith(source, scope.signal);
-    await expect(session.context.services.connect("dnd5e.rules-engine", {
-      range: "^3.0.0", cardinality: "one",
-    })).resolves.toBe(handle);
+    await expect(
+      session.context.services.connect("dnd5e.rules-engine", {
+        range: "^3.0.0",
+        cardinality: "one",
+      }),
+    ).resolves.toBe(handle);
   });
 
   it("exposes immutable generation identity and effective authority", () => {
@@ -137,14 +157,18 @@ describe("BrowserContributionRegistry", () => {
     const run = vi.fn();
     const provide = vi.fn();
 
-    expect(() => session.context.ui.bind("planner.route", {
-      kind: "action",
-      run,
-    })).toThrow("requires an element binding");
-    expect(() => session.context.ui.bind("planner.route", {
-      kind: "element",
-      tag: "main",
-    })).toThrow("invalid custom element tag");
+    expect(() =>
+      session.context.ui.bind("planner.route", {
+        kind: "action",
+        run,
+      }),
+    ).toThrow("requires an element binding");
+    expect(() =>
+      session.context.ui.bind("planner.route", {
+        kind: "element",
+        tag: "main",
+      }),
+    ).toThrow("invalid custom element tag");
     session.context.ui.bind("planner.route", { kind: "element", tag: "dm-tools-planner" });
     session.context.ui.bind("planner.create", { kind: "action", run });
     session.context.ui.bind("planner.graph", { kind: "model-provider", provide });
@@ -174,18 +198,24 @@ describe("BrowserContributionRegistry", () => {
     expect(actionSignal.reason).toBe("host-cancelled");
     expect(modelSignal.reason).toBe("host-cancelled");
 
-    expect(() => session.context.ui.bind("missing.route", {
-      kind: "element",
-      tag: "dm-tools-missing",
-    })).toThrow(BrowserContributionBindingError);
-    expect(() => session.context.ui.bind("planner.route", {
-      kind: "element",
-      tag: "dm-tools-again",
-    })).toThrow(BrowserContributionBindingError);
-    expect(() => session.context.ui.bind("planner.sidebar", {
-      kind: "element",
-      tag: "dm-tools-sidebar",
-    })).toThrow("declarative");
+    expect(() =>
+      session.context.ui.bind("missing.route", {
+        kind: "element",
+        tag: "dm-tools-missing",
+      }),
+    ).toThrow(BrowserContributionBindingError);
+    expect(() =>
+      session.context.ui.bind("planner.route", {
+        kind: "element",
+        tag: "dm-tools-again",
+      }),
+    ).toThrow(BrowserContributionBindingError);
+    expect(() =>
+      session.context.ui.bind("planner.sidebar", {
+        kind: "element",
+        tag: "dm-tools-sidebar",
+      }),
+    ).toThrow("declarative");
     expect(() => session.publishDeclarative("planner.route")).toThrow("executable binding");
   });
 
@@ -267,10 +297,12 @@ describe("BrowserContributionRegistry", () => {
     }
     expect(staleCause).toBe("authority-changed");
     expect(() => session.context.ui.declarations()).toThrow("closed");
-    expect(() => session.context.ui.bind("planner.route", {
-      kind: "element",
-      tag: "dm-tools-closed",
-    })).toThrow("closed");
+    expect(() =>
+      session.context.ui.bind("planner.route", {
+        kind: "element",
+        tag: "dm-tools-closed",
+      }),
+    ).toThrow("closed");
   });
 
   it("does not let a replacement generation steal a live contribution", () => {
@@ -282,16 +314,20 @@ describe("BrowserContributionRegistry", () => {
     );
     previous.context.ui.bind("planner.route", { kind: "element", tag: "dm-tools-old" });
 
-    expect(() => replacement.context.ui.bind("planner.route", {
-      kind: "element",
-      tag: "dm-tools-new",
-    })).toThrow("owned by another generation");
+    expect(() =>
+      replacement.context.ui.bind("planner.route", {
+        kind: "element",
+        tag: "dm-tools-new",
+      }),
+    ).toThrow("owned by another generation");
 
     previous.dispose();
-    expect(() => replacement.context.ui.bind("planner.route", {
-      kind: "element",
-      tag: "dm-tools-new",
-    })).not.toThrow();
+    expect(() =>
+      replacement.context.ui.bind("planner.route", {
+        kind: "element",
+        tag: "dm-tools-new",
+      }),
+    ).not.toThrow();
   });
 });
 
@@ -390,11 +426,12 @@ function contribution(
   order: number,
   roles: BrowserContributionDescriptor["roles"] = [],
 ): BrowserContributionDescriptor {
-  const config = surface === "route"
-    ? { path: id === "planner.route" ? "planner" : "shared" }
-    : surface === "sidebar"
-      ? { route: "planner.route" }
-      : { path: id };
+  const config =
+    surface === "route"
+      ? { path: id === "planner.route" ? "planner" : "shared" }
+      : surface === "sidebar"
+        ? { route: "planner.route" }
+        : { path: id };
   return {
     id,
     surface,

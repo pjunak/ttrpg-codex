@@ -48,10 +48,14 @@ const contentQueryKeys = new Set(["setId", "options"]);
 const contentQueryOptionKeys = new Set(["kind", "cursor", "limit"]);
 const serviceConnectKeys = new Set(["contract", "range", "cardinality", "includeOwn"]);
 const serviceCallKeys = new Set(["serviceId", "method", "params", "options"]);
-const serviceCallOptionKeys = new Set([
-  "providerAddonId", "deadlineMs", "idempotencyKey",
+const serviceCallOptionKeys = new Set(["providerAddonId", "deadlineMs", "idempotencyKey"]);
+const queryOptionKeys = new Set([
+  "cursor",
+  "limit",
+  "where",
+  "includeDataRevision",
+  "expectedDataRevision",
 ]);
-const queryOptionKeys = new Set(["cursor", "limit", "where", "includeDataRevision", "expectedDataRevision"]);
 const queryConditionKeys = new Set(["path", "equals"]);
 const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const cursorPattern = /^[A-Za-z0-9_-]{1,32}$/;
@@ -126,9 +130,8 @@ export class IsolatedFrameBridge {
   readonly #resolveReady: () => void;
   readonly #rejectReady: (cause: unknown) => void;
   readonly #message = (event: MessageEvent<unknown>) => this.#receive(event.data);
-  readonly #messageError = () => this.#fail(
-    new BoundaryValidationError(boundary, "message could not be decoded"),
-  );
+  readonly #messageError = () =>
+    this.#fail(new BoundaryValidationError(boundary, "message could not be decoded"));
   readonly #abort = () => this.close("authority-changed");
   readonly #readyTimer: ReturnType<typeof globalThis.setTimeout>;
   #invocationSequence = 0;
@@ -170,7 +173,8 @@ export class IsolatedFrameBridge {
       }
     }, timeout);
     this.#unsubscribeData = this.#context.data.subscribe?.((change) => {
-      if (this.#ready && !this.#closed) this.#send({ protocol: isolatedFrameProtocol, type: "data-change", change });
+      if (this.#ready && !this.#closed)
+        this.#send({ protocol: isolatedFrameProtocol, type: "data-change", change });
     });
   }
 
@@ -184,7 +188,8 @@ export class IsolatedFrameBridge {
       this.#onDiagnostic(cause);
     }
     this.#closed = true;
-    this.#unsubscribeData?.(); this.#unsubscribeData = undefined;
+    this.#unsubscribeData?.();
+    this.#unsubscribeData = undefined;
     this.#edits?.set({ dirty: false, saving: false });
     const cause = new IsolatedInvocationError(
       "REVOKED",
@@ -210,9 +215,7 @@ export class IsolatedFrameBridge {
   }
 
   waitUntilReady(signal?: AbortSignal): Promise<void> {
-    return signal === undefined
-      ? this.#readyPromise
-      : waitForSignal(this.#readyPromise, signal);
+    return signal === undefined ? this.#readyPromise : waitForSignal(this.#readyPromise, signal);
   }
 
   updateHostContext(value: unknown): void {
@@ -260,10 +263,14 @@ export class IsolatedFrameBridge {
       };
       const timer = globalThis.setTimeout(() => {
         this.#send({ protocol: isolatedFrameProtocol, type: "cancel", id });
-        finish(() => reject(new IsolatedInvocationError(
-          "TIMEOUT",
-          "The isolated add-on contribution did not respond before its deadline.",
-        )));
+        finish(() =>
+          reject(
+            new IsolatedInvocationError(
+              "TIMEOUT",
+              "The isolated add-on contribution did not respond before its deadline.",
+            ),
+          ),
+        );
       }, this.#invocationTimeoutMilliseconds);
       this.#pending.set(id, {
         resolve: (value) => finish(() => resolve(value)),
@@ -285,8 +292,11 @@ export class IsolatedFrameBridge {
   }
 
   activate(message: unknown): void {
-    if (!isRecord(message) || message["protocol"] !== isolatedFrameProtocol ||
-      message["type"] !== "activate") {
+    if (
+      !isRecord(message) ||
+      message["protocol"] !== isolatedFrameProtocol ||
+      message["type"] !== "activate"
+    ) {
       throw new BoundaryValidationError(boundary, "activation has an invalid protocol envelope");
     }
     this.#send(message, maximumActivationBytes);
@@ -296,9 +306,10 @@ export class IsolatedFrameBridge {
     if (this.#closed) {
       return;
     }
-    const failure = cause instanceof Error
-      ? cause
-      : new BoundaryValidationError(boundary, "frame activation failed");
+    const failure =
+      cause instanceof Error
+        ? cause
+        : new BoundaryValidationError(boundary, "frame activation failed");
     if (!this.#ready) {
       this.#rejectReady(failure);
     }
@@ -346,9 +357,13 @@ export class IsolatedFrameBridge {
       // completes its ready handshake.
       if (value["type"] === "request") {
         const method = value["method"];
-        if (!this.#ready && (typeof method !== "string" ||
-          !method.startsWith("data.") && !method.startsWith("content.") &&
-          !method.startsWith("services."))) {
+        if (
+          !this.#ready &&
+          (typeof method !== "string" ||
+            (!method.startsWith("data.") &&
+              !method.startsWith("content.") &&
+              !method.startsWith("services.")))
+        ) {
           throw new BoundaryValidationError(boundary, "frame sent a message before ready");
         }
         void this.#answer(value);
@@ -376,8 +391,11 @@ export class IsolatedFrameBridge {
   }
 
   #acceptReady(value: Readonly<Record<string, unknown>>): void {
-    if (this.#ready || !hasOnlyKeys(value, readyKeys) ||
-      value["contributionId"] !== this.#contribution.id) {
+    if (
+      this.#ready ||
+      !hasOnlyKeys(value, readyKeys) ||
+      value["contributionId"] !== this.#contribution.id
+    ) {
       throw new BoundaryValidationError(boundary, "ready message has an invalid shape");
     }
     this.#ready = true;
@@ -388,8 +406,13 @@ export class IsolatedFrameBridge {
 
   #acceptResize(value: Readonly<Record<string, unknown>>): void {
     const height = value["height"];
-    if (!hasOnlyKeys(value, resizeKeys) || typeof height !== "number" ||
-      !Number.isSafeInteger(height) || height < 1 || height > 2_400) {
+    if (
+      !hasOnlyKeys(value, resizeKeys) ||
+      typeof height !== "number" ||
+      !Number.isSafeInteger(height) ||
+      height < 1 ||
+      height > 2_400
+    ) {
       throw new BoundaryValidationError(boundary, "resize message has an invalid height");
     }
     this.#onResize(height);
@@ -397,8 +420,12 @@ export class IsolatedFrameBridge {
 
   #acceptDiagnostic(value: Readonly<Record<string, unknown>>): void {
     const message = value["message"];
-    if (!hasOnlyKeys(value, diagnosticKeys) || typeof message !== "string" ||
-      message.length === 0 || message.length > 500) {
+    if (
+      !hasOnlyKeys(value, diagnosticKeys) ||
+      typeof message !== "string" ||
+      message.length === 0 ||
+      message.length > 500
+    ) {
       throw new BoundaryValidationError(boundary, "diagnostic message has an invalid shape");
     }
     this.#onDiagnostic(new Error(`isolated add-on reported: ${message}`));
@@ -406,8 +433,12 @@ export class IsolatedFrameBridge {
 
   #acceptFailed(value: Readonly<Record<string, unknown>>): void {
     const message = value["message"];
-    if (!hasOnlyKeys(value, diagnosticKeys) || typeof message !== "string" ||
-      message.length === 0 || message.length > 500) {
+    if (
+      !hasOnlyKeys(value, diagnosticKeys) ||
+      typeof message !== "string" ||
+      message.length === 0 ||
+      message.length > 500
+    ) {
       throw new BoundaryValidationError(boundary, "failure message has an invalid shape");
     }
     const cause = new BoundaryValidationError(boundary, `frame activation failed: ${message}`);
@@ -415,8 +446,7 @@ export class IsolatedFrameBridge {
   }
 
   #acceptUnavailable(value: Readonly<Record<string, unknown>>): void {
-    if (!hasOnlyKeys(value, unavailableKeys) ||
-      value["contributionId"] !== this.#contribution.id) {
+    if (!hasOnlyKeys(value, unavailableKeys) || value["contributionId"] !== this.#contribution.id) {
       throw new BoundaryValidationError(boundary, "unavailable message has an invalid shape");
     }
     const cause = new BoundaryValidationError(boundary, "isolated contribution became unavailable");
@@ -444,34 +474,45 @@ export class IsolatedFrameBridge {
     }
     if (value["ok"] === true) {
       if (!hasOnlyKeys(value, resultKeys)) {
-        pending.reject(new IsolatedInvocationError(
-          "INVALID_RESULT",
-          "The isolated add-on returned an invalid success result.",
-        ));
+        pending.reject(
+          new IsolatedInvocationError(
+            "INVALID_RESULT",
+            "The isolated add-on returned an invalid success result.",
+          ),
+        );
         return;
       }
       try {
         assertJSONValue(value["result"], "invocation result");
       } catch (cause: unknown) {
         this.#onDiagnostic(cause);
-        pending.reject(new IsolatedInvocationError(
-          "INVALID_RESULT",
-          "The isolated add-on returned a non-JSON result.",
-        ));
+        pending.reject(
+          new IsolatedInvocationError(
+            "INVALID_RESULT",
+            "The isolated add-on returned a non-JSON result.",
+          ),
+        );
         return;
       }
       pending.resolve(value["result"]);
       return;
     }
     const error = value["error"];
-    if (!hasOnlyKeys(value, errorResultKeys) || !isRecord(error) ||
-      !hasOnlyKeys(error, errorKeys) || error["code"] !== "ADDON_ERROR" ||
-      typeof error["message"] !== "string" || error["message"].length === 0 ||
-      error["message"].length > 500) {
-      pending.reject(new IsolatedInvocationError(
-        "INVALID_RESULT",
-        "The isolated add-on returned an invalid error result.",
-      ));
+    if (
+      !hasOnlyKeys(value, errorResultKeys) ||
+      !isRecord(error) ||
+      !hasOnlyKeys(error, errorKeys) ||
+      error["code"] !== "ADDON_ERROR" ||
+      typeof error["message"] !== "string" ||
+      error["message"].length === 0 ||
+      error["message"].length > 500
+    ) {
+      pending.reject(
+        new IsolatedInvocationError(
+          "INVALID_RESULT",
+          "The isolated add-on returned an invalid error result.",
+        ),
+      );
       return;
     }
     pending.reject(new IsolatedInvocationError("ADDON_ERROR", error["message"]));
@@ -481,9 +522,13 @@ export class IsolatedFrameBridge {
     const id = value["id"];
     let request: AbortController | undefined;
     try {
-      if (!hasOnlyKeys(value, requestKeys) || typeof id !== "string" ||
-        !requestIdPattern.test(id) || typeof value["method"] !== "string" ||
-        !isRecord(value["params"])) {
+      if (
+        !hasOnlyKeys(value, requestKeys) ||
+        typeof id !== "string" ||
+        !requestIdPattern.test(id) ||
+        typeof value["method"] !== "string" ||
+        !isRecord(value["params"])
+      ) {
         throw new BoundaryValidationError(boundary, "request has an invalid shape");
       }
       if (this.#sdkRequests.has(id) || this.#sdkRequests.size >= maximumConcurrentInvocations) {
@@ -500,7 +545,10 @@ export class IsolatedFrameBridge {
           : value["method"].startsWith("services.")
             ? maximumServiceMessageBytes
             : maximumMessageBytes;
-      this.#send({ protocol: isolatedFrameProtocol, type: "response", id, ok: true, result }, limit);
+      this.#send(
+        { protocol: isolatedFrameProtocol, type: "response", id, ok: true, result },
+        limit,
+      );
     } catch (cause: unknown) {
       this.#onDiagnostic(cause);
       if (typeof id === "string" && requestIdPattern.test(id)) {
@@ -522,18 +570,17 @@ export class IsolatedFrameBridge {
 
   #cancelSDKRequest(value: Readonly<Record<string, unknown>>): void {
     const id = value["id"];
-    if (!hasOnlyKeys(value, cancelRequestKeys) || typeof id !== "string" ||
-      !requestIdPattern.test(id)) {
+    if (
+      !hasOnlyKeys(value, cancelRequestKeys) ||
+      typeof id !== "string" ||
+      !requestIdPattern.test(id)
+    ) {
       throw new BoundaryValidationError(boundary, "request cancellation is invalid");
     }
     this.#sdkRequests.get(id)?.abort("frame-cancelled");
   }
 
-  #invoke(
-    method: string,
-    params: Readonly<Record<string, unknown>>,
-    signal: AbortSignal,
-  ): unknown | Promise<unknown> {
+  #invoke(method: string, params: Readonly<Record<string, unknown>>, signal: AbortSignal): unknown {
     this.#context.signal.throwIfAborted();
     switch (method as IsolatedSDKMethod) {
       case "capabilities.has": {
@@ -545,9 +592,10 @@ export class IsolatedFrameBridge {
           throw new BoundaryValidationError(boundary, "permissions.has parameters are invalid");
         }
         const permission = boundedString(params["permission"], "permission");
-        const resource = params["resource"] === undefined
-          ? undefined
-          : boundedString(params["resource"], "resource");
+        const resource =
+          params["resource"] === undefined
+            ? undefined
+            : boundedString(params["resource"], "resource");
         return this.#context.permissions.has(permission, resource);
       }
       case "permissions.resources": {
@@ -556,7 +604,9 @@ export class IsolatedFrameBridge {
       }
       case "ui.rule-details":
         this.#context.capabilities.require("ui.rule-details");
-        return Promise.resolve(this.#context.ui.showRuleDetails(parseRuleDetails(params))).then(() => null);
+        return Promise.resolve(this.#context.ui.showRuleDetails(parseRuleDetails(params))).then(
+          () => null,
+        );
       case "ui.declarations":
         if (!hasOnlyKeys(params, noParameterKeys)) {
           throw new BoundaryValidationError(boundary, "ui.declarations parameters are invalid");
@@ -580,13 +630,20 @@ export class IsolatedFrameBridge {
       }
       case "data.transact": {
         const mutations = params["mutations"];
-        if (!hasOnlyKeys(params, dataTransactionKeys) || !Array.isArray(mutations) ||
-          mutations.length < 1 || mutations.length > 256) {
+        if (
+          !hasOnlyKeys(params, dataTransactionKeys) ||
+          !Array.isArray(mutations) ||
+          mutations.length < 1 ||
+          mutations.length > 256
+        ) {
           throw new BoundaryValidationError(boundary, "data.transact parameters are invalid");
         }
         assertJSONValue(mutations, "data transaction");
-        return this.#context.data.transact(mutations as readonly AddonDataMutation[], { signal,
-          ...(params["expectedDataSets"] === undefined ? {} : { expectedDataSets: parseExpectedDataSets(params["expectedDataSets"]) }),
+        return this.#context.data.transact(mutations as readonly AddonDataMutation[], {
+          signal,
+          ...(params["expectedDataSets"] === undefined
+            ? {}
+            : { expectedDataSets: parseExpectedDataSets(params["expectedDataSets"]) }),
         });
       }
       case "content.catalog":
@@ -609,7 +666,9 @@ export class IsolatedFrameBridge {
         if (!hasOnlyKeys(params, contentQueryKeys) || !isRecord(params["options"])) {
           throw new BoundaryValidationError(boundary, "content.query parameters are invalid");
         }
-        return this.#contentHandle(params).query(isolatedContentQueryOptions(params["options"], signal));
+        return this.#contentHandle(params).query(
+          isolatedContentQueryOptions(params["options"], signal),
+        );
       }
       case "services.connect": {
         if (!hasOnlyKeys(params, serviceConnectKeys)) {
@@ -625,19 +684,25 @@ export class IsolatedFrameBridge {
         if (includeOwn !== undefined && typeof includeOwn !== "boolean") {
           throw new BoundaryValidationError(boundary, "service includeOwn must be boolean");
         }
-        return this.#context.services.connect(contract, { range, cardinality, signal,
-          ...(includeOwn === undefined ? {} : { includeOwn }) }).then((handle) => {
-          const serviceId = `service-${++this.#serviceSequence}`;
-          this.#serviceHandles.set(serviceId, handle);
-          return Object.freeze({
-            serviceId,
-            contract: handle.contract,
-            range: handle.range,
-            cardinality: handle.cardinality,
-            providers: handle.providers,
-            available: handle.available,
+        return this.#context.services
+          .connect(contract, {
+            range,
+            cardinality,
+            signal,
+            ...(includeOwn === undefined ? {} : { includeOwn }),
+          })
+          .then((handle) => {
+            const serviceId = `service-${++this.#serviceSequence}`;
+            this.#serviceHandles.set(serviceId, handle);
+            return Object.freeze({
+              serviceId,
+              contract: handle.contract,
+              range: handle.range,
+              cardinality: handle.cardinality,
+              providers: handle.providers,
+              available: handle.available,
+            });
           });
-        });
       }
       case "services.call": {
         if (!hasOnlyKeys(params, serviceCallKeys) || !isRecord(params["options"])) {
@@ -698,9 +763,11 @@ export class IsolatedFrameBridge {
   }
 
   #fail(cause: unknown): void {
-    this.#onDiagnostic(cause instanceof Error
-      ? cause
-      : new BoundaryValidationError(boundary, "message handling failed"));
+    this.#onDiagnostic(
+      cause instanceof Error
+        ? cause
+        : new BoundaryValidationError(boundary, "message handling failed"),
+    );
   }
 }
 
@@ -737,11 +804,12 @@ function boundedDataKey(value: unknown): string {
 }
 
 function contentIdentity(value: unknown, name: string): string {
-  if (typeof value !== "string" || value.length < 1 ||
-    new TextEncoder().encode(value).byteLength > 200 || [...value].some((character) => {
-      const code = character.codePointAt(0) ?? 0;
-      return code <= 31 || code >= 127 && code <= 159;
-    })) {
+  if (
+    typeof value !== "string" ||
+    value.length < 1 ||
+    new TextEncoder().encode(value).byteLength > 200 ||
+    /\p{Cc}/u.test(value)
+  ) {
     throw new BoundaryValidationError(boundary, `content ${name} is invalid`);
   }
   return value;
@@ -756,8 +824,13 @@ function isolatedQueryOptions(
   }
   const includeDataRevision = value["includeDataRevision"];
   const expectedDataRevision = value["expectedDataRevision"];
-  if ((includeDataRevision !== undefined && typeof includeDataRevision !== "boolean") ||
-    (expectedDataRevision !== undefined && (typeof expectedDataRevision !== "number" || !Number.isSafeInteger(expectedDataRevision) || expectedDataRevision < 0))) {
+  if (
+    (includeDataRevision !== undefined && typeof includeDataRevision !== "boolean") ||
+    (expectedDataRevision !== undefined &&
+      (typeof expectedDataRevision !== "number" ||
+        !Number.isSafeInteger(expectedDataRevision) ||
+        expectedDataRevision < 0))
+  ) {
     throw new BoundaryValidationError(boundary, "data query revision is invalid");
   }
   const cursor = value["cursor"];
@@ -766,17 +839,24 @@ function isolatedQueryOptions(
   if (cursor !== undefined && (typeof cursor !== "string" || !cursorPattern.test(cursor))) {
     throw new BoundaryValidationError(boundary, "data query cursor is invalid");
   }
-  if (limit !== undefined && (typeof limit !== "number" || !Number.isSafeInteger(limit) ||
-    limit < 1 || limit > 200)) {
+  if (
+    limit !== undefined &&
+    (typeof limit !== "number" || !Number.isSafeInteger(limit) || limit < 1 || limit > 200)
+  ) {
     throw new BoundaryValidationError(boundary, "data query limit is invalid");
   }
   if (where !== undefined && (!Array.isArray(where) || where.length > 8)) {
     throw new BoundaryValidationError(boundary, "data query conditions are invalid");
   }
   const conditions = where?.map((condition) => {
-    if (!isRecord(condition) || !hasOnlyKeys(condition, queryConditionKeys) ||
-      typeof condition["path"] !== "string" || !condition["path"].startsWith("/") ||
-      condition["path"].length > 300 || condition["equals"] === undefined) {
+    if (
+      !isRecord(condition) ||
+      !hasOnlyKeys(condition, queryConditionKeys) ||
+      typeof condition["path"] !== "string" ||
+      !condition["path"].startsWith("/") ||
+      condition["path"].length > 300 ||
+      condition["equals"] === undefined
+    ) {
       throw new BoundaryValidationError(boundary, "data query condition is invalid");
     }
     assertJSONValue(condition["equals"], "data query condition");
@@ -808,8 +888,10 @@ function isolatedContentQueryOptions(
   if (cursor !== undefined && (typeof cursor !== "string" || !cursorPattern.test(cursor))) {
     throw new BoundaryValidationError(boundary, "content query cursor is invalid");
   }
-  if (limit !== undefined && (typeof limit !== "number" || !Number.isSafeInteger(limit) ||
-    limit < 1 || limit > 200)) {
+  if (
+    limit !== undefined &&
+    (typeof limit !== "number" || !Number.isSafeInteger(limit) || limit < 1 || limit > 200)
+  ) {
     throw new BoundaryValidationError(boundary, "content query limit is invalid");
   }
   return {

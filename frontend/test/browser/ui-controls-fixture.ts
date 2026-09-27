@@ -18,38 +18,97 @@ root.innerHTML = `<h1>Shared UI</h1><form id="controls-form">
 <dialog data-ui-dialog aria-label="Review choices"><h2>Review choices</h2><div data-ui-field><label for="nested-choice">Nested choice</label><select id="nested-choice" data-ui="combobox"><option>First</option><option>Second</option></select></div><button type="button" id="close-dialog">Close</button></dialog>
 <div role="tablist" data-ui-tabs aria-label="Views"><button type="button" role="tab" id="view-one" aria-controls="panel-one" aria-selected="true">First view</button><button type="button" role="tab" id="view-two" aria-controls="panel-two" aria-selected="false" tabindex="-1">Second view</button></div>
 <section id="panel-one" role="tabpanel" aria-labelledby="view-one">First content</section><section id="panel-two" role="tabpanel" aria-labelledby="view-two" hidden>Second content</section>`;
-const queries: string[] = [], submissions: Record<string, FormDataEntryValue>[] = [];
-let changes = 0, pendingClicks = 0;
-const form = root.querySelector<HTMLFormElement>("form")!, select = form.querySelector<HTMLSelectElement>('[name="origin"]')!;
+const queries: string[] = [],
+  submissions: Record<string, FormDataEntryValue>[] = [];
+let changes = 0,
+  pendingClicks = 0;
+const form = root.querySelector<HTMLFormElement>("form")!,
+  select = form.querySelector<HTMLSelectElement>('[name="origin"]')!;
 const controller = new AbortController();
 let handle = enhanceControls(root, { signal: controller.signal });
-root.addEventListener("codex-query", event => queries.push((event as CustomEvent<{ value: string }>).detail.value));
+root.addEventListener("codex-query", (event) =>
+  queries.push((event as CustomEvent<{ value: string }>).detail.value),
+);
 select.addEventListener("change", () => changes++);
-form.addEventListener("submit", event => { event.preventDefault(); submissions.push(Object.fromEntries(new FormData(form))); });
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  submissions.push(Object.fromEntries(new FormData(form)));
+});
 root.querySelector("#pending")!.addEventListener("click", () => pendingClicks++);
 const dialog = root.querySelector("dialog")!;
 root.querySelector("#open-dialog")!.addEventListener("click", () => dialog.showModal());
 root.querySelector("#close-dialog")!.addEventListener("click", () => dialog.close());
-for (const tab of root.querySelectorAll<HTMLButtonElement>('[role="tab"]')) tab.addEventListener("click", () => {
- for (const item of root.querySelectorAll<HTMLButtonElement>('[role="tab"]')) { const active = item === tab; item.tabIndex = active ? 0 : -1; item.setAttribute("aria-selected", String(active)); root.querySelector<HTMLElement>("#" + item.getAttribute("aria-controls"))!.hidden = !active; }
-});
+for (const tab of root.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
+  tab.addEventListener("click", () => {
+    for (const item of root.querySelectorAll<HTMLButtonElement>('[role="tab"]')) {
+      const active = item === tab;
+      item.tabIndex = active ? 0 : -1;
+      item.setAttribute("aria-selected", String(active));
+      root.querySelector<HTMLElement>("#" + item.getAttribute("aria-controls"))!.hidden = !active;
+    }
+  });
 const fixture: UIControlsFixture = {
- queries, submissions, get changes() { return changes; }, get pendingClicks() { return pendingClicks; },
- refresh: () => handle.refresh(), dispose: () => handle.dispose(), abort: () => controller.abort(),
- reattach: () => { handle = enhanceControls(root); },
- theme: (value: string) => { document.documentElement.dataset["theme"] = value; },
- locale: (value: string) => { root.lang = value; handle.refresh(); },
- options: (count: number) => { select.replaceChildren(...Array.from({ length: count }, (_, index) => new Option("Option " + index, String(index)))); handle.refresh(); },
- state: (value: string) => { select.dataset["uiOptionsState"] = value; handle.refresh(); },
- disabled: (value: boolean) => { select.disabled = value; handle.refresh(); },
- value: (value: string) => { select.value = value; handle.refresh(); },
- async sdk() {
-   handle.dispose();
-   const scope = new GenerationScope("ui-fixture");
-   const registry = new BrowserContributionRegistry();
-   const session = registry.open({ addonId: "ui-fixture", addonVersion: "1.0.0", generationId: "a".repeat(64), mode: "integrated", entryUrl: "/fixture.js", styleUrls: [], sandbox: [], dependencies: [], capabilities: ["ui.controls.v1"], permissions: [], contributions: [] }, scope);
-   session.context.ui.enhance(root);
-   return () => session.dispose();
- },
+  queries,
+  submissions,
+  get changes() {
+    return changes;
+  },
+  get pendingClicks() {
+    return pendingClicks;
+  },
+  refresh: () => handle.refresh(),
+  dispose: () => handle.dispose(),
+  abort: () => controller.abort(),
+  reattach: () => {
+    handle = enhanceControls(root);
+  },
+  theme: (value: string) => {
+    document.documentElement.dataset["theme"] = value;
+  },
+  locale: (value: string) => {
+    root.lang = value;
+    handle.refresh();
+  },
+  options: (count: number) => {
+    select.replaceChildren(
+      ...Array.from({ length: count }, (_, index) => new Option("Option " + index, String(index))),
+    );
+    handle.refresh();
+  },
+  state: (value: string) => {
+    select.dataset["uiOptionsState"] = value;
+    handle.refresh();
+  },
+  disabled: (value: boolean) => {
+    select.disabled = value;
+    handle.refresh();
+  },
+  value: (value: string) => {
+    select.value = value;
+    handle.refresh();
+  },
+  async sdk() {
+    handle.dispose();
+    const scope = new GenerationScope("ui-fixture");
+    const registry = new BrowserContributionRegistry();
+    const session = registry.open(
+      {
+        addonId: "ui-fixture",
+        addonVersion: "1.0.0",
+        generationId: "a".repeat(64),
+        mode: "integrated",
+        entryUrl: "/fixture.js",
+        styleUrls: [],
+        sandbox: [],
+        dependencies: [],
+        capabilities: ["ui.controls.v1"],
+        permissions: [],
+        contributions: [],
+      },
+      scope,
+    );
+    session.context.ui.enhance(root);
+    return () => session.dispose();
+  },
 };
 Object.assign(window, { uiControlsFixture: fixture });

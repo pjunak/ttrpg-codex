@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  GenerationClosedError,
-  GenerationScope,
-} from "../src/addons/generation-scope.js";
+import { GenerationClosedError, GenerationScope } from "../src/addons/generation-scope.js";
 
 describe("GenerationScope", () => {
   it("aborts first and disposes owned handles once in LIFO order", async () => {

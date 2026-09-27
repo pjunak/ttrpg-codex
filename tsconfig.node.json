@@ -14,5 +14,11 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["scripts/**/*.mts", "scripts/**/*.ts", ".github/scripts/**/*.mts", ".github/actions/**/*.mts", "frontend/test/browser/**/*.mts"]
+  "include": [
+    "scripts/**/*.mts",
+    "scripts/**/*.ts",
+    ".github/scripts/**/*.mts",
+    ".github/actions/**/*.mts",
+    "frontend/test/browser/**/*.mts"
+  ]
 }

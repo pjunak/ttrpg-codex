@@ -33,9 +33,11 @@ describe("BrowserAddonSession", () => {
   });
 
   it("retains mounted generations during recovery and refreshes them only after resume", async () => {
-    const runtime = new FakeRuntime(), authorityLost = vi.fn();
+    const runtime = new FakeRuntime(),
+      authorityLost = vi.fn();
     const session = new BrowserAddonSession(runtime, {
-      onRecoveryRequested: async () => true, onAuthorityLost: authorityLost,
+      onRecoveryRequested: async () => true,
+      onAuthorityLost: authorityLost,
     });
     await session.start();
     runtime.failure = new BrowserGraphHTTPError(401);
@@ -56,7 +58,9 @@ describe("BrowserAddonSession", () => {
   it("explicit stop disposes retained generations even while the recovery decision is pending", async () => {
     const runtime = new FakeRuntime();
     let release!: (retain: boolean) => void;
-    const decision = new Promise<boolean>(resolve => { release = resolve; });
+    const decision = new Promise<boolean>((resolve) => {
+      release = resolve;
+    });
     const requested = vi.fn(() => decision);
     const session = new BrowserAddonSession(runtime, { onRecoveryRequested: requested });
     await session.start();
@@ -73,10 +77,16 @@ describe("BrowserAddonSession", () => {
 
   it("revokes generations when recovery is declined or its decision fails", async () => {
     for (const fails of [false, true]) {
-      const runtime = new FakeRuntime(), authorityLost = vi.fn(), diagnostic = vi.fn();
+      const runtime = new FakeRuntime(),
+        authorityLost = vi.fn(),
+        diagnostic = vi.fn();
       const session = new BrowserAddonSession(runtime, {
-        onRecoveryRequested: async () => { if (fails) throw new Error("recovery unavailable"); return false; },
-        onAuthorityLost: authorityLost, onDiagnostic: diagnostic,
+        onRecoveryRequested: async () => {
+          if (fails) throw new Error("recovery unavailable");
+          return false;
+        },
+        onAuthorityLost: authorityLost,
+        onDiagnostic: diagnostic,
       });
       runtime.failure = new BrowserGraphHTTPError(401);
       await session.start();

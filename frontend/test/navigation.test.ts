@@ -18,19 +18,40 @@ const generationId = "a".repeat(64);
 describe("browser add-on navigation", () => {
   it("decodes bounded ordered query pairs without changing route ownership", () => {
     const routeHash = "#/addons/dm-tools/planner";
-    expect(parseBrowserAddonLocation(`${routeHash}?item=quest-a&item=quest-b&label=%C4%8Caj+%26+k%C3%A1va`)).toEqual({
-      routeHash, query: [["item", "quest-a"], ["item", "quest-b"], ["label", "Čaj & káva"]],
+    expect(
+      parseBrowserAddonLocation(
+        `${routeHash}?item=quest-a&item=quest-b&label=%C4%8Caj+%26+k%C3%A1va`,
+      ),
+    ).toEqual({
+      routeHash,
+      query: [
+        ["item", "quest-a"],
+        ["item", "quest-b"],
+        ["label", "Čaj & káva"],
+      ],
     });
-    expect(parseBrowserAddonLocation(`${routeHash}?route=%23%2Faddons%2Fother%2Fpage`)?.routeHash).toBe(routeHash);
+    expect(
+      parseBrowserAddonLocation(`${routeHash}?route=%23%2Faddons%2Fother%2Fpage`)?.routeHash,
+    ).toBe(routeHash);
     expect(parseBrowserAddonLocation(routeHash)).toEqual({ routeHash, query: [] });
   });
 
   it("rejects malformed paths, escapes, controls and oversized parameters", () => {
     const routeHash = "#/addons/dm-tools/planner";
-    for (const hash of ["#/addons/", "#/addons/dm-tools/../settings", "#/addons/dm-tools/planner/", "#/addons/dm-tools/%70lanner",
-      `${routeHash}?x=%`, `${routeHash}?x=%FF`, `${routeHash}?x=%00`, `${routeHash}?=empty`,
-      `${routeHash}?${"k".repeat(65)}=x`, `${routeHash}?x=${"v".repeat(1025)}`,
-      `${routeHash}?${Array(33).fill("x=y").join("&")}`, `${routeHash}?x=${"%E2%82%AC".repeat(500)}`]) {
+    for (const hash of [
+      "#/addons/",
+      "#/addons/dm-tools/../settings",
+      "#/addons/dm-tools/planner/",
+      "#/addons/dm-tools/%70lanner",
+      `${routeHash}?x=%`,
+      `${routeHash}?x=%FF`,
+      `${routeHash}?x=%00`,
+      `${routeHash}?=empty`,
+      `${routeHash}?${"k".repeat(65)}=x`,
+      `${routeHash}?x=${"v".repeat(1025)}`,
+      `${routeHash}?${Array(33).fill("x=y").join("&")}`,
+      `${routeHash}?x=${"%E2%82%AC".repeat(500)}`,
+    ]) {
       expect(parseBrowserAddonLocation(hash), hash).toBeUndefined();
     }
   });
@@ -91,14 +112,16 @@ describe("browser add-on navigation", () => {
 
     expect(listBrowserNavigation(registry, "player")).toEqual([]);
     const entries = listBrowserNavigation(registry, "dm");
-    expect(entries).toEqual([{
-      addonId: "dm-tools",
-      generationId,
-      contributionId: "planner.sidebar",
-      label: "Story Planner",
-      routeContributionId: "planner.route",
-      hash: "#/addons/dm-tools/planner",
-    }]);
+    expect(entries).toEqual([
+      {
+        addonId: "dm-tools",
+        generationId,
+        contributionId: "planner.sidebar",
+        label: "Story Planner",
+        routeContributionId: "planner.route",
+        hash: "#/addons/dm-tools/planner",
+      },
+    ]);
     expect(Object.isFrozen(entries)).toBe(true);
     expect(Object.isFrozen(entries[0])).toBe(true);
   });
@@ -136,7 +159,7 @@ describe("browser add-on navigation", () => {
     expect(route === undefined ? undefined : browserAddonRouteHash(route)).toBe(
       "#/addons/dm-tools/planner",
     );
-    expect(() => sidebar === undefined ? undefined : browserAddonRouteHash(sidebar)).toThrow(
+    expect(() => (sidebar === undefined ? undefined : browserAddonRouteHash(sidebar))).toThrow(
       "only route contributions",
     );
   });

@@ -32,7 +32,11 @@ export function createDocumentStyleLoader(document: Document): BrowserGeneration
   };
 }
 
-function loadStylesheet(document: Document, link: HTMLLinkElement, signal: AbortSignal): Promise<void> {
+function loadStylesheet(
+  document: Document,
+  link: HTMLLinkElement,
+  signal: AbortSignal,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const cleanup = () => {
       link.removeEventListener("load", loaded);

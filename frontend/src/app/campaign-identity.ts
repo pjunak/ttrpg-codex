@@ -12,7 +12,9 @@ export interface CampaignIdentitySaveDetail {
 
 export class CampaignIdentityEditError extends Error {
   override readonly name = "CampaignIdentityEditError";
-  constructor(readonly kind: "invalid" | "stale") { super(`campaign identity edit is ${kind}`); }
+  constructor(readonly kind: "invalid" | "stale") {
+    super(`campaign identity edit is ${kind}`);
+  }
 }
 
 export function campaignIdentityRecord(campaign: CampaignDataset) {
@@ -23,18 +25,27 @@ export function prepareCampaignIdentitySave(
   campaign: CampaignDataset,
   detail: CampaignIdentitySaveDetail,
 ): CampaignMutation {
-  if ((detail.field !== "name" && detail.field !== "tagline") || typeof detail.value !== "string" ||
-    !Number.isSafeInteger(detail.expectedRevision) || detail.expectedRevision < 0 ||
-    detail.value.length > 500 || /\p{Cc}/u.test(detail.value) ||
-    (detail.field === "name" && detail.value.trim() === "")) {
+  if (
+    (detail.field !== "name" && detail.field !== "tagline") ||
+    typeof detail.value !== "string" ||
+    !Number.isSafeInteger(detail.expectedRevision) ||
+    detail.expectedRevision < 0 ||
+    detail.value.length > 500 ||
+    /\p{Cc}/u.test(detail.value) ||
+    (detail.field === "name" && detail.value.trim() === "")
+  ) {
     throw new CampaignIdentityEditError("invalid");
   }
   const record = campaignIdentityRecord(campaign);
-  if ((record?.revision ?? 0) !== detail.expectedRevision) throw new CampaignIdentityEditError("stale");
+  if ((record?.revision ?? 0) !== detail.expectedRevision)
+    throw new CampaignIdentityEditError("stale");
   const current = record === undefined ? {} : record.value;
   if (!isRecord(current)) throw new CampaignIdentityEditError("invalid");
   return Object.freeze({
-    operation: "put", collection: "campaign", key: "main", expectedRevision: detail.expectedRevision,
+    operation: "put",
+    collection: "campaign",
+    key: "main",
+    expectedRevision: detail.expectedRevision,
     value: Object.freeze({ ...current, [detail.field]: detail.value.trim() }),
   });
 }

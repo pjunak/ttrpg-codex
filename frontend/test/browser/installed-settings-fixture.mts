@@ -1,23 +1,73 @@
-import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { resolve } from 'node:path';
-import { writeFile } from 'node:fs/promises';
-import type { InstalledFixture } from './fixture-types.mts';
-import { installReviewedPackage, jsonResponse, zip } from './installed-graph-fixture.mts';
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
+import { writeFile } from "node:fs/promises";
+import type { InstalledFixture } from "./fixture-types.mts";
+import { installReviewedPackage, jsonResponse, zip } from "./installed-graph-fixture.mts";
 
-export function settingsPackage(id: string, mode: string, version = '1.0.0', failure = false, order = 10, dynamic = false): Buffer {
+export function settingsPackage(
+  id: string,
+  mode: string,
+  version = "1.0.0",
+  failure = false,
+  order = 10,
+  dynamic = false,
+): Buffer {
   const files: Record<string, string> = {
-    'addon.json': JSON.stringify({ packageFormat: 1, id, name: 'Settings fixture', version,
-      compatibility: { host: '^2.0.0', addonApi: '^3.0.0' }, capabilities: { required: ['ui.contributions'], optional: [] },
-      permissions: [], runtime: { ui: { mode, entry: 'web/index.js' } },
-      collections: [{ id: 'options', keyed: true, visibility: 'public', schema: 'contracts/options.json', schemaVersion: '1.0.0' }],
+    "addon.json": JSON.stringify({
+      packageFormat: 1,
+      id,
+      name: "Settings fixture",
+      version,
+      compatibility: { host: "^2.0.0", addonApi: "^3.0.0" },
+      capabilities: { required: ["ui.contributions"], optional: [] },
+      permissions: [],
+      runtime: { ui: { mode, entry: "web/index.js" } },
+      collections: [
+        {
+          id: "options",
+          keyed: true,
+          visibility: "public",
+          schema: "contracts/options.json",
+          schemaVersion: "1.0.0",
+        },
+      ],
       contributions: [
-        { id: 'campaign', surface: 'settings', label: 'Campaign options', roles: ['dm'], order: 20 },
-        { id: 'preferences', surface: 'settings', label: 'Shared preferences', roles: ['dm', 'player'], order, config: { labels: { cs: 'Sdílené předvolby' } } },
-        ...(dynamic ? [{ id: 'alternate', surface: 'settings', label: 'Alternate options', roles: ['dm', 'player'], order: 100 }] : []),
-      ] }),
-    'contracts/options.json': JSON.stringify({ type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false }),
-    'web/index.js': `export function activate(context) {
+        {
+          id: "campaign",
+          surface: "settings",
+          label: "Campaign options",
+          roles: ["dm"],
+          order: 20,
+        },
+        {
+          id: "preferences",
+          surface: "settings",
+          label: "Shared preferences",
+          roles: ["dm", "player"],
+          order,
+          config: { labels: { cs: "Sdílené předvolby" } },
+        },
+        ...(dynamic
+          ? [
+              {
+                id: "alternate",
+                surface: "settings",
+                label: "Alternate options",
+                roles: ["dm", "player"],
+                order: 100,
+              },
+            ]
+          : []),
+      ],
+    }),
+    "contracts/options.json": JSON.stringify({
+      type: "object",
+      properties: { text: { type: "string" } },
+      required: ["text"],
+      additionalProperties: false,
+    }),
+    "web/index.js": `export function activate(context) {
       const bindings = new Map();
       const tag = 'fixture-settings-' + context.addon.id + '-' + context.addon.generation.slice(0, 8);
       let failOnce = ${failure};
@@ -67,186 +117,359 @@ export function settingsPackage(id: string, mode: string, version = '1.0.0', fai
       for (const declaration of context.ui.declarations()) bindings.set(declaration.id, context.ui.bind(declaration.id, { kind: 'element', tag }));
     }`,
   };
-  files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files)
-    .map(([name, source]) => [name, createHash('sha256').update(source).digest('hex')])) });
+  files["checksums.json"] = JSON.stringify({
+    algorithm: "sha256",
+    files: Object.fromEntries(
+      Object.entries(files).map(([name, source]) => [
+        name,
+        createHash("sha256").update(source).digest("hex"),
+      ]),
+    ),
+  });
   return zip(files);
 }
 
-export async function exerciseSettings({ t, open, admin, csrf, output, mobile, mode }: InstalledFixture & { mode: string }): Promise<void> {
-  const id = `settings-${mode}-${mobile ? 'phone' : 'desktop'}`, headers = { 'X-Codex-CSRF': csrf };
-  const install = (version = '1.0.0') => installReviewedPackage(admin, csrf, id, settingsPackage(id, mode, version), []);
+export async function exerciseSettings({
+  t,
+  open,
+  admin,
+  csrf,
+  output,
+  mobile,
+  mode,
+}: InstalledFixture & { mode: string }): Promise<void> {
+  const id = `settings-${mode}-${mobile ? "phone" : "desktop"}`,
+    headers = { "X-Codex-CSRF": csrf };
+  const install = (version = "1.0.0") =>
+    installReviewedPackage(admin, csrf, id, settingsPackage(id, mode, version), []);
   const disable = async () => {
     const snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
-    if (snapshot.state.activeGenerationId) await jsonResponse(await admin.post(`/api/admin/addons/${id}/disable`, { headers, data: { expectedStateRevision: snapshot.state.revision } }));
+    if (snapshot.state.activeGenerationId)
+      await jsonResponse(
+        await admin.post(`/api/admin/addons/${id}/disable`, {
+          headers,
+          data: { expectedStateRevision: snapshot.state.revision },
+        }),
+      );
   };
-  await install(); t.after(disable);
-  const page = await open(t, 'dm', mobile); page.setDefaultTimeout(10000);
-  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
+  await install();
+  t.after(disable);
+  const page = await open(t, "dm", mobile);
+  page.setDefaultTimeout(10000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  t.after(() => assert.deepEqual(errors, []));
   let releaseStartup = () => undefined as void;
-  const startupHeld = new Promise<void>(resolve => { releaseStartup = resolve; }); t.after(releaseStartup);
-  await page.route('**/api/admin/addon-github', async route => { await startupHeld; await route.continue(); });
-  await page.goto('/#/settings/addons');
-  const row = page.locator(`.addon-row[data-addon-id="${id}"]`), dropdown = page.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
-  const tab = page.getByRole('tab', { name: id, exact: true }), management = page.getByRole('tab', { name: 'Management', exact: true });
-  await tab.waitFor(); assert.equal(await management.getAttribute('aria-selected'), 'true');
-  assert.equal(await tab.getAttribute('tabindex'), '-1');
-  assert.equal(await dropdown.locator('.addon-contribution').count(), 0, 'unvisited tabs are lazy');
-  await tab.focus(); await page.keyboard.press('Enter');
-  assert.equal(await tab.getAttribute('aria-selected'), 'true');
+  const startupHeld = new Promise<void>((resolve) => {
+    releaseStartup = resolve;
+  });
+  t.after(releaseStartup);
+  await page.route("**/api/admin/addon-github", async (route) => {
+    await startupHeld;
+    await route.continue();
+  });
+  await page.goto("/#/settings/addons");
+  const row = page.locator(`.addon-row[data-addon-id="${id}"]`),
+    dropdown = page.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
+  const tab = page.getByRole("tab", { name: id, exact: true }),
+    management = page.getByRole("tab", { name: "Management", exact: true });
+  await tab.waitFor();
+  assert.equal(await management.getAttribute("aria-selected"), "true");
+  assert.equal(await tab.getAttribute("tabindex"), "-1");
+  assert.equal(await dropdown.locator(".addon-contribution").count(), 0, "unvisited tabs are lazy");
+  await tab.focus();
+  await page.keyboard.press("Enter");
+  assert.equal(await tab.getAttribute("aria-selected"), "true");
   assert.equal(await row.isVisible(), false);
-  assert.equal(await page.getByRole('tabpanel').count(), 1);
+  assert.equal(await page.getByRole("tabpanel").count(), 1);
   const panel = dropdown.locator('[data-contribution-id="preferences"]');
-  const view = mode === 'isolated' ? panel.frameLocator('iframe') : panel;
-  await view.getByText('Options ready', { exact: true }).waitFor();
-  assert.deepEqual(await dropdown.locator('.addon-contribution').evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.contributionId)), ['preferences', 'campaign']);
-  assert.deepEqual(JSON.parse((await view.getByLabel('Settings context').textContent())!), { contractVersion: 'addon-settings-context.v1', locale: 'en', role: 'dm' });
-  type SettingsElement = HTMLElement & { registry?: { edits: { state(): { dirty: boolean; saving: boolean } } } };
-  assert.equal(await dropdown.getAttribute('inert'), '', 'Management loading keeps contributed controls inert');
+  const view = mode === "isolated" ? panel.frameLocator("iframe") : panel;
+  await view.getByText("Options ready", { exact: true }).waitFor();
+  assert.deepEqual(
+    await dropdown
+      .locator(".addon-contribution")
+      .evaluateAll((elements) =>
+        elements.map((element) => (element as HTMLElement).dataset.contributionId),
+      ),
+    ["preferences", "campaign"],
+  );
+  assert.deepEqual(JSON.parse((await view.getByLabel("Settings context").textContent())!), {
+    contractVersion: "addon-settings-context.v1",
+    locale: "en",
+    role: "dm",
+  });
+  type SettingsElement = HTMLElement & {
+    registry?: { edits: { state(): { dirty: boolean; saving: boolean } } };
+  };
+  assert.equal(
+    await dropdown.getAttribute("inert"),
+    "",
+    "Management loading keeps contributed controls inert",
+  );
   releaseStartup();
   // A visible field may still be inert: Playwright fill can return without typing.
   await page.locator('.addon-manager[aria-busy="false"]').waitFor();
-  await dropdown.locator(':scope:not([inert])').waitFor();
-  await view.getByLabel('Saved option').fill('Keep this draft');
-  assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
-  await tab.press('Home');
-  assert.equal(await management.getAttribute('aria-selected'), 'true');
-  assert.equal(await management.evaluate(element => element === document.activeElement), true);
+  await dropdown.locator(":scope:not([inert])").waitFor();
+  await view.getByLabel("Saved option").fill("Keep this draft");
+  assert.equal(await view.getByLabel("Saved option").inputValue(), "Keep this draft");
+  await tab.press("Home");
+  assert.equal(await management.getAttribute("aria-selected"), "true");
+  assert.equal(await management.evaluate((element) => element === document.activeElement), true);
   assert.equal(await dropdown.isVisible(), false);
-  page.once('dialog', dialog => dialog.dismiss()); await page.locator('[data-category="language"]').click();
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.locator('[data-category="language"]').click();
   try {
-    assert.equal(await tab.count(), 1, 'category navigation respects drafts in hidden tabs');
+    assert.equal(await tab.count(), 1, "category navigation respects drafts in hidden tabs");
   } catch (cause) {
     const state = await page.evaluate(() => ({
-      hash: location.hash, edits: document.querySelector<SettingsElement>('codex-settings')?.registry?.edits.state(),
-      selectedCategory: document.querySelector('[data-category][aria-current=page]')?.getAttribute('data-category'),
-      contributions: [...document.querySelectorAll('.addon-contribution')].map(node => ({
-        id: (node as HTMLElement).dataset.contributionId, text: node.textContent?.slice(0, 500),
+      hash: location.hash,
+      edits: document.querySelector<SettingsElement>("codex-settings")?.registry?.edits.state(),
+      selectedCategory: document
+        .querySelector("[data-category][aria-current=page]")
+        ?.getAttribute("data-category"),
+      contributions: [...document.querySelectorAll(".addon-contribution")].map((node) => ({
+        id: (node as HTMLElement).dataset.contributionId,
+        text: node.textContent?.slice(0, 500),
       })),
     }));
-    const artifact = resolve(output, id + '-draft-guard');
-    await writeFile(artifact + '.json', JSON.stringify({ state, errors }, null, 2) + '\n');
-    await page.screenshot({ path: artifact + '.png' });
-    throw new Error(String(cause) + '\nSettings draft diagnostics: ' + JSON.stringify(state), { cause });
+    const artifact = resolve(output, id + "-draft-guard");
+    await writeFile(artifact + ".json", JSON.stringify({ state, errors }, null, 2) + "\n");
+    await page.screenshot({ path: artifact + ".png" });
+    throw new Error(String(cause) + "\nSettings draft diagnostics: " + JSON.stringify(state), {
+      cause,
+    });
   }
-  page.once('dialog', dialog => dialog.dismiss()); await row.getByRole('button', { name: 'Reload', exact: true }).click();
-  await tab.click(); assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
-  await management.click();
-  await page.getByRole('button', { name: 'Check for updates', exact: true }).first().click();
-  await page.locator('.addon-manager[aria-busy="false"]').waitFor();
-  assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await row.getByRole("button", { name: "Reload", exact: true }).click();
   await tab.click();
-  assert.equal(await tab.getAttribute('aria-selected'), 'true');
-  await view.getByRole('button', { name: 'Save option', exact: true }).click(); await view.getByText('Option saved', { exact: true }).waitFor();
-  await page.goto(`/#/settings/addons/${id}`); await page.reload();
-  await view.getByText('Options ready', { exact: true }).waitFor(); assert.equal(await view.getByLabel('Saved option').inputValue(), 'Keep this draft');
+  assert.equal(await view.getByLabel("Saved option").inputValue(), "Keep this draft");
+  await management.click();
+  await page.getByRole("button", { name: "Check for updates", exact: true }).first().click();
+  await page.locator('.addon-manager[aria-busy="false"]').waitFor();
+  assert.equal(await view.getByLabel("Saved option").inputValue(), "Keep this draft");
+  await tab.click();
+  assert.equal(await tab.getAttribute("aria-selected"), "true");
+  await view.getByRole("button", { name: "Save option", exact: true }).click();
+  await view.getByText("Option saved", { exact: true }).waitFor();
+  await page.goto(`/#/settings/addons/${id}`);
+  await page.reload();
+  await view.getByText("Options ready", { exact: true }).waitFor();
+  assert.equal(await view.getByLabel("Saved option").inputValue(), "Keep this draft");
 
   let release = () => undefined as void;
-  const held = new Promise<void>(resolve => { release = resolve; });
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   t.after(release);
-  await page.route(`**/api/addons/${id}/generations/*/data/transactions`, async route => { await held; await route.continue(); });
-  await view.getByLabel('Saved option').fill('Durable option'); await view.getByRole('button', { name: 'Save option', exact: true }).click();
-  await view.getByText('Saving option', { exact: true }).waitFor();
-  await page.locator('[data-category="language"]').click(); assert.equal(await dropdown.count(), 1);
+  await page.route(`**/api/addons/${id}/generations/*/data/transactions`, async (route) => {
+    await held;
+    await route.continue();
+  });
+  await view.getByLabel("Saved option").fill("Durable option");
+  await view.getByRole("button", { name: "Save option", exact: true }).click();
+  await view.getByText("Saving option", { exact: true }).waitFor();
+  await page.locator('[data-category="language"]').click();
+  assert.equal(await dropdown.count(), 1);
   await management.click();
-  await row.getByRole('button', { name: 'Reload', exact: true }).click();
-  await page.getByText('Wait for the add-on save to finish before changing installed add-ons.', { exact: true }).waitFor();
+  await row.getByRole("button", { name: "Reload", exact: true }).click();
+  await page
+    .getByText("Wait for the add-on save to finish before changing installed add-ons.", {
+      exact: true,
+    })
+    .waitFor();
   await tab.click();
-  release(); await view.getByText('Option saved', { exact: true }).waitFor(); await page.unrouteAll({ behavior: 'wait' });
-  if (mode === 'isolated') {
-    const frame = await (await panel.locator('iframe').elementHandle())!.contentFrame();
+  release();
+  await view.getByText("Option saved", { exact: true }).waitFor();
+  await page.unrouteAll({ behavior: "wait" });
+  if (mode === "isolated") {
+    const frame = await (await panel.locator("iframe").elementHandle())!.contentFrame();
     await frame!.waitForFunction(() => document.body.scrollHeight <= innerHeight);
-    const frameHeight = (await panel.locator('iframe').boundingBox())!.height;
+    const frameHeight = (await panel.locator("iframe").boundingBox())!.height;
     assert.ok(frameHeight < 450, `settings frames size to content: ${frameHeight}`);
-    assert.equal(await view.locator('body').evaluate(element => element.scrollHeight > window.innerHeight), false, 'content is not clipped by iframe margins');
+    assert.equal(
+      await view.locator("body").evaluate((element) => element.scrollHeight > window.innerHeight),
+      false,
+      "content is not clipped by iframe margins",
+    );
   }
-  await dropdown.screenshot({ path: resolve(output, `settings-${mode}-${mobile ? 'phone' : 'desktop'}.png`) });
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+  await dropdown.screenshot({
+    path: resolve(output, `settings-${mode}-${mobile ? "phone" : "desktop"}.png`),
+  });
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
+    false,
+  );
 
-  const player = await open(t, 'player', mobile), adminRequests: string[] = [];
-  player.on('request', request => { if (request.url().includes('/api/admin/')) adminRequests.push(request.url()); });
+  const player = await open(t, "player", mobile),
+    adminRequests: string[] = [];
+  player.on("request", (request) => {
+    if (request.url().includes("/api/admin/")) adminRequests.push(request.url());
+  });
   await player.goto(`/#/settings/addons/${id}`);
   const playerSettings = player.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
   const playerPanel = playerSettings.locator('[data-contribution-id="preferences"]');
-  const playerView = mode === 'isolated' ? playerPanel.frameLocator('iframe') : playerPanel;
-  await playerView.getByText('Options ready', { exact: true }).waitFor();
-  assert.equal(await playerView.getByLabel('Saved option').inputValue(), 'Durable option');
+  const playerView = mode === "isolated" ? playerPanel.frameLocator("iframe") : playerPanel;
+  await playerView.getByText("Options ready", { exact: true }).waitFor();
+  assert.equal(await playerView.getByLabel("Saved option").inputValue(), "Durable option");
   assert.equal(await playerSettings.locator('[data-contribution-id="campaign"]').count(), 0);
-  assert.equal(await player.locator('codex-addon-install, codex-addon-configuration, .addon-toolbar').count(), 0);
+  assert.equal(
+    await player.locator("codex-addon-install, codex-addon-configuration, .addon-toolbar").count(),
+    0,
+  );
   assert.deepEqual(adminRequests, []);
-  assert.equal(await player.getByRole('tab', { name: 'Management', exact: true }).count(), 0);
-  assert.deepEqual(JSON.parse((await playerView.getByLabel('Settings context').textContent())!).role, 'player');
+  assert.equal(await player.getByRole("tab", { name: "Management", exact: true }).count(), 0);
+  assert.deepEqual(
+    JSON.parse((await playerView.getByLabel("Settings context").textContent())!).role,
+    "player",
+  );
   await player.locator('[data-category="language"]').click();
-  await player.locator('.settings-preference-field select').selectOption('cs');
+  await player.locator(".settings-preference-field select").selectOption("cs");
   await player.locator('[data-category="addons"]').click();
-  await player.getByRole('tab', { name: id, exact: true }).waitFor();
-  await playerSettings.locator('.addon-contribution-heading strong').getByText('Sdílené předvolby', { exact: true }).waitFor();
-  assert.equal(JSON.parse((await playerView.getByLabel('Settings context').textContent())!).locale, 'cs');
+  await player.getByRole("tab", { name: id, exact: true }).waitFor();
+  await playerSettings
+    .locator(".addon-contribution-heading strong")
+    .getByText("Sdílené předvolby", { exact: true })
+    .waitFor();
+  assert.equal(
+    JSON.parse((await playerView.getByLabel("Settings context").textContent())!).locale,
+    "cs",
+  );
   await player.locator('[data-category="language"]').click();
-  await player.locator('.settings-preference-field select').selectOption('en');
+  await player.locator(".settings-preference-field select").selectOption("en");
   await player.locator('[data-category="addons"]').click();
 
-  await view.getByLabel('Saved option').fill('Retired generation draft');
-  await install('1.0.1');
-  await view.getByRole('heading', { name: 'Shared preferences 1.0.1', exact: true }).waitFor();
-  await view.getByText('Options ready', { exact: true }).waitFor();
-  assert.equal(await view.getByLabel('Saved option').inputValue(), 'Durable option');
-  await page.locator('[data-category="language"]').click(); await dropdown.waitFor({ state: 'detached' });
-  await page.locator('[data-category="addons"]').click(); await view.getByText('Options ready', { exact: true }).waitFor();
-  await disable(); await tab.waitFor({ state: 'detached' });
-  await playerSettings.waitFor({ state: 'detached' });
-  await player.getByText('These settings are unavailable.', { exact: false }).waitFor();
+  await view.getByLabel("Saved option").fill("Retired generation draft");
+  await install("1.0.1");
+  await view.getByRole("heading", { name: "Shared preferences 1.0.1", exact: true }).waitFor();
+  await view.getByText("Options ready", { exact: true }).waitFor();
+  assert.equal(await view.getByLabel("Saved option").inputValue(), "Durable option");
+  await page.locator('[data-category="language"]').click();
+  await dropdown.waitFor({ state: "detached" });
+  await page.locator('[data-category="addons"]').click();
+  await view.getByText("Options ready", { exact: true }).waitFor();
+  await disable();
+  await tab.waitFor({ state: "detached" });
+  await playerSettings.waitFor({ state: "detached" });
+  await player.getByText("These settings are unavailable.", { exact: false }).waitFor();
 }
 
-export async function exerciseSettingsFailure({ t, open, admin, csrf }: InstalledFixture): Promise<void> {
-  const id = 'settings-failure';
-  await installReviewedPackage(admin, csrf, id, settingsPackage(id, 'integrated', '1.0.0', true), []);
+export async function exerciseSettingsFailure({
+  t,
+  open,
+  admin,
+  csrf,
+}: InstalledFixture): Promise<void> {
+  const id = "settings-failure";
+  await installReviewedPackage(
+    admin,
+    csrf,
+    id,
+    settingsPackage(id, "integrated", "1.0.0", true),
+    [],
+  );
   t.after(async () => {
     const snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
-    await jsonResponse(await admin.post(`/api/admin/addons/${id}/disable`, { headers: { 'X-Codex-CSRF': csrf }, data: { expectedStateRevision: snapshot.state.revision } }));
+    await jsonResponse(
+      await admin.post(`/api/admin/addons/${id}/disable`, {
+        headers: { "X-Codex-CSRF": csrf },
+        data: { expectedStateRevision: snapshot.state.revision },
+      }),
+    );
   });
-  const page = await open(t); await page.goto(`/#/settings/addons/${id}`);
+  const page = await open(t);
+  await page.goto(`/#/settings/addons/${id}`);
   const dropdown = page.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
-  await dropdown.getByRole('alert').waitFor();
-  assert.equal((await dropdown.textContent())!.includes('Private settings failure'), false);
+  await dropdown.getByRole("alert").waitFor();
+  assert.equal((await dropdown.textContent())!.includes("Private settings failure"), false);
   const view = dropdown.locator('[data-contribution-id="preferences"]');
-  await view.getByText('Options ready', { exact: true }).waitFor();
-  const mounted = await view.locator('[data-codex-addon]').elementHandle();
+  await view.getByText("Options ready", { exact: true }).waitFor();
+  const mounted = await view.locator("[data-codex-addon]").elementHandle();
   // Initial manager requests can still make the ready panel inert.
   await page.locator('.addon-manager[aria-busy="false"]').waitFor();
-  await view.getByLabel('Saved option').fill('Draft survives retry');
-  assert.equal(await view.getByLabel('Saved option').inputValue(), 'Draft survives retry', 'the draft is entered before retry');
-  await dropdown.getByRole('button', { name: 'Retry settings', exact: true }).click();
-  await dropdown.locator('[data-contribution-id="campaign"]').getByText('Options ready', { exact: true }).waitFor();
-  assert.equal(await mounted!.evaluate(element => element.isConnected), true, 'retry retains the mounted settings element');
-  assert.equal(await view.locator('[data-codex-addon]').getAttribute('data-connections'), '1', 'retry does not reconnect the settings element');
-  assert.equal(await view.getByLabel('Saved option').inputValue(), 'Draft survives retry');
+  await view.getByLabel("Saved option").fill("Draft survives retry");
+  assert.equal(
+    await view.getByLabel("Saved option").inputValue(),
+    "Draft survives retry",
+    "the draft is entered before retry",
+  );
+  await dropdown.getByRole("button", { name: "Retry settings", exact: true }).click();
+  await dropdown
+    .locator('[data-contribution-id="campaign"]')
+    .getByText("Options ready", { exact: true })
+    .waitFor();
+  assert.equal(
+    await mounted!.evaluate((element) => element.isConnected),
+    true,
+    "retry retains the mounted settings element",
+  );
+  assert.equal(
+    await view.locator("[data-codex-addon]").getAttribute("data-connections"),
+    "1",
+    "retry does not reconnect the settings element",
+  );
+  assert.equal(await view.getByLabel("Saved option").inputValue(), "Draft survives retry");
 }
 
-export async function exerciseSettingsCardStability({ t, open, admin, csrf }: InstalledFixture): Promise<void> {
-  const ids = ['settings-stable-a', 'settings-stable-b'];
+export async function exerciseSettingsCardStability({
+  t,
+  open,
+  admin,
+  csrf,
+}: InstalledFixture): Promise<void> {
+  const ids = ["settings-stable-a", "settings-stable-b"];
   for (const [index, id] of ids.entries()) {
-    await installReviewedPackage(admin, csrf, id, settingsPackage(id, 'integrated', '1.0.0', false, index ? 0 : 10, index === 1), []);
+    await installReviewedPackage(
+      admin,
+      csrf,
+      id,
+      settingsPackage(id, "integrated", "1.0.0", false, index ? 0 : 10, index === 1),
+      [],
+    );
     t.after(async () => {
       const snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
-      await jsonResponse(await admin.post(`/api/admin/addons/${id}/disable`, { headers: { 'X-Codex-CSRF': csrf }, data: { expectedStateRevision: snapshot.state.revision } }));
+      await jsonResponse(
+        await admin.post(`/api/admin/addons/${id}/disable`, {
+          headers: { "X-Codex-CSRF": csrf },
+          data: { expectedStateRevision: snapshot.state.revision },
+        }),
+      );
     });
   }
-  const page = await open(t, 'player'); await page.goto('/#/settings/addons/settings-stable-a');
-  const cards = page.locator('[data-addon-settings]'), first = page.locator('[data-addon-settings="settings-stable-a"]');
+  const page = await open(t, "player");
+  await page.goto("/#/settings/addons/settings-stable-a");
+  const cards = page.locator("[data-addon-settings]"),
+    first = page.locator('[data-addon-settings="settings-stable-a"]');
   const second = page.locator('[data-addon-settings="settings-stable-b"]');
-  const firstTab = page.getByRole('tab', { name: ids[0], exact: true }), secondTab = page.getByRole('tab', { name: ids[1], exact: true });
-  await first.getByText('Options ready', { exact: true }).waitFor();
-  await first.getByLabel('Saved option').fill('Unrelated add-on draft');
-  assert.deepEqual(await cards.evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.addonSettings)), ids);
-  await firstTab.press('ArrowRight');
-  assert.equal(await secondTab.getAttribute('aria-selected'), 'true');
-  assert.equal(await secondTab.evaluate(element => element === document.activeElement), true);
-  await second.locator('[data-contribution-id="preferences"]').getByText('Options ready', { exact: true }).waitFor();
-  await second.getByRole('button', { name: 'Hide shared preferences', exact: true }).click();
-  await second.getByRole('heading', { name: 'Shared preferences 1.0.0', exact: true }).waitFor({ state: 'detached' });
-  await second.getByRole('heading', { name: 'Alternate options 1.0.0', exact: true }).waitFor();
-  assert.deepEqual(await cards.evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.addonSettings)), ids);
-  await secondTab.press('End'); await secondTab.press('ArrowRight');
-  assert.equal(await firstTab.getAttribute('aria-selected'), 'true');
-  assert.equal(await first.getByLabel('Saved option').inputValue(), 'Unrelated add-on draft');
+  const firstTab = page.getByRole("tab", { name: ids[0], exact: true }),
+    secondTab = page.getByRole("tab", { name: ids[1], exact: true });
+  await first.getByText("Options ready", { exact: true }).waitFor();
+  await first.getByLabel("Saved option").fill("Unrelated add-on draft");
+  assert.deepEqual(
+    await cards.evaluateAll((elements) =>
+      elements.map((element) => (element as HTMLElement).dataset.addonSettings),
+    ),
+    ids,
+  );
+  await firstTab.press("ArrowRight");
+  assert.equal(await secondTab.getAttribute("aria-selected"), "true");
+  assert.equal(await secondTab.evaluate((element) => element === document.activeElement), true);
+  await second
+    .locator('[data-contribution-id="preferences"]')
+    .getByText("Options ready", { exact: true })
+    .waitFor();
+  await second.getByRole("button", { name: "Hide shared preferences", exact: true }).click();
+  await second
+    .getByRole("heading", { name: "Shared preferences 1.0.0", exact: true })
+    .waitFor({ state: "detached" });
+  await second.getByRole("heading", { name: "Alternate options 1.0.0", exact: true }).waitFor();
+  assert.deepEqual(
+    await cards.evaluateAll((elements) =>
+      elements.map((element) => (element as HTMLElement).dataset.addonSettings),
+    ),
+    ids,
+  );
+  await secondTab.press("End");
+  await secondTab.press("ArrowRight");
+  assert.equal(await firstTab.getAttribute("aria-selected"), "true");
+  assert.equal(await first.getByLabel("Saved option").inputValue(), "Unrelated add-on draft");
 }

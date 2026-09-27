@@ -59,11 +59,68 @@ data. Runtime directories, credentials, backups and install ZIPs stay out of Git
 | Package, manifest, worker or schema | Owning build, regenerated outputs and host ZIP inspection |
 | Release candidate | Full gates, relevant installed-package checks and `npm run release-check` |
 
-`npm run check` rejects tracked JavaScript source, type-checks application and
-Node tooling, tests release scripts, runs frontend unit and Chromium tests,
-builds browser assets, and runs all project-owned Go tests and vet. TypeScript
-also rejects unused locals and parameters. Node `.mts` tools execute through
-built-in type stripping, so their separate type check remains mandatory.
+`npm run check` first runs the fast static checks below, then tests release and
+workflow-policy scripts, runs frontend unit and Chromium tests, builds browser
+assets, and runs all project-owned Go tests plus the selected race tests. Node
+`.mts` tools execute through built-in type stripping, so their separate strict
+type check remains mandatory. A C compiler supported by Go is required for the
+race detector; a missing compiler fails the gate rather than silently skipping it.
+
+### Quality toolchain
+
+All four TypeScript repositories use the same exact TypeScript 7, Oxlint,
+native typed-lint engine, Prettier, and Node type-definition versions. The host
+and add-on lockfiles are authoritative; update this set together and run the
+installed companion suite. Suite preparation rejects mismatched tool versions;
+`npm run check:toolchains` checks adjacent TypeScript companions before building.
+Node 26 is the development and CI baseline. TypeScript
+7 compiles the existing strict code directly; a second application rewrite or a
+second linter is unnecessary. Source tools and tests are TypeScript too; package
+JavaScript remains generated output.
+
+| Command | Purpose |
+| --- | --- |
+| `npm run check:fast` | Source guard, strict types, typed Oxlint, Prettier, gofmt, vet, Staticcheck |
+| `npm run check` | Fast checks plus tool, unit, browser, Go and selected race tests |
+| `npm run lint:fix` | Apply Oxlint fixes; review the diff and rerun checks afterward |
+| `npm run format` | Format authored TypeScript, CSS and toolchain configuration |
+| `go run ./tools/check.go format` | Format project-owned Go source |
+| `npm run check:workflows` | Validate GitHub Actions with actionlint |
+| `npm run check:vulnerabilities` | Check reachable Go vulnerabilities against the current database |
+| `npm run check:dependencies` | Audit the npm lockfile; high or critical advisories fail the gate |
+
+Oxlint checks correctness and typed promises, including test and release tools.
+Top-level Node test registrations use `void test(...)` because the runner owns
+completion. Negative regression probes verify that lint rejects forgotten work
+inside test callbacks and ordinary methods, even if a method is named `test`.
+Deliberate exceptions such as
+snapshotting mutable collections have a narrow, explained comment. Formatting
+is separate from linting; embedded Lit templates retain their existing content.
+Git attributes and EditorConfig keep formatter inputs on LF across platforms.
+
+Go analysis tools are pinned separately in `go.tools.mod` and `go.tools.sum` so
+tool dependencies do not upgrade application dependencies. The Go runner invokes
+those tools while analyzing the application module. Its `fast`, `test`, `vuln`,
+`workflows`, and `format` modes are also used by Go companions; the headless rules
+engine does not need an npm toolchain. Network vulnerability checks run in CI and
+scheduled maintenance, outside the fast local edit loop. Dependabot proposes
+grouped npm, application Go-module, and GitHub Actions updates. Its Go-module
+scan does not update the custom `go.tools.mod` manifest: update those analysis-tool
+pins deliberately across all four Go repositories and rerun their gates. All
+dependency updates remain reviewed and tested before merging.
+The npm audit includes build and test dependencies, reports every severity, and
+blocks CI on high or critical advisories. It never applies automatic fixes.
+
+Shared control browser tests include axe checks at desktop and mobile widths,
+with dropdown and dialog states. These automated checks complement the existing
+keyboard and interaction tests; they do not establish human screen-reader
+acceptance. Failed shared-control tests retain Playwright traces under
+`frontend/test-results/traces/`. Set `CODEX_TEST_TRACE=1` to also keep traces for
+passing runs, and open a trace with `npx playwright show-trace <path-to-trace.zip>`.
+Trace capture covers synthetic shared-control fixtures, not private installed
+package contents.
+
+### Companion compatibility
 
 The compatibility workflow checks out the exact source SHAs in
 [`companion-revisions.json`](companion-revisions.json), checks their availability

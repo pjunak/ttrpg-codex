@@ -157,12 +157,6 @@ func (s *store) removeSource(ctx context.Context, addonID string, revision int64
 	return nil
 }
 
-func (s *store) record(ctx context.Context, addonID, generationID string, source Source, remoteID string) error {
-	body, _ := json.Marshal(source)
-	_, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO addon_github_generations(addon_id, generation_id, source_json, remote_id) VALUES (?, ?, ?, ?)`, addonID, generationID, string(body), remoteID)
-	return err
-}
-
 func (s *store) isActive(ctx context.Context, addonID string, source Source, remoteID string) (bool, error) {
 	body, _ := json.Marshal(source)
 	var count int

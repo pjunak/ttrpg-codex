@@ -11,16 +11,24 @@ const singleDocumentKeys = new Set(["contractVersion", ...documentKeys]);
 const queryResultKeys = new Set(["contractVersion", "documents", "nextCursor", "dataRevision"]);
 const commitKeys = new Set(["contractVersion", "commitId", "occurredAt", "results", "dataSets"]);
 const mutationResultKeys = new Set([
-  "kind", "dataId", "key", "beforeRevision", "afterRevision", "deleted",
+  "kind",
+  "dataId",
+  "key",
+  "beforeRevision",
+  "afterRevision",
+  "deleted",
 ]);
 const dataSetResultKeys = new Set(["kind", "dataId", "revision"]);
 const queryConditionKeys = new Set(["path", "equals"]);
 const putMutationKeys = new Set([
-  "operation", "kind", "dataId", "key", "expectedRevision", "value",
+  "operation",
+  "kind",
+  "dataId",
+  "key",
+  "expectedRevision",
+  "value",
 ]);
-const deleteMutationKeys = new Set([
-  "operation", "kind", "dataId", "key", "expectedRevision",
-]);
+const deleteMutationKeys = new Set(["operation", "kind", "dataId", "key", "expectedRevision"]);
 
 export type AddonDataKind = "collection" | "record-extension";
 
@@ -52,20 +60,20 @@ export interface AddonQueryResult<T> {
 
 export type AddonDataMutation<T = unknown> =
   | {
-    readonly operation: "put";
-    readonly kind: AddonDataKind;
-    readonly dataId: string;
-    readonly key: string;
-    readonly expectedRevision: number;
-    readonly value: T;
-  }
+      readonly operation: "put";
+      readonly kind: AddonDataKind;
+      readonly dataId: string;
+      readonly key: string;
+      readonly expectedRevision: number;
+      readonly value: T;
+    }
   | {
-    readonly operation: "delete";
-    readonly kind: AddonDataKind;
-    readonly dataId: string;
-    readonly key: string;
-    readonly expectedRevision: number;
-  };
+      readonly operation: "delete";
+      readonly kind: AddonDataKind;
+      readonly dataId: string;
+      readonly key: string;
+      readonly expectedRevision: number;
+    };
 
 export interface AddonMutationResult {
   readonly kind: AddonDataKind;
@@ -93,8 +101,17 @@ export interface AddonCommitReceipt {
 export interface AddonDataHandle<T> {
   get(key: string, options?: { readonly signal?: AbortSignal }): Promise<AddonDocument<T>>;
   query(options?: AddonQueryOptions): Promise<AddonQueryResult<T>>;
-  put(key: string, value: T, expectedRevision: number, options?: { readonly signal?: AbortSignal }): Promise<AddonCommitReceipt>;
-  delete(key: string, expectedRevision: number, options?: { readonly signal?: AbortSignal }): Promise<AddonCommitReceipt>;
+  put(
+    key: string,
+    value: T,
+    expectedRevision: number,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<AddonCommitReceipt>;
+  delete(
+    key: string,
+    expectedRevision: number,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<AddonCommitReceipt>;
 }
 
 export interface AddonTransactionOptions {
@@ -106,7 +123,10 @@ export interface BrowserDataAPI {
   readonly subscribe?: AddonDataSubscribe;
   collection<T>(id: string): AddonDataHandle<T>;
   recordExtension<T>(target: string, id: string): AddonDataHandle<T>;
-  transact(mutations: readonly AddonDataMutation[], options?: AddonTransactionOptions): Promise<AddonCommitReceipt>;
+  transact(
+    mutations: readonly AddonDataMutation[],
+    options?: AddonTransactionOptions,
+  ): Promise<AddonCommitReceipt>;
 }
 
 export type AddonDataFetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -114,24 +134,41 @@ export type AddonDataFetch = (input: string, init: RequestInit) => Promise<Respo
 export class AddonDataHTTPError extends Error {
   override readonly name = "AddonDataHTTPError";
 
-  constructor(readonly status: number, readonly operation: "get" | "query" | "transactions") {
+  constructor(
+    readonly status: number,
+    readonly operation: "get" | "query" | "transactions",
+  ) {
     super(`add-on data ${operation} returned ${status}`);
   }
 }
 
 export function parseExpectedDataSets(value: unknown): readonly AddonDataSetRevision[] {
-  if (!Array.isArray(value) || value.length > 256) throw new BoundaryValidationError("add-on data transaction", "data set guards are invalid");
+  if (!Array.isArray(value) || value.length > 256)
+    throw new BoundaryValidationError("add-on data transaction", "data set guards are invalid");
   const seen = new Set<string>();
-  return Object.freeze(value.map((guard) => {
-    if (!isRecord(guard) || !hasOnlyKeys(guard, dataSetResultKeys) ||
-      (guard["kind"] !== "collection" && guard["kind"] !== "record-extension") ||
-      typeof guard["dataId"] !== "string" || guard["dataId"].length > 100 || !localIdPattern.test(guard["dataId"]) ||
-      !nonNegativeInteger(guard["revision"])) throw new BoundaryValidationError("add-on data transaction", "data set guard is invalid");
-    const identity = guard["kind"] + ":" + guard["dataId"];
-    if (seen.has(identity)) throw new BoundaryValidationError("add-on data transaction", "duplicate data set guard");
-    seen.add(identity);
-    return Object.freeze({ kind: guard["kind"], dataId: guard["dataId"], revision: guard["revision"] });
-  }));
+  return Object.freeze(
+    value.map((guard) => {
+      if (
+        !isRecord(guard) ||
+        !hasOnlyKeys(guard, dataSetResultKeys) ||
+        (guard["kind"] !== "collection" && guard["kind"] !== "record-extension") ||
+        typeof guard["dataId"] !== "string" ||
+        guard["dataId"].length > 100 ||
+        !localIdPattern.test(guard["dataId"]) ||
+        !nonNegativeInteger(guard["revision"])
+      )
+        throw new BoundaryValidationError("add-on data transaction", "data set guard is invalid");
+      const identity = guard["kind"] + ":" + guard["dataId"];
+      if (seen.has(identity))
+        throw new BoundaryValidationError("add-on data transaction", "duplicate data set guard");
+      seen.add(identity);
+      return Object.freeze({
+        kind: guard["kind"],
+        dataId: guard["dataId"],
+        revision: guard["revision"],
+      });
+    }),
+  );
 }
 
 export class BrowserAddonDataClient {
@@ -151,8 +188,11 @@ export class BrowserAddonDataClient {
     readonly fetchData?: AddonDataFetch;
     readonly subscribe?: AddonDataSubscribe;
   }) {
-    if (!localIdPattern.test(options.addonId) || !/^[0-9a-f]{64}$/.test(options.generationId) ||
-      options.csrfToken.length < 32) {
+    if (
+      !localIdPattern.test(options.addonId) ||
+      !/^[0-9a-f]{64}$/.test(options.generationId) ||
+      options.csrfToken.length < 32
+    ) {
       throw new TypeError("add-on data client identity is invalid");
     }
     this.#baseURL = `/api/addons/${encodeURIComponent(options.addonId)}/generations/${options.generationId}/data`;
@@ -178,13 +218,29 @@ export class BrowserAddonDataClient {
     return Object.freeze(api);
   }
 
-  async get<T>(kind: AddonDataKind, dataId: string, key: string, signal?: AbortSignal): Promise<AddonDocument<T>> {
+  async get<T>(
+    kind: AddonDataKind,
+    dataId: string,
+    key: string,
+    signal?: AbortSignal,
+  ): Promise<AddonDocument<T>> {
     validateTarget(kind, dataId, key);
-    const value = await this.#request("get", {
-      contractVersion: "addon-data-get.v1", kind, dataId, key,
-    }, false, signal);
-    if (!isRecord(value) || !hasOnlyKeys(value, singleDocumentKeys) ||
-      value["contractVersion"] !== "addon-data-document.v1") {
+    const value = await this.#request(
+      "get",
+      {
+        contractVersion: "addon-data-get.v1",
+        kind,
+        dataId,
+        key,
+      },
+      false,
+      signal,
+    );
+    if (
+      !isRecord(value) ||
+      !hasOnlyKeys(value, singleDocumentKeys) ||
+      value["contractVersion"] !== "addon-data-document.v1"
+    ) {
       throw new BoundaryValidationError("add-on data get", "response must be an exact document");
     }
     return parseDocument<T>(value, "add-on data get", singleDocumentKeys);
@@ -198,39 +254,65 @@ export class BrowserAddonDataClient {
     validateTarget(kind, dataId, "query");
     const limit = options.limit ?? 100;
     const where = options.where ?? [];
-    if ((options.includeDataRevision !== undefined && typeof options.includeDataRevision !== "boolean") ||
-      (options.expectedDataRevision !== undefined && !nonNegativeInteger(options.expectedDataRevision)) ||
-      !Number.isInteger(limit) || limit < 1 || limit > 200 || where.length > 8 ||
+    if (
+      (options.includeDataRevision !== undefined &&
+        typeof options.includeDataRevision !== "boolean") ||
+      (options.expectedDataRevision !== undefined &&
+        !nonNegativeInteger(options.expectedDataRevision)) ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 200 ||
+      where.length > 8 ||
       (options.cursor !== undefined && !cursorPattern.test(options.cursor)) ||
-      where.some((condition) => !isRecord(condition) || !hasOnlyKeys(condition, queryConditionKeys) ||
-        typeof condition["path"] !== "string" || !condition["path"].startsWith("/") ||
-        condition["path"].length > 300 || condition["equals"] === undefined)) {
+      where.some(
+        (condition) =>
+          !isRecord(condition) ||
+          !hasOnlyKeys(condition, queryConditionKeys) ||
+          typeof condition["path"] !== "string" ||
+          !condition["path"].startsWith("/") ||
+          condition["path"].length > 300 ||
+          condition["equals"] === undefined,
+      )
+    ) {
       throw new BoundaryValidationError("add-on data query", "request is invalid");
     }
     assertSerializable(where, "add-on data query conditions");
     const request: Record<string, unknown> = {
-      contractVersion: "addon-data-query.v1", kind, dataId, limit, where,
+      contractVersion: "addon-data-query.v1",
+      kind,
+      dataId,
+      limit,
+      where,
     };
     if (options.cursor !== undefined) {
       request["cursor"] = options.cursor;
     }
     if (options.includeDataRevision === true) request["includeDataRevision"] = true;
-    if (options.expectedDataRevision !== undefined) request["expectedDataRevision"] = options.expectedDataRevision;
+    if (options.expectedDataRevision !== undefined)
+      request["expectedDataRevision"] = options.expectedDataRevision;
     const value = await this.#request("query", request, false, options.signal);
-    if (!isRecord(value) || !hasOnlyKeys(value, queryResultKeys) ||
+    if (
+      !isRecord(value) ||
+      !hasOnlyKeys(value, queryResultKeys) ||
       value["contractVersion"] !== "addon-data-query-result.v1" ||
       !Array.isArray(value["documents"]) ||
       (value["dataRevision"] !== undefined && !nonNegativeInteger(value["dataRevision"])) ||
-      ((options.includeDataRevision === true || options.expectedDataRevision !== undefined) && !nonNegativeInteger(value["dataRevision"])) ||
-      (options.expectedDataRevision !== undefined && value["dataRevision"] !== options.expectedDataRevision) ||
+      ((options.includeDataRevision === true || options.expectedDataRevision !== undefined) &&
+        !nonNegativeInteger(value["dataRevision"])) ||
+      (options.expectedDataRevision !== undefined &&
+        value["dataRevision"] !== options.expectedDataRevision) ||
       (value["nextCursor"] !== undefined &&
-        (typeof value["nextCursor"] !== "string" || !cursorPattern.test(value["nextCursor"])))) {
-      throw new BoundaryValidationError("add-on data query", "response must be an exact query result");
+        (typeof value["nextCursor"] !== "string" || !cursorPattern.test(value["nextCursor"])))
+    ) {
+      throw new BoundaryValidationError(
+        "add-on data query",
+        "response must be an exact query result",
+      );
     }
     const result: AddonQueryResult<T> = {
       ...(typeof value["dataRevision"] === "number" ? { dataRevision: value["dataRevision"] } : {}),
       documents: value["documents"].map((candidate, index) =>
-        parseDocument<T>(candidate, `add-on data query documents[${index}]`)
+        parseDocument<T>(candidate, `add-on data query documents[${index}]`),
       ),
       ...(typeof value["nextCursor"] === "string" ? { nextCursor: value["nextCursor"] } : {}),
     };
@@ -242,9 +324,13 @@ export class BrowserAddonDataClient {
     signal?: AbortSignal,
     expectedDataSets?: readonly AddonDataSetRevision[],
   ): Promise<AddonCommitReceipt> {
-    const guards = expectedDataSets === undefined ? undefined : parseExpectedDataSets(expectedDataSets);
+    const guards =
+      expectedDataSets === undefined ? undefined : parseExpectedDataSets(expectedDataSets);
     const operation = this.#writeTail.then(() => this.#transact(mutations, signal, guards));
-    this.#writeTail = operation.then(() => undefined, () => undefined);
+    this.#writeTail = operation.then(
+      () => undefined,
+      () => undefined,
+    );
     return operation;
   }
 
@@ -256,14 +342,42 @@ export class BrowserAddonDataClient {
       get: (key: string, options?: { readonly signal?: AbortSignal }) =>
         this.get<T>(kind, dataId, key, options?.signal),
       query: (options?: AddonQueryOptions) => this.query<T>(kind, dataId, options),
-      put: (key: string, value: T, expectedRevision: number,
-        options?: { readonly signal?: AbortSignal }) => this.transact([{
-        operation: "put", kind, dataId, key, expectedRevision, value,
-      }], options?.signal),
-      delete: (key: string, expectedRevision: number,
-        options?: { readonly signal?: AbortSignal }) => this.transact([{
-        operation: "delete", kind, dataId, key, expectedRevision,
-      }], options?.signal),
+      put: (
+        key: string,
+        value: T,
+        expectedRevision: number,
+        options?: { readonly signal?: AbortSignal },
+      ) =>
+        this.transact(
+          [
+            {
+              operation: "put",
+              kind,
+              dataId,
+              key,
+              expectedRevision,
+              value,
+            },
+          ],
+          options?.signal,
+        ),
+      delete: (
+        key: string,
+        expectedRevision: number,
+        options?: { readonly signal?: AbortSignal },
+      ) =>
+        this.transact(
+          [
+            {
+              operation: "delete",
+              kind,
+              dataId,
+              key,
+              expectedRevision,
+            },
+          ],
+          options?.signal,
+        ),
     };
     return Object.freeze(handle);
   }
@@ -277,25 +391,36 @@ export class BrowserAddonDataClient {
       throw new BoundaryValidationError("add-on data transaction", "mutation count is invalid");
     }
     for (const mutation of mutations) {
-      if (!isRecord(mutation) ||
+      if (
+        !isRecord(mutation) ||
         (mutation["operation"] === "put"
           ? !hasOnlyKeys(mutation, putMutationKeys) || mutation["value"] === undefined
           : mutation["operation"] === "delete"
             ? !hasOnlyKeys(mutation, deleteMutationKeys)
-            : true)) {
+            : true)
+      ) {
         throw new BoundaryValidationError("add-on data transaction", "mutation is invalid");
       }
-      validateTarget(mutation["kind"] as AddonDataKind, mutation["dataId"] as string,
-        mutation["key"] as string);
+      validateTarget(
+        mutation["kind"] as AddonDataKind,
+        mutation["dataId"] as string,
+        mutation["key"] as string,
+      );
       if (!nonNegativeInteger(mutation["expectedRevision"])) {
         throw new BoundaryValidationError("add-on data transaction", "mutation is invalid");
       }
     }
     assertSerializable(mutations, "add-on data mutations");
-    const value = await this.#request("transactions", {
-      contractVersion: "addon-data-transaction.v1", mutations,
-      ...(expectedDataSets === undefined ? {} : { expectedDataSets }),
-    }, true, signal);
+    const value = await this.#request(
+      "transactions",
+      {
+        contractVersion: "addon-data-transaction.v1",
+        mutations,
+        ...(expectedDataSets === undefined ? {} : { expectedDataSets }),
+      },
+      true,
+      signal,
+    );
     return parseCommit(value);
   }
 
@@ -313,15 +438,26 @@ export class BrowserAddonDataClient {
       headers.set("X-Codex-CSRF", this.#csrfToken());
     }
     const response = await this.#fetchData(`${this.#baseURL}/${operation}`, {
-      method: "POST", headers, credentials: "same-origin", cache: "no-store",
-      body: JSON.stringify(body), signal: combined,
+      method: "POST",
+      headers,
+      credentials: "same-origin",
+      cache: "no-store",
+      body: JSON.stringify(body),
+      signal: combined,
     });
     if (!response.ok) {
       throw new AddonDataHTTPError(response.status, operation);
     }
-    const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    const contentType = response.headers
+      .get("Content-Type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
     if (contentType !== "application/json") {
-      throw new BoundaryValidationError(`add-on data ${operation}`, "response must be application/json");
+      throw new BoundaryValidationError(
+        `add-on data ${operation}`,
+        "response must be application/json",
+      );
     }
     const text = await response.text();
     if (new TextEncoder().encode(text).byteLength > maximumResponseBytes) {
@@ -340,53 +476,97 @@ function parseDocument<T>(
   boundary: string,
   keys: ReadonlySet<string> = documentKeys,
 ): AddonDocument<T> {
-  if (!isRecord(value) || !hasOnlyKeys(value, keys) ||
-    typeof value["key"] !== "string" || value["key"].length === 0 ||
-    !positiveInteger(value["revision"]) || value["value"] === undefined) {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, keys) ||
+    typeof value["key"] !== "string" ||
+    value["key"].length === 0 ||
+    !positiveInteger(value["revision"]) ||
+    value["value"] === undefined
+  ) {
     throw new BoundaryValidationError(boundary, "document is invalid");
   }
-  return Object.freeze({ key: value["key"], revision: value["revision"], value: value["value"] as T });
+  return Object.freeze({
+    key: value["key"],
+    revision: value["revision"],
+    value: value["value"] as T,
+  });
 }
 
 function parseCommit(value: unknown): AddonCommitReceipt {
   const boundary = "add-on data transaction";
-  if (!isRecord(value) || !hasOnlyKeys(value, commitKeys) ||
-    value["contractVersion"] !== "addon-data-commit.v1" || !positiveInteger(value["commitId"]) ||
-    typeof value["occurredAt"] !== "string" || !timestampPattern.test(value["occurredAt"]) ||
-    !Number.isFinite(Date.parse(value["occurredAt"])) || !Array.isArray(value["results"]) ||
-    value["results"].length === 0 || !Array.isArray(value["dataSets"]) || value["dataSets"].length === 0) {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, commitKeys) ||
+    value["contractVersion"] !== "addon-data-commit.v1" ||
+    !positiveInteger(value["commitId"]) ||
+    typeof value["occurredAt"] !== "string" ||
+    !timestampPattern.test(value["occurredAt"]) ||
+    !Number.isFinite(Date.parse(value["occurredAt"])) ||
+    !Array.isArray(value["results"]) ||
+    value["results"].length === 0 ||
+    !Array.isArray(value["dataSets"]) ||
+    value["dataSets"].length === 0
+  ) {
     throw new BoundaryValidationError(boundary, "response must be an exact commit receipt");
   }
   const results = value["results"].map((candidate, index): AddonMutationResult => {
-    if (!isRecord(candidate) || !hasOnlyKeys(candidate, mutationResultKeys) ||
-      !dataKind(candidate["kind"]) || !localID(candidate["dataId"]) ||
-      typeof candidate["key"] !== "string" || candidate["key"].length === 0 ||
-      !nonNegativeInteger(candidate["beforeRevision"]) || !positiveInteger(candidate["afterRevision"]) ||
-      candidate["afterRevision"] !== candidate["beforeRevision"] + 1 || typeof candidate["deleted"] !== "boolean") {
+    if (
+      !isRecord(candidate) ||
+      !hasOnlyKeys(candidate, mutationResultKeys) ||
+      !dataKind(candidate["kind"]) ||
+      !localID(candidate["dataId"]) ||
+      typeof candidate["key"] !== "string" ||
+      candidate["key"].length === 0 ||
+      !nonNegativeInteger(candidate["beforeRevision"]) ||
+      !positiveInteger(candidate["afterRevision"]) ||
+      candidate["afterRevision"] !== candidate["beforeRevision"] + 1 ||
+      typeof candidate["deleted"] !== "boolean"
+    ) {
       throw new BoundaryValidationError(boundary, `results[${index}] is invalid`);
     }
     return Object.freeze({
-      kind: candidate["kind"], dataId: candidate["dataId"], key: candidate["key"],
-      beforeRevision: candidate["beforeRevision"], afterRevision: candidate["afterRevision"],
+      kind: candidate["kind"],
+      dataId: candidate["dataId"],
+      key: candidate["key"],
+      beforeRevision: candidate["beforeRevision"],
+      afterRevision: candidate["afterRevision"],
       deleted: candidate["deleted"],
     });
   });
   const dataSets = value["dataSets"].map((candidate, index): AddonDataSetRevision => {
-    if (!isRecord(candidate) || !hasOnlyKeys(candidate, dataSetResultKeys) ||
-      !dataKind(candidate["kind"]) || !localID(candidate["dataId"]) || !positiveInteger(candidate["revision"])) {
+    if (
+      !isRecord(candidate) ||
+      !hasOnlyKeys(candidate, dataSetResultKeys) ||
+      !dataKind(candidate["kind"]) ||
+      !localID(candidate["dataId"]) ||
+      !positiveInteger(candidate["revision"])
+    ) {
       throw new BoundaryValidationError(boundary, `dataSets[${index}] is invalid`);
     }
-    return Object.freeze({ kind: candidate["kind"], dataId: candidate["dataId"], revision: candidate["revision"] });
+    return Object.freeze({
+      kind: candidate["kind"],
+      dataId: candidate["dataId"],
+      revision: candidate["revision"],
+    });
   });
   return Object.freeze({
-    contractVersion: "addon-data-commit.v1", commitId: value["commitId"],
-    occurredAt: value["occurredAt"], results, dataSets,
+    contractVersion: "addon-data-commit.v1",
+    commitId: value["commitId"],
+    occurredAt: value["occurredAt"],
+    results,
+    dataSets,
   });
 }
 
 function validateTarget(kind: AddonDataKind, dataId: string, key: string): void {
-  if (!dataKind(kind) || !localID(dataId) || typeof key !== "string" ||
-    key.length < 1 || key.length > 1024) {
+  if (
+    !dataKind(kind) ||
+    !localID(dataId) ||
+    typeof key !== "string" ||
+    key.length < 1 ||
+    key.length > 1024
+  ) {
     throw new BoundaryValidationError("add-on data", "target is invalid");
   }
 }
@@ -414,7 +594,10 @@ function assertSerializable(value: unknown, boundary: string): void {
   } catch {
     // handled below
   }
-  if (encoded === undefined || new TextEncoder().encode(encoded).byteLength > maximumResponseBytes) {
+  if (
+    encoded === undefined ||
+    new TextEncoder().encode(encoded).byteLength > maximumResponseBytes
+  ) {
     throw new BoundaryValidationError(boundary, "value is not bounded JSON");
   }
 }

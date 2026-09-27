@@ -7,11 +7,7 @@ import {
   type CampaignDataset,
   type CampaignRecord,
 } from "../core/campaign-data.js";
-import {
-  campaignPages,
-  recordHash,
-  type CampaignPageDefinition,
-} from "./routes.js";
+import { campaignPages, recordHash, type CampaignPageDefinition } from "./routes.js";
 import { campaignEnumDisplayLabel } from "./campaign-settings.js";
 import { attitudeRing, attitudeFilter } from "./campaign-attitude-glow.js";
 import { campaignPartyIdentity, type CampaignPartyIdentity } from "./campaign-party.js";
@@ -75,17 +71,42 @@ export function projectCampaignIdentity(dataset: CampaignDataset): CampaignIdent
   };
 }
 
-export function recentCampaignActivity(dataset: CampaignDataset, maximum = 30): readonly EntitySummary[] {
-  const representatives = new Map(campaignPages.map(page => [page.id, twinRepresentatives(campaignCollection(dataset, page.collection).records)]));
+export function recentCampaignActivity(
+  dataset: CampaignDataset,
+  maximum = 30,
+): readonly EntitySummary[] {
+  const representatives = new Map(
+    campaignPages.map((page) => [
+      page.id,
+      twinRepresentatives(campaignCollection(dataset, page.collection).records),
+    ]),
+  );
   const seen = new Set<string>();
-  return campaignPages.flatMap(page => campaignCollection(dataset, page.collection).records.map(record => ({ page, entity: projectEntity(dataset, record, page) })))
-    .map(({ page, entity }) => ({ page, entity: { ...entity, updatedAt: activityTimestamp(entity.raw, entity.updatedAt) } }))
+  return campaignPages
+    .flatMap((page) =>
+      campaignCollection(dataset, page.collection).records.map((record) => ({
+        page,
+        entity: projectEntity(dataset, record, page),
+      })),
+    )
+    .map(({ page, entity }) => ({
+      page,
+      entity: { ...entity, updatedAt: activityTimestamp(entity.raw, entity.updatedAt) },
+    }))
     .filter(({ entity }) => entity.updatedAt !== undefined)
-    .sort((a, b) => Date.parse(b.entity.updatedAt!) - Date.parse(a.entity.updatedAt!) || a.entity.route.localeCompare(b.entity.route))
+    .sort(
+      (a, b) =>
+        Date.parse(b.entity.updatedAt!) - Date.parse(a.entity.updatedAt!) ||
+        a.entity.route.localeCompare(b.entity.route),
+    )
     .filter(({ page, entity }) => {
       const key = recordHash(page, representatives.get(page.id)!.get(entity.key)!);
-      if (seen.has(key)) return false; seen.add(key); return true;
-    }).slice(0, maximum).map(({ entity }) => entity);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, maximum)
+    .map(({ entity }) => entity);
 }
 
 export function projectEntities(
@@ -94,12 +115,23 @@ export function projectEntities(
 ): readonly EntitySummary[] {
   const context = createAttitudeContext(dataset);
   return groupTwinRecords(campaignCollection(dataset, page.collection).records).map((record) =>
-    projectEntityWithContext(dataset, record, page, context)
+    projectEntityWithContext(dataset, record, page, context),
   );
 }
 
-export function projectEntity(dataset: CampaignDataset, record: CampaignRecord, page: CampaignPageDefinition, inspectCharacter = false): EntitySummary {
-  return projectEntityWithContext(dataset, record, page, createAttitudeContext(dataset), inspectCharacter);
+export function projectEntity(
+  dataset: CampaignDataset,
+  record: CampaignRecord,
+  page: CampaignPageDefinition,
+  inspectCharacter = false,
+): EntitySummary {
+  return projectEntityWithContext(
+    dataset,
+    record,
+    page,
+    createAttitudeContext(dataset),
+    inspectCharacter,
+  );
 }
 
 function projectEntityWithContext(
@@ -110,21 +142,29 @@ function projectEntityWithContext(
   inspectCharacter = false,
 ): EntitySummary {
   const original = recordValue(record);
-  const value = page.collection === "characters" ? characterReadingValue(original, inspectCharacter) : original;
+  const value =
+    page.collection === "characters" ? characterReadingValue(original, inspectCharacter) : original;
   const attitudes = effectiveAttitudes(context, page.collection, value);
-  const partyIdentity = page.collection === "characters" && value["faction"] === "party" ? campaignPartyIdentity(dataset) : undefined;
+  const partyIdentity =
+    page.collection === "characters" && value["faction"] === "party"
+      ? campaignPartyIdentity(dataset)
+      : undefined;
   return Object.freeze({
     partyIdentity,
     key: record.key,
     name: nonEmptyText(value["name"]) ?? nonEmptyText(value["title"]) ?? record.key,
     title: firstText(value, secondaryFields[page.collection] ?? []),
-    excerpt: firstExcerpt(value, excerptFields[page.collection] ?? ["description", "summary", "body"]),
+    excerpt: firstExcerpt(
+      value,
+      excerptFields[page.collection] ?? ["description", "summary", "body"],
+    ),
     portrait: safeMediaURL(value["portrait"]),
     icon: partyIdentity?.badge ?? shortIcon(value["icon"] ?? value["badge"]),
     status: text(value["status"]),
-    statusLabel: page.collection === "characters"
-      ? campaignEnumDisplayLabel(dataset, "characterStatuses", value["status"])
-      : text(value["status"]),
+    statusLabel:
+      page.collection === "characters"
+        ? campaignEnumDisplayLabel(dataset, "characterStatuses", value["status"])
+        : text(value["status"]),
     visibility: value["visibility"] === "dm" ? "dm" : "public",
     tags: stringList(value["tags"]),
     attitudes,
@@ -161,10 +201,12 @@ function effectiveAttitudes(
       ids = context.factions.get(faction) ?? Object.freeze([]);
     }
   }
-  return Object.freeze(ids.flatMap((id) => {
-    const definition = context.definitions.get(id);
-    return definition === undefined ? [] : [definition];
-  }));
+  return Object.freeze(
+    ids.flatMap((id) => {
+      const definition = context.definitions.get(id);
+      return definition === undefined ? [] : [definition];
+    }),
+  );
 }
 
 interface AttitudeContext {
@@ -183,20 +225,28 @@ function createAttitudeContext(dataset: CampaignDataset): AttitudeContext {
 export function projectDashboard(dataset: CampaignDataset): DashboardModel {
   const characters = entitiesFor(dataset, "characters");
   const pets = entitiesFor(dataset, "pets");
-  const party = characters.filter((character) => character.raw["faction"] === "party")
+  const party = characters
+    .filter((character) => character.raw["faction"] === "party")
     .sort((left, right) => left.name.localeCompare(right.name, "cs"));
-  const partyKeys = new Set(campaignCollection(dataset, "characters").records.filter(record => recordValue(record)["faction"] === "party").map(record => record.key));
-  const companions = pets.filter((pet) =>
-    pet.raw["ownerType"] === "party" ||
-    (pet.raw["ownerType"] === "character" && partyKeys.has(text(pet.raw["ownerId"])))
+  const partyKeys = new Set(
+    campaignCollection(dataset, "characters")
+      .records.filter((record) => recordValue(record)["faction"] === "party")
+      .map((record) => record.key),
   );
-  const events = entitiesFor(dataset, "events").map((event): DashboardEvent => Object.freeze({
-    ...event,
-    sitting: positiveInteger(event.raw["sitting"]),
-    order: finiteNumber(event.raw["order"]),
-    characters: stringList(event.raw["characters"]).length,
-    locations: stringList(event.raw["locations"]).length,
-  }));
+  const companions = pets.filter(
+    (pet) =>
+      pet.raw["ownerType"] === "party" ||
+      (pet.raw["ownerType"] === "character" && partyKeys.has(text(pet.raw["ownerId"]))),
+  );
+  const events = entitiesFor(dataset, "events").map((event): DashboardEvent =>
+    Object.freeze({
+      ...event,
+      sitting: positiveInteger(event.raw["sitting"]),
+      order: finiteNumber(event.raw["order"]),
+      characters: stringList(event.raw["characters"]).length,
+      locations: stringList(event.raw["locations"]).length,
+    }),
+  );
   const lastSession = events.reduce((highest, event) => Math.max(highest, event.sitting), 0);
   const recent = recentCampaignActivity(dataset);
   const counts: Record<string, number> = {};
@@ -209,9 +259,11 @@ export function projectDashboard(dataset: CampaignDataset): DashboardModel {
     party: Object.freeze(party),
     companions: Object.freeze(companions),
     lastSession: lastSession > 0 ? lastSession : undefined,
-    lastSessionEvents: Object.freeze(events
-      .filter((event) => event.sitting === lastSession && lastSession > 0)
-      .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name))),
+    lastSessionEvents: Object.freeze(
+      events
+        .filter((event) => event.sitting === lastSession && lastSession > 0)
+        .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name)),
+    ),
     recent: Object.freeze(recent),
     counts: Object.freeze(counts),
   });
@@ -233,7 +285,9 @@ export function text(value: unknown): string {
 
 export function stringList(value: unknown): readonly string[] {
   return Array.isArray(value)
-    ? Object.freeze(value.filter((item): item is string => typeof item === "string" && item.trim() !== ""))
+    ? Object.freeze(
+        value.filter((item): item is string => typeof item === "string" && item.trim() !== ""),
+      )
     : Object.freeze([]);
 }
 
@@ -279,7 +333,7 @@ function firstExcerpt(value: Readonly<Record<string, unknown>>, fields: readonly
 
 function shortIcon(value: unknown): string | undefined {
   const result = text(value);
-  return result !== "" && [...result].length <= 4 ? result : undefined;
+  return result !== "" && Array.from(result).length <= 4 ? result : undefined;
 }
 
 function timestamp(value: unknown): string | undefined {
@@ -313,23 +367,29 @@ function attitudeDefinitions(dataset: CampaignDataset): ReadonlyMap<string, Atti
       const id = text(candidate["id"]);
       const color = safeHexColor(candidate["labelColor"] ?? candidate["bg"]);
       if (id === "" || color === undefined || result.has(id)) continue;
-      result.set(id, Object.freeze({
+      result.set(
         id,
-        label: text(candidate["label"]) || id,
-        color,
-        strength: normalizedStrength(candidate["strength"]),
-      }));
+        Object.freeze({
+          id,
+          label: text(candidate["label"]) || id,
+          color,
+          strength: normalizedStrength(candidate["strength"]),
+        }),
+      );
     }
   }
   const party = campaignPartyIdentity(dataset);
   const configuredPartyStrength = result.get("party")?.strength ?? 1;
   if (!result.has("party")) {
-    result.set("party", Object.freeze({
-      id: "party",
-      label: party.name,
-      color: party.color,
-      strength: configuredPartyStrength,
-    }));
+    result.set(
+      "party",
+      Object.freeze({
+        id: "party",
+        label: party.name,
+        color: party.color,
+        strength: configuredPartyStrength,
+      }),
+    );
   }
   return result;
 }
@@ -339,7 +399,8 @@ function attitudeIDs(value: unknown): readonly string[] {
   const seen = new Set<string>();
   const ids: string[] = [];
   for (const candidate of value) {
-    const id = typeof candidate === "string" ? candidate : isRecord(candidate) ? text(candidate["id"]) : "";
+    const id =
+      typeof candidate === "string" ? candidate : isRecord(candidate) ? text(candidate["id"]) : "";
     if (id !== "" && !seen.has(id)) {
       seen.add(id);
       ids.push(id);
@@ -349,9 +410,7 @@ function attitudeIDs(value: unknown): readonly string[] {
 }
 
 function normalizedStrength(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.min(1, Math.max(0, value))
-    : 1;
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
 }
 
 function safeHexColor(value: unknown): string | undefined {
@@ -359,7 +418,9 @@ function safeHexColor(value: unknown): string | undefined {
   return /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/iu.test(candidate) ? candidate.toLowerCase() : undefined;
 }
 
-const secondaryFields: Readonly<Partial<Record<CampaignPageDefinition["collection"], readonly string[]>>> = {
+const secondaryFields: Readonly<
+  Partial<Record<CampaignPageDefinition["collection"], readonly string[]>>
+> = {
   characters: ["title", "species"],
   locations: ["region", "type"],
   events: ["date", "short"],
@@ -371,7 +432,9 @@ const secondaryFields: Readonly<Partial<Record<CampaignPageDefinition["collectio
   pets: ["species", "ownerType"],
 };
 
-const excerptFields: Readonly<Partial<Record<CampaignPageDefinition["collection"], readonly string[]>>> = {
+const excerptFields: Readonly<
+  Partial<Record<CampaignPageDefinition["collection"], readonly string[]>>
+> = {
   characters: ["description", "known", "circumstances"],
   locations: ["description", "history", "mapNotes"],
   events: ["short", "description"],

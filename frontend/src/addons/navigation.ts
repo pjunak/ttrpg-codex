@@ -1,9 +1,5 @@
-import type {
-  ActiveBrowserContribution,
-  BrowserContributionRegistry,
-} from "./browser-sdk.js";
+import type { ActiveBrowserContribution, BrowserContributionRegistry } from "./browser-sdk.js";
 import type { BrowserRole } from "./generation-manager.js";
-import type { Disposer } from "./generation-scope.js";
 import { contributionLabel } from "./contribution-label.js";
 
 export interface BrowserNavigationEntry {
@@ -49,15 +45,35 @@ export function isBrowserAddonRouteHash(value: string): boolean {
 }
 
 /** Query values are navigation input, never record identity or write authority. */
-export function parseBrowserAddonLocation(hash: string): { readonly routeHash: string; readonly query: readonly (readonly [string, string])[] } | undefined {
+export function parseBrowserAddonLocation(
+  hash: string,
+):
+  | { readonly routeHash: string; readonly query: readonly (readonly [string, string])[] }
+  | undefined {
   if (new TextEncoder().encode(hash).length > 4096) return undefined;
   const separator = hash.indexOf("?");
   const routeHash = separator === -1 ? hash : hash.slice(0, separator);
-  if (!/^#\/addons\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/u.test(routeHash)) return undefined;
+  if (
+    !/^#\/addons\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/u.test(
+      routeHash,
+    )
+  )
+    return undefined;
   const raw = separator === -1 ? "" : hash.slice(separator + 1);
-  try { decodeURIComponent(raw.replace(/\+/gu, " ")); } catch { return undefined; }
+  try {
+    decodeURIComponent(raw.replace(/\+/gu, " "));
+  } catch {
+    return undefined;
+  }
   const query = [...new URLSearchParams(raw).entries()];
-  if (query.length > 32 || query.some(([key, value]) => !key || key.length > 64 || value.length > 1024 || /\p{Cc}/u.test(key + value))) return undefined;
+  if (
+    query.length > 32 ||
+    query.some(
+      ([key, value]) =>
+        !key || key.length > 64 || value.length > 1024 || /\p{Cc}/u.test(key + value),
+    )
+  )
+    return undefined;
   return { routeHash, query };
 }
 
@@ -83,20 +99,24 @@ export function listBrowserNavigation(
     if (typeof routeContributionId !== "string") {
       continue;
     }
-    const route = routes.get(routeIdentity(active.addonId, active.generationId, routeContributionId));
+    const route = routes.get(
+      routeIdentity(active.addonId, active.generationId, routeContributionId),
+    );
     if (route === undefined) {
       // Integrated activation publishes metadata before module bindings. A
       // missing route is therefore temporarily normal and stays invisible.
       continue;
     }
-    entries.push(Object.freeze({
-      addonId: active.addonId,
-      generationId: active.generationId,
-      contributionId: active.descriptor.id,
-      label: contributionLabel(active.descriptor, locale),
-      routeContributionId,
-      hash: browserAddonRouteHash(route),
-    }));
+    entries.push(
+      Object.freeze({
+        addonId: active.addonId,
+        generationId: active.generationId,
+        contributionId: active.descriptor.id,
+        label: contributionLabel(active.descriptor, locale),
+        routeContributionId,
+        hash: browserAddonRouteHash(route),
+      }),
+    );
   }
   return Object.freeze(entries);
 }
@@ -113,7 +133,7 @@ export class BrowserNavigationOutlet {
   readonly #onError: (cause: unknown) => void;
   readonly #onCountChange: (count: number) => void;
   readonly #mounted = new Map<string, MountedNavigationEntry>();
-  readonly #unsubscribe: Disposer;
+  readonly #unsubscribe: () => void;
   #disposed = false;
 
   constructor(options: BrowserNavigationOutletOptions) {

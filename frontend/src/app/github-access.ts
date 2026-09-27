@@ -3,11 +3,20 @@ import type { GitHubStatus } from "../core/addon-github.js";
 import type { MessageKey } from "./ui-localization.js";
 
 export function repositoryName(input: string): string {
-  return input.trim().replace(/^https:\/\/github\.com\//iu, "").replace(/\/$/u, "").replace(/\.git$/u, "").toLowerCase();
+  return input
+    .trim()
+    .replace(/^https:\/\/github\.com\//iu, "")
+    .replace(/\/$/u, "")
+    .replace(/\.git$/u, "")
+    .toLowerCase();
 }
 
 export function hasGitHubAccess(status: GitHubStatus | undefined, repository: string): boolean {
-  return !!status && (status.credentials.defaultSource !== "none" || status.credentials.repositories.includes(repositoryName(repository)));
+  return (
+    !!status &&
+    (status.credentials.defaultSource !== "none" ||
+      status.credentials.repositories.includes(repositoryName(repository)))
+  );
 }
 
 export function githubTokenHelp(t: (key: MessageKey) => string) {

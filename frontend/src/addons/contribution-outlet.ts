@@ -1,13 +1,13 @@
-import type {
-  ActiveBrowserContribution,
-  BrowserContributionRegistry,
-} from "./browser-sdk.js";
+import type { ActiveBrowserContribution, BrowserContributionRegistry } from "./browser-sdk.js";
 import type {
   BrowserContributionDescriptor,
   BrowserContributionSurface,
   BrowserRole,
 } from "./generation-manager.js";
-import type { BrowserContributionEditHandle, BrowserContributionEditRegistration } from "./edit-state.js";
+import type {
+  BrowserContributionEditHandle,
+  BrowserContributionEditRegistration,
+} from "./edit-state.js";
 import { contributionLabel } from "./contribution-label.js";
 import { isRecord } from "../core/boundary.js";
 import { contextEn, contextCs } from "../app/context-messages.js";
@@ -69,7 +69,10 @@ export class BrowserContributionOutlet {
   readonly #onCountChange: (count: number) => void;
   readonly #mounted = new Map<string, MountedContribution>();
   readonly #handoffKey: () => string | undefined;
-  readonly #handoffs = new Map<string, { slot: symbol; key: string; active: ActiveBrowserContribution }>();
+  readonly #handoffs = new Map<
+    string,
+    { slot: symbol; key: string; active: ActiveBrowserContribution }
+  >();
   readonly #unsubscribe: () => void;
   #disposed = false;
 
@@ -97,7 +100,8 @@ export class BrowserContributionOutlet {
     const handoffKey = this.#handoffKey();
     for (const [id, handoff] of this.#handoffs) {
       if (handoff.key !== handoffKey || !this.#include(handoff.active)) {
-        this.#registry.edits.forget(handoff.slot); this.#handoffs.delete(id);
+        this.#registry.edits.forget(handoff.slot);
+        this.#handoffs.delete(id);
       }
     }
     const ordered: HTMLElement[] = [];
@@ -107,16 +111,19 @@ export class BrowserContributionOutlet {
         continue;
       }
       if (active.binding.kind !== "element" && active.binding.kind !== "isolated-frame") {
-        this.#onError(new TypeError(
-          `host outlet ${this.#surface} cannot mount ${active.binding.kind} contribution ` +
-          `${active.addonId}:${active.descriptor.id}`,
-        ));
+        this.#onError(
+          new TypeError(
+            `host outlet ${this.#surface} cannot mount ${active.binding.kind} contribution ` +
+              `${active.addonId}:${active.descriptor.id}`,
+          ),
+        );
         continue;
       }
       const key = contributionKey(active);
-      const identity = active.binding.kind === "element"
-        ? `element:${active.binding.tag}:${handoffKey ?? ""}`
-        : "isolated-frame";
+      const identity =
+        active.binding.kind === "element"
+          ? `element:${active.binding.tag}:${handoffKey ?? ""}`
+          : "isolated-frame";
       let mounted = this.#mounted.get(key);
       if (mounted === undefined || mounted.identity !== identity) {
         if (mounted !== undefined) {
@@ -134,12 +141,23 @@ export class BrowserContributionOutlet {
       }
       try {
         const context = this.#hostContext(active);
-        const label = contributionLabel(active.descriptor, isRecord(context) ? context["locale"] : undefined);
+        const label = contributionLabel(
+          active.descriptor,
+          isRecord(context) ? context["locale"] : undefined,
+        );
         mounted.wrapper.setAttribute("aria-label", label);
         mounted.label.textContent = label;
-        if (mounted.element !== undefined) mounted.element.codexContribution = contributionContext(active, context, mounted.edits.handle);
+        if (mounted.element !== undefined)
+          mounted.element.codexContribution = contributionContext(
+            active,
+            context,
+            mounted.edits.handle,
+          );
         else if (this.#isolatedHostContext) mounted.updateHostContext?.(freezeJSON(context));
-      } catch (cause: unknown) { this.#onError(cause); continue; }
+      } catch (cause: unknown) {
+        this.#onError(cause);
+        continue;
+      }
       retained.add(key);
       ordered.push(mounted.wrapper);
     }
@@ -151,21 +169,29 @@ export class BrowserContributionOutlet {
     }
     for (const [id, handoff] of this.#handoffs) {
       if (this.#registry.edits.pending(handoff.slot)) {
-        const notice = this.#document.createElement("section"), context = this.#hostContext(handoff.active);
+        const notice = this.#document.createElement("section"),
+          context = this.#hostContext(handoff.active);
         const cs = isRecord(context) && context["locale"] === "cs";
-        notice.className = "addon-contribution"; notice.dataset["uiState"] = "unavailable"; notice.setAttribute("role", "status");
-        notice.textContent = contributionLabel(handoff.active.descriptor, cs ? "cs" : "en") + ": " +
+        notice.className = "addon-contribution";
+        notice.dataset["uiState"] = "unavailable";
+        notice.setAttribute("role", "status");
+        notice.textContent =
+          contributionLabel(handoff.active.descriptor, cs ? "cs" : "en") +
+          ": " +
           (cs ? contextCs : contextEn)["recordAddons.pendingRestart"];
         ordered.push(notice);
       } else if (handoff.active.signal.aborted) this.#handoffs.delete(id);
     }
     try {
       // Keep unchanged frames and custom elements connected during refresh.
-      for (const child of [...this.#root.children]) if (!ordered.includes(child as HTMLElement)) child.remove();
+      // oxlint-disable-next-line unicorn/no-useless-spread -- Snapshot the live HTMLCollection before removing children.
+      for (const child of [...this.#root.children])
+        if (!ordered.includes(child as HTMLElement)) child.remove();
       ordered.forEach((child, index) => {
         const before = this.#root.children[index] ?? null;
         if (before !== child) {
-          if (child.parentNode === this.#root && this.#root.isConnected && this.#root.moveBefore) this.#root.moveBefore(child, before);
+          if (child.parentNode === this.#root && this.#root.isConnected && this.#root.moveBefore)
+            this.#root.moveBefore(child, before);
           else this.#root.insertBefore(child, before);
         }
       });
@@ -193,14 +219,22 @@ export class BrowserContributionOutlet {
     this.#onCountChange(0);
   }
 
-  #create(active: ActiveBrowserContribution, identity: string, handoffKey: string | undefined): MountedContribution {
+  #create(
+    active: ActiveBrowserContribution,
+    identity: string,
+    handoffKey: string | undefined,
+  ): MountedContribution {
     let slot: symbol | undefined;
     if (handoffKey !== undefined && active.binding.kind === "element") {
       const key = `${active.addonId}:${active.descriptor.id}`;
       const handoff = this.#handoffs.get(key) ?? { slot: Symbol(), key: handoffKey, active };
-      handoff.active = active; this.#handoffs.set(key, handoff); slot = handoff.slot;
+      handoff.active = active;
+      this.#handoffs.set(key, handoff);
+      slot = handoff.slot;
     }
-    const edits = this.#registry.edits.open(active, slot, () => { queueMicrotask(() => this.refresh()); });
+    const edits = this.#registry.edits.open(active, slot, () => {
+      queueMicrotask(() => this.refresh());
+    });
     try {
       return { ...this.#mount(active, edits), identity };
     } catch (cause: unknown) {
@@ -209,7 +243,10 @@ export class BrowserContributionOutlet {
     }
   }
 
-  #mount(active: ActiveBrowserContribution, edits: BrowserContributionEditRegistration): MountedContribution {
+  #mount(
+    active: ActiveBrowserContribution,
+    edits: BrowserContributionEditRegistration,
+  ): MountedContribution {
     const wrapper = this.#document.createElement("section");
     wrapper.className = "addon-contribution";
     wrapper.dataset["addonId"] = active.addonId;
@@ -225,10 +262,16 @@ export class BrowserContributionOutlet {
     heading.append(label, owner);
 
     if (active.binding.kind === "element") {
-      const element = this.#document.createElement(active.binding.tag) as BrowserContributionElement;
+      const element = this.#document.createElement(
+        active.binding.tag,
+      ) as BrowserContributionElement;
       element.dataset["codexAddon"] = active.addonId;
       element.dataset["codexContribution"] = active.descriptor.id;
-      element.codexContribution = contributionContext(active, this.#hostContext(active), edits.handle);
+      element.codexContribution = contributionContext(
+        active,
+        this.#hostContext(active),
+        edits.handle,
+      );
       if (!this.#compact) wrapper.append(heading);
       wrapper.append(element);
       return { identity: `element:${active.binding.tag}`, wrapper, label, element, edits };
@@ -236,12 +279,23 @@ export class BrowserContributionOutlet {
     if (active.binding.kind === "isolated-frame") {
       const frameHost = this.#document.createElement("div");
       frameHost.className = "addon-isolated-frame";
-      const mount = active.binding.mount(frameHost, this.#isolatedHostContext ? freezeJSON(this.#hostContext(active)) : null, edits.handle);
+      const mount = active.binding.mount(
+        frameHost,
+        this.#isolatedHostContext ? freezeJSON(this.#hostContext(active)) : null,
+        edits.handle,
+      );
       if (!this.#compact) wrapper.append(heading);
       wrapper.append(frameHost);
-      return { identity: "isolated-frame", wrapper, label, edits,
+      return {
+        identity: "isolated-frame",
+        wrapper,
+        label,
+        edits,
         dispose: typeof mount === "function" ? mount : () => mount.dispose(),
-        ...(typeof mount === "function" ? {} : { updateHostContext: (value: unknown) => mount.updateHostContext(value) }) };
+        ...(typeof mount === "function"
+          ? {}
+          : { updateHostContext: (value: unknown) => mount.updateHostContext(value) }),
+      };
     }
     throw new TypeError(
       `host outlet ${this.#surface} cannot mount ${active.binding.kind} contribution`,

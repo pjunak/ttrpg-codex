@@ -4,74 +4,97 @@ import { editorOptionsFor, type CampaignEditorField } from "./campaign-record-ed
 import { text } from "./campaign-projection.js";
 import { uiText } from "./ui-localization.js";
 
-export function recordFieldControl(campaign: CampaignDataset, field: CampaignEditorField, value: Readonly<Record<string, unknown>>, currentKey: string, onFactionChange?: (event: Event) => void) {
-    const wide = ["text", "string-list", "references", "attitudes"].includes(field.kind);
-    const help = field.help === undefined ? nothing : html`<small data-ui-help class="field-help">${field.help}</small>`;
-    if (field.kind === "text" || field.kind === "string-list") {
-      return html`
+export function recordFieldControl(
+  campaign: CampaignDataset,
+  field: CampaignEditorField,
+  value: Readonly<Record<string, unknown>>,
+  currentKey: string,
+  onFactionChange?: (event: Event) => void,
+) {
+  const wide = ["text", "string-list", "references", "attitudes"].includes(field.kind);
+  const help =
+    field.help === undefined
+      ? nothing
+      : html`<small data-ui-help class="field-help">${field.help}</small>`;
+  if (field.kind === "text" || field.kind === "string-list") {
+    return html`
         <label data-ui-field class=${wide ? "wide-field" : ""}>
           <span>${field.label}</span>
           <textarea
             name=${field.key}
             maxlength=${field.kind === "text" ? field.maximumLength : nothing}
-            .value=${field.kind === "string-list"
-              ? editorStringList(value[field.key]).join("\n")
-              : editorValue(value[field.key])}
+            .value=${
+              field.kind === "string-list"
+                ? editorStringList(value[field.key]).join("\n")
+                : editorValue(value[field.key])
+            }
             ?required=${field.required === true}
           ></textarea>
           ${help}
         </label>
       `;
-    }
-    if (field.kind === "reference" || field.kind === "owner" || field.kind === "enum") {
-      const options = editorOptionsFor(campaign, field, currentKey);
-      const stored = field.kind === "owner" ? ownerValue(value) : editorValue(value[field.key]);
-      const selected = currentKey === "" && field.key === "faction" && stored === "" ? "neutral" : stored;
-      const orphaned = selected !== "" && !options.some(({ value: option }) => option === selected);
-      return html`
+  }
+  if (field.kind === "reference" || field.kind === "owner" || field.kind === "enum") {
+    const options = editorOptionsFor(campaign, field, currentKey);
+    const stored = field.kind === "owner" ? ownerValue(value) : editorValue(value[field.key]);
+    const selected =
+      currentKey === "" && field.key === "faction" && stored === "" ? "neutral" : stored;
+    const orphaned = selected !== "" && !options.some(({ value: option }) => option === selected);
+    return html`
         <label data-ui-field>
           <span>${field.label}</span>
           <select name=${field.key} @change=${field.key === "faction" ? onFactionChange : nothing}>
-            ${field.kind === "reference" || field.kind === "enum"
-              ? html`<option value="" ?selected=${selected === ""}>${uiText("Not set")}</option>` : nothing}
+            ${
+              field.kind === "reference" || field.kind === "enum"
+                ? html`<option value="" ?selected=${selected === ""}>${uiText("Not set")}</option>`
+                : nothing
+            }
             ${orphaned ? html`<option value=${selected} selected>${uiText("{0} (stored)", { "0": selected })}</option>` : nothing}
-            ${options.map((option) => html`
+            ${options.map(
+              (option) => html`
               <option value=${option.value} ?selected=${option.value === selected}>${option.label}</option>
-            `)}
+            `,
+            )}
           </select>
           ${help}
         </label>
       `;
-    }
-    if (field.kind === "references" || field.kind === "attitudes") {
-      const options = editorOptionsFor(campaign, field, currentKey);
-      const selected = new Set(field.kind === "attitudes"
+  }
+  if (field.kind === "references" || field.kind === "attitudes") {
+    const options = editorOptionsFor(campaign, field, currentKey);
+    const selected = new Set(
+      field.kind === "attitudes"
         ? editorAttitudes(value[field.key])
-        : editorStringList(value[field.key]));
-      return html`
+        : editorStringList(value[field.key]),
+    );
+    return html`
         <label data-ui-field class="wide-field structured-picker">
           <span>${field.label}</span>
           <select name=${field.key} multiple size=${Math.min(8, Math.max(3, options.length))}>
-            ${options.map((option) => html`
+            ${options.map(
+              (option) => html`
               <option value=${option.value} ?selected=${selected.has(option.value)}>${option.label}</option>
-            `)}
+            `,
+            )}
           </select>
-          ${field.help === undefined
-            ? html`<small data-ui-help class="field-help">${uiText("Use Ctrl or Command to select more than one entry.")}</small>`
-            : help}
+          ${
+            field.help === undefined
+              ? html`<small data-ui-help class="field-help">${uiText("Use Ctrl or Command to select more than one entry.")}</small>`
+              : help
+          }
         </label>
       `;
-    }
-    if (field.kind === "boolean") {
-      return html`
+  }
+  if (field.kind === "boolean") {
+    return html`
         <label data-ui-field class="boolean-field">
           <input name=${field.key} type="checkbox" .checked=${value[field.key] === true} />
           <span>${field.label}</span>
           ${help}
         </label>
       `;
-    }
-    return html`
+  }
+  return html`
       <label data-ui-field>
         <span>${field.label}</span>
         <input
@@ -81,9 +104,11 @@ export function recordFieldControl(campaign: CampaignDataset, field: CampaignEdi
           min=${field.minimum ?? nothing}
           max=${field.maximum ?? nothing}
           maxlength=${field.kind === "number" ? nothing : field.maximumLength}
-          .value=${field.kind === "tags"
-            ? editorStringList(value[field.key]).join(", ")
-            : editorValue(value[field.key])}
+          .value=${
+            field.kind === "tags"
+              ? editorStringList(value[field.key]).join(", ")
+              : editorValue(value[field.key])
+          }
           placeholder=${field.placeholder ?? ""}
           ?required=${field.required === true}
         />

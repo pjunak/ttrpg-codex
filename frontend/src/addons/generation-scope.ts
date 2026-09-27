@@ -1,10 +1,5 @@
 export type GenerationStopReason =
-  | "activation-failed"
-  | "authority-changed"
-  | "disabled"
-  | "reload"
-  | "uninstalled"
-  | "updated";
+  "activation-failed" | "authority-changed" | "disabled" | "reload" | "uninstalled" | "updated";
 
 export type Disposer = () => void | Promise<void>;
 

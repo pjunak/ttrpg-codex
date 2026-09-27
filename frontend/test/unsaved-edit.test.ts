@@ -21,12 +21,20 @@ describe("unsaved campaign edits", () => {
   });
 
   it("marks only dirty forms as unsafe to unload", () => {
-    const clean = { preventDefault: vi.fn(), returnValue: "original" } as unknown as BeforeUnloadEvent;
-    const dirty = { preventDefault: vi.fn(), returnValue: "original" } as unknown as BeforeUnloadEvent;
+    const clean = {
+      preventDefault: vi.fn(),
+      returnValue: "original",
+    } as unknown as BeforeUnloadEvent;
+    const dirty = {
+      preventDefault: vi.fn(),
+      returnValue: "original",
+    } as unknown as BeforeUnloadEvent;
     protectUnsavedEditBeforeUnload(false, clean);
     protectUnsavedEditBeforeUnload(true, dirty);
+    // oxlint-disable-next-line typescript/unbound-method -- This matcher inspects the spy without invoking it.
     expect(clean.preventDefault).not.toHaveBeenCalled();
     expect(clean.returnValue).toBe("original");
+    // oxlint-disable-next-line typescript/unbound-method -- This matcher inspects the spy without invoking it.
     expect(dirty.preventDefault).toHaveBeenCalledOnce();
     expect(dirty.returnValue).toBe("");
   });

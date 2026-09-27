@@ -28,16 +28,18 @@ const shapes = {
 
 const dataset: CampaignDataset = {
   contractVersion: "campaign-data.v1",
-  collections: (Object.entries(shapes) as Array<[CampaignCollectionName, "list" | "keyed"]>)
-    .map(([name, shape]) => ({
+  collections: (Object.entries(shapes) as Array<[CampaignCollectionName, "list" | "keyed"]>).map(
+    ([name, shape]) => ({
       name,
       shape,
       materialized: name === "characters",
       revision: name === "characters" ? 2 : 0,
-      records: name === "characters"
-        ? [{ key: "alice", revision: 2, value: { id: "alice", name: "Alice" } }]
-        : [],
-    })),
+      records:
+        name === "characters"
+          ? [{ key: "alice", revision: 2, value: { id: "alice", name: "Alice" } }]
+          : [],
+    }),
+  ),
 };
 
 describe("parseCampaignDataset", () => {
@@ -57,19 +59,23 @@ describe("parseCampaignDataset", () => {
     {
       ...dataset,
       collections: dataset.collections.map((collection, index) =>
-        index === 0 ? { ...collection, shape: "keyed" } : collection
+        index === 0 ? { ...collection, shape: "keyed" } : collection,
       ),
     },
     {
       ...dataset,
       collections: dataset.collections.map((collection, index) =>
-        index === 0 ? { ...collection, records: [{ key: "bad\nkey", revision: 1, value: {} }] } : collection
+        index === 0
+          ? { ...collection, records: [{ key: "bad\nkey", revision: 1, value: {} }] }
+          : collection,
       ),
     },
     {
       ...dataset,
       collections: dataset.collections.map((collection, index) =>
-        index === 0 ? { ...collection, records: [{ key: "alice", revision: 0, value: {} }] } : collection
+        index === 0
+          ? { ...collection, records: [{ key: "alice", revision: 0, value: {} }] }
+          : collection,
       ),
     },
   ])("rejects a malformed dataset %#", (value) => {

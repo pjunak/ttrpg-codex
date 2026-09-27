@@ -19,26 +19,34 @@ describe("shared event boundary", () => {
       cause: "reset",
       cursor: 2,
     });
-    expect(parseBrowserAddonChange(message("3", {
-      sequence: 3,
-      topic: "browser-addons-changed",
-      resourceId: "dm-tools",
-      revision: "a".repeat(64),
-      occurredAt: "2026-08-31T12:00:00Z",
-      metadata: { reason: "activated" },
-    }))).toEqual({
+    expect(
+      parseBrowserAddonChange(
+        message("3", {
+          sequence: 3,
+          topic: "browser-addons-changed",
+          resourceId: "dm-tools",
+          revision: "a".repeat(64),
+          occurredAt: "2026-08-31T12:00:00Z",
+          metadata: { reason: "activated" },
+        }),
+      ),
+    ).toEqual({
       cause: "browser-addons-changed",
       cursor: 3,
       revision: "a".repeat(64),
     });
-    expect(parseCampaignDataChange(message("4", {
-      sequence: 4,
-      topic: "campaign-data-changed",
-      resourceId: "characters",
-      revision: "7",
-      occurredAt: "2026-08-31T12:00:01Z",
-      metadata: { commitId: 12, records: 2 },
-    }))).toEqual({
+    expect(
+      parseCampaignDataChange(
+        message("4", {
+          sequence: 4,
+          topic: "campaign-data-changed",
+          resourceId: "characters",
+          revision: "7",
+          occurredAt: "2026-08-31T12:00:01Z",
+          metadata: { commitId: 12, records: 2 },
+        }),
+      ),
+    ).toEqual({
       cause: "campaign-data-changed",
       cursor: 4,
       collection: "characters",
@@ -49,11 +57,25 @@ describe("shared event boundary", () => {
   it.each([
     message("2", { cursor: 1, audience: "public" }),
     message("1", { cursor: 1, audience: "player" }),
-    message("1", { sequence: 1, topic: "browser-addons-changed", revision: "short", occurredAt: "now", metadata: {} }),
-    message("2", { sequence: 2, topic: "campaign-data-changed", resourceId: "private", revision: "1", occurredAt: "2026-08-31T12:00:00Z", metadata: { commitId: 1, records: 1 } }),
+    message("1", {
+      sequence: 1,
+      topic: "browser-addons-changed",
+      revision: "short",
+      occurredAt: "now",
+      metadata: {},
+    }),
+    message("2", {
+      sequence: 2,
+      topic: "campaign-data-changed",
+      resourceId: "private",
+      revision: "1",
+      occurredAt: "2026-08-31T12:00:00Z",
+      metadata: { commitId: 1, records: 1 },
+    }),
   ])("rejects malformed event %#", (event) => {
-    expect(() => event.type === "hello" ? parseHello(event) : parseBrowserAddonChange(event))
-      .toThrow(BoundaryValidationError);
+    expect(() =>
+      event.type === "hello" ? parseHello(event) : parseBrowserAddonChange(event),
+    ).toThrow(BoundaryValidationError);
   });
 });
 
@@ -125,8 +147,9 @@ class FakeEventSource implements EventSourceLike {
 }
 
 function message(lastEventId: string, value: unknown): Event {
-  const topic = typeof value === "object" && value !== null && "topic" in value
-    ? String((value as { topic: unknown }).topic)
-    : "hello";
+  const topic =
+    typeof value === "object" && value !== null && "topic" in value
+      ? String((value as { topic: unknown }).topic)
+      : "hello";
   return { type: topic, data: JSON.stringify(value), lastEventId } as unknown as Event;
 }

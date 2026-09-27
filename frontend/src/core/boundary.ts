@@ -1,7 +1,10 @@
 export class BoundaryValidationError extends Error {
   override readonly name = "BoundaryValidationError";
 
-  constructor(readonly boundary: string, message: string) {
+  constructor(
+    readonly boundary: string,
+    message: string,
+  ) {
     super(`${boundary}: ${message}`);
   }
 }

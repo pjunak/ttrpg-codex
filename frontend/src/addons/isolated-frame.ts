@@ -1,15 +1,11 @@
 import { sessionFetch } from "../core/player-preview.js";
 import { BoundaryValidationError } from "../core/boundary.js";
-import type {
-  BrowserAddonContext,
-  BrowserContributionRegistry,
-} from "./browser-sdk.js";
+import type { BrowserAddonContext, BrowserContributionRegistry } from "./browser-sdk.js";
 import type {
   BrowserContributionDescriptor,
   BrowserGenerationActivator,
   BrowserGenerationDescriptor,
 } from "./generation-manager.js";
-import type { Disposer } from "./generation-scope.js";
 import type { BrowserContributionEditHandle } from "./edit-state.js";
 import {
   IsolatedFrameBridge,
@@ -80,10 +76,12 @@ export function createIsolatedFrameActivator(
         sdk.publishDeclarative(contribution.id);
         continue;
       }
-      if (contribution.surface === "article-action" ||
+      if (
+        contribution.surface === "article-action" ||
         contribution.surface === "wiki-kind" ||
         contribution.surface === "graph-view" ||
-        contribution.surface === "graph-contributor") {
+        contribution.surface === "graph-contributor"
+      ) {
         let unavailable = false;
         let registration: { dispose(): void } | undefined;
         const host = document.createElement("div");
@@ -129,7 +127,10 @@ export function createIsolatedFrameActivator(
         }
         if (unavailable) {
           registration.dispose();
-          throw new BoundaryValidationError(boundary, "isolated callback became unavailable during activation");
+          throw new BoundaryValidationError(
+            boundary,
+            "isolated callback became unavailable during activation",
+          );
         }
         continue;
       }
@@ -139,20 +140,23 @@ export function createIsolatedFrameActivator(
         kind: "isolated-frame",
         mount: (host, hostContext, edits) => {
           const runtime = createRuntime({
-          document,
-          host,
-          descriptor,
-          contribution,
-          context: sdk.context,
-          hostContext,
-          ...(edits === undefined ? {} : { edits }),
-          onDiagnostic,
-          onUnavailable: () => {
-            unavailable = true;
-            registration?.dispose();
-          },
+            document,
+            host,
+            descriptor,
+            contribution,
+            context: sdk.context,
+            hostContext,
+            ...(edits === undefined ? {} : { edits }),
+            onDiagnostic,
+            onUnavailable: () => {
+              unavailable = true;
+              registration?.dispose();
+            },
           });
-          return { dispose: () => runtime.dispose(), updateHostContext: (value: unknown) => runtime.updateHostContext?.(value) };
+          return {
+            dispose: () => runtime.dispose(),
+            updateHostContext: (value: unknown) => runtime.updateHostContext?.(value),
+          };
         },
       });
       if (unavailable) {
@@ -163,8 +167,9 @@ export function createIsolatedFrameActivator(
   };
 }
 
-export function mountIsolatedFrame(options: IsolatedFrameMountOptions): Disposer {
-  return createIsolatedFrameRuntime(options).dispose;
+export function mountIsolatedFrame(options: IsolatedFrameMountOptions): () => void {
+  const runtime = createIsolatedFrameRuntime(options);
+  return () => runtime.dispose();
 }
 
 export function createIsolatedFrameRuntime(
@@ -221,13 +226,13 @@ export function createIsolatedFrameRuntime(
           frame.style.height = `${height}px`;
         },
         onDiagnostic: options.onDiagnostic ?? (() => undefined),
-        ...(options.onUnavailable === undefined
-          ? {}
-          : { onUnavailable: options.onUnavailable }),
+        ...(options.onUnavailable === undefined ? {} : { onUnavailable: options.onUnavailable }),
       });
       bridge = connectedBridge;
       resolveBridge(connectedBridge);
-      target.postMessage({ protocol: isolatedFrameProtocol, type: "connect" }, "*", [channel.port2]);
+      target.postMessage({ protocol: isolatedFrameProtocol, type: "connect" }, "*", [
+        channel.port2,
+      ]);
       const loaded = await assets;
       if (disposed || options.context.signal.aborted) {
         return;
@@ -289,9 +294,8 @@ export function createIsolatedFrameRuntime(
   }
   const runtimeBridge: IsolatedRuntimeBridge = Object.freeze({
     waitUntilReady: async (signal?: AbortSignal) => {
-      const connected = signal === undefined
-        ? await bridgePromise
-        : await waitForSignal(bridgePromise, signal);
+      const connected =
+        signal === undefined ? await bridgePromise : await waitForSignal(bridgePromise, signal);
       await connected.waitUntilReady(signal);
     },
     invoke: async (request: unknown, signal: AbortSignal) => {
@@ -299,11 +303,15 @@ export function createIsolatedFrameRuntime(
       return connected.invoke(request, signal);
     },
   });
-  return Object.freeze({ bridge: runtimeBridge, dispose, updateHostContext: (value: unknown) => {
-    if (disposed) return;
-    hostContext = value;
-    bridge?.updateHostContext(value);
-  } });
+  return Object.freeze({
+    bridge: runtimeBridge,
+    dispose,
+    updateHostContext: (value: unknown) => {
+      if (disposed) return;
+      hostContext = value;
+      bridge?.updateHostContext(value);
+    },
+  });
 }
 
 export function isolatedSandboxTokens(
@@ -362,9 +370,11 @@ async function loadIsolatedFrameAssets(
     signal,
     fetchAsset,
   );
-  const styleSources = await Promise.all(descriptor.styleUrls.map((url) =>
-    readIsolatedAsset(url, "text/css", maximumStyleBytes, signal, fetchAsset)
-  ));
+  const styleSources = await Promise.all(
+    descriptor.styleUrls.map((url) =>
+      readIsolatedAsset(url, "text/css", maximumStyleBytes, signal, fetchAsset),
+    ),
+  );
   const totalStyleBytes = styleSources.reduce(
     (total, source) => total + new TextEncoder().encode(source).byteLength,
     0,
@@ -403,9 +413,7 @@ async function readIsolatedAsset(
   return source;
 }
 
-export function isolatedFrameDocument(
-  grants: BrowserGenerationDescriptor["sandbox"],
-): string {
+export function isolatedFrameDocument(grants: BrowserGenerationDescriptor["sandbox"]): string {
   const formAction = grants.includes("forms") ? "http: https:" : "'none'";
   const policy = [
     "default-src 'none'",
@@ -419,10 +427,12 @@ export function isolatedFrameDocument(
     "base-uri 'none'",
     `form-action ${formAction}`,
   ].join("; ");
-  return "<!doctype html><html><head><meta charset=\"utf-8\">" +
-    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
+  return (
+    '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
     `<meta http-equiv="Content-Security-Policy" content="${policy}">` +
-    "</head><body><div id=\"codex-addon-root\"></div><script>" +
+    '</head><body><div id="codex-addon-root"></div><script>' +
     isolatedFrameBootstrap +
-    "</script></body></html>";
+    "</script></body></html>"
+  );
 }

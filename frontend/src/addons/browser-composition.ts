@@ -1,8 +1,5 @@
 import { BrowserAddonRuntime } from "./browser-addon-runtime.js";
-import {
-  BrowserAddonSession,
-  type BrowserAddonSessionCallbacks,
-} from "./browser-addon-session.js";
+import { BrowserAddonSession, type BrowserAddonSessionCallbacks } from "./browser-addon-session.js";
 import { BrowserGraphClient } from "./browser-graph-client.js";
 import { BrowserContributionRegistry } from "./browser-sdk.js";
 import { BrowserAddonDataClient } from "./data-client.js";
@@ -11,10 +8,7 @@ import { BrowserAddonContentClient } from "./content-client.js";
 import { BrowserAddonServiceClient } from "./service-client.js";
 import { createDocumentStyleLoader } from "./browser-styles.js";
 import { createIsolatedFrameActivator } from "./isolated-frame.js";
-import {
-  BrowserGenerationManager,
-  createModuleActivator,
-} from "./generation-manager.js";
+import { BrowserGenerationManager, createModuleActivator } from "./generation-manager.js";
 
 export interface BrowserAddonComposition {
   readonly dataChanges: BrowserAddonDataChanges;
@@ -32,49 +26,53 @@ export function createBrowserAddonComposition(
   const dataChanges = new BrowserAddonDataChanges((cause) => callbacks.onDiagnostic?.(cause));
   const contributions = new BrowserContributionRegistry(
     (cause) => callbacks.onDiagnostic?.(cause),
-    (descriptor, signal) => new BrowserAddonDataClient({
-      addonId: descriptor.addonId,
-      generationId: descriptor.generationId,
-      csrfToken,
-      currentCsrfToken: () => csrfToken,
-      signal,
-      subscribe: dataChanges.scoped(descriptor.addonId, signal),
-    }).api(),
-    (descriptor, signal) => new BrowserAddonContentClient({
-      addonId: descriptor.addonId,
-      generationId: descriptor.generationId,
-      signal,
-    }).api(),
-    (descriptor, signal) => new BrowserAddonServiceClient({
-      addonId: descriptor.addonId,
-      generationId: descriptor.generationId,
-      csrfToken,
-      currentCsrfToken: () => csrfToken,
-      signal,
-    }).api(),
+    (descriptor, signal) =>
+      new BrowserAddonDataClient({
+        addonId: descriptor.addonId,
+        generationId: descriptor.generationId,
+        csrfToken,
+        currentCsrfToken: () => csrfToken,
+        signal,
+        subscribe: dataChanges.scoped(descriptor.addonId, signal),
+      }).api(),
+    (descriptor, signal) =>
+      new BrowserAddonContentClient({
+        addonId: descriptor.addonId,
+        generationId: descriptor.generationId,
+        signal,
+      }).api(),
+    (descriptor, signal) =>
+      new BrowserAddonServiceClient({
+        addonId: descriptor.addonId,
+        generationId: descriptor.generationId,
+        csrfToken,
+        currentCsrfToken: () => csrfToken,
+        signal,
+      }).api(),
   );
   const activateModule = createModuleActivator(
     (entryUrl) => import(/* @vite-ignore */ entryUrl) as Promise<unknown>,
     (descriptor, scope) => contributions.open(descriptor, scope),
     createDocumentStyleLoader(document),
   );
-  const activateFrame = createIsolatedFrameActivator(
-    document,
-    contributions,
-    (cause) => callbacks.onDiagnostic?.(cause),
+  const activateFrame = createIsolatedFrameActivator(document, contributions, (cause) =>
+    callbacks.onDiagnostic?.(cause),
   );
   const manager = new BrowserGenerationManager((descriptor, context) =>
     descriptor.mode === "isolated"
       ? activateFrame(descriptor, context)
-      : activateModule(descriptor, context)
+      : activateModule(descriptor, context),
   );
   const runtime = new BrowserAddonRuntime(new BrowserGraphClient(), manager);
   return {
     dataChanges,
-    session: new BrowserAddonSession(runtime, { ...callbacks, onRefresh: (cause, result) => {
-      contributions.settleGraph(result.transport.graph);
-      callbacks.onRefresh?.(cause, result);
-    } }),
+    session: new BrowserAddonSession(runtime, {
+      ...callbacks,
+      onRefresh: (cause, result) => {
+        contributions.settleGraph(result.transport.graph);
+        callbacks.onRefresh?.(cause, result);
+      },
+    }),
     contributions,
     renewCsrfToken(token: string): void {
       if (token.length < 32) throw new TypeError("invalid renewed session token");

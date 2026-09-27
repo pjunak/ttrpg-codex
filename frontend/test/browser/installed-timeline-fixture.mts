@@ -1,17 +1,49 @@
-import type { APIRequestContext } from 'playwright';
-import { createHash } from 'node:crypto';
-import { zip, installReviewedPackage } from './installed-graph-fixture.mts';
+import type { APIRequestContext } from "playwright";
+import { createHash } from "node:crypto";
+import { zip, installReviewedPackage } from "./installed-graph-fixture.mts";
 
-export function installTimelinePackage(request: APIRequestContext, csrf: string, { id, mode, read = true, version = '1.0.0' }: {
-  id: string; mode: string; read?: boolean; version?: string;
-}) {
-  const slots = ['timeline:toolbar', 'timeline:column:header', 'timeline:column:footer', 'timeline:card:extra'];
-  const permissions = read ? [{ id: 'core.data.read', resources: ['events'], reason: 'Identify visible timeline events.' }] : [];
-  const manifest = { packageFormat: 1, id, name: 'Timeline fixture', version,
-    compatibility: { host: '^2.0.0', addonApi: '^3.0.0' }, capabilities: { required: ['ui.contributions'], optional: [] },
-    permissions, runtime: { ui: { mode, entry: 'web/index.js' } }, contributions: slots.map((slot, index) => ({
-      id: `slot-${index}`, surface: 'slot', label: slot, config: { slot, contractVersion: 1 }, roles: index === 2 ? ['dm'] : ['dm', 'player'], requires: ['ui.contributions'],
-    })) };
+export function installTimelinePackage(
+  request: APIRequestContext,
+  csrf: string,
+  {
+    id,
+    mode,
+    read = true,
+    version = "1.0.0",
+  }: {
+    id: string;
+    mode: string;
+    read?: boolean;
+    version?: string;
+  },
+) {
+  const slots = [
+    "timeline:toolbar",
+    "timeline:column:header",
+    "timeline:column:footer",
+    "timeline:card:extra",
+  ];
+  const permissions = read
+    ? [{ id: "core.data.read", resources: ["events"], reason: "Identify visible timeline events." }]
+    : [];
+  const manifest = {
+    packageFormat: 1,
+    id,
+    name: "Timeline fixture",
+    version,
+    compatibility: { host: "^2.0.0", addonApi: "^3.0.0" },
+    capabilities: { required: ["ui.contributions"], optional: [] },
+    permissions,
+    runtime: { ui: { mode, entry: "web/index.js" } },
+    contributions: slots.map((slot, index) => ({
+      id: `slot-${index}`,
+      surface: "slot",
+      label: slot,
+      config: { slot, contractVersion: 1 },
+      roles: index === 2 ? ["dm"] : ["dm", "player"],
+      requires: ["ui.contributions"],
+    })),
+  };
   const entry = `export function activate(context) {
     const tag = 'fixture-timeline-' + context.addon.id + '-' + context.addon.generation.slice(0, 8);
     if (!customElements.get(tag)) customElements.define(tag, class extends HTMLElement {
@@ -35,7 +67,18 @@ export function installTimelinePackage(request: APIRequestContext, csrf: string,
     });
     for (const declaration of context.ui.declarations()) context.ui.bind(declaration.id, { kind: 'element', tag });
   }`;
-  const files: Record<string, string | Buffer> = { 'addon.json': JSON.stringify(manifest), 'web/index.js': entry };
-  files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, content]) => [name, createHash('sha256').update(content).digest('hex')])) });
+  const files: Record<string, string | Buffer> = {
+    "addon.json": JSON.stringify(manifest),
+    "web/index.js": entry,
+  };
+  files["checksums.json"] = JSON.stringify({
+    algorithm: "sha256",
+    files: Object.fromEntries(
+      Object.entries(files).map(([name, content]) => [
+        name,
+        createHash("sha256").update(content).digest("hex"),
+      ]),
+    ),
+  });
   return installReviewedPackage(request, csrf, id, zip(files), permissions);
 }

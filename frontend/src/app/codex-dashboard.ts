@@ -11,7 +11,11 @@ import {
 import { campaignPages, parseAppRoute, recordEditHash } from "./routes.js";
 import { describeActivity } from "./campaign-activity.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
-import { campaignIdentityRecord, type CampaignIdentityField, type CampaignIdentitySaveDetail } from "./campaign-identity.js";
+import {
+  campaignIdentityRecord,
+  type CampaignIdentityField,
+  type CampaignIdentitySaveDetail,
+} from "./campaign-identity.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 
 export class CodexDashboard extends LitElement {
@@ -19,7 +23,8 @@ export class CodexDashboard extends LitElement {
     campaign: { attribute: false },
     partyOnly: { type: Boolean },
     canManageCampaign: { type: Boolean },
-    authenticated: { type: Boolean }, canEdit: { type: Boolean },
+    authenticated: { type: Boolean },
+    canEdit: { type: Boolean },
     saving: { type: Boolean },
     editCompletion: { type: Number },
     editing: { state: true },
@@ -44,7 +49,8 @@ export class CodexDashboard extends LitElement {
     this.campaign = undefined;
     this.partyOnly = false;
     this.canManageCampaign = false;
-    this.authenticated = false; this.canEdit = false;
+    this.authenticated = false;
+    this.canEdit = false;
     this.saving = false;
     this.editCompletion = 0;
     this.editing = undefined;
@@ -61,8 +67,11 @@ export class CodexDashboard extends LitElement {
   }
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (changed.has("editCompletion") || changed.has("partyOnly") ||
-      (changed.has("canManageCampaign") && !this.canManageCampaign)) {
+    if (
+      changed.has("editCompletion") ||
+      changed.has("partyOnly") ||
+      (changed.has("canManageCampaign") && !this.canManageCampaign)
+    ) {
       this.editing = undefined;
       this.#setDirty(false);
     }
@@ -87,19 +96,24 @@ export class CodexDashboard extends LitElement {
   #identityRow(field: CampaignIdentityField, value: string) {
     const label = this.#ui.t(field === "name" ? "dashboard.editName" : "dashboard.editTagline");
     const editing = this.editing === field;
-    const content = editing ? html`
+    const content = editing
+      ? html`
       <input name=${field} aria-label=${label} maxlength="500" ?required=${field === "name"}
         .value=${this.#draft} ?readonly=${this.saving} @input=${this.#onIdentityInput} />
-    ` : value || (this.authenticated ? this.#ui.t("dashboard.taglinePlaceholder") : "");
-    const text = field === "name" ? html`<h1 id="campaign-title">${content}</h1>` : html`<p>${content}</p>`;
-    return editing ? html`
+    `
+      : value || (this.authenticated ? this.#ui.t("dashboard.taglinePlaceholder") : "");
+    const text =
+      field === "name" ? html`<h1 id="campaign-title">${content}</h1>` : html`<p>${content}</p>`;
+    return editing
+      ? html`
       <form class=${`campaign-identity-form identity-${field}`} @submit=${this.#saveIdentity} @keydown=${this.#identityKey}>
         ${text}
         <div class="identity-actions">
           <button type="submit" ?disabled=${this.saving}>${this.#ui.t(this.saving ? "dashboard.saving" : "dashboard.save")}</button>
           <button type="button" @click=${this.#cancelIdentity} ?disabled=${this.saving}>${this.#ui.t("dashboard.cancel")}</button>
         </div>
-      </form>` : html`
+      </form>`
+      : html`
       <div class="campaign-identity-row">
         ${text}
         <button class="campaign-identity-pen" type="button" aria-label=${label}
@@ -110,8 +124,17 @@ export class CodexDashboard extends LitElement {
   }
 
   async #startIdentity(field: CampaignIdentityField, value: string): Promise<void> {
-    if (!this.authenticated) { this.#requestSignIn(); return; }
-    if (!this.canManageCampaign || this.saving || this.editing !== undefined || this.campaign === undefined) return;
+    if (!this.authenticated) {
+      this.#requestSignIn();
+      return;
+    }
+    if (
+      !this.canManageCampaign ||
+      this.saving ||
+      this.editing !== undefined ||
+      this.campaign === undefined
+    )
+      return;
     this.#expectedRevision = campaignIdentityRecord(this.campaign)?.revision ?? 0;
     this.#original = value;
     this.#draft = value;
@@ -137,7 +160,10 @@ export class CodexDashboard extends LitElement {
   };
 
   readonly #cancelIdentity = (): void => {
-    if (!this.saving && confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))) {
+    if (
+      !this.saving &&
+      confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))
+    ) {
       void this.#closeIdentity();
     }
   };
@@ -147,23 +173,37 @@ export class CodexDashboard extends LitElement {
     this.editing = undefined;
     this.#setDirty(false);
     await this.updateComplete;
-    this.querySelector<HTMLButtonElement>(`.campaign-identity-row:${field === "name" ? "first" : "last"}-of-type .campaign-identity-pen`)?.focus();
+    this.querySelector<HTMLButtonElement>(
+      `.campaign-identity-row:${field === "name" ? "first" : "last"}-of-type .campaign-identity-pen`,
+    )?.focus();
   }
 
   readonly #saveIdentity = (event: SubmitEvent): void => {
     event.preventDefault();
     if (!this.canManageCampaign || this.saving || this.editing === undefined) return;
-    if (!this.#dirty) { void this.#closeIdentity(); return; }
-    this.dispatchEvent(new CustomEvent<CampaignIdentitySaveDetail>("campaign-identity-save", {
-      detail: Object.freeze({ field: this.editing, value: this.#draft, expectedRevision: this.#expectedRevision }),
-      bubbles: true, composed: true,
-    }));
+    if (!this.#dirty) {
+      void this.#closeIdentity();
+      return;
+    }
+    this.dispatchEvent(
+      new CustomEvent<CampaignIdentitySaveDetail>("campaign-identity-save", {
+        detail: Object.freeze({
+          field: this.editing,
+          value: this.#draft,
+          expectedRevision: this.#expectedRevision,
+        }),
+        bubbles: true,
+        composed: true,
+      }),
+    );
   };
 
   #setDirty(dirty: boolean): void {
     if (dirty === this.#dirty) return;
     this.#dirty = dirty;
-    this.dispatchEvent(new CustomEvent("campaign-edit-dirty", { detail: { dirty }, bubbles: true, composed: true }));
+    this.dispatchEvent(
+      new CustomEvent("campaign-edit-dirty", { detail: { dirty }, bubbles: true, composed: true }),
+    );
   }
 
   #requestSignIn(): void {
@@ -172,7 +212,10 @@ export class CodexDashboard extends LitElement {
 
   readonly #addPartyMember = (): void => {
     if (this.saving) return;
-    if (!this.authenticated) { this.#requestSignIn(); return; }
+    if (!this.authenticated) {
+      this.#requestSignIn();
+      return;
+    }
     window.location.hash = "#/party/new";
   };
 
@@ -201,14 +244,16 @@ export class CodexDashboard extends LitElement {
               @click=${this.#addPartyMember} ?disabled=${this.saving}>＋ ${this.#ui.t("dashboard.add")}</button>
           </div>
         </div>
-        ${empty
-          ? html`<p class="empty-state">${this.#ui.t("dashboard.emptyParty")}</p>`
-          : html`
+        ${
+          empty
+            ? html`<p class="empty-state">${this.#ui.t("dashboard.emptyParty")}</p>`
+            : html`
             <div class="party-roster">
               ${model.party.map((member) => this.#partyMember(member))}
               ${model.companions.map((companion) => this.#companion(companion))}
             </div>
-          `}
+          `
+        }
       </section>
     `;
   }
@@ -216,7 +261,10 @@ export class CodexDashboard extends LitElement {
   #cardEdit(entity: EntitySummary) {
     const route = parseAppRoute(entity.route);
     return this.canEdit && route.kind === "record"
-      ? cardEditLink(recordEditHash(route.page, route.key, this.partyOnly ? "#/party" : "#/"), uiText("Edit {0}", {"0": entity.name}))
+      ? cardEditLink(
+          recordEditHash(route.page, route.key, this.partyOnly ? "#/party" : "#/"),
+          uiText("Edit {0}", { "0": entity.name }),
+        )
       : nothing;
   }
 
@@ -235,7 +283,7 @@ export class CodexDashboard extends LitElement {
   #companion(companion: EntitySummary) {
     return html`<div class="party-record-card ui-card">
       <a class="companion" href=${companion.route}>
-        <span class="companion-mark" aria-hidden="true">${companion.portrait === undefined ? companion.icon ?? "🐾" : html`<img src=${previewResourceURL(companion.portrait)} alt="" loading="lazy" />`}</span>
+        <span class="companion-mark" aria-hidden="true">${companion.portrait === undefined ? (companion.icon ?? "🐾") : html`<img src=${previewResourceURL(companion.portrait)} alt="" loading="lazy" />`}</span>
         <strong>${companion.name}</strong>
         ${companion.title === "" ? nothing : html`<span>${companion.title}</span>`}
       </a>${this.#cardEdit(companion)}
@@ -249,9 +297,13 @@ export class CodexDashboard extends LitElement {
           <h2 id="session-heading"><span aria-hidden="true">🕯</span> ${this.#ui.t("dashboard.lastSession")}</h2>
           ${model.lastSession === undefined ? nothing : html`<span class="session-number">${this.#ui.t("dashboard.session", { n: model.lastSession })}</span>`}
         </div>
-        ${model.lastSession === undefined ? html`<p class="empty-state">${this.#ui.t("dashboard.emptySession")} <a href="#/timeline">${this.#ui.t("dashboard.openTimeline")}</a></p>` : html`<ol class="session-events">
+        ${
+          model.lastSession === undefined
+            ? html`<p class="empty-state">${this.#ui.t("dashboard.emptySession")} <a href="#/timeline">${this.#ui.t("dashboard.openTimeline")}</a></p>`
+            : html`<ol class="session-events">
           ${model.lastSessionEvents.map((event) => this.#sessionEvent(event))}
-        </ol>`}
+        </ol>`
+        }
       </section>
     `;
   }
@@ -277,23 +329,29 @@ export class CodexDashboard extends LitElement {
     return html`
       <section class="chronicle-section recent-section" aria-labelledby="recent-heading">
         <div class="section-heading"><h2 id="recent-heading"><span aria-hidden="true">🕘</span> ${this.#ui.t("dashboard.recent")}</h2></div>
-        ${model.recent.length === 0 ? html`<p class="empty-state">${this.#ui.t("dashboard.emptyRecent")}</p>` : html`<div class="recent-ledger">
-          ${model.recent.map((entity) => html`
+        ${
+          model.recent.length === 0
+            ? html`<p class="empty-state">${this.#ui.t("dashboard.emptyRecent")}</p>`
+            : html`<div class="recent-ledger">
+          ${model.recent.map(
+            (entity) => html`
             <a href=${entity.route}>
-              <span><i class="recent-kind" aria-hidden="true">${campaignPages.find(page => entity.route.startsWith(`#/${page.id}/`))?.icon ?? "📜"}</i>${entity.name}
+              <span><i class="recent-kind" aria-hidden="true">${campaignPages.find((page) => entity.route.startsWith(`#/${page.id}/`))?.icon ?? "📜"}</i>${entity.name}
                 <small class="recent-summary">${describeActivity(this.campaign!, entity)}</small></span>
               <time datetime=${entity.updatedAt ?? ""}>${this.#ui.relativeDate(entity.updatedAt)}</time>
             </a>
-          `)}
-        </div>`}
+          `,
+          )}
+        </div>`
+        }
       </section>
     `;
   }
-
 }
 
 function portrait(entity: EntitySummary) {
-  const style = entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`;
+  const style =
+    entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`;
   if (entity.portrait !== undefined) {
     return html`<span class="party-portrait" style=${style}><img src=${previewResourceURL(entity.portrait)} alt="" loading="lazy" /></span>`;
   }

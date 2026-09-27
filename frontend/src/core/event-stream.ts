@@ -1,9 +1,6 @@
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { previewResourceURL } from "./player-preview.js";
-import {
-  isCampaignCollectionName,
-  type CampaignCollectionName,
-} from "./campaign-data.js";
+import { isCampaignCollectionName, type CampaignCollectionName } from "./campaign-data.js";
 
 const boundary = "GET /api/events";
 const maximumEventBytes = 64 * 1024;
@@ -29,15 +26,21 @@ export type EventRefreshCause =
   | "campaign-data-changed";
 
 export type EventRefresh =
-  | { readonly cause: "addon-data-changed"; readonly cursor: number; readonly addonId: string; readonly kind: "collection" | "record-extension"; readonly dataId: string }
+  | {
+      readonly cause: "addon-data-changed";
+      readonly cursor: number;
+      readonly addonId: string;
+      readonly kind: "collection" | "record-extension";
+      readonly dataId: string;
+    }
   | { readonly cause: "hello" | "reset" | "campaign-restored"; readonly cursor: number }
   | { readonly cause: "browser-addons-changed"; readonly cursor: number; readonly revision: string }
   | {
-    readonly cause: "campaign-data-changed";
-    readonly cursor: number;
-    readonly collection: CampaignCollectionName;
-    readonly revision: number;
-  };
+      readonly cause: "campaign-data-changed";
+      readonly cursor: number;
+      readonly collection: CampaignCollectionName;
+      readonly revision: number;
+    };
 
 export interface EventStreamCallbacks {
   readonly onRefresh: (refresh: EventRefresh) => void;
@@ -50,10 +53,7 @@ export interface EventSourceLike {
   close(): void;
 }
 
-export type EventSourceFactory = (
-  url: string,
-  init: EventSourceInit,
-) => EventSourceLike;
+export type EventSourceFactory = (url: string, init: EventSourceInit) => EventSourceLike;
 
 export class SharedEventStream {
   readonly #factory: EventSourceFactory;
@@ -106,8 +106,11 @@ export class SharedEventStream {
 
 export function parseHello(event: Event): EventRefresh {
   const message = parseMessage(event, "hello");
-  if (!isRecord(message.value) || !hasOnlyKeys(message.value, helloKeys) ||
-    (message.value["audience"] !== "public" && message.value["audience"] !== "dm")) {
+  if (
+    !isRecord(message.value) ||
+    !hasOnlyKeys(message.value, helloKeys) ||
+    (message.value["audience"] !== "public" && message.value["audience"] !== "dm")
+  ) {
     throw new BoundaryValidationError(boundary, "hello event has an invalid shape");
   }
   const cursor = requiredCursor(message.value["cursor"], message.lastEventId);
@@ -116,8 +119,11 @@ export function parseHello(event: Event): EventRefresh {
 
 export function parseReset(event: Event): EventRefresh {
   const message = parseMessage(event, "reset");
-  if (!isRecord(message.value) || !hasOnlyKeys(message.value, resetKeys) ||
-    message.value["reason"] !== "replay-unavailable") {
+  if (
+    !isRecord(message.value) ||
+    !hasOnlyKeys(message.value, resetKeys) ||
+    message.value["reason"] !== "replay-unavailable"
+  ) {
     throw new BoundaryValidationError(boundary, "reset event has an invalid shape");
   }
   const cursor = requiredCursor(message.value["cursor"], message.lastEventId);
@@ -130,13 +136,15 @@ export function parseBrowserAddonChange(event: Event): EventRefresh {
     throw new BoundaryValidationError(boundary, "browser add-on event has an invalid shape");
   }
   const sequence = requiredCursor(message.value["sequence"], message.lastEventId);
-  if (message.value["topic"] !== "browser-addons-changed" ||
+  if (
+    message.value["topic"] !== "browser-addons-changed" ||
     typeof message.value["revision"] !== "string" ||
     !sha256Pattern.test(message.value["revision"]) ||
     typeof message.value["occurredAt"] !== "string" ||
     !validTimestamp(message.value["occurredAt"]) ||
     !isRecord(message.value["metadata"]) ||
-    (message.value["resourceId"] !== undefined && typeof message.value["resourceId"] !== "string")) {
+    (message.value["resourceId"] !== undefined && typeof message.value["resourceId"] !== "string")
+  ) {
     throw new BoundaryValidationError(boundary, "browser add-on event contains invalid values");
   }
   return {
@@ -155,13 +163,19 @@ export function parseCampaignDataChange(event: Event): EventRefresh {
   const collection = message.value["resourceId"];
   const revisionValue = message.value["revision"];
   const metadata = message.value["metadata"];
-  if (message.value["topic"] !== "campaign-data-changed" ||
+  if (
+    message.value["topic"] !== "campaign-data-changed" ||
     !isCampaignCollectionName(collection) ||
-    typeof revisionValue !== "string" || !/^[1-9]\d*$/.test(revisionValue) ||
+    typeof revisionValue !== "string" ||
+    !/^[1-9]\d*$/.test(revisionValue) ||
     !safePositiveInteger(Number(revisionValue)) ||
-    typeof message.value["occurredAt"] !== "string" || !validTimestamp(message.value["occurredAt"]) ||
-    !isRecord(metadata) || !hasOnlyKeys(metadata, campaignMetadataKeys) ||
-    !safePositiveInteger(metadata["commitId"]) || !safePositiveInteger(metadata["records"])) {
+    typeof message.value["occurredAt"] !== "string" ||
+    !validTimestamp(message.value["occurredAt"]) ||
+    !isRecord(metadata) ||
+    !hasOnlyKeys(metadata, campaignMetadataKeys) ||
+    !safePositiveInteger(metadata["commitId"]) ||
+    !safePositiveInteger(metadata["records"])
+  ) {
     throw new BoundaryValidationError(boundary, "campaign data event contains invalid values");
   }
   return {
@@ -174,30 +188,64 @@ export function parseCampaignDataChange(event: Event): EventRefresh {
 
 export function parseAddonDataChange(event: Event): EventRefresh {
   const { value, lastEventId } = parseMessage(event, "addon-data-changed");
-  const resource = isRecord(value) && typeof value["resourceId"] === "string" ? value["resourceId"].split("/") : [];
+  const resource =
+    isRecord(value) && typeof value["resourceId"] === "string"
+      ? value["resourceId"].split("/")
+      : [];
   const [addonId, kind, dataId] = resource;
   const localId = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
-  if (!isRecord(value) || !hasOnlyKeys(value, publicationKeys) || value["topic"] !== "addon-data-changed" ||
-    resource.length !== 3 || !addonId || addonId.length > 100 || !localId.test(addonId) ||
-    (kind !== "collection" && kind !== "record-extension") || !dataId || dataId.length > 100 || !localId.test(dataId) ||
-    typeof value["revision"] !== "string" || !/^[1-9]\d*$/.test(value["revision"]) || !safePositiveInteger(Number(value["revision"])) ||
-    typeof value["occurredAt"] !== "string" || !validTimestamp(value["occurredAt"]) ||
-    !isRecord(value["metadata"]) || Object.keys(value["metadata"]).length !== 0) {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, publicationKeys) ||
+    value["topic"] !== "addon-data-changed" ||
+    resource.length !== 3 ||
+    !addonId ||
+    addonId.length > 100 ||
+    !localId.test(addonId) ||
+    (kind !== "collection" && kind !== "record-extension") ||
+    !dataId ||
+    dataId.length > 100 ||
+    !localId.test(dataId) ||
+    typeof value["revision"] !== "string" ||
+    !/^[1-9]\d*$/.test(value["revision"]) ||
+    !safePositiveInteger(Number(value["revision"])) ||
+    typeof value["occurredAt"] !== "string" ||
+    !validTimestamp(value["occurredAt"]) ||
+    !isRecord(value["metadata"]) ||
+    Object.keys(value["metadata"]).length !== 0
+  ) {
     throw new BoundaryValidationError(boundary, "add-on data event has an invalid shape");
   }
-  return { cause: "addon-data-changed", cursor: requiredCursor(value["sequence"], lastEventId), addonId, kind, dataId };
+  return {
+    cause: "addon-data-changed",
+    cursor: requiredCursor(value["sequence"], lastEventId),
+    addonId,
+    kind,
+    dataId,
+  };
 }
 
 export function parseCampaignRestored(event: Event): EventRefresh {
   const message = parseMessage(event, "campaign-restored");
-  if (!isRecord(message.value) || !hasOnlyKeys(message.value, publicationKeys) ||
-    message.value["topic"] !== "campaign-restored" || message.value["resourceId"] !== undefined ||
-    typeof message.value["revision"] !== "string" || !/^[1-9]\d*$/.test(message.value["revision"]) || !Number.isSafeInteger(Number(message.value["revision"])) ||
-    typeof message.value["occurredAt"] !== "string" || !validTimestamp(message.value["occurredAt"]) ||
-    !isRecord(message.value["metadata"]) || Object.keys(message.value["metadata"]).length !== 0) {
+  if (
+    !isRecord(message.value) ||
+    !hasOnlyKeys(message.value, publicationKeys) ||
+    message.value["topic"] !== "campaign-restored" ||
+    message.value["resourceId"] !== undefined ||
+    typeof message.value["revision"] !== "string" ||
+    !/^[1-9]\d*$/.test(message.value["revision"]) ||
+    !Number.isSafeInteger(Number(message.value["revision"])) ||
+    typeof message.value["occurredAt"] !== "string" ||
+    !validTimestamp(message.value["occurredAt"]) ||
+    !isRecord(message.value["metadata"]) ||
+    Object.keys(message.value["metadata"]).length !== 0
+  ) {
     throw new BoundaryValidationError(boundary, "campaign recovery event has an invalid shape");
   }
-  return { cause: "campaign-restored", cursor: requiredCursor(message.value["sequence"], message.lastEventId) };
+  return {
+    cause: "campaign-restored",
+    cursor: requiredCursor(message.value["sequence"], message.lastEventId),
+  };
 }
 
 function parseMessage(event: Event, name: string): { value: unknown; lastEventId: string } {
@@ -218,8 +266,12 @@ function parseMessage(event: Event, name: string): { value: unknown; lastEventId
 }
 
 function requiredCursor(value: unknown, lastEventId: string): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 ||
-    lastEventId !== String(value)) {
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 0 ||
+    lastEventId !== String(value)
+  ) {
     throw new BoundaryValidationError(boundary, "event cursor does not match Last-Event-ID");
   }
   return value;

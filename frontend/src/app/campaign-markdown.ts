@@ -16,26 +16,28 @@ const wikiTokenType = "campaign-wiki-link";
 const markdown = new Marked({
   gfm: true,
   breaks: false,
-  extensions: [{
-    name: wikiTokenType,
-    level: "inline",
-    start(source) {
-      const index = source.indexOf("[[");
-      return index === -1 ? undefined : index;
+  extensions: [
+    {
+      name: wikiTokenType,
+      level: "inline",
+      start(source) {
+        const index = source.indexOf("[[");
+        return index === -1 ? undefined : index;
+      },
+      tokenizer(source) {
+        const match = /^\[\[([^\]|\n]{1,200})(?:\|([^\]\n]{1,300}))?\]\]/u.exec(source);
+        const label = match?.[1]?.trim() ?? "";
+        if (match === null || label === "") return undefined;
+        const hint = match[2]?.trim();
+        return {
+          type: wikiTokenType,
+          raw: match[0],
+          label,
+          ...(hint === undefined || hint === "" ? {} : { hint }),
+        };
+      },
     },
-    tokenizer(source) {
-      const match = /^\[\[([^\]|\n]{1,200})(?:\|([^\]\n]{1,300}))?\]\]/u.exec(source);
-      const label = match?.[1]?.trim() ?? "";
-      if (match === null || label === "") return undefined;
-      const hint = match[2]?.trim();
-      return {
-        type: wikiTokenType,
-        raw: match[0],
-        label,
-        ...(hint === undefined || hint === "" ? {} : { hint }),
-      };
-    },
-  }],
+  ],
 });
 
 type MarkdownRenderable = TemplateResult | typeof nothing | string | readonly MarkdownRenderable[];
@@ -81,23 +83,26 @@ interface SemanticHTML {
   readonly className?: string;
 }
 
-const legacyScopeAliases: Readonly<Partial<Record<CampaignCollectionName, readonly string[]>>> = Object.freeze({
-  characters: Object.freeze(["character", "postava"]),
-  locations: Object.freeze(["location", "misto"]),
-  events: Object.freeze(["event", "udalost"]),
-  mysteries: Object.freeze(["mystery", "zahada"]),
-  factions: Object.freeze(["faction", "frakce", "frakce-id"]),
-  pantheon: Object.freeze(["deity", "buh"]),
-  artifacts: Object.freeze(["artifact", "artefakt"]),
-  historicalEvents: Object.freeze(["historical-event", "historicka-udalost"]),
-  pets: Object.freeze(["companion", "companions", "pet"]),
-});
+const legacyScopeAliases: Readonly<Partial<Record<CampaignCollectionName, readonly string[]>>> =
+  Object.freeze({
+    characters: Object.freeze(["character", "postava"]),
+    locations: Object.freeze(["location", "misto"]),
+    events: Object.freeze(["event", "udalost"]),
+    mysteries: Object.freeze(["mystery", "zahada"]),
+    factions: Object.freeze(["faction", "frakce", "frakce-id"]),
+    pantheon: Object.freeze(["deity", "buh"]),
+    artifacts: Object.freeze(["artifact", "artefakt"]),
+    historicalEvents: Object.freeze(["historical-event", "historicka-udalost"]),
+    pets: Object.freeze(["companion", "companions", "pet"]),
+  });
 
 export function parseCampaignMarkdownDocuments(
   sources: readonly string[],
 ): readonly CampaignMarkdownDocument[] {
   const slugCounts = new Map<string, number>();
-  return Object.freeze(sources.map((source) => parseCampaignMarkdownWithSlugger(source, slugCounts)));
+  return Object.freeze(
+    sources.map((source) => parseCampaignMarkdownWithSlugger(source, slugCounts)),
+  );
 }
 
 export function parseCampaignMarkdown(source: string): CampaignMarkdownDocument {
@@ -129,18 +134,24 @@ export function resolveCampaignWikiLink(
     const page = pageForScope(hint.slice(0, separator));
     const key = hint.slice(separator + 1).trim();
     if (page === undefined || key === "") return undefined;
-    const record = campaignCollection(context.dataset, page.collection).records.find(({ key: candidate }) => candidate === key);
-    return record === undefined ? undefined : Object.freeze({ href: recordHash(page, record.key), page, key: record.key });
+    const record = campaignCollection(context.dataset, page.collection).records.find(
+      ({ key: candidate }) => candidate === key,
+    );
+    return record === undefined
+      ? undefined
+      : Object.freeze({ href: recordHash(page, record.key), page, key: record.key });
   }
 
   const scopedPage = hint === "" ? undefined : pageForScope(hint);
   if (hint !== "" && scopedPage === undefined) return undefined;
   const pages = scopedPage === undefined ? campaignPages : [scopedPage];
   for (const page of pages) {
-    const matches = campaignCollection(context.dataset, page.collection).records.filter((record) => {
-      if (!isRecord(record.value)) return false;
-      return normalizeIdentity(record.value["name"] ?? record.value["title"]) === normalizedLabel;
-    });
+    const matches = campaignCollection(context.dataset, page.collection).records.filter(
+      (record) => {
+        if (!isRecord(record.value)) return false;
+        return normalizeIdentity(record.value["name"] ?? record.value["title"]) === normalizedLabel;
+      },
+    );
     if (matches.length === 0) continue;
     const record = preferredWikiMatch(context, matches) ?? matches[0];
     if (record !== undefined) {
@@ -183,8 +194,14 @@ function parseCampaignMarkdownWithSlugger(
     slugCounts.set(base, occurrence);
     const id = occurrence === 1 ? base : `${base}-${occurrence}`;
     headingIDs.set(token, id);
-    if (heading.depth <= 3) outline.push(Object.freeze({ id,
-      text: inlineText(heading.tokens).trim() || heading.text.trim() || uiText("Section"), depth: heading.depth }));
+    if (heading.depth <= 3)
+      outline.push(
+        Object.freeze({
+          id,
+          text: inlineText(heading.tokens).trim() || heading.text.trim() || uiText("Section"),
+          depth: heading.depth,
+        }),
+      );
   });
   return Object.freeze({
     tokens: Object.freeze([...tokens]),
@@ -200,13 +217,22 @@ function lexCampaignMarkdown(source: string): readonly Token[] {
     // A damaged article must remain readable and editable even if the parser
     // rejects it. Lit still owns the output boundary, so this is safe text.
     const textToken: Tokens.Text = { type: "text", raw: source, text: source };
-    const paragraph: Tokens.Paragraph = { type: "paragraph", raw: source, text: source, tokens: [textToken] };
+    const paragraph: Tokens.Paragraph = {
+      type: "paragraph",
+      raw: source,
+      text: source,
+      tokens: [textToken],
+    };
     return [paragraph];
   }
 }
 
 function emptyDocument(): CampaignMarkdownDocument {
-  return Object.freeze({ tokens: Object.freeze([]), outline: Object.freeze([]), headingIDs: new Map() });
+  return Object.freeze({
+    tokens: Object.freeze([]),
+    outline: Object.freeze([]),
+    headingIDs: new Map(),
+  });
 }
 
 function walkTokens(tokens: readonly Token[], visit: (token: Token) => void): void {
@@ -261,7 +287,9 @@ function renderBlockToken(
       return html`<blockquote>${renderBlockTokens((token as Tokens.Blockquote).tokens, document, context)}</blockquote>`;
     case "list": {
       const list = token as Tokens.List;
-      const items = list.items.map((item) => html`<li>${renderBlockTokens(item.tokens, document, context)}</li>`);
+      const items = list.items.map(
+        (item) => html`<li>${renderBlockTokens(item.tokens, document, context)}</li>`,
+      );
       return list.ordered
         ? html`<ol start=${typeof list.start === "number" ? list.start : nothing}>${items}</ol>`
         : html`<ul>${items}</ul>`;
@@ -282,7 +310,10 @@ function renderBlockToken(
   }
 }
 
-function renderInlineTokens(tokens: readonly Token[], context: CampaignMarkdownContext): readonly MarkdownRenderable[] {
+function renderInlineTokens(
+  tokens: readonly Token[],
+  context: CampaignMarkdownContext,
+): readonly MarkdownRenderable[] {
   const rendered: MarkdownRenderable[] = [];
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -307,7 +338,8 @@ function renderInlineToken(token: Token, context: CampaignMarkdownContext): Mark
     const target = resolveCampaignWikiLink(context, token.label, token.hint);
     const addon = target ? undefined : context.addonWiki?.(token.label, token.hint ?? "");
     const href = target?.href ?? (addon?.status === "resolved" ? addon.href : undefined);
-    if (!target && (addon !== undefined || token.hint?.includes(":"))) return html`<codex-addon-rule-details .details=${{ label: token.label, wiki: { label: token.label, hint: token.hint ?? "" } }}></codex-addon-rule-details>`;
+    if (!target && (addon !== undefined || token.hint?.includes(":")))
+      return html`<codex-addon-rule-details .details=${{ label: token.label, wiki: { label: token.label, hint: token.hint ?? "" } }}></codex-addon-rule-details>`;
     return href === undefined
       ? html`<span class="wiki-link-missing" title=${uiText(addon?.status === "loading" ? "wiki.loading" : addon?.status === "failed" ? "wiki.failed" : "wiki.missing")}>[[${token.label}]]</span>`
       : html`<a class="wiki-link" href=${href}>${token.label}</a>`;
@@ -315,7 +347,9 @@ function renderInlineToken(token: Token, context: CampaignMarkdownContext): Mark
   switch (token.type) {
     case "text": {
       const textToken = token as Tokens.Text;
-      return textToken.tokens === undefined ? textToken.text : renderInlineTokens(textToken.tokens, context);
+      return textToken.tokens === undefined
+        ? textToken.text
+        : renderInlineTokens(textToken.tokens, context);
     }
     case "escape":
       return (token as Tokens.Escape).text;
@@ -356,7 +390,8 @@ function renderInlineToken(token: Token, context: CampaignMarkdownContext): Mark
       return raw;
     }
     default:
-      if ("tokens" in token && Array.isArray(token.tokens)) return renderInlineTokens(token.tokens, context);
+      if ("tokens" in token && Array.isArray(token.tokens))
+        return renderInlineTokens(token.tokens, context);
       return "text" in token && typeof token.text === "string" ? token.text : token.raw;
   }
 }
@@ -365,12 +400,19 @@ function renderTable(table: Tokens.Table, context: CampaignMarkdownContext): Tem
   return html`
     <div class="markdown-table-scroll" tabindex="0">
       <table>
-        <thead><tr>${table.header.map((cell) => html`
+        <thead><tr>${table.header.map(
+          (cell) => html`
           <th class=${alignmentClass(cell.align)}>${renderInlineTokens(cell.tokens, context)}</th>
-        `)}</tr></thead>
-        <tbody>${table.rows.map((row) => html`<tr>${row.map((cell) => html`
+        `,
+        )}</tr></thead>
+        <tbody>${table.rows.map(
+          (row) =>
+            html`<tr>${row.map(
+              (cell) => html`
           <td class=${alignmentClass(cell.align)}>${renderInlineTokens(cell.tokens, context)}</td>
-        `)}</tr>`)}</tbody>
+        `,
+            )}</tr>`,
+        )}</tbody>
       </table>
     </div>
   `;
@@ -381,7 +423,8 @@ function renderUnknownToken(
   document: CampaignMarkdownDocument,
   context: CampaignMarkdownContext,
 ): MarkdownRenderable {
-  if ("tokens" in token && Array.isArray(token.tokens)) return renderBlockTokens(token.tokens, document, context);
+  if ("tokens" in token && Array.isArray(token.tokens))
+    return renderBlockTokens(token.tokens, document, context);
   return "text" in token && typeof token.text === "string" ? token.text : token.raw;
 }
 
@@ -390,7 +433,11 @@ function semanticOpening(token: Token): SemanticHTML | undefined {
   return parseMarkdownFormat(token.raw.trim());
 }
 
-function semanticClosingIndex(tokens: readonly Token[], start: number, tag: SemanticHTML["tag"]): number {
+function semanticClosingIndex(
+  tokens: readonly Token[],
+  start: number,
+  tag: SemanticHTML["tag"],
+): number {
   return markdownFormatClose(tokens, start, tag);
 }
 
@@ -399,23 +446,29 @@ function renderSemanticHTML(
   children: readonly MarkdownRenderable[],
 ): TemplateResult {
   switch (semantic.tag) {
-    case "span": return html`<span
+    case "span":
+      return html`<span
       class=${semantic.className ?? nothing}
       tabindex=${semantic.className === "md-effect-spoiler" ? "0" : nothing}
     >${children}</span>`;
-    case "mark": return html`<mark class=${semantic.className ?? nothing}>${children}</mark>`;
-    case "sup": return html`<sup>${children}</sup>`;
-    case "sub": return html`<sub>${children}</sub>`;
+    case "mark":
+      return html`<mark class=${semantic.className ?? nothing}>${children}</mark>`;
+    case "sup":
+      return html`<sup>${children}</sup>`;
+    case "sub":
+      return html`<sub>${children}</sub>`;
   }
 }
 
 function inlineText(tokens: readonly Token[]): string {
-  return tokens.map((token) => {
-    if (isWikiToken(token)) return token.label;
-    if (token.type === "image") return (token as Tokens.Image).text;
-    if ("tokens" in token && Array.isArray(token.tokens)) return inlineText(token.tokens);
-    return "text" in token && typeof token.text === "string" ? token.text : "";
-  }).join("");
+  return tokens
+    .map((token) => {
+      if (isWikiToken(token)) return token.label;
+      if (token.type === "image") return (token as Tokens.Image).text;
+      if ("tokens" in token && Array.isArray(token.tokens)) return inlineText(token.tokens);
+      return "text" in token && typeof token.text === "string" ? token.text : "";
+    })
+    .join("");
 }
 
 function isWikiToken(token: Token): token is CampaignWikiToken {
@@ -424,31 +477,37 @@ function isWikiToken(token: Token): token is CampaignWikiToken {
 
 function pageForScope(scope: string): CampaignPageDefinition | undefined {
   const normalized = normalizeIdentity(scope);
-  return campaignPages.find((page) => [
-    page.id,
-    page.collection,
-    page.singular,
-    ...(legacyScopeAliases[page.collection] ?? []),
-  ].some((candidate) => normalizeIdentity(candidate) === normalized));
+  return campaignPages.find((page) =>
+    [page.id, page.collection, page.singular, ...(legacyScopeAliases[page.collection] ?? [])].some(
+      (candidate) => normalizeIdentity(candidate) === normalized,
+    ),
+  );
 }
 
 function preferredWikiMatch(
   context: CampaignMarkdownContext,
   matches: ReturnType<typeof campaignCollection>["records"],
 ) {
-  if (context.currentCollection === undefined || context.currentKey === undefined) return matches[0];
-  const current = campaignCollection(context.dataset, context.currentCollection).records
-    .find(({ key }) => key === context.currentKey);
-  const currentVisibility = isRecord(current?.value) && current.value["visibility"] === "dm" ? "dm" : "public";
-  return matches.find((candidate) => {
-    const visibility = isRecord(candidate.value) && candidate.value["visibility"] === "dm" ? "dm" : "public";
-    return visibility === currentVisibility;
-  }) ?? matches[0];
+  if (context.currentCollection === undefined || context.currentKey === undefined)
+    return matches[0];
+  const current = campaignCollection(context.dataset, context.currentCollection).records.find(
+    ({ key }) => key === context.currentKey,
+  );
+  const currentVisibility =
+    isRecord(current?.value) && current.value["visibility"] === "dm" ? "dm" : "public";
+  return (
+    matches.find((candidate) => {
+      const visibility =
+        isRecord(candidate.value) && candidate.value["visibility"] === "dm" ? "dm" : "public";
+      return visibility === currentVisibility;
+    }) ?? matches[0]
+  );
 }
 
 function normalizeIdentity(value: unknown): string {
   if (typeof value !== "string") return "";
-  return value.normalize("NFKD")
+  return value
+    .normalize("NFKD")
     .replace(/\p{Mark}/gu, "")
     .trim()
     .toLocaleLowerCase()
@@ -456,9 +515,11 @@ function normalizeIdentity(value: unknown): string {
 }
 
 function slugify(value: string): string {
-  return normalizeIdentity(value)
-    .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
-    .replace(/^-+|-+$/gu, "") || "section";
+  return (
+    normalizeIdentity(value)
+      .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
+      .replace(/^-+|-+$/gu, "") || "section"
+  );
 }
 
 function alignmentClass(alignment: Tokens.TableCell["align"]): string {

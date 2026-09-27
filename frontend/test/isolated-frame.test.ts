@@ -38,81 +38,177 @@ const generationId = "a".repeat(64);
 describe("IsolatedFrameBridge", () => {
   it("validates isolated rule details and enforces the declared capability", async () => {
     for (const allowed of [true, false]) {
-      const descriptor = { ...frameDescriptor(slotContribution()), capabilities: allowed ? ["ui.contributions", "ui.rule-details"] : ["ui.contributions"] };
-      const scope = new GenerationScope("details@test"), context = new BrowserContributionRegistry().open(descriptor, scope).context;
-      const showRuleDetails = vi.fn(), port = new FakePort();
-      const bridge = new IsolatedFrameBridge({ port, context: { ...context, ui: { ...context.ui, showRuleDetails } }, contribution: descriptor.contributions[0]!, onResize: vi.fn() });
-      port.receive({ protocol: isolatedFrameProtocol, type: "ready", contributionId: descriptor.contributions[0]!.id });
-      const details = { label: "Armor class", reference: { kind: "rule", id: "armor" }, summary: "Saved rule explanation" };
+      const descriptor = {
+        ...frameDescriptor(slotContribution()),
+        capabilities: allowed ? ["ui.contributions", "ui.rule-details"] : ["ui.contributions"],
+      };
+      const scope = new GenerationScope("details@test"),
+        context = new BrowserContributionRegistry().open(descriptor, scope).context;
+      const showRuleDetails = vi.fn(),
+        port = new FakePort();
+      const bridge = new IsolatedFrameBridge({
+        port,
+        context: { ...context, ui: { ...context.ui, showRuleDetails } },
+        contribution: descriptor.contributions[0]!,
+        onResize: vi.fn(),
+      });
+      port.receive({
+        protocol: isolatedFrameProtocol,
+        type: "ready",
+        contributionId: descriptor.contributions[0]!.id,
+      });
+      const details = {
+        label: "Armor class",
+        reference: { kind: "rule", id: "armor" },
+        summary: "Saved rule explanation",
+      };
       port.receive(request("details", "ui.rule-details", details));
       await vi.waitFor(() => expect(response(port, "details")).toMatchObject({ ok: allowed }));
       expect(showRuleDetails).toHaveBeenCalledTimes(allowed ? 1 : 0);
       if (allowed) expect(showRuleDetails).toHaveBeenCalledWith(details);
-      port.receive(request("bad-details", "ui.rule-details", { label: "Bad", reference: { kind: "rule", id: 42 } }));
+      port.receive(
+        request("bad-details", "ui.rule-details", {
+          label: "Bad",
+          reference: { kind: "rule", id: 42 },
+        }),
+      );
       await vi.waitFor(() => expect(response(port, "bad-details")).toMatchObject({ ok: false }));
-      bridge.close(); await scope.dispose("disabled");
+      bridge.close();
+      await scope.dispose("disabled");
     }
   });
   it("forwards scoped data invalidations after readiness and disposes its subscription", () => {
-    const descriptor = frameDescriptor(slotContribution()), scope = new GenerationScope("data@test"), changes = new BrowserAddonDataChanges();
+    const descriptor = frameDescriptor(slotContribution()),
+      scope = new GenerationScope("data@test"),
+      changes = new BrowserAddonDataChanges();
     const registry = new BrowserContributionRegistry();
     const context = registry.open(descriptor, scope).context;
     const port = new FakePort();
-    const bridge = new IsolatedFrameBridge({ port, context: { ...context, data: { ...context.data, subscribe: changes.scoped(descriptor.addonId, context.signal) } }, contribution: descriptor.contributions[0]!, onResize: vi.fn() });
-    changes.handleEvent({ cause: "reset", cursor: 1 }); expect(port.sent).toEqual([]);
-    port.receive({ protocol: isolatedFrameProtocol, type: "ready", contributionId: descriptor.contributions[0]!.id });
+    const bridge = new IsolatedFrameBridge({
+      port,
+      context: {
+        ...context,
+        data: { ...context.data, subscribe: changes.scoped(descriptor.addonId, context.signal) },
+      },
+      contribution: descriptor.contributions[0]!,
+      onResize: vi.fn(),
+    });
+    changes.handleEvent({ cause: "reset", cursor: 1 });
+    expect(port.sent).toEqual([]);
+    port.receive({
+      protocol: isolatedFrameProtocol,
+      type: "ready",
+      contributionId: descriptor.contributions[0]!.id,
+    });
     changes.handleEvent({ cause: "reset", cursor: 2 });
-    expect(port.sent.at(-1)).toEqual({ protocol: isolatedFrameProtocol, type: "data-change", change: { reason: "reset" } });
-    bridge.close(); const count = port.sent.length;
-    changes.handleEvent({ cause: "reset", cursor: 3 }); expect(port.sent).toHaveLength(count);
+    expect(port.sent.at(-1)).toEqual({
+      protocol: isolatedFrameProtocol,
+      type: "data-change",
+      change: { reason: "reset" },
+    });
+    bridge.close();
+    const count = port.sent.length;
+    changes.handleEvent({ cause: "reset", cursor: 3 });
+    expect(port.sent).toHaveLength(count);
   });
   it("accepts only bounded edit flags and clears them when the frame closes", () => {
     const descriptor = frameDescriptor(slotContribution());
-    const sdk = new BrowserContributionRegistry().open(descriptor, new GenerationScope("edits@test"));
-    const port = new FakePort(), set = vi.fn(), onDiagnostic = vi.fn();
-    const bridge = new IsolatedFrameBridge({ port, context: sdk.context, contribution: descriptor.contributions[0]!, onResize: vi.fn(), edits: { set }, onDiagnostic });
-    port.receive({ protocol: isolatedFrameProtocol, type: "edit-state", state: { dirty: true, saving: false } });
-    expect(set).toHaveBeenLastCalledWith({ dirty: true, saving: false, retainOnQueryChange: false });
-    port.receive({ protocol: isolatedFrameProtocol, type: "edit-state", state: { dirty: true, saving: false, body: "must not cross the bridge" } });
+    const sdk = new BrowserContributionRegistry().open(
+      descriptor,
+      new GenerationScope("edits@test"),
+    );
+    const port = new FakePort(),
+      set = vi.fn(),
+      onDiagnostic = vi.fn();
+    const bridge = new IsolatedFrameBridge({
+      port,
+      context: sdk.context,
+      contribution: descriptor.contributions[0]!,
+      onResize: vi.fn(),
+      edits: { set },
+      onDiagnostic,
+    });
+    port.receive({
+      protocol: isolatedFrameProtocol,
+      type: "edit-state",
+      state: { dirty: true, saving: false },
+    });
+    expect(set).toHaveBeenLastCalledWith({
+      dirty: true,
+      saving: false,
+      retainOnQueryChange: false,
+    });
+    port.receive({
+      protocol: isolatedFrameProtocol,
+      type: "edit-state",
+      state: { dirty: true, saving: false, body: "must not cross the bridge" },
+    });
     expect(onDiagnostic).toHaveBeenCalledOnce();
     expect(set).toHaveBeenCalledOnce();
     bridge.close();
     expect(set).toHaveBeenLastCalledWith({ dirty: false, saving: false });
     const count = set.mock.calls.length;
-    port.receive({ protocol: isolatedFrameProtocol, type: "edit-state", state: { dirty: true, saving: true } });
+    port.receive({
+      protocol: isolatedFrameProtocol,
+      type: "edit-state",
+      state: { dirty: true, saving: true },
+    });
     expect(set).toHaveBeenCalledTimes(count);
   });
   it("delivers bounded instance context after readiness and stops updates on disposal", () => {
     const descriptor = frameDescriptor(slotContribution());
-    const sdk = new BrowserContributionRegistry().open(descriptor, new GenerationScope("context@test"));
-    const port = new FakePort(), onResize = vi.fn();
-    const bridge = new IsolatedFrameBridge({ port, context: sdk.context, contribution: descriptor.contributions[0]!, onResize });
-    bridge.updateHostContext({ sitting: 1 }); bridge.updateHostContext({ sitting: 2 });
+    const sdk = new BrowserContributionRegistry().open(
+      descriptor,
+      new GenerationScope("context@test"),
+    );
+    const port = new FakePort(),
+      onResize = vi.fn();
+    const bridge = new IsolatedFrameBridge({
+      port,
+      context: sdk.context,
+      contribution: descriptor.contributions[0]!,
+      onResize,
+    });
+    bridge.updateHostContext({ sitting: 1 });
+    bridge.updateHostContext({ sitting: 2 });
     expect(port.sent).toEqual([]);
-    port.receive({ protocol: isolatedFrameProtocol, type: "ready", contributionId: descriptor.contributions[0]!.id });
-    expect(port.sent).toEqual([{ protocol: isolatedFrameProtocol, type: "context", host: { sitting: 2 } }]);
+    port.receive({
+      protocol: isolatedFrameProtocol,
+      type: "ready",
+      contributionId: descriptor.contributions[0]!.id,
+    });
+    expect(port.sent).toEqual([
+      { protocol: isolatedFrameProtocol, type: "context", host: { sitting: 2 } },
+    ]);
     bridge.updateHostContext({ sitting: 3 });
     expect(port.sent.at(-1)).toMatchObject({ host: { sitting: 3 } });
     expect(() => bridge.updateHostContext({ text: "x".repeat(70_000) })).toThrow();
-    port.receive({ protocol: isolatedFrameProtocol, type: "resize", height: 32 }); expect(onResize).toHaveBeenCalledWith(32);
-    bridge.close(); const count = port.sent.length;
-    bridge.updateHostContext({ sitting: 4 }); expect(port.sent).toHaveLength(count);
+    port.receive({ protocol: isolatedFrameProtocol, type: "resize", height: 32 });
+    expect(onResize).toHaveBeenCalledWith(32);
+    bridge.close();
+    const count = port.sent.length;
+    bridge.updateHostContext({ sitting: 4 });
+    expect(port.sent).toHaveLength(count);
   });
   it("proxies generation-scoped service handles without exposing browser credentials", async () => {
     const descriptor = frameDescriptor(slotContribution());
-    const call = vi.fn(async (
-      _method: string,
-      _params: unknown,
-      _options?: BrowserServiceCallOptions,
-    ) => ({ sheet: { level: 3 } }));
+    const call = vi.fn(
+      async (_method: string, _params: unknown, _options?: BrowserServiceCallOptions) => ({
+        sheet: { level: 3 },
+      }),
+    );
     const handle: BrowserServiceHandle = {
       contract: "dnd5e.rules-engine",
       range: "^3.0.0",
       cardinality: "one",
-      providers: [{
-        addonId: "rules-engine", contractVersion: "3.1.0",
-        generation: "b".repeat(64), bindingRevision: 7,
-      }],
+      providers: [
+        {
+          addonId: "rules-engine",
+          contractVersion: "3.1.0",
+          generation: "b".repeat(64),
+          bindingRevision: 7,
+        },
+      ],
       available: true,
       call: <TResponse>(method: string, params: unknown, options?: BrowserServiceCallOptions) =>
         call(method, params, options).then((result) => result as TResponse),
@@ -120,7 +216,10 @@ describe("IsolatedFrameBridge", () => {
     const connect = vi.fn(async () => handle);
     const services: BrowserServiceAPI = { connect };
     const registry = new BrowserContributionRegistry(
-      undefined, undefined, undefined, () => services,
+      undefined,
+      undefined,
+      undefined,
+      () => services,
     );
     const sdk = registry.open(descriptor, new GenerationScope("isolated@generation"));
     const port = new FakePort();
@@ -132,30 +231,52 @@ describe("IsolatedFrameBridge", () => {
       readyTimeoutMilliseconds: 60_000,
     });
 
-    port.receive(request("connect-engine", "services.connect", {
-      contract: "dnd5e.rules-engine", range: "^3.0.0", cardinality: "one", includeOwn: true,
-    }));
-    await vi.waitFor(() => expect(response(port, "connect-engine")).toMatchObject({
-      ok: true,
-      result: { serviceId: "service-1", available: true, providers: handle.providers },
-    }));
+    port.receive(
+      request("connect-engine", "services.connect", {
+        contract: "dnd5e.rules-engine",
+        range: "^3.0.0",
+        cardinality: "one",
+        includeOwn: true,
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(response(port, "connect-engine")).toMatchObject({
+        ok: true,
+        result: { serviceId: "service-1", available: true, providers: handle.providers },
+      }),
+    );
     expect(connect).toHaveBeenCalledWith("dnd5e.rules-engine", {
-      range: "^3.0.0", cardinality: "one", includeOwn: true, signal: expect.any(AbortSignal),
+      range: "^3.0.0",
+      cardinality: "one",
+      includeOwn: true,
+      signal: expect.any(AbortSignal),
     });
 
-    port.receive(request("bad-own-provider", "services.connect", { contract: "dnd5e.rules-engine", range: "^3.0.0", cardinality: "one", includeOwn: "true" }));
+    port.receive(
+      request("bad-own-provider", "services.connect", {
+        contract: "dnd5e.rules-engine",
+        range: "^3.0.0",
+        cardinality: "one",
+        includeOwn: "true",
+      }),
+    );
     await vi.waitFor(() => expect(response(port, "bad-own-provider")).toMatchObject({ ok: false }));
     expect(connect).toHaveBeenCalledTimes(1);
 
-    port.receive(request("hydrate", "services.call", {
-      serviceId: "service-1",
-      method: "hydrate",
-      params: { character: { id: "c1" } },
-      options: { deadlineMs: 2000 },
-    }));
-    await vi.waitFor(() => expect(response(port, "hydrate")).toMatchObject({
-      ok: true, result: { sheet: { level: 3 } },
-    }));
+    port.receive(
+      request("hydrate", "services.call", {
+        serviceId: "service-1",
+        method: "hydrate",
+        params: { character: { id: "c1" } },
+        options: { deadlineMs: 2000 },
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(response(port, "hydrate")).toMatchObject({
+        ok: true,
+        result: { sheet: { level: 3 } },
+      }),
+    );
     expect(call).toHaveBeenCalledWith(
       "hydrate",
       { character: { id: "c1" } },
@@ -172,10 +293,16 @@ describe("IsolatedFrameBridge", () => {
       contractVersion: "addon-data-commit.v1" as const,
       commitId: 4,
       occurredAt: "2026-09-01T12:00:00Z",
-      results: [{
-        kind: "collection" as const, dataId: "dm_notes", key: "note-1",
-        beforeRevision: 1, afterRevision: 2, deleted: true,
-      }],
+      results: [
+        {
+          kind: "collection" as const,
+          dataId: "dm_notes",
+          key: "note-1",
+          beforeRevision: 1,
+          afterRevision: 2,
+          deleted: true,
+        },
+      ],
       dataSets: [{ kind: "collection" as const, dataId: "dm_notes", revision: 2 }],
     }));
     const handle: AddonDataHandle<unknown> = { get, query, put: vi.fn(), delete: vi.fn() };
@@ -204,40 +331,72 @@ describe("IsolatedFrameBridge", () => {
     });
 
     // Data is available while activate(context) is still running, before ready.
-    port.receive(request("get-note", "data.get", {
-      kind: "collection", dataId: "dm_notes", key: "note-1",
-    }));
-    await vi.waitFor(() => expect(response(port, "get-note")).toMatchObject({
-      ok: true,
-      result: { key: "note-1", revision: 2, value: { text: "Ruins" } },
-    }));
+    port.receive(
+      request("get-note", "data.get", {
+        kind: "collection",
+        dataId: "dm_notes",
+        key: "note-1",
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(response(port, "get-note")).toMatchObject({
+        ok: true,
+        result: { key: "note-1", revision: 2, value: { text: "Ruins" } },
+      }),
+    );
     expect(collection).toHaveBeenCalledWith("dm_notes");
     expect(get).toHaveBeenCalledWith("note-1", { signal: expect.any(AbortSignal) });
 
-    port.receive(request("query-sheet", "data.query", {
-      kind: "record-extension",
-      dataId: "sheet_state",
-      target: "characters",
-      options: { limit: 10, where: [{ path: "/level", equals: 3 }], includeDataRevision: true, expectedDataRevision: 0 },
-    }));
-    await vi.waitFor(() => expect(response(port, "query-sheet")).toMatchObject({
-      ok: true, result: { documents: [], nextCursor: "Mg" },
-    }));
+    port.receive(
+      request("query-sheet", "data.query", {
+        kind: "record-extension",
+        dataId: "sheet_state",
+        target: "characters",
+        options: {
+          limit: 10,
+          where: [{ path: "/level", equals: 3 }],
+          includeDataRevision: true,
+          expectedDataRevision: 0,
+        },
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(response(port, "query-sheet")).toMatchObject({
+        ok: true,
+        result: { documents: [], nextCursor: "Mg" },
+      }),
+    );
     expect(recordExtension).toHaveBeenCalledWith("characters", "sheet_state");
-    expect(query).toHaveBeenCalledWith(expect.objectContaining({
-      includeDataRevision: true, expectedDataRevision: 0,
-      limit: 10,
-      where: [{ path: "/level", equals: 3 }],
-      signal: expect.any(AbortSignal),
-    } as AddonQueryOptions));
+    expect(query).toHaveBeenCalledWith(
+      expect.objectContaining({
+        includeDataRevision: true,
+        expectedDataRevision: 0,
+        limit: 10,
+        where: [{ path: "/level", equals: 3 }],
+        signal: expect.any(AbortSignal),
+      } as AddonQueryOptions),
+    );
 
-    port.receive(request("delete-note", "data.transact", { mutations: [{
-      operation: "delete", kind: "collection", dataId: "dm_notes",
-      key: "note-1", expectedRevision: 1,
-    }], expectedDataSets: [{ kind: "collection", dataId: "dm_notes", revision: 0 }] }));
-    await vi.waitFor(() => expect(response(port, "delete-note")).toMatchObject({
-      ok: true, result: { contractVersion: "addon-data-commit.v1", commitId: 4 },
-    }));
+    port.receive(
+      request("delete-note", "data.transact", {
+        mutations: [
+          {
+            operation: "delete",
+            kind: "collection",
+            dataId: "dm_notes",
+            key: "note-1",
+            expectedRevision: 1,
+          },
+        ],
+        expectedDataSets: [{ kind: "collection", dataId: "dm_notes", revision: 0 }],
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(response(port, "delete-note")).toMatchObject({
+        ok: true,
+        result: { contractVersion: "addon-data-commit.v1", commitId: 4 },
+      }),
+    );
     expect(transact).toHaveBeenCalledWith(expect.any(Array), {
       expectedDataSets: [{ kind: "collection", dataId: "dm_notes", revision: 0 }],
       signal: expect.any(AbortSignal),
@@ -247,12 +406,21 @@ describe("IsolatedFrameBridge", () => {
 
   it("cancels an isolated data request without revoking its generation", async () => {
     const descriptor = frameDescriptor(slotContribution());
-    const query = vi.fn((_options?: AddonQueryOptions) => new Promise<never>((_resolve, reject) => {
-      _options?.signal?.addEventListener("abort", () =>
-        reject(new DOMException("cancelled", "AbortError")), { once: true });
-    }));
+    const query = vi.fn(
+      (_options?: AddonQueryOptions) =>
+        new Promise<never>((_resolve, reject) => {
+          _options?.signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("cancelled", "AbortError")),
+            { once: true },
+          );
+        }),
+    );
     const handle: AddonDataHandle<unknown> = {
-      get: vi.fn(), query, put: vi.fn(), delete: vi.fn(),
+      get: vi.fn(),
+      query,
+      put: vi.fn(),
+      delete: vi.fn(),
     };
     const dataAPI: BrowserDataAPI = {
       collection: <T>() => handle as AddonDataHandle<T>,
@@ -272,15 +440,21 @@ describe("IsolatedFrameBridge", () => {
       readyTimeoutMilliseconds: 60_000,
     });
 
-    port.receive(request("slow-query", "data.query", {
-      kind: "collection", dataId: "dm_notes", options: {},
-    }));
+    port.receive(
+      request("slow-query", "data.query", {
+        kind: "collection",
+        dataId: "dm_notes",
+        options: {},
+      }),
+    );
     await vi.waitFor(() => expect(query).toHaveBeenCalledOnce());
     port.receive({ protocol: isolatedFrameProtocol, type: "cancel-request", id: "slow-query" });
-    await vi.waitFor(() => expect(response(port, "slow-query")).toMatchObject({
-      ok: false,
-      error: { code: "REQUEST_ABORTED" },
-    }));
+    await vi.waitFor(() =>
+      expect(response(port, "slow-query")).toMatchObject({
+        ok: false,
+        error: { code: "REQUEST_ABORTED" },
+      }),
+    );
     expect(sdk.context.signal.aborted).toBe(false);
     bridge.close();
   });
@@ -289,10 +463,14 @@ describe("IsolatedFrameBridge", () => {
     const descriptor = frameDescriptor(slotContribution());
     const catalog = vi.fn(async () => ({ sets: [] }));
     const get = vi.fn(async () => ({
-      kind: "spell", id: "shield", value: { kind: "spell", id: "shield" },
+      kind: "spell",
+      id: "shield",
+      value: { kind: "spell", id: "shield" },
     }));
     const query = vi.fn(async () => ({
-      revision: "fixture-1", records: [], nextCursor: "Mg",
+      revision: "fixture-1",
+      records: [],
+      nextCursor: "Mg",
     }));
     const setHandle: AddonContentSet<unknown> = { get, query };
     const set = vi.fn();
@@ -317,29 +495,49 @@ describe("IsolatedFrameBridge", () => {
     });
 
     port.receive(request("catalog", "content.catalog", {}));
-    await vi.waitFor(() => expect(response(port, "catalog")).toMatchObject({
-      ok: true, result: { sets: [] },
-    }));
+    await vi.waitFor(() =>
+      expect(response(port, "catalog")).toMatchObject({
+        ok: true,
+        result: { sets: [] },
+      }),
+    );
     expect(catalog).toHaveBeenCalledWith({ signal: expect.any(AbortSignal) });
 
-    port.receive(request("get-rule", "content.get", {
-      setId: "rules", kind: "spell", id: "shield",
-    }));
-    await vi.waitFor(() => expect(response(port, "get-rule")).toMatchObject({
-      ok: true, result: { kind: "spell", id: "shield" },
-    }));
+    port.receive(
+      request("get-rule", "content.get", {
+        setId: "rules",
+        kind: "spell",
+        id: "shield",
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(response(port, "get-rule")).toMatchObject({
+        ok: true,
+        result: { kind: "spell", id: "shield" },
+      }),
+    );
     expect(set).toHaveBeenCalledWith("rules");
     expect(get).toHaveBeenCalledWith("spell", "shield", { signal: expect.any(AbortSignal) });
 
-    port.receive(request("query-rules", "content.query", {
-      setId: "rules", options: { kind: "spell", limit: 20 },
-    }));
-    await vi.waitFor(() => expect(response(port, "query-rules")).toMatchObject({
-      ok: true, result: { revision: "fixture-1", records: [], nextCursor: "Mg" },
-    }));
-    expect(query).toHaveBeenCalledWith(expect.objectContaining({
-      kind: "spell", limit: 20, signal: expect.any(AbortSignal),
-    } as AddonContentQueryOptions));
+    port.receive(
+      request("query-rules", "content.query", {
+        setId: "rules",
+        options: { kind: "spell", limit: 20 },
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(response(port, "query-rules")).toMatchObject({
+        ok: true,
+        result: { revision: "fixture-1", records: [], nextCursor: "Mg" },
+      }),
+    );
+    expect(query).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "spell",
+        limit: 20,
+        signal: expect.any(AbortSignal),
+      } as AddonContentQueryOptions),
+    );
     bridge.close();
   });
 
@@ -365,13 +563,17 @@ describe("IsolatedFrameBridge", () => {
       contributionId: "tools.panel",
     });
     port.receive(request("capability", "capabilities.has", { capability: "ui.contributions" }));
-    port.receive(request("permission", "permissions.has", {
-      permission: "core.data.read",
-      resource: "characters",
-    }));
-    port.receive(request("resources", "permissions.resources", {
-      permission: "core.data.read",
-    }));
+    port.receive(
+      request("permission", "permissions.has", {
+        permission: "core.data.read",
+        resource: "characters",
+      }),
+    );
+    port.receive(
+      request("resources", "permissions.resources", {
+        permission: "core.data.read",
+      }),
+    );
     port.receive(request("declarations", "ui.declarations", {}));
     port.receive({ protocol: isolatedFrameProtocol, type: "resize", height: 480 });
 
@@ -526,13 +728,12 @@ describe("IsolatedFrameBridge", () => {
       contributionId: "tools.action",
     });
 
-    const result = bridge.invoke(
-      { recordId: "character-1" },
-      new AbortController().signal,
+    const result = bridge.invoke({ recordId: "character-1" }, new AbortController().signal);
+    await vi.waitFor(() =>
+      expect(port.sent.some((message) => (message as { type?: string }).type === "invoke")).toBe(
+        true,
+      ),
     );
-    await vi.waitFor(() => expect(
-      port.sent.some((message) => (message as { type?: string }).type === "invoke"),
-    ).toBe(true));
     const invocation = port.sent.find(
       (message) => (message as { type?: string }).type === "invoke",
     ) as { id: string };
@@ -573,9 +774,11 @@ describe("IsolatedFrameBridge", () => {
     });
     const caller = new AbortController();
     const result = bridge.invoke({ graphId: "story" }, caller.signal);
-    await vi.waitFor(() => expect(
-      port.sent.some((message) => (message as { type?: string }).type === "invoke"),
-    ).toBe(true));
+    await vi.waitFor(() =>
+      expect(port.sent.some((message) => (message as { type?: string }).type === "invoke")).toBe(
+        true,
+      ),
+    );
     const invocation = port.sent.find(
       (message) => (message as { type?: string }).type === "invoke",
     ) as { id: string };
@@ -642,9 +845,7 @@ describe("isolated frame activation", () => {
   it("loads reviewed assets in the host and connects one generated srcdoc", async () => {
     const descriptor = {
       ...frameDescriptor(slotContribution()),
-      styleUrls: [
-        `/api/addons/isolated-tools/generations/${generationId}/assets/web/frame.css`,
-      ],
+      styleUrls: [`/api/addons/isolated-tools/generations/${generationId}/assets/web/frame.css`],
     };
     const registry = new BrowserContributionRegistry();
     const scope = new GenerationScope("isolated@generation");
@@ -652,7 +853,7 @@ describe("isolated frame activation", () => {
     const frame = new FakeFrame();
     const host = new FakeFrameHost();
     const fetchAsset = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
-      const url = String(input);
+      const url = input instanceof Request ? input.url : String(input);
       const css = url.endsWith(".css");
       const moduleSource = `${" ".repeat(70 * 1024)}export function activate() {}`;
       return new Response(css ? ":root { color: black; }" : moduleSource, {
@@ -704,10 +905,9 @@ describe("isolated frame activation", () => {
   it("binds visual declarations without importing frame code into the host realm", async () => {
     const descriptor = frameDescriptor(slotContribution());
     const registry = new BrowserContributionRegistry();
-    const manager = new BrowserGenerationManager(createIsolatedFrameActivator(
-      {} as Document,
-      registry,
-    ));
+    const manager = new BrowserGenerationManager(
+      createIsolatedFrameActivator({} as Document, registry),
+    );
 
     const result = await manager.reconcile({
       contractVersion: 2,
@@ -742,12 +942,9 @@ describe("isolated frame activation", () => {
       body: { append: vi.fn() },
       createElement: vi.fn(() => backgroundHost),
     } as unknown as Document;
-    const manager = new BrowserGenerationManager(createIsolatedFrameActivator(
-      document,
-      registry,
-      vi.fn(),
-      createRuntime,
-    ));
+    const manager = new BrowserGenerationManager(
+      createIsolatedFrameActivator(document, registry, vi.fn(), createRuntime),
+    );
 
     const result = await manager.reconcile({
       contractVersion: 2,
@@ -759,15 +956,11 @@ describe("isolated frame activation", () => {
     const active = registry.list("article-action", "dm")[0]?.binding;
     expect(active?.kind).toBe("action");
     if (active?.kind === "action") {
-      await expect(active.run(
-        { recordId: "character-1" },
-        { signal: new AbortController().signal },
-      )).resolves.toEqual({ opened: true });
+      await expect(
+        active.run({ recordId: "character-1" }, { signal: new AbortController().signal }),
+      ).resolves.toEqual({ opened: true });
     }
-    expect(invoke).toHaveBeenCalledWith(
-      { recordId: "character-1" },
-      expect.any(AbortSignal),
-    );
+    expect(invoke).toHaveBeenCalledWith({ recordId: "character-1" }, expect.any(AbortSignal));
     await manager.dispose("disabled");
     expect(dispose).toHaveBeenCalledOnce();
     expect(backgroundHost.removed).toBe(true);
@@ -794,6 +987,7 @@ describe("isolated frame activation", () => {
     expect(document).not.toContain("allow-same-origin");
     const source = document.match(/<script>([\s\S]*)<\/script>/)?.[1];
     expect(source).toBeDefined();
+    // oxlint-disable-next-line typescript/no-implied-eval -- Execute the host-generated sandbox bootstrap in this controlled test realm.
     expect(() => new Function(source as string)).not.toThrow();
   });
 });
@@ -807,13 +1001,19 @@ class FakePort implements IsolatedMessagePort {
     this.sent.push(message);
   }
 
-  addEventListener(type: "message" | "messageerror", listener: (event: MessageEvent<unknown>) => void): void {
+  addEventListener(
+    type: "message" | "messageerror",
+    listener: (event: MessageEvent<unknown>) => void,
+  ): void {
     const listeners = this.listeners.get(type) ?? new Set();
     listeners.add(listener);
     this.listeners.set(type, listeners);
   }
 
-  removeEventListener(type: "message" | "messageerror", listener: (event: MessageEvent<unknown>) => void): void {
+  removeEventListener(
+    type: "message" | "messageerror",
+    listener: (event: MessageEvent<unknown>) => void,
+  ): void {
     this.listeners.get(type)?.delete(listener);
   }
 
@@ -905,9 +1105,11 @@ function request(id: string, method: string, params: Record<string, unknown>): u
 }
 
 function response(port: FakePort, id: string): unknown {
-  return port.sent.find((message) =>
-    (message as { type?: string; id?: string }).type === "response" &&
-    (message as { id?: string }).id === id);
+  return port.sent.find(
+    (message) =>
+      (message as { type?: string; id?: string }).type === "response" &&
+      (message as { id?: string }).id === id,
+  );
 }
 
 function frameDescriptor(contribution: BrowserContributionDescriptor): BrowserGenerationDescriptor {

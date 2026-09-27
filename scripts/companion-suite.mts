@@ -1,10 +1,19 @@
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { appendFileSync, copyFileSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { builtAddonArchive } from "./inspect-addon-builds.mts";
 import { readRevisions, readSourceRevision, verifyRevisions } from "./companion-revisions.mts";
+import { verifyToolchains } from "./check-toolchains.mts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 export const companionInputs = {
@@ -14,54 +23,123 @@ export const companionInputs = {
   "dnd-2024-compendium": "CODEX_COMPENDIUM_ZIP",
 } as const;
 type AddonId = keyof typeof companionInputs;
-export interface PackageEvidence { id: AddonId; version: string; sourceCommit: string; sourceDirty: boolean; file: string; sha256: string; bytes: number }
-export interface SuiteEvidence { contractVersion: "companion-suite.v1"; hostCommit: string; hostDirty: boolean; packages: PackageEvidence[] }
-const digest = (path: string): string => createHash("sha256").update(readFileSync(path)).digest("hex");
+export interface PackageEvidence {
+  id: AddonId;
+  version: string;
+  sourceCommit: string;
+  sourceDirty: boolean;
+  file: string;
+  sha256: string;
+  bytes: number;
+}
+export interface SuiteEvidence {
+  contractVersion: "companion-suite.v1";
+  hostCommit: string;
+  hostDirty: boolean;
+  packages: PackageEvidence[];
+}
+const digest = (path: string): string =>
+  createHash("sha256").update(readFileSync(path)).digest("hex");
 function git(directory: string, args: string[]): string {
   return execFileSync("git", args, { cwd: directory, encoding: "utf8", windowsHide: true }).trim();
 }
 
-export function verifyPackages(evidence: SuiteEvidence, directory: string, required: boolean): Record<string, string> {
-  if (evidence.contractVersion !== "companion-suite.v1" || !/^[a-f0-9]{40,64}$/.test(evidence.hostCommit) ||
-      typeof evidence.hostDirty !== "boolean" || !Array.isArray(evidence.packages)) throw new Error("Invalid companion provenance");
+export function verifyPackages(
+  evidence: SuiteEvidence,
+  directory: string,
+  required: boolean,
+): Record<string, string> {
+  if (
+    evidence.contractVersion !== "companion-suite.v1" ||
+    !/^[a-f0-9]{40,64}$/.test(evidence.hostCommit) ||
+    typeof evidence.hostDirty !== "boolean" ||
+    !Array.isArray(evidence.packages)
+  )
+    throw new Error("Invalid companion provenance");
   const result: Record<string, string> = {};
   for (const item of evidence.packages) {
-    if (!Object.hasOwn(companionInputs, item.id) || item.file !== item.id + ".zip" ||
-        item.file !== basename(item.file) || !/^[a-f0-9]{40,64}$/.test(item.sourceCommit) ||
-        typeof item.sourceDirty !== "boolean" || !/^[a-f0-9]{64}$/.test(item.sha256) ||
-        !Number.isSafeInteger(item.bytes) || item.bytes < 1 || typeof item.version !== "string") throw new Error("Invalid companion package evidence");
+    if (
+      !Object.hasOwn(companionInputs, item.id) ||
+      item.file !== item.id + ".zip" ||
+      item.file !== basename(item.file) ||
+      !/^[a-f0-9]{40,64}$/.test(item.sourceCommit) ||
+      typeof item.sourceDirty !== "boolean" ||
+      !/^[a-f0-9]{64}$/.test(item.sha256) ||
+      !Number.isSafeInteger(item.bytes) ||
+      item.bytes < 1 ||
+      typeof item.version !== "string"
+    )
+      throw new Error("Invalid companion package evidence");
     const variable = companionInputs[item.id];
     if (result[variable]) throw new Error("Duplicate companion package");
     const path = resolve(directory, item.file);
-    if (!statSync(path).isFile() || statSync(path).size !== item.bytes || digest(path) !== item.sha256) throw new Error("Companion package changed after inspection: " + item.id);
+    if (
+      !statSync(path).isFile() ||
+      statSync(path).size !== item.bytes ||
+      digest(path) !== item.sha256
+    )
+      throw new Error("Companion package changed after inspection: " + item.id);
     result[variable] = path;
   }
-  const missing = Object.values(companionInputs).filter(variable => !result[variable]);
-  if (required && missing.length) throw new Error("Publication requires every companion ZIP: " + missing.join(", "));
+  const missing = Object.values(companionInputs).filter((variable) => !result[variable]);
+  if (required && missing.length)
+    throw new Error("Publication requires every companion ZIP: " + missing.join(", "));
   for (const variable of ["CODEX_DM_TOOLS_ZIP", "CODEX_ENGINE_ZIP", "CODEX_SHEETS_ZIP"]) {
     if (!result[variable]) throw new Error("Missing public companion package: " + variable);
   }
   return result;
 }
 
-export function prepareSuite(repositories: string[], directory = join(root, "release", "companions")): SuiteEvidence {
+export function prepareSuite(
+  repositories: string[],
+  directory = join(root, "release", "companions"),
+): SuiteEvidence {
   if (!repositories.length) throw new Error("Companion repositories are required");
-  const sources = repositories.map(repository => ({ repository, ...readSourceRevision(repository) }));
+  verifyToolchains(repositories);
+  const sources = repositories.map((repository) => ({
+    repository,
+    ...readSourceRevision(repository),
+  }));
   verifyRevisions(sources, readRevisions(), "public");
   mkdirSync(directory, { recursive: true });
-  const evidence: SuiteEvidence = { contractVersion: "companion-suite.v1", hostCommit: git(root, ["rev-parse", "HEAD"]),
-    hostDirty: !!git(root, ["status", "--porcelain", "--untracked-files=no"]), packages: [] };
+  const evidence: SuiteEvidence = {
+    contractVersion: "companion-suite.v1",
+    hostCommit: git(root, ["rev-parse", "HEAD"]),
+    hostDirty: !!git(root, ["status", "--porcelain", "--untracked-files=no"]),
+    packages: [],
+  };
   for (const source of sources) {
     const { repository } = source;
     const archive = builtAddonArchive(repository);
-    const report = JSON.parse(execFileSync("go", ["run", "./cmd/codex-addon-inspect", "-compact", archive],
-      { cwd: root, encoding: "utf8", windowsHide: true, maxBuffer: 32 << 20 })) as { ok?: boolean; archiveSha256?: string; manifest?: { id?: string; version?: string } };
+    const report = JSON.parse(
+      execFileSync("go", ["run", "./cmd/codex-addon-inspect", "-compact", archive], {
+        cwd: root,
+        encoding: "utf8",
+        windowsHide: true,
+        maxBuffer: 32 << 20,
+      }),
+    ) as { ok?: boolean; archiveSha256?: string; manifest?: { id?: string; version?: string } };
     const id = report.manifest?.id;
-    if (!report.ok || !id || id !== source.id || !Object.hasOwn(companionInputs, id) || !report.manifest?.version || report.archiveSha256 !== digest(archive)) throw new Error("Unexpected inspected companion");
-    const file = id + ".zip"; copyFileSync(archive, join(directory, file));
-    evidence.packages.push({ id: id as AddonId, version: report.manifest.version, file, sha256: report.archiveSha256,
-      bytes: statSync(archive).size, sourceCommit: source.sourceCommit,
-      sourceDirty: !!git(repository, ["status", "--porcelain", "--untracked-files=no"]) });
+    if (
+      !report.ok ||
+      !id ||
+      id !== source.id ||
+      !Object.hasOwn(companionInputs, id) ||
+      !report.manifest?.version ||
+      report.archiveSha256 !== digest(archive)
+    )
+      throw new Error("Unexpected inspected companion");
+    const file = id + ".zip";
+    copyFileSync(archive, join(directory, file));
+    evidence.packages.push({
+      id: id as AddonId,
+      version: report.manifest.version,
+      file,
+      sha256: report.archiveSha256,
+      bytes: statSync(archive).size,
+      sourceCommit: source.sourceCommit,
+      sourceDirty: !!git(repository, ["status", "--porcelain", "--untracked-files=no"]),
+    });
   }
   verifyPackages(evidence, directory, false);
   writeFileSync(join(directory, "provenance.json"), JSON.stringify(evidence, null, 2) + "\n");
@@ -71,31 +149,55 @@ export function prepareSuite(repositories: string[], directory = join(root, "rel
 export function requireNoSkips(output: string): void {
   const counts = [...output.matchAll(/^# skipped (\d+)\s*$/gm)];
   const tests = /^# tests (\d+)\s*$/m.exec(output);
-  if (counts.length !== 1 || counts[0]![1] !== "0" || !tests || Number(tests[1]) < 1) throw new Error("Installed publication acceptance must report zero skipped tests");
+  if (counts.length !== 1 || counts[0]![1] !== "0" || !tests || Number(tests[1]) < 1)
+    throw new Error("Installed publication acceptance must report zero skipped tests");
 }
 
 function runSuite(required: boolean): void {
   const directory = join(root, "release", "companions");
-  const evidence = JSON.parse(readFileSync(join(directory, "provenance.json"), "utf8")) as SuiteEvidence;
-  if (evidence.hostCommit !== git(root, ["rev-parse", "HEAD"])) throw new Error("Companions were inspected against a different host commit");
+  const evidence = JSON.parse(
+    readFileSync(join(directory, "provenance.json"), "utf8"),
+  ) as SuiteEvidence;
+  if (evidence.hostCommit !== git(root, ["rev-parse", "HEAD"]))
+    throw new Error("Companions were inspected against a different host commit");
   const inputs = verifyPackages(evidence, directory, required);
   verifyRevisions(evidence.packages, readRevisions(), required ? "full" : "public");
-  if (process.env.CI && (evidence.hostDirty || evidence.packages.some(item => item.sourceDirty))) {
+  if (
+    process.env.CI &&
+    (evidence.hostDirty || evidence.packages.some((item) => item.sourceDirty))
+  ) {
     // Dirtiness is evidence, never a reason to claim a different source commit.
     // Publication CI separately rejects tracked source changed by a build.
     console.log("Builds changed tracked files; provenance records this explicitly.");
   }
-  const files = readdirSync(join(root, "frontend", "test", "browser")).filter(file => /^installed-.*\.browser\.mts$/.test(file)).sort();
+  const files = readdirSync(join(root, "frontend", "test", "browser"))
+    .filter((file) => /^installed-.*\.browser\.mts$/.test(file))
+    .sort();
   const env = { ...process.env };
   for (const variable of Object.values(companionInputs)) delete env[variable];
   Object.assign(env, inputs);
-  const result = spawnSync(process.execPath, ["--test", "--test-concurrency=4", "--test-reporter=tap", ...files.map(file => "test/browser/" + file)],
-    { cwd: join(root, "frontend"), env, encoding: "utf8", windowsHide: true, maxBuffer: 32 << 20 });
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--test",
+      "--test-concurrency=4",
+      "--test-reporter=tap",
+      ...files.map((file) => "test/browser/" + file),
+    ],
+    { cwd: join(root, "frontend"), env, encoding: "utf8", windowsHide: true, maxBuffer: 32 << 20 },
+  );
   writeFileSync(join(directory, "installed.tap"), result.stdout ?? "");
-  process.stdout.write(result.stdout ?? ""); process.stderr.write(result.stderr ?? "");
-  let failure = result.error ?? (result.status !== 0 ? new Error("Installed companion acceptance failed") : undefined);
+  process.stdout.write(result.stdout ?? "");
+  process.stderr.write(result.stderr ?? "");
+  let failure =
+    result.error ??
+    (result.status !== 0 ? new Error("Installed companion acceptance failed") : undefined);
   if (!failure && required) {
-    try { requireNoSkips(result.stdout); } catch (error) { failure = error instanceof Error ? error : new Error(String(error)); }
+    try {
+      requireNoSkips(result.stdout);
+    } catch (error) {
+      failure = error instanceof Error ? error : new Error(String(error));
+    }
   }
   const summary = suiteSummary(evidence, required, !failure);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
@@ -105,12 +207,22 @@ function runSuite(required: boolean): void {
 
 export function suiteSummary(evidence: SuiteEvidence, required: boolean, passed: boolean): string {
   return [
-    "### Installed companion acceptance", "",
-    !passed ? "Installed acceptance failed; publication is blocked. Check the test log against these exact sources." :
-      required ? "Full publication suite passed with zero skipped tests." : "Public compatibility passed; missing private content does not establish publication coverage.",
-    "", "| Add-on | Source commit | Inspected ZIP SHA-256 | Working-tree changes after build |", "| --- | --- | --- | --- |",
-    ...evidence.packages.map(item => `| ${item.id} | ${item.sourceCommit} | ${item.sha256} | ${item.sourceDirty} |`),
-    "", `Host: ${evidence.hostCommit}; working-tree changes: ${evidence.hostDirty}.`, "",
+    "### Installed companion acceptance",
+    "",
+    !passed
+      ? "Installed acceptance failed; publication is blocked. Check the test log against these exact sources."
+      : required
+        ? "Full publication suite passed with zero skipped tests."
+        : "Public compatibility passed; missing private content does not establish publication coverage.",
+    "",
+    "| Add-on | Source commit | Inspected ZIP SHA-256 | Working-tree changes after build |",
+    "| --- | --- | --- | --- |",
+    ...evidence.packages.map(
+      (item) => `| ${item.id} | ${item.sourceCommit} | ${item.sha256} | ${item.sourceDirty} |`,
+    ),
+    "",
+    `Host: ${evidence.hostCommit}; working-tree changes: ${evidence.hostDirty}.`,
+    "",
   ].join("\n");
 }
 
@@ -118,7 +230,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const [command, ...args] = process.argv.slice(2);
     if (command === "prepare") prepareSuite(args);
-    else if (command === "test" && args.length === 1 && ["full", "public"].includes(args[0]!)) runSuite(args[0] === "full");
+    else if (command === "test" && args.length === 1 && ["full", "public"].includes(args[0]!))
+      runSuite(args[0] === "full");
     else throw new Error("Usage: companion-suite.mts prepare <repos...> | test <full|public>");
-  } catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; }
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
 }

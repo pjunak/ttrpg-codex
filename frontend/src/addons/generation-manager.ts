@@ -1,13 +1,6 @@
 import { validContributionLabels } from "./contribution-label.js";
-import {
-  GenerationScope,
-  type Disposer,
-  type GenerationStopReason,
-} from "./generation-scope.js";
-import type {
-  BrowserAddonContext,
-  BrowserAddonSDKSession,
-} from "./browser-sdk.js";
+import { GenerationScope, type Disposer, type GenerationStopReason } from "./generation-scope.js";
+import type { BrowserAddonContext, BrowserAddonSDKSession } from "./browser-sdk.js";
 
 const addonIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
@@ -214,7 +207,9 @@ export class BrowserGenerationManager {
     for (const addonId of target.activationOrder) {
       const descriptor = target.addons.get(addonId);
       if (descriptor === undefined) {
-        throw new BrowserGenerationPlanError(`activation order references missing add-on ${addonId}`);
+        throw new BrowserGenerationPlanError(
+          `activation order references missing add-on ${addonId}`,
+        );
       }
       const unavailableDependencies = descriptor.dependencies.filter(
         (dependencyId) => !this.#active.has(dependencyId),
@@ -328,7 +323,7 @@ export function validateBrowserGenerationSet(target: BrowserGenerationSet): Brow
     contractVersion: 2,
     graphRevision: normalized.graphRevision,
     addons: [...normalized.addons.values()].sort((left, right) =>
-      left.addonId.localeCompare(right.addonId)
+      left.addonId.localeCompare(right.addonId),
     ),
   };
 }
@@ -343,9 +338,10 @@ export function createModuleActivator(
       throw new TypeError(`browser add-on ${descriptor.addonId} is not an integrated module`);
     }
     const resourceDisposer = await prepareResources(descriptor, context.scope);
-    const releaseResourceFallback = resourceDisposer === undefined
-      ? undefined
-      : context.scope.add("browser generation resources", resourceDisposer);
+    const releaseResourceFallback =
+      resourceDisposer === undefined
+        ? undefined
+        : context.scope.add("browser generation resources", resourceDisposer);
     const sdk = createSDK(descriptor, context.scope);
     for (const contribution of sdk.context.ui.declarations()) {
       if (contribution.surface === "sidebar") {
@@ -354,7 +350,9 @@ export function createModuleActivator(
     }
     const imported = await importModule(descriptor.entryUrl);
     if (!isBrowserGenerationModule(imported)) {
-      throw new TypeError(`browser add-on module ${descriptor.entryUrl} must export activate(context)`);
+      throw new TypeError(
+        `browser add-on module ${descriptor.entryUrl} must export activate(context)`,
+      );
     }
     const disposable = await imported.activate(sdk.context);
     if (disposable !== undefined && !isBrowserGenerationDisposable(disposable)) {
@@ -395,10 +393,7 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
     if (!validToken(input.addonVersion, 100)) {
       throw new BrowserGenerationPlanError(`invalid add-on version for ${input.addonId}`);
     }
-    if (
-      !validSameOriginPath(input.entryUrl) ||
-      !hasAssetExtension(input.entryUrl, ".js", ".mjs")
-    ) {
+    if (!validSameOriginPath(input.entryUrl) || !hasAssetExtension(input.entryUrl, ".js", ".mjs")) {
       throw new BrowserGenerationPlanError(`invalid entry URL for ${input.addonId}`);
     }
     if (input.mode !== "integrated" && input.mode !== "isolated") {
@@ -428,9 +423,10 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
     }
     const sandbox = sortedUnique(
       input.sandbox,
-      (value) => value === "downloads" || value === "forms" || value === "modals" || value === "popups",
+      (value) =>
+        value === "downloads" || value === "forms" || value === "modals" || value === "popups",
     );
-    if (sandbox === undefined || input.mode === "integrated" && sandbox.length > 0) {
+    if (sandbox === undefined || (input.mode === "integrated" && sandbox.length > 0)) {
       throw new BrowserGenerationPlanError(`invalid sandbox list for ${input.addonId}`);
     }
     const capabilities = sortedUnique(
@@ -467,9 +463,7 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
   };
 }
 
-function topologicalOrder(
-  addons: ReadonlyMap<string, BrowserGenerationDescriptor>,
-): string[] {
+function topologicalOrder(addons: ReadonlyMap<string, BrowserGenerationDescriptor>): string[] {
   const ordered: string[] = [];
   const visiting = new Set<string>();
   const visited = new Set<string>();
@@ -529,19 +523,18 @@ function normalizePermissions(
   if (input.length > 100) {
     throw new BrowserGenerationPlanError(`permission list exceeds 100 grants for ${addonId}`);
   }
-  const result = input.map((permission) => {
-    if (!contractIdPattern.test(permission.id) || permission.id.length > 120) {
-      throw new BrowserGenerationPlanError(`invalid permission id for ${addonId}`);
-    }
-    const resources = sortedUnique(
-      permission.resources,
-      (value) => validToken(value, 300),
-    );
-    if (resources === undefined || resources.length > 200) {
-      throw new BrowserGenerationPlanError(`invalid resources for ${addonId}:${permission.id}`);
-    }
-    return { id: permission.id, resources };
-  }).sort((left, right) => left.id.localeCompare(right.id));
+  const result = input
+    .map((permission) => {
+      if (!contractIdPattern.test(permission.id) || permission.id.length > 120) {
+        throw new BrowserGenerationPlanError(`invalid permission id for ${addonId}`);
+      }
+      const resources = sortedUnique(permission.resources, (value) => validToken(value, 300));
+      if (resources === undefined || resources.length > 200) {
+        throw new BrowserGenerationPlanError(`invalid resources for ${addonId}:${permission.id}`);
+      }
+      return { id: permission.id, resources };
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
   for (let index = 1; index < result.length; index += 1) {
     if (result[index - 1]?.id === result[index]?.id) {
       throw new BrowserGenerationPlanError(`duplicate permission for ${addonId}`);
@@ -558,42 +551,56 @@ function normalizeContributions(
   if (input.length > 500) {
     throw new BrowserGenerationPlanError(`contribution list exceeds 500 entries for ${addonId}`);
   }
-  const result = input.map((contribution) => {
-    if (!localIdPattern.test(contribution.id) || contribution.id.length > 100) {
-      throw new BrowserGenerationPlanError(`invalid contribution id for ${addonId}`);
-    }
-    if (!validContributionSurface(contribution.surface)) {
-      throw new BrowserGenerationPlanError(`invalid contribution surface for ${addonId}:${contribution.id}`);
-    }
-    if (!validToken(contribution.label, 120)) {
-      throw new BrowserGenerationPlanError(`invalid contribution label for ${addonId}:${contribution.id}`);
-    }
-    if (!Number.isInteger(contribution.order) || contribution.order < -10_000 || contribution.order > 10_000) {
-      throw new BrowserGenerationPlanError(`invalid contribution order for ${addonId}:${contribution.id}`);
-    }
-    const roles = sortedUnique(
-      contribution.roles,
-      (value) => value === "dm" || value === "player",
-    );
-    const requires = sortedUnique(
-      contribution.requires,
-      (value) => contractIdPattern.test(value) && value.length <= 120 && capabilities.has(value),
-    );
-    if (roles === undefined || requires === undefined) {
-      throw new BrowserGenerationPlanError(`invalid contribution authority for ${addonId}:${contribution.id}`);
-    }
-    const config = normalizeJSONRecord(contribution.config, `${addonId}:${contribution.id}`);
-    validateContributionConfig(contribution.surface, config, `${addonId}:${contribution.id}`);
-    return {
-      id: contribution.id,
-      surface: contribution.surface,
-      label: contribution.label,
-      roles,
-      order: contribution.order,
-      requires,
-      config,
-    };
-  }).sort((left, right) => left.id.localeCompare(right.id));
+  const result = input
+    .map((contribution) => {
+      if (!localIdPattern.test(contribution.id) || contribution.id.length > 100) {
+        throw new BrowserGenerationPlanError(`invalid contribution id for ${addonId}`);
+      }
+      if (!validContributionSurface(contribution.surface)) {
+        throw new BrowserGenerationPlanError(
+          `invalid contribution surface for ${addonId}:${contribution.id}`,
+        );
+      }
+      if (!validToken(contribution.label, 120)) {
+        throw new BrowserGenerationPlanError(
+          `invalid contribution label for ${addonId}:${contribution.id}`,
+        );
+      }
+      if (
+        !Number.isInteger(contribution.order) ||
+        contribution.order < -10_000 ||
+        contribution.order > 10_000
+      ) {
+        throw new BrowserGenerationPlanError(
+          `invalid contribution order for ${addonId}:${contribution.id}`,
+        );
+      }
+      const roles = sortedUnique(
+        contribution.roles,
+        (value) => value === "dm" || value === "player",
+      );
+      const requires = sortedUnique(
+        contribution.requires,
+        (value) => contractIdPattern.test(value) && value.length <= 120 && capabilities.has(value),
+      );
+      if (roles === undefined || requires === undefined) {
+        throw new BrowserGenerationPlanError(
+          `invalid contribution authority for ${addonId}:${contribution.id}`,
+        );
+      }
+      const config = normalizeJSONRecord(contribution.config, `${addonId}:${contribution.id}`);
+      validateContributionConfig(contribution.surface, config, `${addonId}:${contribution.id}`);
+      return {
+        id: contribution.id,
+        surface: contribution.surface,
+        label: contribution.label,
+        roles,
+        order: contribution.order,
+        requires,
+        config,
+      };
+    })
+    .sort((left, right) => left.id.localeCompare(right.id));
   for (let index = 1; index < result.length; index += 1) {
     if (result[index - 1]?.id === result[index]?.id) {
       throw new BrowserGenerationPlanError(`duplicate contribution for ${addonId}`);
@@ -611,37 +618,54 @@ function validateContributionConfig(
     throw new BrowserGenerationPlanError(`contribution ${owner} has invalid localized labels`);
   }
   if (surface === "route") {
-    if (!hasExactKeys(config, "path", ...(Object.hasOwn(config, "labels") ? ["labels"] : [])) ||
+    if (
+      !hasExactKeys(config, "path", ...(Object.hasOwn(config, "labels") ? ["labels"] : [])) ||
       typeof config["path"] !== "string" ||
       config["path"].length > 200 ||
-      !routePathPattern.test(config["path"])) {
+      !routePathPattern.test(config["path"])
+    ) {
       throw new BrowserGenerationPlanError(
         `route contribution ${owner} requires exact config { path: "segment[/segment]" }`,
       );
     }
     return;
   }
-  if (surface === "sidebar" &&
+  if (
+    surface === "sidebar" &&
     (!hasExactKeys(config, "route", ...(Object.hasOwn(config, "labels") ? ["labels"] : [])) ||
       typeof config["route"] !== "string" ||
       config["route"].length > 100 ||
-      !localIdPattern.test(config["route"]))) {
+      !localIdPattern.test(config["route"]))
+  ) {
     throw new BrowserGenerationPlanError(
       `sidebar contribution ${owner} requires exact config { route: "local.route-id" }`,
     );
   }
 }
 
-function hasExactKeys(value: Readonly<Record<string, unknown>>, ...expected: readonly string[]): boolean {
+function hasExactKeys(
+  value: Readonly<Record<string, unknown>>,
+  ...expected: readonly string[]
+): boolean {
   const keys = Object.keys(value);
   return keys.length === expected.length && expected.every((key) => Object.hasOwn(value, key));
 }
 
 function validContributionSurface(value: string): value is BrowserContributionSurface {
-  return value === "route" || value === "sidebar" || value === "settings" ||
-    value === "article-action" || value === "article-section" || value === "editor-panel" ||
-    value === "slot" || value === "record-renderer" || value === "wiki-kind" ||
-    value === "graph-node-kind" || value === "graph-view" || value === "graph-contributor";
+  return (
+    value === "route" ||
+    value === "sidebar" ||
+    value === "settings" ||
+    value === "article-action" ||
+    value === "article-section" ||
+    value === "editor-panel" ||
+    value === "slot" ||
+    value === "record-renderer" ||
+    value === "wiki-kind" ||
+    value === "graph-node-kind" ||
+    value === "graph-view" ||
+    value === "graph-contributor"
+  );
 }
 
 function normalizeJSONRecord(
@@ -664,7 +688,9 @@ function normalizeJSONValue(value: unknown, owner: string, depth: number): unkno
   }
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
-      throw new BrowserGenerationPlanError(`contribution config contains a non-finite number for ${owner}`);
+      throw new BrowserGenerationPlanError(
+        `contribution config contains a non-finite number for ${owner}`,
+      );
     }
     return value;
   }
@@ -675,11 +701,15 @@ function normalizeJSONValue(value: unknown, owner: string, depth: number): unkno
     return value.map((item) => normalizeJSONValue(item, owner, depth + 1));
   }
   if (typeof value !== "object" || value === null) {
-    throw new BrowserGenerationPlanError(`contribution config contains a non-JSON value for ${owner}`);
+    throw new BrowserGenerationPlanError(
+      `contribution config contains a non-JSON value for ${owner}`,
+    );
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) {
-    throw new BrowserGenerationPlanError(`contribution config contains a non-plain object for ${owner}`);
+    throw new BrowserGenerationPlanError(
+      `contribution config contains a non-plain object for ${owner}`,
+    );
   }
   const keys = Object.keys(value).sort();
   if (keys.length > 1_000) {
@@ -688,7 +718,9 @@ function normalizeJSONValue(value: unknown, owner: string, depth: number): unkno
   const result: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
   for (const key of keys) {
     if (key === "__proto__" || key === "constructor" || key === "prototype") {
-      throw new BrowserGenerationPlanError(`contribution config contains a forbidden key for ${owner}`);
+      throw new BrowserGenerationPlanError(
+        `contribution config contains a forbidden key for ${owner}`,
+      );
     }
     result[key] = normalizeJSONValue((value as Record<string, unknown>)[key], owner, depth + 1);
   }
@@ -706,7 +738,7 @@ function sortedUnique<T extends string>(
   const result = [...values].sort();
   for (let index = 0; index < result.length; index += 1) {
     const value = result[index];
-    if (value === undefined || !validate(value) || index > 0 && result[index - 1] === value) {
+    if (value === undefined || !validate(value) || (index > 0 && result[index - 1] === value)) {
       return undefined;
     }
   }
@@ -714,13 +746,21 @@ function sortedUnique<T extends string>(
 }
 
 function isBrowserGenerationModule(value: unknown): value is BrowserGenerationModule {
-  return typeof value === "object" && value !== null && "activate" in value &&
-    typeof value.activate === "function";
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "activate" in value &&
+    typeof value.activate === "function"
+  );
 }
 
 function isBrowserGenerationDisposable(value: unknown): value is BrowserGenerationDisposable {
-  return typeof value === "object" && value !== null && "dispose" in value &&
-    typeof value.dispose === "function";
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "dispose" in value &&
+    typeof value.dispose === "function"
+  );
 }
 
 function validToken(value: string, maximumLength: number): boolean {

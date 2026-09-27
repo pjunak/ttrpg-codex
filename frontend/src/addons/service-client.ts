@@ -7,14 +7,14 @@ const contractPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
 const methodPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const generationPattern = /^[0-9a-f]{64}$/;
 const connectionKeys = new Set([
-  "contractVersion", "contract", "range", "cardinality", "providers",
+  "contractVersion",
+  "contract",
+  "range",
+  "cardinality",
+  "providers",
 ]);
-const providerKeys = new Set([
-  "addonId", "contractVersion", "generation", "bindingRevision",
-]);
-const resultKeys = new Set([
-  "contractVersion", "providerAddonId", "providerGeneration", "result",
-]);
+const providerKeys = new Set(["addonId", "contractVersion", "generation", "bindingRevision"]);
+const resultKeys = new Set(["contractVersion", "providerAddonId", "providerGeneration", "result"]);
 
 export type BrowserServiceCardinality = "one" | "many";
 
@@ -53,10 +53,7 @@ export interface BrowserServiceHandle {
 }
 
 export interface BrowserServiceAPI {
-  connect(
-    contract: string,
-    options: BrowserServiceConnectOptions,
-  ): Promise<BrowserServiceHandle>;
+  connect(contract: string, options: BrowserServiceConnectOptions): Promise<BrowserServiceHandle>;
 }
 
 export type AddonServiceFetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -64,7 +61,10 @@ export type AddonServiceFetch = (input: string, init: RequestInit) => Promise<Re
 export class AddonServiceHTTPError extends Error {
   override readonly name = "AddonServiceHTTPError";
 
-  constructor(readonly status: number, readonly code: string) {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+  ) {
     super(`add-on service request returned ${status} (${code})`);
   }
 }
@@ -83,8 +83,11 @@ export class BrowserAddonServiceClient {
     readonly signal: AbortSignal;
     readonly fetchService?: AddonServiceFetch;
   }) {
-    if (!addonIdPattern.test(options.addonId) ||
-      !generationPattern.test(options.generationId) || options.csrfToken.length < 32) {
+    if (
+      !addonIdPattern.test(options.addonId) ||
+      !generationPattern.test(options.generationId) ||
+      options.csrfToken.length < 32
+    ) {
       throw new TypeError("add-on service client identity is invalid");
     }
     this.#baseURL = `/api/addons/${encodeURIComponent(options.addonId)}/generations/${options.generationId}/services`;
@@ -95,10 +98,8 @@ export class BrowserAddonServiceClient {
 
   api(): BrowserServiceAPI {
     return Object.freeze({
-      connect: (
-        contract: string,
-        options: BrowserServiceConnectOptions,
-      ) => this.connect(contract, options),
+      connect: (contract: string, options: BrowserServiceConnectOptions) =>
+        this.connect(contract, options),
     });
   }
 
@@ -106,18 +107,26 @@ export class BrowserAddonServiceClient {
     contract: string,
     options: BrowserServiceConnectOptions,
   ): Promise<BrowserServiceHandle> {
-    if (!contractPattern.test(contract) || options.range.length < 1 || options.range.length > 200 ||
+    if (
+      !contractPattern.test(contract) ||
+      options.range.length < 1 ||
+      options.range.length > 200 ||
       (options.cardinality !== "one" && options.cardinality !== "many") ||
-      (options.includeOwn !== undefined && typeof options.includeOwn !== "boolean")) {
+      (options.includeOwn !== undefined && typeof options.includeOwn !== "boolean")
+    ) {
       throw new BoundaryValidationError("add-on service connect", "request is invalid");
     }
-    const value = await this.#request("connect", {
-      contractVersion: "addon-service-connect.v1",
-      contract,
-      range: options.range,
-      cardinality: options.cardinality,
-      ...(options.includeOwn === undefined ? {} : { includeOwn: options.includeOwn }),
-    }, options.signal);
+    const value = await this.#request(
+      "connect",
+      {
+        contractVersion: "addon-service-connect.v1",
+        contract,
+        range: options.range,
+        cardinality: options.cardinality,
+        ...(options.includeOwn === undefined ? {} : { includeOwn: options.includeOwn }),
+      },
+      options.signal,
+    );
     const connection = parseConnection(value, contract, options.range, options.cardinality);
     const providers = Object.freeze([...connection.providers]);
     return Object.freeze({
@@ -146,33 +155,49 @@ export class BrowserAddonServiceClient {
     assertSerializableContainer(params, "add-on service call parameters");
     const deadlineMs = options.deadlineMs ?? 2_000;
     const idempotencyKey = options.idempotencyKey ?? "";
-    if (!Number.isInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 30_000 ||
-      idempotencyKey.length > 200) {
+    if (
+      !Number.isInteger(deadlineMs) ||
+      deadlineMs < 1 ||
+      deadlineMs > 30_000 ||
+      idempotencyKey.length > 200
+    ) {
       throw new BoundaryValidationError("add-on service call", "options are invalid");
     }
     const provider = selectProvider(connection, options.providerAddonId);
-    const value = await this.#request("call", {
-      contractVersion: "addon-service-call.v1",
-      contract: connection.contract,
-      providerAddonId: provider.addonId,
-      providerVersion: provider.contractVersion,
-      providerGeneration: provider.generation,
-      bindingRevision: provider.bindingRevision,
-      method,
-      params,
-      deadlineMs,
-      ...(idempotencyKey === "" ? {} : { idempotencyKey }),
-    }, options.signal);
-    if (!isRecord(value) || !hasOnlyKeys(value, resultKeys) ||
+    const value = await this.#request(
+      "call",
+      {
+        contractVersion: "addon-service-call.v1",
+        contract: connection.contract,
+        providerAddonId: provider.addonId,
+        providerVersion: provider.contractVersion,
+        providerGeneration: provider.generation,
+        bindingRevision: provider.bindingRevision,
+        method,
+        params,
+        deadlineMs,
+        ...(idempotencyKey === "" ? {} : { idempotencyKey }),
+      },
+      options.signal,
+    );
+    if (
+      !isRecord(value) ||
+      !hasOnlyKeys(value, resultKeys) ||
       value["contractVersion"] !== "addon-service-result.v1" ||
       value["providerAddonId"] !== provider.addonId ||
-      value["providerGeneration"] !== provider.generation || value["result"] === undefined) {
+      value["providerGeneration"] !== provider.generation ||
+      value["result"] === undefined
+    ) {
       throw new BoundaryValidationError("add-on service call", "response must be an exact result");
     }
     return value["result"] as TResponse;
   }
 
-  async #request(operation: "connect" | "call", body: unknown, signal?: AbortSignal): Promise<unknown> {
+  async #request(
+    operation: "connect" | "call",
+    body: unknown,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
     this.#signal.throwIfAborted();
     signal?.throwIfAborted();
     const response = await this.#fetchService(`${this.#baseURL}/${operation}`, {
@@ -189,20 +214,33 @@ export class BrowserAddonServiceClient {
     });
     const text = await response.text();
     if (new TextEncoder().encode(text).byteLength > maximumResponseBytes) {
-      throw new BoundaryValidationError(`add-on service ${operation}`, "response exceeds its byte limit");
+      throw new BoundaryValidationError(
+        `add-on service ${operation}`,
+        "response exceeds its byte limit",
+      );
     }
     let value: unknown;
     try {
       value = JSON.parse(text) as unknown;
     } catch {
-      throw new BoundaryValidationError(`add-on service ${operation}`, "response must be valid JSON");
+      throw new BoundaryValidationError(
+        `add-on service ${operation}`,
+        "response must be valid JSON",
+      );
     }
     if (!response.ok) {
       throw new AddonServiceHTTPError(response.status, errorCode(value));
     }
-    const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    const contentType = response.headers
+      .get("Content-Type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
     if (contentType !== "application/json") {
-      throw new BoundaryValidationError(`add-on service ${operation}`, "response must be application/json");
+      throw new BoundaryValidationError(
+        `add-on service ${operation}`,
+        "response must be application/json",
+      );
     }
     return value;
   }
@@ -221,19 +259,34 @@ function parseConnection(
   range: string,
   cardinality: BrowserServiceCardinality,
 ): ParsedConnection {
-  if (!isRecord(value) || !hasOnlyKeys(value, connectionKeys) ||
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, connectionKeys) ||
     value["contractVersion"] !== "addon-service-connection.v1" ||
-    value["contract"] !== contract || value["range"] !== range ||
-    value["cardinality"] !== cardinality || !Array.isArray(value["providers"])) {
-    throw new BoundaryValidationError("add-on service connect", "response must be an exact connection");
+    value["contract"] !== contract ||
+    value["range"] !== range ||
+    value["cardinality"] !== cardinality ||
+    !Array.isArray(value["providers"])
+  ) {
+    throw new BoundaryValidationError(
+      "add-on service connect",
+      "response must be an exact connection",
+    );
   }
   const providers = value["providers"].map((candidate, index): BrowserServiceProvider => {
-    if (!isRecord(candidate) || !hasOnlyKeys(candidate, providerKeys) ||
-      typeof candidate["addonId"] !== "string" || !addonIdPattern.test(candidate["addonId"]) ||
-      typeof candidate["contractVersion"] !== "string" || candidate["contractVersion"].length === 0 ||
-      typeof candidate["generation"] !== "string" || !generationPattern.test(candidate["generation"]) ||
+    if (
+      !isRecord(candidate) ||
+      !hasOnlyKeys(candidate, providerKeys) ||
+      typeof candidate["addonId"] !== "string" ||
+      !addonIdPattern.test(candidate["addonId"]) ||
+      typeof candidate["contractVersion"] !== "string" ||
+      candidate["contractVersion"].length === 0 ||
+      typeof candidate["generation"] !== "string" ||
+      !generationPattern.test(candidate["generation"]) ||
       typeof candidate["bindingRevision"] !== "number" ||
-      !Number.isSafeInteger(candidate["bindingRevision"]) || candidate["bindingRevision"] < 0) {
+      !Number.isSafeInteger(candidate["bindingRevision"]) ||
+      candidate["bindingRevision"] < 0
+    ) {
       throw new BoundaryValidationError("add-on service connect", `providers[${index}] is invalid`);
     }
     return Object.freeze({
@@ -244,7 +297,10 @@ function parseConnection(
     });
   });
   if (cardinality === "one" && providers.length > 1) {
-    throw new BoundaryValidationError("add-on service connect", "cardinality-one response is ambiguous");
+    throw new BoundaryValidationError(
+      "add-on service connect",
+      "cardinality-one response is ambiguous",
+    );
   }
   return Object.freeze({ contract, range, cardinality, providers: Object.freeze(providers) });
 }
@@ -258,7 +314,10 @@ function selectProvider(
   }
   if (providerAddonId === undefined) {
     if (connection.cardinality === "many") {
-      throw new BoundaryValidationError("add-on service call", "providerAddonId is required for a many-provider service");
+      throw new BoundaryValidationError(
+        "add-on service call",
+        "providerAddonId is required for a many-provider service",
+      );
     }
     return connection.providers[0] as BrowserServiceProvider;
   }
@@ -279,14 +338,21 @@ function assertSerializableContainer(value: unknown, boundary: string): void {
   } catch {
     // Handled below.
   }
-  if (encoded === undefined || new TextEncoder().encode(encoded).byteLength > maximumResponseBytes) {
+  if (
+    encoded === undefined ||
+    new TextEncoder().encode(encoded).byteLength > maximumResponseBytes
+  ) {
     throw new BoundaryValidationError(boundary, "value is not bounded JSON");
   }
 }
 
 function errorCode(value: unknown): string {
-  if (!isRecord(value) || !isRecord(value["error"]) ||
-    typeof value["error"]["kind"] !== "string" || value["error"]["kind"].length > 100) {
+  if (
+    !isRecord(value) ||
+    !isRecord(value["error"]) ||
+    typeof value["error"]["kind"] !== "string" ||
+    value["error"]["kind"].length > 100
+  ) {
     return "HTTP_ERROR";
   }
   return value["error"]["kind"];

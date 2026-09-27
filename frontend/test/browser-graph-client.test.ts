@@ -25,15 +25,17 @@ const descriptor: BrowserGenerationDescriptor = {
   dependencies: [],
   capabilities: ["ui.contributions"],
   permissions: [{ id: "core.data.read", resources: ["characters"] }],
-  contributions: [{
-    id: "planner.route",
-    surface: "route",
-    label: "Story Planner",
-    roles: ["dm"],
-    order: 200,
-    requires: ["ui.contributions"],
-    config: { path: "planner" },
-  }],
+  contributions: [
+    {
+      id: "planner.route",
+      surface: "route",
+      label: "Story Planner",
+      roles: ["dm"],
+      order: 200,
+      requires: ["ui.contributions"],
+      config: { path: "planner" },
+    },
+  ],
 };
 const graph: BrowserGenerationSet = {
   contractVersion: 2,
@@ -43,13 +45,36 @@ const graph: BrowserGenerationSet = {
 
 describe("parseBrowserGenerationSet", () => {
   it("accepts reviewed localized labels without weakening canonical route metadata", () => {
-    const localized = (labels: unknown) => ({ ...graph, addons: [{ ...descriptor, contributions: [{
-      ...descriptor.contributions[0], config: { path: "planner", labels },
-    }] }] });
-    expect(parseBrowserGenerationSet(localized({ cs: "Plánovač příběhu" })).addons[0]?.contributions[0]?.config)
-      .toEqual({ path: "planner", labels: { cs: "Plánovač příběhu" } });
-    for (const labels of [null, [], { cs: "" }, { cs: "   " }, { cs: "bad\nlabel" }, { cs: "a".repeat(201) }, { path: "changed" }]) {
-      expect(() => parseBrowserGenerationSet(localized(labels))).toThrow("invalid localized labels");
+    const localized = (labels: unknown) => ({
+      ...graph,
+      addons: [
+        {
+          ...descriptor,
+          contributions: [
+            {
+              ...descriptor.contributions[0],
+              config: { path: "planner", labels },
+            },
+          ],
+        },
+      ],
+    });
+    expect(
+      parseBrowserGenerationSet(localized({ cs: "Plánovač příběhu" })).addons[0]?.contributions[0]
+        ?.config,
+    ).toEqual({ path: "planner", labels: { cs: "Plánovač příběhu" } });
+    for (const labels of [
+      null,
+      [],
+      { cs: "" },
+      { cs: "   " },
+      { cs: "bad\nlabel" },
+      { cs: "a".repeat(201) },
+      { path: "changed" },
+    ]) {
+      expect(() => parseBrowserGenerationSet(localized(labels))).toThrow(
+        "invalid localized labels",
+      );
     }
   });
   it("accepts and copies the exact v2 wire shape", () => {
@@ -69,44 +94,65 @@ describe("parseBrowserGenerationSet", () => {
     { ...graph, addons: [{ ...graph.addons[0], sandbox: ["same-origin"] }] },
     { ...graph, addons: [{ ...graph.addons[0], dependencies: [1] }] },
     { ...graph, addons: [{ ...graph.addons[0], capabilities: ["invalid"] }] },
-    { ...graph, addons: [{ ...graph.addons[0], entryUrl: descriptor.entryUrl.replace(".js", ".html") }] },
+    {
+      ...graph,
+      addons: [{ ...graph.addons[0], entryUrl: descriptor.entryUrl.replace(".js", ".html") }],
+    },
     { ...graph, addons: [{ ...graph.addons[0], styleUrls: [descriptor.entryUrl] }] },
-    { ...graph, addons: [{ ...graph.addons[0], styleUrls: Array(65).fill(descriptor.styleUrls[0]) }] },
+    {
+      ...graph,
+      addons: [{ ...graph.addons[0], styleUrls: Array(65).fill(descriptor.styleUrls[0]) }],
+    },
     { ...graph, addons: [{ ...graph.addons[0], permissions: [{ id: "read", resources: [] }] }] },
     {
       ...graph,
-      addons: [{
-        ...graph.addons[0],
-        contributions: [{ ...descriptor.contributions[0], surface: "raw-html" }],
-      }],
+      addons: [
+        {
+          ...graph.addons[0],
+          contributions: [{ ...descriptor.contributions[0], surface: "raw-html" }],
+        },
+      ],
     },
     {
       ...graph,
-      addons: [{
-        ...graph.addons[0],
-        contributions: [{ ...descriptor.contributions[0], config: { path: "/planner" } }],
-      }],
+      addons: [
+        {
+          ...graph.addons[0],
+          contributions: [{ ...descriptor.contributions[0], config: { path: "/planner" } }],
+        },
+      ],
     },
     {
       ...graph,
-      addons: [{
-        ...graph.addons[0],
-        contributions: [{ ...descriptor.contributions[0], config: { path: "planner", href: "https://invalid" } }],
-      }],
+      addons: [
+        {
+          ...graph.addons[0],
+          contributions: [
+            {
+              ...descriptor.contributions[0],
+              config: { path: "planner", href: "https://invalid" },
+            },
+          ],
+        },
+      ],
     },
     {
       ...graph,
-      addons: [{
-        ...graph.addons[0],
-        entryUrl: `/api/addons/other-addon/generations/${generationId}/assets/web/index.js`,
-      }],
+      addons: [
+        {
+          ...graph.addons[0],
+          entryUrl: `/api/addons/other-addon/generations/${generationId}/assets/web/index.js`,
+        },
+      ],
     },
     {
       ...graph,
-      addons: [{
-        ...graph.addons[0],
-        entryUrl: `/api/addons/dm-tools/generations/${generationId}/assets/web/../worker/addon.js`,
-      }],
+      addons: [
+        {
+          ...graph.addons[0],
+          entryUrl: `/api/addons/dm-tools/generations/${generationId}/assets/web/../worker/addon.js`,
+        },
+      ],
     },
   ])("rejects malformed or cross-generation input %#", (value) => {
     expect(() => parseBrowserGenerationSet(value)).toThrow(BoundaryValidationError);
@@ -193,7 +239,9 @@ describe("BrowserGraphClient", () => {
   });
 
   it("reports HTTP status without parsing an error body", async () => {
-    const client = new BrowserGraphClient(async () => new Response("private detail", { status: 403 }));
+    const client = new BrowserGraphClient(
+      async () => new Response("private detail", { status: 403 }),
+    );
 
     await expect(client.refresh(new AbortController().signal)).rejects.toEqual(
       new BrowserGraphHTTPError(403),

@@ -12,5 +12,7 @@ export interface EditorFixtureApi {
 }
 
 declare global {
-  interface Window { editorFixture: EditorFixtureApi }
+  interface Window {
+    editorFixture: EditorFixtureApi;
+  }
 }

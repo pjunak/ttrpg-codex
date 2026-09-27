@@ -64,9 +64,15 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: |
+            go.sum
+            go.tools.sum
 
       - run: npm ci
-      - run: node --test .github/scripts/workflow-policy.test.mts
+      - run: npm run check:dependencies
+      - run: go mod download -modfile=go.tools.mod
+      - run: go run ./tools/check.go workflows
+      - run: go run ./tools/check.go vuln
       - run: npx playwright install --with-deps chromium
       - run: npm run check
 

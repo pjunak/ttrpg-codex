@@ -1,3 +1,4 @@
+import { requestBodyText } from "./request-body.js";
 import { describe, expect, it } from "vitest";
 import { BoundaryValidationError } from "../src/core/boundary.js";
 import {
@@ -23,29 +24,52 @@ const blob = {
 
 describe("media boundary parsers", () => {
   it("validates bounded map pyramid dimensions and rejects foreign tile sources", async () => {
-    const manifest = { contractVersion: "map-tiles.v1", id: blob.id, width: 1280, height: 800, tileSize: 256, depth: 3 };
+    const manifest = {
+      contractVersion: "map-tiles.v1",
+      id: blob.id,
+      width: 1280,
+      height: 800,
+      tileSize: 256,
+      depth: 3,
+    };
     expect(parseMapTileManifest(manifest)).toEqual(manifest);
-    for (const invalid of [{ ...manifest, depth: 2 }, { ...manifest, tileSize: 512 }, { ...manifest, width: 32769 },
-      { ...manifest, width: 32000, height: 32000, depth: 7 }, { ...manifest, width: 0 }, { ...manifest, url: 'https://external.invalid/{z}' }]) {
+    for (const invalid of [
+      { ...manifest, depth: 2 },
+      { ...manifest, tileSize: 512 },
+      { ...manifest, width: 32769 },
+      { ...manifest, width: 32000, height: 32000, depth: 7 },
+      { ...manifest, width: 0 },
+      { ...manifest, url: "https://external.invalid/{z}" },
+    ]) {
       expect(() => parseMapTileManifest(invalid)).toThrow(BoundaryValidationError);
     }
     const calls: string[] = [];
-    const client = new MediaClient(async (input, init) => { calls.push(input); expect(init.cache).toBe('no-store'); return jsonResponse(manifest); });
+    const client = new MediaClient(async (input, init) => {
+      calls.push(input);
+      expect(init.cache).toBe("no-store");
+      return jsonResponse(manifest);
+    });
     const signal = new AbortController().signal;
     await expect(client.mapTiles(blob.url, signal)).resolves.toEqual(manifest);
     expect(calls).toEqual([`${blob.url}/tiles/v1/manifest`]);
-    await expect(client.mapTiles('https://example.invalid/map.png', signal)).rejects.toThrow(BoundaryValidationError);
-    const foreign = new MediaClient(async () => jsonResponse({ ...manifest, id: 'b_' + '2'.repeat(32) }));
+    await expect(client.mapTiles("https://example.invalid/map.png", signal)).rejects.toThrow(
+      BoundaryValidationError,
+    );
+    const foreign = new MediaClient(async () =>
+      jsonResponse({ ...manifest, id: "b_" + "2".repeat(32) }),
+    );
     await expect(foreign.mapTiles(blob.url, signal)).rejects.toThrow(BoundaryValidationError);
   });
   it("accepts exact blob and deletion results", () => {
     expect(parseMediaBlob(blob)).toEqual(blob);
-    expect(parseMediaDeleteResult({
-      contractVersion: "media-delete-result.v1",
-      id: blob.id,
-      revision: 2,
-      deleted: true,
-    })).toEqual({
+    expect(
+      parseMediaDeleteResult({
+        contractVersion: "media-delete-result.v1",
+        id: blob.id,
+        revision: 2,
+        deleted: true,
+      }),
+    ).toEqual({
       contractVersion: "media-delete-result.v1",
       id: blob.id,
       revision: 2,
@@ -74,14 +98,24 @@ describe("MediaClient", () => {
     const content = new Blob(["image bytes"], { type: "image/png" });
     const signal = new AbortController().signal;
 
-    await expect(client.upload(
-      "character-portrait", "hero", content, "Hrdina žluťoučký.png",
-      "c".repeat(32), signal,
-    )).resolves.toEqual(blob);
+    await expect(
+      client.upload(
+        "character-portrait",
+        "hero",
+        content,
+        "Hrdina žluťoučký.png",
+        "c".repeat(32),
+        signal,
+      ),
+    ).resolves.toEqual(blob);
 
     expect(calls[0]?.input).toBe("/api/media/character-portrait/hero");
     expect(calls[0]?.init).toMatchObject({
-      method: "POST", body: content, credentials: "same-origin", cache: "no-store", signal,
+      method: "POST",
+      body: content,
+      credentials: "same-origin",
+      cache: "no-store",
+      signal,
     });
     const headers = new Headers(calls[0]?.init.headers);
     expect(headers.get("Content-Type")).toBe("image/png");
@@ -112,7 +146,7 @@ describe("MediaClient", () => {
     });
     expect(calls[0]?.input).toBe("/api/media/latest/character-portrait/hero");
     expect(calls[1]?.input).toBe(`/api/media/${blob.id}`);
-    expect(JSON.parse(String(calls[1]?.init.body))).toEqual({
+    expect(JSON.parse(requestBodyText(calls[1]?.init.body))).toEqual({
       contractVersion: "media-delete.v1",
       expectedRevision: 1,
     });
@@ -120,13 +154,19 @@ describe("MediaClient", () => {
 
   it("rejects invalid requests locally and reports only HTTP status", async () => {
     const client = new MediaClient(async () => new Response("private detail", { status: 403 }));
-    await expect(client.upload(
-      "world-map", "not-main", new Blob(["x"], { type: "image/png" }), "map.png",
-      "c".repeat(32), new AbortController().signal,
-    )).rejects.toThrow(BoundaryValidationError);
-    await expect(client.latest(
-      "character-portrait", "hero", new AbortController().signal,
-    )).rejects.toEqual(new MediaHTTPError(403, "GET /api/media/latest/{kind}/{target}"));
+    await expect(
+      client.upload(
+        "world-map",
+        "not-main",
+        new Blob(["x"], { type: "image/png" }),
+        "map.png",
+        "c".repeat(32),
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow(BoundaryValidationError);
+    await expect(
+      client.latest("character-portrait", "hero", new AbortController().signal),
+    ).rejects.toEqual(new MediaHTTPError(403, "GET /api/media/latest/{kind}/{target}"));
   });
 });
 

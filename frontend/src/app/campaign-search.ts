@@ -26,16 +26,22 @@ export function searchCampaign(
   const matches: CampaignSearchResult[] = [];
   for (const page of campaignPages) {
     const records = campaignCollection(campaign, page.collection).records;
-    const representatives = twinRepresentatives(records), grouped = new Map<string, CampaignSearchResult>();
+    const representatives = twinRepresentatives(records),
+      grouped = new Map<string, CampaignSearchResult>();
     for (const record of records) {
-      const entity = projectEntity(campaign, record, page), score = searchScore(entity, tokens);
+      const entity = projectEntity(campaign, record, page),
+        score = searchScore(entity, tokens);
       const identity = representatives.get(entity.key)!;
-      if (score > (grouped.get(identity)?.score ?? 0)) grouped.set(identity, Object.freeze({ ...entity, page, score }));
+      if (score > (grouped.get(identity)?.score ?? 0))
+        grouped.set(identity, Object.freeze({ ...entity, page, score }));
     }
     matches.push(...grouped.values());
   }
-  matches.sort((left, right) =>
-    right.score - left.score || left.name.localeCompare(right.name) || left.key.localeCompare(right.key)
+  matches.sort(
+    (left, right) =>
+      right.score - left.score ||
+      left.name.localeCompare(right.name) ||
+      left.key.localeCompare(right.key),
   );
 
   const accepted = matches.slice(0, maximumResults);
@@ -68,7 +74,13 @@ function searchScore(entity: EntitySummary, tokens: readonly string[]): number {
 }
 
 export function searchTokens(query: string): readonly string[] {
-  return Object.freeze([...new Set(searchable(query).split(/\s+/u).filter((token) => token.length > 0))]);
+  return Object.freeze([
+    ...new Set(
+      searchable(query)
+        .split(/\s+/u)
+        .filter((token) => token.length > 0),
+    ),
+  ]);
 }
 
 export function searchable(value: string): string {

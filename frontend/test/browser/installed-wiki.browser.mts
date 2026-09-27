@@ -1,79 +1,205 @@
-import type { APIRequestContext, Browser } from 'playwright';
-import type { TestContext } from 'node:test';
-import type { AddressInfo } from 'node:net';
-import type { ChildProcessByStdio } from 'node:child_process';
-import type { Readable } from 'node:stream';
-import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { before, after, test } from 'node:test';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { resolve, relative, isAbsolute } from 'node:path';
-import { createServer } from 'node:net';
-import { execFile, spawn } from 'node:child_process';
-import { promisify } from 'node:util';
-import { once } from 'node:events';
-import { setTimeout as sleep } from 'node:timers/promises';
-import { chromium, request as playwrightRequest } from 'playwright';
-import { installReviewedPackage, zip, jsonResponse } from './installed-graph-fixture.mts';
+import type { APIRequestContext, Browser } from "playwright";
+import type { TestContext } from "node:test";
+import type { AddressInfo } from "node:net";
+import type { ChildProcessByStdio } from "node:child_process";
+import type { Readable } from "node:stream";
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { before, after, test } from "node:test";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { resolve, relative, isAbsolute } from "node:path";
+import { createServer } from "node:net";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
+import { once } from "node:events";
+import { setTimeout as sleep } from "node:timers/promises";
+import { chromium, request as playwrightRequest } from "playwright";
+import { installReviewedPackage, zip, jsonResponse } from "./installed-graph-fixture.mts";
 
-const root = fileURLToPath(new URL('../../../', import.meta.url));
-const output = resolve(root, 'frontend/test-results/installed-wiki');
-let directory: string, host: ChildProcessByStdio<null, Readable, Readable>, browser: Browser, admin: APIRequestContext, csrf: string, origin: string, hostOutput = '';
+const root = fileURLToPath(new URL("../../../", import.meta.url));
+const output = resolve(root, "frontend/test-results/installed-wiki");
+let directory: string,
+  host: ChildProcessByStdio<null, Readable, Readable>,
+  browser: Browser,
+  admin: APIRequestContext,
+  csrf: string,
+  origin: string,
+  hostOutput = "";
 before(async () => {
-  await mkdir(output, { recursive: true }); directory = await mkdtemp(resolve(output, 'host-'));
-  const binary = resolve(directory, process.platform === 'win32' ? 'codex.exe' : 'codex');
-  await promisify(execFile)('go', ['build', '-o', binary, './cmd/codex'], { cwd: root, windowsHide: true, timeout: 120_000 });
-  const portProbe = createServer(); portProbe.listen(0, '127.0.0.1'); await once(portProbe, 'listening');
-  const port = (portProbe.address() as AddressInfo).port; await new Promise(resolve => portProbe.close(resolve)); origin = `http://127.0.0.1:${port}`;
-  host = spawn(binary, ['-listen', `127.0.0.1:${port}`, '-data-dir', resolve(directory, 'data'), '-web-dir', resolve(root, 'frontend/dist')], {
-    cwd: root, windowsHide: true, env: { ...process.env, CODEX_DM_PASSWORD: 'local-wiki-fixture-dm', CODEX_PLAYER_PASSWORD: 'local-wiki-fixture-player' }, stdio: ['ignore', 'pipe', 'pipe'],
+  await mkdir(output, { recursive: true });
+  directory = await mkdtemp(resolve(output, "host-"));
+  const binary = resolve(directory, process.platform === "win32" ? "codex.exe" : "codex");
+  await promisify(execFile)("go", ["build", "-o", binary, "./cmd/codex"], {
+    cwd: root,
+    windowsHide: true,
+    timeout: 120_000,
   });
-  host.stdout.on('data', chunk => { hostOutput += chunk; }); host.stderr.on('data', chunk => { hostOutput += chunk; });
+  const portProbe = createServer();
+  portProbe.listen(0, "127.0.0.1");
+  await once(portProbe, "listening");
+  const port = (portProbe.address() as AddressInfo).port;
+  await new Promise((resolve) => portProbe.close(resolve));
+  origin = `http://127.0.0.1:${port}`;
+  host = spawn(
+    binary,
+    [
+      "-listen",
+      `127.0.0.1:${port}`,
+      "-data-dir",
+      resolve(directory, "data"),
+      "-web-dir",
+      resolve(root, "frontend/dist"),
+    ],
+    {
+      cwd: root,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        CODEX_DM_PASSWORD: "local-wiki-fixture-dm",
+        CODEX_PLAYER_PASSWORD: "local-wiki-fixture-player",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  host.stdout.on("data", (chunk) => {
+    hostOutput += chunk;
+  });
+  host.stderr.on("data", (chunk) => {
+    hostOutput += chunk;
+  });
   admin = await playwrightRequest.newContext({ baseURL: origin });
   let ready = false;
   for (let i = 0; i < 100; i++) {
-    try { if ((await admin.get('/api/health')).ok()) { ready = true; break; } } catch { /* Host startup. */ }
+    try {
+      if ((await admin.get("/api/health")).ok()) {
+        ready = true;
+        break;
+      }
+    } catch {
+      /* Host startup. */
+    }
     if (host.exitCode !== null) break;
     await sleep(100);
   }
   assert.ok(ready, hostOutput);
-  csrf = (await jsonResponse(await admin.post('/api/login', { data: { password: 'local-wiki-fixture-dm' } }))).csrfToken;
-  await jsonResponse(await admin.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [
-    { operation: 'put', collection: 'characters', key: 'captain', expectedRevision: 0, value: { id: 'captain', name: 'Captain', knowledge: 4, faction: 'party', visibility: 'public' } },
-    { operation: 'put', collection: 'characters', key: 'secret', expectedRevision: 0, value: { id: 'secret', name: 'Hidden witness', knowledge: 4, visibility: 'dm' } },
-  ] } }));
+  csrf = (
+    await jsonResponse(
+      await admin.post("/api/login", { data: { password: "local-wiki-fixture-dm" } }),
+    )
+  ).csrfToken;
+  await jsonResponse(
+    await admin.post("/api/campaign/transactions", {
+      headers: { "X-Codex-CSRF": csrf },
+      data: {
+        contractVersion: "campaign-mutation.v1",
+        mutations: [
+          {
+            operation: "put",
+            collection: "characters",
+            key: "captain",
+            expectedRevision: 0,
+            value: {
+              id: "captain",
+              name: "Captain",
+              knowledge: 4,
+              faction: "party",
+              visibility: "public",
+            },
+          },
+          {
+            operation: "put",
+            collection: "characters",
+            key: "secret",
+            expectedRevision: 0,
+            value: { id: "secret", name: "Hidden witness", knowledge: 4, visibility: "dm" },
+          },
+        ],
+      },
+    }),
+  );
   browser = await chromium.launch({ headless: true });
 });
 after(async () => {
-  await browser?.close(); await admin?.dispose();
-  if (host && host.exitCode === null) { const closed = once(host, 'close'); host.kill(); await closed; }
+  await browser?.close();
+  await admin?.dispose();
+  if (host && host.exitCode === null) {
+    const closed = once(host, "close");
+    host.kill();
+    await closed;
+  }
   if (directory) {
     const child = relative(output, directory);
-    assert.ok(child && !child.startsWith('..') && !isAbsolute(child));
+    assert.ok(child && !child.startsWith("..") && !isAbsolute(child));
     await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
-async function open(t: TestContext, role = 'dm', mobile = false) {
-  const context = await browser.newContext({ baseURL: origin, viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
-    isMobile: mobile, hasTouch: mobile, reducedMotion: 'reduce' });
+async function open(t: TestContext, role = "dm", mobile = false) {
+  const context = await browser.newContext({
+    baseURL: origin,
+    viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+    isMobile: mobile,
+    hasTouch: mobile,
+    reducedMotion: "reduce",
+  });
   t.after(() => context.close());
-  await jsonResponse(await context.request.post('/api/login', { data: { password: `local-wiki-fixture-${role}` } }));
-  await context.addInitScript(() => { if (window === window.top) localStorage.setItem('codex_lang', 'en'); });
-  const page = await context.newPage(); await page.goto('/#/graph/relationships');
-  await page.locator('.cm-node[data-key="captain"]').waitFor(); return page;
+  await jsonResponse(
+    await context.request.post("/api/login", { data: { password: `local-wiki-fixture-${role}` } }),
+  );
+  await context.addInitScript(() => {
+    if (window === window.top) localStorage.setItem("codex_lang", "en");
+  });
+  const page = await context.newPage();
+  await page.goto("/#/graph/relationships");
+  await page.locator('.cm-node[data-key="captain"]').waitFor();
+  return page;
 }
 async function disable(id: string) {
   const snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
-  return jsonResponse(await admin.post(`/api/admin/addons/${id}/disable`, { headers: { 'X-Codex-CSRF': csrf }, data: { expectedStateRevision: snapshot.state.revision } }));
+  return jsonResponse(
+    await admin.post(`/api/admin/addons/${id}/disable`, {
+      headers: { "X-Codex-CSRF": csrf },
+      data: { expectedStateRevision: snapshot.state.revision },
+    }),
+  );
 }
 
-function wikiPackage(id: string, mode: string, { version = '1.0.0', roles = ['dm', 'player'] } = {}) {
-  const manifest = { packageFormat: 1, id, name: 'Reference fixture', version, compatibility: { host: '>=2.0.0 <3.0.0', addonApi: '^3.0.0' },
-    capabilities: { required: ['ui.contributions'], optional: [] }, runtime: { ui: { mode, entry: 'web/index.js' } }, permissions: [], contributions: [
-      { id: 'links', surface: 'wiki-kind', label: 'Fixture library', roles, config: { contractVersion: 1, kinds: ['spell'], legacyRoots: ['old-library'], search: true } },
-      { id: 'detail', surface: 'route', label: 'Library detail', roles, config: { path: 'library' } },
-    ] };
+function wikiPackage(
+  id: string,
+  mode: string,
+  { version = "1.0.0", roles = ["dm", "player"] } = {},
+) {
+  const manifest = {
+    packageFormat: 1,
+    id,
+    name: "Reference fixture",
+    version,
+    compatibility: { host: ">=2.0.0 <3.0.0", addonApi: "^3.0.0" },
+    capabilities: { required: ["ui.contributions"], optional: [] },
+    runtime: { ui: { mode, entry: "web/index.js" } },
+    permissions: [],
+    contributions: [
+      {
+        id: "links",
+        surface: "wiki-kind",
+        label: "Fixture library",
+        roles,
+        config: {
+          contractVersion: 1,
+          kinds: ["spell"],
+          legacyRoots: ["old-library"],
+          search: true,
+        },
+      },
+      {
+        id: "detail",
+        surface: "route",
+        label: "Library detail",
+        roles,
+        config: { path: "library" },
+      },
+    ],
+  };
   const entry = `export function activate(context) {
     const tag = 'fixture-wiki-' + context.addon.generation;
     if (!customElements.get(tag)) customElements.define(tag, class extends HTMLElement { connectedCallback() { this.textContent = 'Reference detail'; } });
@@ -87,39 +213,107 @@ function wikiPackage(id: string, mode: string, { version = '1.0.0', roles = ['dm
       }) };
     } });
   }`;
-  const files: Record<string, string | Buffer> = { 'addon.json': JSON.stringify(manifest), 'web/index.js': entry };
-  files['checksums.json'] = JSON.stringify({ algorithm: 'sha256', files: Object.fromEntries(Object.entries(files).map(([name, body]) => [name, createHash('sha256').update(body).digest('hex')])) });
+  const files: Record<string, string | Buffer> = {
+    "addon.json": JSON.stringify(manifest),
+    "web/index.js": entry,
+  };
+  files["checksums.json"] = JSON.stringify({
+    algorithm: "sha256",
+    files: Object.fromEntries(
+      Object.entries(files).map(([name, body]) => [
+        name,
+        createHash("sha256").update(body).digest("hex"),
+      ]),
+    ),
+  });
   return zip(files);
 }
 
-for (const mode of ['integrated', 'isolated']) test(`installed ${mode} reference providers resolve articles, search and old URLs across replacement`, async t => {
-  const id = `wiki-${mode}`, archive = wikiPackage(id, mode);
-  await installReviewedPackage(admin, csrf, id, archive, []);
-  t.after(() => disable(id));
-  await jsonResponse(await admin.post('/api/campaign/transactions', { headers: { 'X-Codex-CSRF': csrf }, data: { contractVersion: 'campaign-mutation.v1', mutations: [
-    { operation: 'put', collection: 'characters', key: id, expectedRevision: 0, value: { id, name: 'Reference notes', knowledge: 4, visibility: 'public', description: '[[Captain]] and [[Ward|spell:shield]].' } },
-  ] } }));
-  const page = await open(t, 'player', mode === 'isolated');
-  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); t.after(() => assert.deepEqual(errors, []));
-  await page.goto(`/#/characters/${id}`);
-  const ward = page.locator('codex-addon-rule-details').filter({has:page.getByRole('button',{name:'Ward',exact:true})}); await ward.waitFor();
-  assert.equal(await page.locator('a.wiki-link').filter({ hasText: 'Captain' }).getAttribute('href'), '#/characters/captain');
-  await ward.getByRole('button',{name:'Ward',exact:true}).click();
-  const full=ward.getByRole('link',{name:'Open full rule',exact:true});await full.waitFor();assert.equal(await full.getAttribute('href'), `#/addons/${id}/library?id=shield`);
-  await installReviewedPackage(admin, csrf, id, wikiPackage(id, mode, { version: '1.0.1' }), []);
-  await ward.waitFor();await ward.getByRole('button',{name:'Ward',exact:true}).click();await full.waitFor();await page.keyboard.press('Escape');
-  await disable(id); await ward.getByRole('button',{name:'Ward',exact:true}).click();await ward.getByRole('status').filter({hasText:'current source is unavailable'}).waitFor();assert.equal(await full.count(),0);await page.keyboard.press('Escape');
-  await installReviewedPackage(admin, csrf, id, archive, []); await ward.waitFor();
-  await page.goto('/#/search'); await page.locator('.campaign-search-field input').fill('shield');
-  await page.getByRole('link', { name: 'Shield reference' }).waitFor();
-  await page.goto('/#/old-library/spell:shield');
-  await (mode === 'isolated' ? page.frameLocator('[data-addon-route-outlet] iframe').getByText('Reference detail') : page.getByText('Reference detail')).waitFor();
-  assert.ok(page.url().endsWith(`#/addons/${id}/library?id=shield`));
-  await page.reload();
-  await (mode === 'isolated' ? page.frameLocator('[data-addon-route-outlet] iframe').getByText('Reference detail') : page.getByText('Reference detail')).waitFor();
-  await installReviewedPackage(admin, csrf, id, wikiPackage(id, mode, { version: '1.0.2', roles: ['dm'] }), []);
-  await page.goto(`/#/characters/${id}`);
-  await ward.getByRole('button',{name:'Ward',exact:true}).click();await ward.getByRole('status').filter({hasText:'current source is unavailable'}).waitFor();
-  assert.equal(await full.count(), 0);
-  await page.goto('/#/old-library/spell:shield'); await page.getByRole('heading', { name: 'This page is not in the index.' }).waitFor();
-});
+for (const mode of ["integrated", "isolated"])
+  void test(`installed ${mode} reference providers resolve articles, search and old URLs across replacement`, async (t) => {
+    const id = `wiki-${mode}`,
+      archive = wikiPackage(id, mode);
+    await installReviewedPackage(admin, csrf, id, archive, []);
+    t.after(() => disable(id));
+    await jsonResponse(
+      await admin.post("/api/campaign/transactions", {
+        headers: { "X-Codex-CSRF": csrf },
+        data: {
+          contractVersion: "campaign-mutation.v1",
+          mutations: [
+            {
+              operation: "put",
+              collection: "characters",
+              key: id,
+              expectedRevision: 0,
+              value: {
+                id,
+                name: "Reference notes",
+                knowledge: 4,
+                visibility: "public",
+                description: "[[Captain]] and [[Ward|spell:shield]].",
+              },
+            },
+          ],
+        },
+      }),
+    );
+    const page = await open(t, "player", mode === "isolated");
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    t.after(() => assert.deepEqual(errors, []));
+    await page.goto(`/#/characters/${id}`);
+    const ward = page
+      .locator("codex-addon-rule-details")
+      .filter({ has: page.getByRole("button", { name: "Ward", exact: true }) });
+    await ward.waitFor();
+    assert.equal(
+      await page.locator("a.wiki-link").filter({ hasText: "Captain" }).getAttribute("href"),
+      "#/characters/captain",
+    );
+    await ward.getByRole("button", { name: "Ward", exact: true }).click();
+    const full = ward.getByRole("link", { name: "Open full rule", exact: true });
+    await full.waitFor();
+    assert.equal(await full.getAttribute("href"), `#/addons/${id}/library?id=shield`);
+    await installReviewedPackage(admin, csrf, id, wikiPackage(id, mode, { version: "1.0.1" }), []);
+    await ward.waitFor();
+    await ward.getByRole("button", { name: "Ward", exact: true }).click();
+    await full.waitFor();
+    await page.keyboard.press("Escape");
+    await disable(id);
+    await ward.getByRole("button", { name: "Ward", exact: true }).click();
+    await ward.getByRole("status").filter({ hasText: "current source is unavailable" }).waitFor();
+    assert.equal(await full.count(), 0);
+    await page.keyboard.press("Escape");
+    await installReviewedPackage(admin, csrf, id, archive, []);
+    await ward.waitFor();
+    await page.goto("/#/search");
+    await page.locator(".campaign-search-field input").fill("shield");
+    await page.getByRole("link", { name: "Shield reference" }).waitFor();
+    await page.goto("/#/old-library/spell:shield");
+    await (
+      mode === "isolated"
+        ? page.frameLocator("[data-addon-route-outlet] iframe").getByText("Reference detail")
+        : page.getByText("Reference detail")
+    ).waitFor();
+    assert.ok(page.url().endsWith(`#/addons/${id}/library?id=shield`));
+    await page.reload();
+    await (
+      mode === "isolated"
+        ? page.frameLocator("[data-addon-route-outlet] iframe").getByText("Reference detail")
+        : page.getByText("Reference detail")
+    ).waitFor();
+    await installReviewedPackage(
+      admin,
+      csrf,
+      id,
+      wikiPackage(id, mode, { version: "1.0.2", roles: ["dm"] }),
+      [],
+    );
+    await page.goto(`/#/characters/${id}`);
+    await ward.getByRole("button", { name: "Ward", exact: true }).click();
+    await ward.getByRole("status").filter({ hasText: "current source is unavailable" }).waitFor();
+    assert.equal(await full.count(), 0);
+    await page.goto("/#/old-library/spell:shield");
+    await page.getByRole("heading", { name: "This page is not in the index." }).waitFor();
+  });

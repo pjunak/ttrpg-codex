@@ -20,7 +20,7 @@
   font-family: var(--book-font);
   font-size: 2rem;
   font-weight: 500;
-  letter-spacing: .04em;
+  letter-spacing: 0.04em;
   line-height: 1.6;
 }
 
@@ -102,7 +102,8 @@
   border-bottom: 1px solid var(--chrome-field-border);
 }
 
-.search-group h2, .search-group h3 {
+.search-group h2,
+.search-group h3 {
   display: inline-flex;
   gap: 0.55rem;
   align-items: center;
@@ -111,7 +112,8 @@
   font-size: 1.4rem;
 }
 
-.search-group h2 span, .search-group h3 span {
+.search-group h2 span,
+.search-group h3 span {
   color: var(--gold);
 }
 
@@ -186,7 +188,9 @@
   }
 }
 
-.search-heading h1, .search-group h2, .search-group h3 {
+.search-heading h1,
+.search-group h2,
+.search-group h3 {
   font-family: var(--font-title);
 }
 

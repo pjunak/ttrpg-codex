@@ -1,0 +1,56 @@
+name: Quality maintenance
+
+on:
+  # PR/main enforcement remains in the existing publication workflow's test job.
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  queue: max
+
+jobs:
+  npm-dependencies:
+    name: Known npm vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm run check:dependencies
+
+  workflows:
+    name: Workflow policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.tools.sum
+      - run: go mod download -modfile=go.tools.mod
+      - run: go run ./tools/check.go workflows
+
+  vulnerabilities:
+    name: Reachable Go vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            go.tools.sum
+      - run: go mod download -modfile=go.tools.mod
+      - run: go run ./tools/check.go vuln

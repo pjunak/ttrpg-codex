@@ -6,12 +6,18 @@ let token: string | undefined;
 
 // Keep a non-secret URL marker so cleared/unavailable tab storage fails closed.
 // Bootstrap credentials travel in the fragment, never in an HTTP request URL.
-export function initializePlayerPreview(scope: Pick<Window, "location" | "history" | "sessionStorage"> = window): void {
+export function initializePlayerPreview(
+  scope: Pick<Window, "location" | "history" | "sessionStorage"> = window,
+): void {
   token = undefined;
   const url = new URL(scope.location.href);
   const bootstrap = url.hash.startsWith("#player-preview=");
   let stored: string | null = null;
-  try { stored = scope.sessionStorage.getItem(storageKey); } catch { /* The URL marker preserves preview mode without storage. */ }
+  try {
+    stored = scope.sessionStorage.getItem(storageKey);
+  } catch {
+    /* The URL marker preserves preview mode without storage. */
+  }
   if (!bootstrap && !url.searchParams.has(marker) && stored === null) return;
   token = "";
   if (bootstrap) {
@@ -20,7 +26,11 @@ export function initializePlayerPreview(scope: Pick<Window, "location" | "histor
     url.hash = "#/";
     url.searchParams.set(marker, "1");
     scope.history.replaceState(null, "", url.href);
-    try { scope.sessionStorage.setItem(storageKey, token); } catch { /* This page remains scoped; reload fails closed. */ }
+    try {
+      scope.sessionStorage.setItem(storageKey, token);
+    } catch {
+      /* This page remains scoped; reload fails closed. */
+    }
   } else {
     token = stored !== null && tokenPattern.test(stored) ? stored : "";
     if (!url.searchParams.has(marker)) {
@@ -30,7 +40,9 @@ export function initializePlayerPreview(scope: Pick<Window, "location" | "histor
   }
 }
 
-export function isPlayerPreview(): boolean { return token !== undefined; }
+export function isPlayerPreview(): boolean {
+  return token !== undefined;
+}
 
 export function playerPreviewURL(previewToken: string, source = window.location.href): string {
   if (!tokenPattern.test(previewToken)) throw new Error("Invalid player preview token");
@@ -50,16 +62,30 @@ function sameOriginAPI(input: RequestInfo | URL): URL | undefined {
 export const authorityRejectedEvent = "codex-authority-rejected";
 export const sessionFetch: typeof fetch = async (input, init) => {
   const api = sameOriginAPI(input);
-  const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+  const headers = new Headers(
+    init?.headers ?? (input instanceof Request ? input.headers : undefined),
+  );
   if (token !== undefined && api !== undefined) {
     headers.set(header, token);
-    return fetch(input, { ...init, headers, credentials: "omit", redirect: "error", cache: "no-store", referrerPolicy: "no-referrer" });
+    return fetch(input, {
+      ...init,
+      headers,
+      credentials: "omit",
+      redirect: "error",
+      cache: "no-store",
+      referrerPolicy: "no-referrer",
+    });
   }
   const response = await fetch(input, init);
   // A rejected authorized operation prompts a fresh authority check, never an
   // automatic write retry. Preview tabs must never acquire the cookie session.
-  if (token === undefined && api !== undefined && typeof window !== "undefined" &&
-      headers.has("X-Codex-CSRF") && (response.status === 401 || response.status === 403)) {
+  if (
+    token === undefined &&
+    api !== undefined &&
+    typeof window !== "undefined" &&
+    headers.has("X-Codex-CSRF") &&
+    (response.status === 401 || response.status === 403)
+  ) {
     window.dispatchEvent(new Event(authorityRejectedEvent));
   }
   return response;
@@ -70,7 +96,11 @@ export const sessionFetch: typeof fetch = async (input, init) => {
 export function previewResourceURL<T extends string | undefined>(input: T): T {
   if (input === undefined || token === undefined) return input;
   const url = sameOriginAPI(input);
-  if (url === undefined || !(url.pathname === "/api/events" || url.pathname.startsWith("/api/media/"))) return input;
+  if (
+    url === undefined ||
+    !(url.pathname === "/api/events" || url.pathname.startsWith("/api/media/"))
+  )
+    return input;
   url.searchParams.set("playerPreviewToken", token);
   const path = input.split(/[?#]/u, 1)[0];
   return `${path}${url.search}${url.hash}` as T;

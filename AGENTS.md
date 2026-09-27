@@ -7,8 +7,8 @@ test dependency only; it is not part of the production runtime.
 
 ## Commands and environment
 
-Use the Go version in go.mod. Node.js 24+ is the supported minimum; .nvmrc
-pins Node 26 for development/CI. Run from this repository root in the current
+Use the Go version in go.mod. Node.js 26+ is required; .nvmrc
+selects Node 26 for development/CI. Run from this repository root in the current
 shell. Install dependencies/browser only when missing or stale:
 
 ```console
@@ -18,11 +18,17 @@ npm run check
 npm start
 ```
 
-`npm run check` rejects JavaScript source files, type-checks the frontend and
-Node tools/tests, runs unit and browser tests, builds the frontend, then runs all
-project-owned Go tests and `go vet`. Author Node tools and browser tests as
-strict `.mts` modules covered by `tsconfig.node.json`; Node executes them through
-built-in type stripping. Useful focused checks include:
+`npm run check:fast` checks the source boundary, strict TypeScript, typed Oxlint,
+Prettier, gofmt, `go vet`, and Staticcheck. `npm run check` also tests Node tools,
+the frontend, Chromium, and Go, including the selected concurrency packages with
+the race detector. Author Node tools and browser tests as strict `.mts` modules
+covered by `tsconfig.node.json`; Node executes them through built-in type
+stripping. Use `npm run format` and `go run ./tools/check.go format` for formatting.
+CI also checks workflows and reachable Go vulnerabilities; the matching local
+commands are `npm run check:workflows` and `npm run check:vulnerabilities`.
+`npm run check:dependencies` audits the npm lockfile for high or critical advisories.
+See [the contributor toolchain](CONTRIBUTING.md#quality-toolchain) for scopes and
+diagnostics. Useful focused checks include:
 
 ```powershell
 npm --workspace @ttrpg-codex/frontend test

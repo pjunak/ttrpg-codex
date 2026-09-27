@@ -15,10 +15,21 @@ import type {
 
 describe("campaign markdown", () => {
   it("offers only unresolved visible wiki references to the add-on resolver", () => {
-    const addonWiki = vi.fn(() => ({ status: "resolved" as const, href: "#/addons/library/page?kind=spell&id=shield" }));
-    const rendered = renderCampaignMarkdown(parseCampaignMarkdown("[[Captain]] and [[Ward|spell:shield]]. Private prose is not a reference."), {
-      dataset: dataset({ characters: [{ key: "captain", revision: 1, value: { id: "captain", name: "Captain" } }] }), addonWiki,
-    });
+    const addonWiki = vi.fn(() => ({
+      status: "resolved" as const,
+      href: "#/addons/library/page?kind=spell&id=shield",
+    }));
+    const rendered = renderCampaignMarkdown(
+      parseCampaignMarkdown(
+        "[[Captain]] and [[Ward|spell:shield]]. Private prose is not a reference.",
+      ),
+      {
+        dataset: dataset({
+          characters: [{ key: "captain", revision: 1, value: { id: "captain", name: "Captain" } }],
+        }),
+        addonWiki,
+      },
+    );
     expect(addonWiki.mock.calls).toEqual([["Ward", "spell:shield"]]);
     expect(templateStructure(rendered)).toContain('<a class="wiki-link"');
   });
@@ -37,7 +48,9 @@ describe("campaign markdown", () => {
   });
 
   it("parses wiki syntax without turning raw HTML into a rendering boundary", () => {
-    const document = parseCampaignMarkdown("Meet **[[Lantern Watch|frakce:watch]]**.\n\n<script>alert(1)</script>");
+    const document = parseCampaignMarkdown(
+      "Meet **[[Lantern Watch|frakce:watch]]**.\n\n<script>alert(1)</script>",
+    );
 
     expect(document.tokens.map(({ type }) => type)).toEqual(["paragraph", "space", "html"]);
     expect(JSON.stringify(document.tokens)).toContain('"type":"campaign-wiki-link"');
@@ -62,32 +75,50 @@ describe("campaign markdown", () => {
   it("resolves only records present in the role-projected campaign", () => {
     const campaign = dataset({
       characters: [
-        { key: "ryn-public", revision: 1, value: { id: "ryn-public", name: "Rýn", visibility: "public" } },
+        {
+          key: "ryn-public",
+          revision: 1,
+          value: { id: "ryn-public", name: "Rýn", visibility: "public" },
+        },
         { key: "ryn-dm", revision: 1, value: { id: "ryn-dm", name: "Rýn", visibility: "dm" } },
       ],
       factions: [{ key: "watch", revision: 1, value: { id: "watch", name: "Lantern Watch" } }],
     });
 
-    expect(resolveCampaignWikiLink({
-      dataset: campaign,
-      currentCollection: "characters",
-      currentKey: "ryn-public",
-    }, "Ryn")).toMatchObject({ href: "#/characters/ryn-public", key: "ryn-public" });
-    expect(resolveCampaignWikiLink({ dataset: campaign }, "Watch", "frakce:watch"))
-      .toMatchObject({ href: "#/factions/watch", key: "watch" });
-    expect(resolveCampaignWikiLink({ dataset: campaign }, "Hidden", "postava:hidden-character")).toBeUndefined();
-    expect(resolveCampaignWikiLink({ dataset: campaign }, "Lantern Watch", "misto")).toBeUndefined();
+    expect(
+      resolveCampaignWikiLink(
+        {
+          dataset: campaign,
+          currentCollection: "characters",
+          currentKey: "ryn-public",
+        },
+        "Ryn",
+      ),
+    ).toMatchObject({ href: "#/characters/ryn-public", key: "ryn-public" });
+    expect(resolveCampaignWikiLink({ dataset: campaign }, "Watch", "frakce:watch")).toMatchObject({
+      href: "#/factions/watch",
+      key: "watch",
+    });
+    expect(
+      resolveCampaignWikiLink({ dataset: campaign }, "Hidden", "postava:hidden-character"),
+    ).toBeUndefined();
+    expect(
+      resolveCampaignWikiLink({ dataset: campaign }, "Lantern Watch", "misto"),
+    ).toBeUndefined();
   });
 
   it("allows campaign and ordinary web links but rejects active-content schemes", () => {
     expect(safeCampaignMarkdownLink("#/characters/ryn")).toEqual({
-      href: "#/characters/ryn", external: false,
+      href: "#/characters/ryn",
+      external: false,
     });
     expect(safeCampaignMarkdownLink("/api/media/portrait.webp")).toEqual({
-      href: "/api/media/portrait.webp", external: false,
+      href: "/api/media/portrait.webp",
+      external: false,
     });
     expect(safeCampaignMarkdownLink("https://example.com/lore")).toEqual({
-      href: "https://example.com/lore", external: true,
+      href: "https://example.com/lore",
+      external: true,
     });
     expect(safeCampaignMarkdownLink("javascript:alert(1)")).toBeUndefined();
     expect(safeCampaignMarkdownLink("data:text/html,boom")).toBeUndefined();
@@ -99,30 +130,46 @@ function dataset(
   records: Partial<Record<CampaignCollectionName, CampaignCollection["records"]>>,
 ): CampaignDataset {
   const shapes: Readonly<Record<CampaignCollectionName, CampaignCollection["shape"]>> = {
-    characters: "list", relationships: "list", locations: "list", events: "list",
-    mysteries: "list", factions: "keyed", deletedDefaults: "keyed", pantheon: "list",
-    artifacts: "list", settings: "keyed", historicalEvents: "list", campaign: "keyed", pets: "list",
+    characters: "list",
+    relationships: "list",
+    locations: "list",
+    events: "list",
+    mysteries: "list",
+    factions: "keyed",
+    deletedDefaults: "keyed",
+    pantheon: "list",
+    artifacts: "list",
+    settings: "keyed",
+    historicalEvents: "list",
+    campaign: "keyed",
+    pets: "list",
   };
   return {
     contractVersion: "campaign-data.v1",
-    collections: (Object.entries(shapes) as [CampaignCollectionName, CampaignCollection["shape"]][])
-      .map(([name, shape]) => ({
-        name,
-        shape,
-        materialized: records[name] !== undefined,
-        revision: records[name] === undefined ? 0 : 1,
-        records: records[name] ?? [],
-      })),
+    collections: (
+      Object.entries(shapes) as [CampaignCollectionName, CampaignCollection["shape"]][]
+    ).map(([name, shape]) => ({
+      name,
+      shape,
+      materialized: records[name] !== undefined,
+      revision: records[name] === undefined ? 0 : 1,
+      records: records[name] ?? [],
+    })),
   };
 }
 
 function templateStructure(value: unknown): string {
   if (Array.isArray(value)) return value.map(templateStructure).join("");
-  if (typeof value !== "object" || value === null) return String(value ?? "");
+  if (typeof value !== "object" || value === null)
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+      ? String(value)
+      : "";
   if (!("strings" in value) || !("values" in value)) return "";
   const stringsValue: unknown = value.strings;
   const valuesValue: unknown = value.values;
   if (!Array.isArray(stringsValue) || !Array.isArray(valuesValue)) return "";
-  const strings = stringsValue.filter((candidate): candidate is string => typeof candidate === "string");
+  const strings = stringsValue.filter(
+    (candidate): candidate is string => typeof candidate === "string",
+  );
   return strings.map((part, index) => `${part}${templateStructure(valuesValue[index])}`).join("");
 }

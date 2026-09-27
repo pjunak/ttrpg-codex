@@ -66,14 +66,35 @@ const mapTileBoundary = "GET /api/media/{id}/tiles/v1/manifest";
 const mapTileKeys = new Set(["contractVersion", "id", "width", "height", "tileSize", "depth"]);
 
 export function parseMapTileManifest(value: unknown): MapTileManifest {
-  if (!isRecord(value) || !hasOnlyKeys(value, mapTileKeys) || value["contractVersion"] !== "map-tiles.v1" ||
-    typeof value["id"] !== "string" || !blobIDPattern.test(value["id"]) ||
-    !positiveInteger(value["width"]) || !positiveInteger(value["height"]) || value["width"] > 32768 || value["height"] > 32768 ||
-    value["width"] * value["height"] > 32 * 1024 * 1024 || value["tileSize"] !== 256 ||
-    !nonNegativeInteger(value["depth"]) || value["depth"] !== Math.max(0, Math.ceil(Math.log2(Math.max(value["width"], value["height"]) / 256)))) {
-    throw new BoundaryValidationError(mapTileBoundary, "response must be an exact bounded map pyramid");
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, mapTileKeys) ||
+    value["contractVersion"] !== "map-tiles.v1" ||
+    typeof value["id"] !== "string" ||
+    !blobIDPattern.test(value["id"]) ||
+    !positiveInteger(value["width"]) ||
+    !positiveInteger(value["height"]) ||
+    value["width"] > 32768 ||
+    value["height"] > 32768 ||
+    value["width"] * value["height"] > 32 * 1024 * 1024 ||
+    value["tileSize"] !== 256 ||
+    !nonNegativeInteger(value["depth"]) ||
+    value["depth"] !==
+      Math.max(0, Math.ceil(Math.log2(Math.max(value["width"], value["height"]) / 256)))
+  ) {
+    throw new BoundaryValidationError(
+      mapTileBoundary,
+      "response must be an exact bounded map pyramid",
+    );
   }
-  return { contractVersion: "map-tiles.v1", id: value["id"], width: value["width"], height: value["height"], tileSize: 256, depth: value["depth"] };
+  return {
+    contractVersion: "map-tiles.v1",
+    id: value["id"],
+    width: value["width"],
+    height: value["height"],
+    tileSize: 256,
+    depth: value["depth"],
+  };
 }
 
 export type MediaFetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -81,7 +102,10 @@ export type MediaFetch = (input: string, init: RequestInit) => Promise<Response>
 export class MediaHTTPError extends Error {
   override readonly name = "MediaHTTPError";
 
-  constructor(readonly status: number, readonly endpoint: string) {
+  constructor(
+    readonly status: number,
+    readonly endpoint: string,
+  ) {
     super(`${endpoint} returned ${status}`);
   }
 }
@@ -96,12 +120,18 @@ export class MediaClient {
   async mapTiles(url: string, signal: AbortSignal): Promise<MapTileManifest> {
     signal.throwIfAborted();
     const match = /^\/api\/media\/(b_[0-9a-f]{32})$/u.exec(url);
-    if (match === null) throw new BoundaryValidationError(mapTileBoundary, "map must use an opaque media URL");
+    if (match === null)
+      throw new BoundaryValidationError(mapTileBoundary, "map must use an opaque media URL");
     const response = await this.#fetchMedia(`${url}/tiles/v1/manifest`, {
-      method: "GET", headers: { Accept: "application/json" }, credentials: "same-origin", cache: "no-store", signal,
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+      cache: "no-store",
+      signal,
     });
     const manifest = await parseJSONResponse(response, mapTileBoundary, parseMapTileManifest);
-    if (manifest.id !== match[1]) throw new BoundaryValidationError(mapTileBoundary, "map pyramid belongs to another image");
+    if (manifest.id !== match[1])
+      throw new BoundaryValidationError(mapTileBoundary, "map pyramid belongs to another image");
     return manifest;
   }
 
@@ -115,8 +145,14 @@ export class MediaClient {
   ): Promise<MediaBlob> {
     signal.throwIfAborted();
     validateTarget(kind, target, uploadBoundary);
-    if (content.size <= 0 || content.type === "" || csrfToken.length < 32 ||
-      filename.length > 255 || /[/\\\u0000-\u001f\u007f]/u.test(filename)) {
+    if (
+      content.size <= 0 ||
+      content.type === "" ||
+      csrfToken.length < 32 ||
+      filename.length > 255 ||
+      // oxlint-disable-next-line no-control-regex -- Reject protocol-forbidden control characters in external input.
+      /[/\\\u0000-\u001f\u007f]/u.test(filename)
+    ) {
       throw new BoundaryValidationError(uploadBoundary, "media upload is invalid");
     }
     const endpoint = `/api/media/${encodeURIComponent(kind)}/${encodeURIComponent(target)}`;
@@ -136,11 +172,7 @@ export class MediaClient {
     return parseJSONResponse(response, uploadBoundary, parseMediaBlob);
   }
 
-  async latest(
-    kind: MediaKind,
-    target: string,
-    signal: AbortSignal,
-  ): Promise<MediaBlob> {
+  async latest(kind: MediaKind, target: string, signal: AbortSignal): Promise<MediaBlob> {
     signal.throwIfAborted();
     validateTarget(kind, target, latestBoundary);
     const endpoint = `/api/media/latest/${encodeURIComponent(kind)}/${encodeURIComponent(target)}`;
@@ -185,16 +217,24 @@ export class MediaClient {
 }
 
 export function parseMediaBlob(value: unknown): MediaBlob {
-  if (!isRecord(value) || !hasOnlyKeys(value, blobKeys) ||
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, blobKeys) ||
     value["contractVersion"] !== "media-blob.v1" ||
-    typeof value["id"] !== "string" || !blobIDPattern.test(value["id"]) ||
+    typeof value["id"] !== "string" ||
+    !blobIDPattern.test(value["id"]) ||
     value["url"] !== `/api/media/${value["id"]}` ||
     !isMediaKind(value["kind"]) ||
-    typeof value["target"] !== "string" || value["target"].length === 0 ||
+    typeof value["target"] !== "string" ||
+    value["target"].length === 0 ||
     value["target"].length > 1024 ||
-    typeof value["mediaType"] !== "string" || !value["mediaType"].startsWith("image/") ||
-    !nonNegativeInteger(value["bytes"]) || !positiveInteger(value["revision"]) ||
-    typeof value["createdAt"] !== "string" || !validTimestamp(value["createdAt"])) {
+    typeof value["mediaType"] !== "string" ||
+    !value["mediaType"].startsWith("image/") ||
+    !nonNegativeInteger(value["bytes"]) ||
+    !positiveInteger(value["revision"]) ||
+    typeof value["createdAt"] !== "string" ||
+    !validTimestamp(value["createdAt"])
+  ) {
     throw new BoundaryValidationError(uploadBoundary, "response must be an exact media blob");
   }
   return {
@@ -211,10 +251,15 @@ export function parseMediaBlob(value: unknown): MediaBlob {
 }
 
 export function parseMediaDeleteResult(value: unknown): MediaDeleteResult {
-  if (!isRecord(value) || !hasOnlyKeys(value, deleteKeys) ||
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, deleteKeys) ||
     value["contractVersion"] !== "media-delete-result.v1" ||
-    typeof value["id"] !== "string" || !blobIDPattern.test(value["id"]) ||
-    !positiveInteger(value["revision"]) || value["deleted"] !== true) {
+    typeof value["id"] !== "string" ||
+    !blobIDPattern.test(value["id"]) ||
+    !positiveInteger(value["revision"]) ||
+    value["deleted"] !== true
+  ) {
     throw new BoundaryValidationError(deleteBoundary, "response must be an exact deletion result");
   }
   return {
@@ -251,9 +296,14 @@ async function parseJSONResponse<T>(
 }
 
 function validateTarget(kind: MediaKind, target: string, boundary: string): void {
-  if (!isMediaKind(kind) || target.length === 0 || target.length > 1024 ||
+  if (
+    !isMediaKind(kind) ||
+    target.length === 0 ||
+    target.length > 1024 ||
+    // oxlint-disable-next-line no-control-regex -- Reject protocol-forbidden control characters in external input.
     /[\u0000-\u001f\u007f]/u.test(target) ||
-    ((kind === "world-map" || kind === "branding-logo") && target !== "main")) {
+    ((kind === "world-map" || kind === "branding-logo") && target !== "main")
+  ) {
     throw new BoundaryValidationError(boundary, "media target is invalid");
   }
 }

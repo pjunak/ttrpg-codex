@@ -1,4 +1,4 @@
-import type { FixtureCampaign } from './fixture-types.mts';
+import type { FixtureCampaign } from "./fixture-types.mts";
 
 export interface CampaignElement extends HTMLElement {
   campaign: FixtureCampaign;
@@ -14,14 +14,14 @@ export interface GraphElement extends CampaignElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    'codex-settings': CampaignElement;
-    'codex-party-settings': CampaignElement;
-    'codex-dm-dashboard': CampaignElement;
-    'codex-campaign-graph': GraphElement;
-    'codex-timeline': CampaignElement & { draft: unknown };
-    'codex-credential-settings': HTMLElement & { loading: boolean };
-    'codex-recovery-settings': HTMLElement & { busy: boolean; listing: unknown };
-    'codex-app': HTMLElement & { busy: boolean };
+    "codex-settings": CampaignElement;
+    "codex-party-settings": CampaignElement;
+    "codex-dm-dashboard": CampaignElement;
+    "codex-campaign-graph": GraphElement;
+    "codex-timeline": CampaignElement & { draft: unknown };
+    "codex-credential-settings": HTMLElement & { loading: boolean };
+    "codex-recovery-settings": HTMLElement & { busy: boolean; listing: unknown };
+    "codex-app": HTMLElement & { busy: boolean };
   }
   interface Window {
     graphStorageBlocked: boolean;

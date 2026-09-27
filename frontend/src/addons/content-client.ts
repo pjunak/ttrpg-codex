@@ -7,15 +7,23 @@ const generationPattern = /^[0-9a-f]{64}$/;
 const digestPattern = /^[0-9a-f]{64}$/;
 const cursorPattern = /^[A-Za-z0-9_-]{1,32}$/;
 const catalogKeys = new Set(["contractVersion", "addonId", "generationId", "sets"]);
-const setKeys = new Set([
-  "id", "revision", "groups", "schemaSha256", "recordCount", "kinds",
-]);
+const setKeys = new Set(["id", "revision", "groups", "schemaSha256", "recordCount", "kinds"]);
 const groupKeys = new Set(["field", "additionalField", "label"]);
 const recordEnvelopeKeys = new Set([
-  "contractVersion", "addonId", "generationId", "setId", "revision", "record",
+  "contractVersion",
+  "addonId",
+  "generationId",
+  "setId",
+  "revision",
+  "record",
 ]);
 const queryEnvelopeKeys = new Set([
-  "contractVersion", "addonId", "generationId", "setId", "revision", "records",
+  "contractVersion",
+  "addonId",
+  "generationId",
+  "setId",
+  "revision",
+  "records",
   "nextCursor",
 ]);
 const recordKeys = new Set(["kind", "id", "value"]);
@@ -59,7 +67,11 @@ export interface AddonContentQueryResult<T> {
 }
 
 export interface AddonContentSet<T> {
-  get(kind: string, id: string, options?: { readonly signal?: AbortSignal }): Promise<AddonContentRecord<T>>;
+  get(
+    kind: string,
+    id: string,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<AddonContentRecord<T>>;
   query(options?: AddonContentQueryOptions): Promise<AddonContentQueryResult<T>>;
 }
 
@@ -73,7 +85,10 @@ export type AddonContentFetch = (input: string, init: RequestInit) => Promise<Re
 export class AddonContentHTTPError extends Error {
   override readonly name = "AddonContentHTTPError";
 
-  constructor(readonly status: number, readonly operation: "catalog" | "get" | "query") {
+  constructor(
+    readonly status: number,
+    readonly operation: "catalog" | "get" | "query",
+  ) {
     super(`add-on content ${operation} returned ${status}`);
   }
 }
@@ -110,26 +125,44 @@ export class BrowserAddonContentClient {
 
   async catalog(signal?: AbortSignal): Promise<AddonContentCatalog> {
     const value = await this.#request("catalog", "", signal);
-    if (!this.#validEnvelope(value, catalogKeys, "addon-content-catalog.v1") ||
-      !Array.isArray(value["sets"])) {
-      throw new BoundaryValidationError("add-on content catalog", "response must be an exact catalog");
+    if (
+      !this.#validEnvelope(value, catalogKeys, "addon-content-catalog.v1") ||
+      !Array.isArray(value["sets"])
+    ) {
+      throw new BoundaryValidationError(
+        "add-on content catalog",
+        "response must be an exact catalog",
+      );
     }
     return Object.freeze({
-      sets: Object.freeze(value["sets"].map((candidate, index) =>
-        parseSet(candidate, `add-on content catalog sets[${index}]`)
-      )),
+      sets: Object.freeze(
+        value["sets"].map((candidate, index) =>
+          parseSet(candidate, `add-on content catalog sets[${index}]`),
+        ),
+      ),
     });
   }
 
-  async get<T>(setId: string, kind: string, id: string, signal?: AbortSignal): Promise<AddonContentRecord<T>> {
+  async get<T>(
+    setId: string,
+    kind: string,
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<AddonContentRecord<T>> {
     validateSetID(setId);
     validateIdentity(kind, "kind");
     validateIdentity(id, "id");
     const search = new URLSearchParams({ set: setId, kind, id });
     const value = await this.#request("get", `/records?${search.toString()}`, signal);
-    if (!this.#validEnvelope(value, recordEnvelopeKeys, "addon-content-record.v1") ||
-      value["setId"] !== setId || !validRevision(value["revision"])) {
-      throw new BoundaryValidationError("add-on content get", "response must be an exact record envelope");
+    if (
+      !this.#validEnvelope(value, recordEnvelopeKeys, "addon-content-record.v1") ||
+      value["setId"] !== setId ||
+      !validRevision(value["revision"])
+    ) {
+      throw new BoundaryValidationError(
+        "add-on content get",
+        "response must be an exact record envelope",
+      );
     }
     return parseRecord<T>(value["record"], "add-on content get record");
   }
@@ -157,18 +190,26 @@ export class BrowserAddonContentClient {
       search.set("cursor", options.cursor);
     }
     const value = await this.#request("query", `/query?${search.toString()}`, options.signal);
-    if (!this.#validEnvelope(value, queryEnvelopeKeys, "addon-content-query-result.v1") ||
-      value["setId"] !== setId || !validRevision(value["revision"]) ||
+    if (
+      !this.#validEnvelope(value, queryEnvelopeKeys, "addon-content-query-result.v1") ||
+      value["setId"] !== setId ||
+      !validRevision(value["revision"]) ||
       !Array.isArray(value["records"]) ||
       (value["nextCursor"] !== undefined &&
-        (typeof value["nextCursor"] !== "string" || !cursorPattern.test(value["nextCursor"])))) {
-      throw new BoundaryValidationError("add-on content query", "response must be an exact query envelope");
+        (typeof value["nextCursor"] !== "string" || !cursorPattern.test(value["nextCursor"])))
+    ) {
+      throw new BoundaryValidationError(
+        "add-on content query",
+        "response must be an exact query envelope",
+      );
     }
     return Object.freeze({
       revision: value["revision"],
-      records: Object.freeze(value["records"].map((candidate, index) =>
-        parseRecord<T>(candidate, `add-on content query records[${index}]`)
-      )),
+      records: Object.freeze(
+        value["records"].map((candidate, index) =>
+          parseRecord<T>(candidate, `add-on content query records[${index}]`),
+        ),
+      ),
       ...(typeof value["nextCursor"] === "string" ? { nextCursor: value["nextCursor"] } : {}),
     });
   }
@@ -199,9 +240,16 @@ export class BrowserAddonContentClient {
     if (!response.ok) {
       throw new AddonContentHTTPError(response.status, operation);
     }
-    const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    const contentType = response.headers
+      .get("Content-Type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
     if (contentType !== "application/json") {
-      throw new BoundaryValidationError(`add-on content ${operation}`, "response must be application/json");
+      throw new BoundaryValidationError(
+        `add-on content ${operation}`,
+        "response must be application/json",
+      );
     }
     const text = await response.text();
     if (new TextEncoder().encode(text).byteLength > maximumResponseBytes) {
@@ -211,10 +259,16 @@ export class BrowserAddonContentClient {
     try {
       value = JSON.parse(text) as unknown;
     } catch {
-      throw new BoundaryValidationError(`add-on content ${operation}`, "response must be valid JSON");
+      throw new BoundaryValidationError(
+        `add-on content ${operation}`,
+        "response must be valid JSON",
+      );
     }
     if (!isRecord(value)) {
-      throw new BoundaryValidationError(`add-on content ${operation}`, "response must be an object");
+      throw new BoundaryValidationError(
+        `add-on content ${operation}`,
+        "response must be an object",
+      );
     }
     return value;
   }
@@ -224,16 +278,26 @@ export class BrowserAddonContentClient {
     keys: ReadonlySet<string>,
     version: string,
   ): boolean {
-    return hasOnlyKeys(value, keys) && value["contractVersion"] === version &&
-      value["addonId"] === this.#addonId && value["generationId"] === this.#generationId;
+    return (
+      hasOnlyKeys(value, keys) &&
+      value["contractVersion"] === version &&
+      value["addonId"] === this.#addonId &&
+      value["generationId"] === this.#generationId
+    );
   }
 }
 
 function parseSet(value: unknown, boundary: string): AddonContentSetDescription {
-  if (!isRecord(value) || !hasOnlyKeys(value, setKeys) || !localID(value["id"]) ||
-    !validRevision(value["revision"]) || typeof value["schemaSha256"] !== "string" ||
-    !digestPattern.test(value["schemaSha256"]) || !contentCount(value["recordCount"]) ||
-    !isRecord(value["kinds"])) {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, setKeys) ||
+    !localID(value["id"]) ||
+    !validRevision(value["revision"]) ||
+    typeof value["schemaSha256"] !== "string" ||
+    !digestPattern.test(value["schemaSha256"]) ||
+    !contentCount(value["recordCount"]) ||
+    !isRecord(value["kinds"])
+  ) {
     throw new BoundaryValidationError(boundary, "content set is invalid");
   }
   const kinds: Record<string, number> = {};
@@ -251,21 +315,28 @@ function parseSet(value: unknown, boundary: string): AddonContentSetDescription 
   }
   const groups = value["groups"] === undefined ? undefined : parseGroups(value["groups"], boundary);
   return Object.freeze({
-    id: value["id"], revision: value["revision"],
+    id: value["id"],
+    revision: value["revision"],
     ...(groups === undefined ? {} : { groups }),
-    schemaSha256: value["schemaSha256"], recordCount: value["recordCount"],
+    schemaSha256: value["schemaSha256"],
+    recordCount: value["recordCount"],
     kinds: Object.freeze(kinds),
   });
 }
 
 function parseGroups(value: unknown, boundary: string): AddonContentGroups {
-  if (!isRecord(value) || !hasOnlyKeys(value, groupKeys) ||
-    !boundedString(value["field"], 300) || !boundedString(value["label"], 300) ||
-    (value["additionalField"] !== undefined && !boundedString(value["additionalField"], 300))) {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, groupKeys) ||
+    !boundedString(value["field"], 300) ||
+    !boundedString(value["label"], 300) ||
+    (value["additionalField"] !== undefined && !boundedString(value["additionalField"], 300))
+  ) {
     throw new BoundaryValidationError(boundary, "content groups are invalid");
   }
   return Object.freeze({
-    field: value["field"], label: value["label"],
+    field: value["field"],
+    label: value["label"],
     ...(typeof value["additionalField"] === "string"
       ? { additionalField: value["additionalField"] }
       : {}),
@@ -273,10 +344,15 @@ function parseGroups(value: unknown, boundary: string): AddonContentGroups {
 }
 
 function parseRecord<T>(value: unknown, boundary: string): AddonContentRecord<T> {
-  if (!isRecord(value) || !hasOnlyKeys(value, recordKeys) ||
-    !boundedString(value["kind"], 200) || !boundedString(value["id"], 200) ||
-    !isRecord(value["value"]) || value["value"]["kind"] !== value["kind"] ||
-    value["value"]["id"] !== value["id"]) {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, recordKeys) ||
+    !boundedString(value["kind"], 200) ||
+    !boundedString(value["id"], 200) ||
+    !isRecord(value["value"]) ||
+    value["value"]["kind"] !== value["kind"] ||
+    value["value"]["id"] !== value["id"]
+  ) {
     throw new BoundaryValidationError(boundary, "content record is invalid");
   }
   return Object.freeze({ kind: value["kind"], id: value["id"], value: value["value"] as T });
@@ -289,11 +365,11 @@ function validateSetID(value: string): void {
 }
 
 function validateIdentity(value: string, name: string): void {
-  if (!boundedString(value, 200) || new TextEncoder().encode(value).byteLength > 200 ||
-    [...value].some((character) => {
-      const code = character.codePointAt(0) ?? 0;
-      return code <= 31 || code >= 127 && code <= 159;
-    })) {
+  if (
+    !boundedString(value, 200) ||
+    new TextEncoder().encode(value).byteLength > 200 ||
+    /\p{Cc}/u.test(value)
+  ) {
     throw new BoundaryValidationError("add-on content", `${name} is invalid`);
   }
 }

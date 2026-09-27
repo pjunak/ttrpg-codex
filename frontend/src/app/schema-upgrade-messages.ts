@@ -1,52 +1,68 @@
 export const schemaUpgradeEn = {
   "update.action": "Update",
   "update.refresh": "Review the current update",
-  "update.restored": "The update could not start. The previous package and saved data were restored. Review the current update before trying again.",
+  "update.restored":
+    "The update could not start. The previous package and saved data were restored. Review the current update before trying again.",
   "update.requirements": "Compatibility and requirements",
   "update.compatible": "Host and add-on requirements are satisfied.",
   "update.optional": "optional",
-  "update.dataHelp": "Saved data needs attention before this update. Review repair or removal; nothing changes until you confirm.",
+  "update.dataHelp":
+    "Saved data needs attention before this update. Review repair or removal; nothing changes until you confirm.",
   "update.continue": "Continue update",
   "update.dataTitle": "Update {addon}: saved data",
-  "update.scope": "Saved documents for {addon}: {count}. Campaign records and other add-ons are unchanged.",
+  "update.scope":
+    "Saved documents for {addon}: {count}. Campaign records and other add-ons are unchanged.",
   "update.details": "Why healing is unavailable",
-  "update.healHelp": "Heal keeps your saved values and updates their format information after checking that this package accepts them.",
-  "update.cannotHeal": "This package cannot safely accept all saved values. Healing is unavailable; you can remove this add-on's current saves or exit the update.",
-  "update.removeHelp": "Remove clears this add-on's current saves so it can start fresh. Retained history, media files and existing backups are kept.",
+  "update.healHelp":
+    "Heal keeps your saved values and updates their format information after checking that this package accepts them.",
+  "update.cannotHeal":
+    "This package cannot safely accept all saved values. Healing is unavailable; you can remove this add-on's current saves or exit the update.",
+  "update.removeHelp":
+    "Remove clears this add-on's current saves so it can start fresh. Retained history, media files and existing backups are kept.",
   "update.backup": "Download add-on data backup",
-  "update.backupHelp": "Optional: download the exact saved values and schema information as JSON before either action. The server also keeps this snapshot for recovery.",
+  "update.backupHelp":
+    "Optional: download the exact saved values and schema information as JSON before either action. The server also keeps this snapshot for recovery.",
   "update.heal": "Heal and update",
   "update.remove": "Remove data and update",
   "update.exit": "Exit upgrade",
   "update.checking": "Checking saved data…",
   "update.applying": "Updating the add-on and restoring its connections…",
-  "update.uncertain": "The reply was interrupted. Check the result of the same confirmed update before doing anything else.",
+  "update.uncertain":
+    "The reply was interrupted. Check the result of the same confirmed update before doing anything else.",
   "update.checkResult": "Check update result",
   "schema-upgraded": "saved-data schema updated",
 } as const;
 export const schemaUpgradeCs: Record<keyof typeof schemaUpgradeEn, string> = {
   "update.action": "Aktualizovat",
   "update.refresh": "Zkontrolovat aktuální aktualizaci",
-  "update.restored": "Aktualizaci se nepodařilo spustit. Předchozí balíček a uložená data byly obnoveny. Před dalším pokusem zkontrolujte aktuální aktualizaci.",
+  "update.restored":
+    "Aktualizaci se nepodařilo spustit. Předchozí balíček a uložená data byly obnoveny. Před dalším pokusem zkontrolujte aktuální aktualizaci.",
   "update.requirements": "Kompatibilita a požadavky",
   "update.compatible": "Požadavky na server a doplňky jsou splněny.",
   "update.optional": "volitelné",
-  "update.dataHelp": "Uložená data vyžadují před aktualizací pozornost. Zkontrolujte opravu nebo odstranění; až do potvrzení se nic nezmění.",
+  "update.dataHelp":
+    "Uložená data vyžadují před aktualizací pozornost. Zkontrolujte opravu nebo odstranění; až do potvrzení se nic nezmění.",
   "update.continue": "Pokračovat v aktualizaci",
   "update.dataTitle": "Aktualizace {addon}: uložená data",
-  "update.scope": "Počet uložených dokumentů doplňku {addon}: {count}. Záznamy kampaně a ostatní doplňky se nezmění.",
+  "update.scope":
+    "Počet uložených dokumentů doplňku {addon}: {count}. Záznamy kampaně a ostatní doplňky se nezmění.",
   "update.details": "Proč není oprava dostupná",
-  "update.healHelp": "Oprava zachová uložené hodnoty a aktualizuje údaje o jejich formátu po ověření, že je tento balíček přijímá.",
-  "update.cannotHeal": "Tento balíček nedokáže bezpečně přijmout všechny uložené hodnoty. Oprava není dostupná; můžete odstranit současná data tohoto doplňku nebo aktualizaci ukončit.",
-  "update.removeHelp": "Odstranění vymaže současná uložená data tohoto doplňku, aby mohl začít znovu. Uchovaná historie, mediální soubory a existující zálohy zůstanou zachovány.",
+  "update.healHelp":
+    "Oprava zachová uložené hodnoty a aktualizuje údaje o jejich formátu po ověření, že je tento balíček přijímá.",
+  "update.cannotHeal":
+    "Tento balíček nedokáže bezpečně přijmout všechny uložené hodnoty. Oprava není dostupná; můžete odstranit současná data tohoto doplňku nebo aktualizaci ukončit.",
+  "update.removeHelp":
+    "Odstranění vymaže současná uložená data tohoto doplňku, aby mohl začít znovu. Uchovaná historie, mediální soubory a existující zálohy zůstanou zachovány.",
   "update.backup": "Stáhnout zálohu dat doplňku",
-  "update.backupHelp": "Volitelně si před kteroukoli akcí stáhněte přesné uložené hodnoty a informace o schématu jako JSON. Server tento snímek také uchová pro obnovu.",
+  "update.backupHelp":
+    "Volitelně si před kteroukoli akcí stáhněte přesné uložené hodnoty a informace o schématu jako JSON. Server tento snímek také uchová pro obnovu.",
   "update.heal": "Opravit a aktualizovat",
   "update.remove": "Odstranit data a aktualizovat",
   "update.exit": "Ukončit aktualizaci",
   "update.checking": "Kontrola uložených dat…",
   "update.applying": "Aktualizace doplňku a obnova jeho propojení…",
-  "update.uncertain": "Odpověď byla přerušena. Než provedete další změny, ověřte výsledek téže potvrzené aktualizace.",
+  "update.uncertain":
+    "Odpověď byla přerušena. Než provedete další změny, ověřte výsledek téže potvrzené aktualizace.",
   "update.checkResult": "Ověřit výsledek aktualizace",
   "schema-upgraded": "schéma uložených dat aktualizováno",
 };

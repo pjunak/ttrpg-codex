@@ -54,10 +54,7 @@ const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const contractIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
 const routePathPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
 
-export type BrowserGraphFetch = (
-  input: string,
-  init: RequestInit,
-) => Promise<Response>;
+export type BrowserGraphFetch = (input: string, init: RequestInit) => Promise<Response>;
 
 export interface BrowserGraphRefresh {
   readonly graph: BrowserGenerationSet;
@@ -140,7 +137,11 @@ export class BrowserGraphClient {
     if (!response.ok) {
       throw new BrowserGraphHTTPError(response.status);
     }
-    const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
+    const contentType = response.headers
+      .get("Content-Type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
     if (contentType !== "application/json") {
       throw new BoundaryValidationError(boundary, "response must be application/json");
     }
@@ -204,7 +205,10 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
   const addonVersion = requiredString(value["addonVersion"], `${location}.addonVersion`);
   const generationId = requiredString(value["generationId"], `${location}.generationId`);
   if (!sha256Pattern.test(generationId)) {
-    throw new BoundaryValidationError(boundary, `${location}.generationId must be a lowercase SHA-256 digest`);
+    throw new BoundaryValidationError(
+      boundary,
+      `${location}.generationId must be a lowercase SHA-256 digest`,
+    );
   }
   const mode = value["mode"];
   if (mode !== "integrated" && mode !== "isolated") {
@@ -227,16 +231,19 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
     );
   }
   const permissions = value["permissions"].map((permission, index) =>
-    parsePermission(permission, `${location}.permissions[${index}]`)
+    parsePermission(permission, `${location}.permissions[${index}]`),
   );
   const contributions = value["contributions"].map((contribution, index) =>
-    parseContribution(contribution, `${location}.contributions[${index}]`)
+    parseContribution(contribution, `${location}.contributions[${index}]`),
   );
   const rawSandbox = stringArray(value["sandbox"], `${location}.sandbox`);
   const sandbox: Array<BrowserGenerationDescriptor["sandbox"][number]> = [];
   for (const grant of rawSandbox) {
     if (!sandboxValues.has(grant as BrowserGenerationDescriptor["sandbox"][number])) {
-      throw new BoundaryValidationError(boundary, `${location}.sandbox contains an unsupported grant`);
+      throw new BoundaryValidationError(
+        boundary,
+        `${location}.sandbox contains an unsupported grant`,
+      );
     }
     sandbox.push(grant as BrowserGenerationDescriptor["sandbox"][number]);
   }
@@ -244,8 +251,8 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
   if (
     !validProjectedAssetURL(entryUrl, assetPrefix) ||
     !hasAssetExtension(entryUrl, ".js", ".mjs") ||
-    styleUrls.some((url) =>
-      !validProjectedAssetURL(url, assetPrefix) || !hasAssetExtension(url, ".css")
+    styleUrls.some(
+      (url) => !validProjectedAssetURL(url, assetPrefix) || !hasAssetExtension(url, ".css"),
     )
   ) {
     throw new BoundaryValidationError(
@@ -297,7 +304,9 @@ function parseContribution(
   const surface = value["surface"];
   if (
     typeof surface !== "string" ||
-    !contributionSurfaces.has(surface as BrowserGenerationDescriptor["contributions"][number]["surface"])
+    !contributionSurfaces.has(
+      surface as BrowserGenerationDescriptor["contributions"][number]["surface"],
+    )
   ) {
     throw new BoundaryValidationError(boundary, `${location}.surface is unsupported`);
   }
@@ -337,15 +346,21 @@ function parseContribution(
   };
 }
 
-function validateContributionConfig(surface: string, config: Record<string, unknown>, location: string): void {
+function validateContributionConfig(
+  surface: string,
+  config: Record<string, unknown>,
+  location: string,
+): void {
   if (Object.hasOwn(config, "labels") && !validContributionLabels(config["labels"])) {
     throw new BoundaryValidationError(boundary, `${location} has invalid localized labels`);
   }
   if (surface === "route") {
-    if (!hasOnlyKeys(config, new Set(["path", "labels"])) ||
+    if (
+      !hasOnlyKeys(config, new Set(["path", "labels"])) ||
       typeof config["path"] !== "string" ||
       config["path"].length > 200 ||
-      !routePathPattern.test(config["path"])) {
+      !routePathPattern.test(config["path"])
+    ) {
       throw new BoundaryValidationError(
         boundary,
         `${location} must be exact route metadata with a canonical path`,
@@ -353,11 +368,13 @@ function validateContributionConfig(surface: string, config: Record<string, unkn
     }
     return;
   }
-  if (surface === "sidebar" &&
+  if (
+    surface === "sidebar" &&
     (!hasOnlyKeys(config, new Set(["route", "labels"])) ||
       typeof config["route"] !== "string" ||
       config["route"].length > 100 ||
-      !localIdPattern.test(config["route"]))) {
+      !localIdPattern.test(config["route"]))
+  ) {
     throw new BoundaryValidationError(
       boundary,
       `${location} must be exact sidebar metadata naming a local route contribution`,
@@ -371,8 +388,12 @@ function validProjectedAssetURL(value: string, prefix: string): boolean {
   }
   try {
     const parsed = new URL(value, "https://codex.invalid");
-    return parsed.origin === "https://codex.invalid" && parsed.pathname === value &&
-      parsed.search === "" && parsed.hash === "";
+    return (
+      parsed.origin === "https://codex.invalid" &&
+      parsed.pathname === value &&
+      parsed.search === "" &&
+      parsed.hash === ""
+    );
   } catch {
     return false;
   }

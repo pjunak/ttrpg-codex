@@ -5,44 +5,58 @@ export const configurationEn = {
   "addons.settingsLink": "Link to these settings",
   "addons.settingsIntro": "Options provided by your active add-ons.",
   "addons.settingsEmpty": "No add-on settings are available for your role.",
-  "addons.settingsUnavailable": "These settings are unavailable. The add-on may be disabled, still loading, or unavailable for your role.",
-  "addons.settingsFailed": "Some settings could not be opened. Your other settings remain available.",
+  "addons.settingsUnavailable":
+    "These settings are unavailable. The add-on may be disabled, still loading, or unavailable for your role.",
+  "addons.settingsFailed":
+    "Some settings could not be opened. Your other settings remain available.",
   "addons.settingsRetry": "Retry settings",
   "addons.settingsSaving": "Wait for the add-on save to finish before changing installed add-ons.",
   "addons.uninstall": "Uninstall",
   "addons.uninstallReview": "Review uninstall",
-  "addons.uninstallHelp": "Remove this package from installed add-ons. Its pages, services and update link will be removed.",
-  "addons.uninstallKeep": "Campaign records, saved characters, add-on settings and recovery archives are kept. Reinstall a compatible package to use its data again. This does not free archive storage.",
-  "addons.uninstallRules": "The website keeps the ruleset {ruleset}. Install a compatible complete rules package to restore its rules profile.",
-  "addons.uninstallSource": "The GitHub update link will be removed. Repository access tokens are kept in credential settings.",
+  "addons.uninstallHelp":
+    "Remove this package from installed add-ons. Its pages, services and update link will be removed.",
+  "addons.uninstallKeep":
+    "Campaign records, saved characters, add-on settings and recovery archives are kept. Reinstall a compatible package to use its data again. This does not free archive storage.",
+  "addons.uninstallRules":
+    "The website keeps the ruleset {ruleset}. Install a compatible complete rules package to restore its rules profile.",
+  "addons.uninstallSource":
+    "The GitHub update link will be removed. Repository access tokens are kept in credential settings.",
   "addons.uninstallDisable": "Will be disabled, kept installed",
   "addons.uninstallOptional": "Will stay enabled",
-  "addons.uninstallReconnect": "These add-ons reconnect to remaining providers or continue without the optional dependency.",
+  "addons.uninstallReconnect":
+    "These add-ons reconnect to remaining providers or continue without the optional dependency.",
   "addons.uninstallStop": "These add-ons will stop during removal: {addons}.",
   "addons.uninstallData": "Retained data",
   "addons.uninstallNoData": "No stored add-on records were found.",
   "addons.uninstallDocuments": "Records: {count}",
   "addons.uninstallConfirm": "Uninstall and keep data",
   "addons.uninstalled": "Add-on uninstalled. Campaign data and recovery archives were kept.",
-  "addons.uninstallRecovery": "The add-on was uninstalled, but some remaining add-ons could not restart. Review their status below.",
-  "addons.uninstallConflict": "The package or its dependencies changed. Review uninstall again before continuing.",
+  "addons.uninstallRecovery":
+    "The add-on was uninstalled, but some remaining add-ons could not restart. Review their status below.",
+  "addons.uninstallConflict":
+    "The package or its dependencies changed. Review uninstall again before continuing.",
   "configuration.defines": "Defines this website’s ruleset: {ruleset}.",
   "configuration.supports": "Supports these rulesets: {rulesets}.",
-  "configuration.initialOff": "These books will be off after activation. Enable them in sourcebook settings: {books}.",
+  "configuration.initialOff":
+    "These books will be off after activation. Enable them in sourcebook settings: {books}.",
   "addons.rules": "Ruleset",
   "configuration.title": "Rules, sourcebooks and services",
-  "configuration.intro": "This website uses one ruleset. Additional sources must declare support for it.",
+  "configuration.intro":
+    "This website uses one ruleset. Additional sources must declare support for it.",
   "configuration.noRules": "Activate a rules package to establish this website’s ruleset.",
-  "configuration.definedBy": "Defined by {addon}. This choice is retained when the package is disabled.",
+  "configuration.definedBy":
+    "Defined by {addon}. This choice is retained when the package is disabled.",
   "configuration.books": "Available sourcebooks",
-  "configuration.booksHelp": "Choose books for browsing and future rules choices. New optional books stay off until you review them.",
+  "configuration.booksHelp":
+    "Choose books for browsing and future rules choices. New optional books stay off until you review them.",
   "configuration.noBooks": "No sourcebooks are available from active packages.",
   "configuration.search": "Find a sourcebook",
   "configuration.noMatches": "No sourcebooks match this search.",
   "configuration.new": "New — review needed",
   "configuration.required": "Required rules profile",
   "configuration.services": "Service providers",
-  "configuration.servicesHelp": "Choose a provider when more than one add-on offers a service. Automatic selection uses the sole compatible provider; it never guesses between several.",
+  "configuration.servicesHelp":
+    "Choose a provider when more than one add-on offers a service. Automatic selection uses the sole compatible provider; it never guesses between several.",
   "configuration.noServices": "No installed add-on uses another service.",
   "configuration.staged": "Staged package",
   "configuration.optional": "Optional service",
@@ -52,7 +66,8 @@ export const configurationEn = {
   "configuration.unavailable": "Inactive or incompatible",
   "configuration.current": "Currently connected: {providers}",
   "configuration.none": "None",
-  "configuration.stale": "Selected providers are unavailable: {providers}. Choose a replacement or clear the selection.",
+  "configuration.stale":
+    "Selected providers are unavailable: {providers}. Choose a replacement or clear the selection.",
   "configuration.ready": "Connected",
   "configuration.missing": "No compatible provider is active",
   "configuration.ambiguous": "Several providers are available. Choose one to connect this service.",
@@ -63,7 +78,8 @@ export const configurationEn = {
   "configuration.enabling": "Enable",
   "configuration.disabling": "Disable",
   "configuration.acknowledge": "Confirm the current choices for new books.",
-  "configuration.retained": "Saved characters, notes and existing choices are retained. Disabled sources stop offering new choices. Saved values are not recalculated.",
+  "configuration.retained":
+    "Saved characters, notes and existing choices are retained. Disabled sources stop offering new choices. Saved values are not recalculated.",
   "configuration.restart": "These add-ons will restart: {addons}.",
   "configuration.noRestart": "No running add-on needs to restart.",
   "configuration.apply": "Apply changes",
@@ -71,9 +87,11 @@ export const configurationEn = {
   "configuration.reset": "Discard draft",
   "configuration.refresh": "Refresh configuration",
   "configuration.draft": "You have unapplied choices.",
-  "configuration.conflict": "The configuration changed. Your draft has been kept. Refresh the configuration and review your choices again.",
+  "configuration.conflict":
+    "The configuration changed. Your draft has been kept. Refresh the configuration and review your choices again.",
   "configuration.saved": "Configuration applied.",
-  "configuration.recovery": "Configuration saved, but some add-ons could not restart. Check their status below.",
+  "configuration.recovery":
+    "Configuration saved, but some add-ons could not restart. Check their status below.",
 } as const;
 
 export const configurationCs: Record<keyof typeof configurationEn, string> = {
@@ -83,44 +101,59 @@ export const configurationCs: Record<keyof typeof configurationEn, string> = {
   "addons.settingsLink": "Odkaz na toto nastavení",
   "addons.settingsIntro": "Volby poskytované vašimi aktivními doplňky.",
   "addons.settingsEmpty": "Pro vaši roli není dostupné žádné nastavení doplňků.",
-  "addons.settingsUnavailable": "Toto nastavení není dostupné. Doplněk může být vypnutý, stále se načítat nebo být nedostupný pro vaši roli.",
-  "addons.settingsFailed": "Některá nastavení se nepodařilo otevřít. Ostatní nastavení zůstávají dostupná.",
+  "addons.settingsUnavailable":
+    "Toto nastavení není dostupné. Doplněk může být vypnutý, stále se načítat nebo být nedostupný pro vaši roli.",
+  "addons.settingsFailed":
+    "Některá nastavení se nepodařilo otevřít. Ostatní nastavení zůstávají dostupná.",
   "addons.settingsRetry": "Zkusit nastavení znovu",
-  "addons.settingsSaving": "Před změnou nainstalovaných doplňků počkejte na dokončení ukládání doplňku.",
+  "addons.settingsSaving":
+    "Před změnou nainstalovaných doplňků počkejte na dokončení ukládání doplňku.",
   "addons.uninstall": "Odinstalovat",
   "addons.uninstallReview": "Kontrola odinstalace",
-  "addons.uninstallHelp": "Odebere balíček z nainstalovaných doplňků. Jeho stránky, služby a odkaz pro aktualizace budou odebrány.",
-  "addons.uninstallKeep": "Záznamy kampaně, uložené postavy, nastavení doplňku a archivy obnovy zůstanou zachovány. Data zpřístupníte instalací kompatibilního balíčku. Místo zabrané archivy se neuvolní.",
-  "addons.uninstallRules": "Web si ponechá sadu pravidel {ruleset}. Profil pravidel obnovíte instalací kompatibilního úplného balíčku pravidel.",
-  "addons.uninstallSource": "Odkaz pro aktualizace z GitHubu bude odebrán. Přístupové tokeny repozitářů zůstanou v nastavení přihlašovacích údajů.",
+  "addons.uninstallHelp":
+    "Odebere balíček z nainstalovaných doplňků. Jeho stránky, služby a odkaz pro aktualizace budou odebrány.",
+  "addons.uninstallKeep":
+    "Záznamy kampaně, uložené postavy, nastavení doplňku a archivy obnovy zůstanou zachovány. Data zpřístupníte instalací kompatibilního balíčku. Místo zabrané archivy se neuvolní.",
+  "addons.uninstallRules":
+    "Web si ponechá sadu pravidel {ruleset}. Profil pravidel obnovíte instalací kompatibilního úplného balíčku pravidel.",
+  "addons.uninstallSource":
+    "Odkaz pro aktualizace z GitHubu bude odebrán. Přístupové tokeny repozitářů zůstanou v nastavení přihlašovacích údajů.",
   "addons.uninstallDisable": "Vypnou se, zůstanou nainstalované",
   "addons.uninstallOptional": "Zůstanou zapnuté",
-  "addons.uninstallReconnect": "Tyto doplňky se připojí ke zbývajícím poskytovatelům nebo budou fungovat bez volitelné závislosti.",
+  "addons.uninstallReconnect":
+    "Tyto doplňky se připojí ke zbývajícím poskytovatelům nebo budou fungovat bez volitelné závislosti.",
   "addons.uninstallStop": "Tyto doplňky se během odebrání zastaví: {addons}.",
   "addons.uninstallData": "Zachovaná data",
   "addons.uninstallNoData": "Nebyla nalezena žádná uložená data doplňku.",
   "addons.uninstallDocuments": "Počet záznamů: {count}",
   "addons.uninstallConfirm": "Odinstalovat a zachovat data",
-  "addons.uninstalled": "Doplněk byl odinstalován. Data kampaně a archivy obnovy zůstaly zachovány.",
-  "addons.uninstallRecovery": "Doplněk byl odinstalován, ale některé zbývající doplňky se nepodařilo spustit. Zkontrolujte jejich stav níže.",
-  "addons.uninstallConflict": "Balíček nebo jeho závislosti se změnily. Před pokračováním znovu zkontrolujte odinstalaci.",
+  "addons.uninstalled":
+    "Doplněk byl odinstalován. Data kampaně a archivy obnovy zůstaly zachovány.",
+  "addons.uninstallRecovery":
+    "Doplněk byl odinstalován, ale některé zbývající doplňky se nepodařilo spustit. Zkontrolujte jejich stav níže.",
+  "addons.uninstallConflict":
+    "Balíček nebo jeho závislosti se změnily. Před pokračováním znovu zkontrolujte odinstalaci.",
   "configuration.defines": "Určuje sadu pravidel tohoto webu: {ruleset}.",
   "configuration.supports": "Podporuje tyto sady pravidel: {rulesets}.",
-  "configuration.initialOff": "Tyto příručky budou po aktivaci vypnuté. Zapněte je v nastavení příruček: {books}.",
+  "configuration.initialOff":
+    "Tyto příručky budou po aktivaci vypnuté. Zapněte je v nastavení příruček: {books}.",
   "addons.rules": "Sada pravidel",
   "configuration.title": "Pravidla, příručky a služby",
-  "configuration.intro": "Tento web používá jednu sadu pravidel. Další zdroje musí deklarovat její podporu.",
+  "configuration.intro":
+    "Tento web používá jednu sadu pravidel. Další zdroje musí deklarovat její podporu.",
   "configuration.noRules": "Aktivací balíčku pravidel nastavíte sadu pravidel tohoto webu.",
   "configuration.definedBy": "Určuje doplněk {addon}. Volba zůstává zachována i po jeho vypnutí.",
   "configuration.books": "Dostupné příručky",
-  "configuration.booksHelp": "Vyberte příručky pro prohlížení a budoucí volby pravidel. Nové volitelné příručky zůstávají vypnuté do vaší kontroly.",
+  "configuration.booksHelp":
+    "Vyberte příručky pro prohlížení a budoucí volby pravidel. Nové volitelné příručky zůstávají vypnuté do vaší kontroly.",
   "configuration.noBooks": "Aktivní balíčky nenabízejí žádné příručky.",
   "configuration.search": "Najít příručku",
   "configuration.noMatches": "Hledání neodpovídá žádná příručka.",
   "configuration.new": "Nová — čeká na kontrolu",
   "configuration.required": "Povinný profil pravidel",
   "configuration.services": "Poskytovatelé služeb",
-  "configuration.servicesHelp": "Pokud službu nabízí více doplňků, vyberte poskytovatele. Automatická volba používá jediného kompatibilního poskytovatele; mezi několika nevybírá.",
+  "configuration.servicesHelp":
+    "Pokud službu nabízí více doplňků, vyberte poskytovatele. Automatická volba používá jediného kompatibilního poskytovatele; mezi několika nevybírá.",
   "configuration.noServices": "Žádný nainstalovaný doplněk nevyužívá další službu.",
   "configuration.staged": "Připravený balíček",
   "configuration.optional": "Volitelná služba",
@@ -130,10 +163,12 @@ export const configurationCs: Record<keyof typeof configurationEn, string> = {
   "configuration.unavailable": "Neaktivní nebo nekompatibilní",
   "configuration.current": "Nyní připojeno: {providers}",
   "configuration.none": "Žádný",
-  "configuration.stale": "Vybraní poskytovatelé nejsou dostupní: {providers}. Vyberte náhradu nebo zrušte výběr.",
+  "configuration.stale":
+    "Vybraní poskytovatelé nejsou dostupní: {providers}. Vyberte náhradu nebo zrušte výběr.",
   "configuration.ready": "Připojeno",
   "configuration.missing": "Není aktivní žádný kompatibilní poskytovatel",
-  "configuration.ambiguous": "Je k dispozici více poskytovatelů. Pro připojení služby vyberte jednoho.",
+  "configuration.ambiguous":
+    "Je k dispozici více poskytovatelů. Pro připojení služby vyberte jednoho.",
   "configuration.unresolved": "Služba není připojena",
   "configuration.reviewBooks": "Zkontrolovat výběr příruček",
   "configuration.reviewService": "Zkontrolovat poskytovatele",
@@ -141,7 +176,8 @@ export const configurationCs: Record<keyof typeof configurationEn, string> = {
   "configuration.enabling": "Zapnout",
   "configuration.disabling": "Vypnout",
   "configuration.acknowledge": "Potvrdit aktuální volby nových příruček.",
-  "configuration.retained": "Uložené postavy, poznámky i stávající volby zůstávají zachovány. Vypnuté zdroje nenabízejí nové volby. Uložené hodnoty se nepřepočítají.",
+  "configuration.retained":
+    "Uložené postavy, poznámky i stávající volby zůstávají zachovány. Vypnuté zdroje nenabízejí nové volby. Uložené hodnoty se nepřepočítají.",
   "configuration.restart": "Restartují se tyto doplňky: {addons}.",
   "configuration.noRestart": "Žádný běžící doplněk nepotřebuje restart.",
   "configuration.apply": "Použít změny",
@@ -149,7 +185,9 @@ export const configurationCs: Record<keyof typeof configurationEn, string> = {
   "configuration.reset": "Zahodit návrh",
   "configuration.refresh": "Obnovit konfiguraci",
   "configuration.draft": "Máte nepotvrzené volby.",
-  "configuration.conflict": "Konfigurace se změnila. Návrh zůstal zachován. Obnovte konfiguraci a znovu zkontrolujte své volby.",
+  "configuration.conflict":
+    "Konfigurace se změnila. Návrh zůstal zachován. Obnovte konfiguraci a znovu zkontrolujte své volby.",
   "configuration.saved": "Konfigurace byla použita.",
-  "configuration.recovery": "Konfigurace je uložena, ale některé doplňky se nepodařilo spustit. Zkontrolujte jejich stav níže.",
+  "configuration.recovery":
+    "Konfigurace je uložena, ale některé doplňky se nepodařilo spustit. Zkontrolujte jejich stav níže.",
 };

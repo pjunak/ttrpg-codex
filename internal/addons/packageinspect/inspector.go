@@ -700,7 +700,7 @@ func validateDeclarations(manifest Manifest, entries map[string]*zip.File, direc
 		if err := requireFile(entries, content.Schema, fmt.Sprintf("content[%d].schema", index)); err != nil {
 			return err
 		}
-		if !hasDirectoryContent(entries, directories, content.Root) {
+		if !hasDirectoryContent(entries, content.Root) {
 			return inspectionError(CodeInvalidDeclaration, fmt.Sprintf("content[%d].root", index), fmt.Errorf("declared content root %q is empty or missing", content.Root))
 		}
 	}
@@ -812,13 +812,10 @@ func requireFile(entries map[string]*zip.File, filename, declaration string) err
 	return nil
 }
 
-func hasDirectoryContent(entries map[string]*zip.File, directories map[string]struct{}, root string) bool {
+func hasDirectoryContent(entries map[string]*zip.File, root string) bool {
 	normalized, err := normalizedPackagePath(root, false)
 	if err != nil {
 		return false
-	}
-	if _, ok := directories[normalized]; ok {
-		// An explicit directory still needs at least one regular file.
 	}
 	prefix := normalized + "/"
 	for filename := range entries {

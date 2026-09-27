@@ -1,6 +1,7 @@
 export const diagnosticsEn = {
   "diagnostics.title": "Runtime diagnostics",
-  "diagnostics.help": "Worker status and recent requests, plus failures in this browser tab. Raw output and campaign contents are omitted. Refresh to check recovery; use Reload to retry a stopped worker.",
+  "diagnostics.help":
+    "Worker status and recent requests, plus failures in this browser tab. Raw output and campaign contents are omitted. Refresh to check recovery; use Reload to retry a stopped worker.",
   "diagnostics.worker": "Worker",
   "diagnostics.health": "Health",
   "diagnostics.started": "Started",
@@ -18,7 +19,8 @@ export const diagnosticsEn = {
 } as const;
 export const diagnosticsCs: Record<keyof typeof diagnosticsEn, string> = {
   "diagnostics.title": "Diagnostika běhu",
-  "diagnostics.help": "Stav workeru a poslední požadavky spolu s chybami v této kartě prohlížeče. Surový výstup a obsah kampaně se nezobrazují. Obnovením zkontrolujte zotavení; opětovným načtením doplňku spusťte zastavený worker.",
+  "diagnostics.help":
+    "Stav workeru a poslední požadavky spolu s chybami v této kartě prohlížeče. Surový výstup a obsah kampaně se nezobrazují. Obnovením zkontrolujte zotavení; opětovným načtením doplňku spusťte zastavený worker.",
   "diagnostics.worker": "Worker",
   "diagnostics.health": "Stav",
   "diagnostics.started": "Spuštěn",

@@ -1,5 +1,9 @@
 import { isRecord } from "../core/boundary.js";
-import { campaignCollection, type CampaignDataset, type CampaignRecord } from "../core/campaign-data.js";
+import {
+  campaignCollection,
+  type CampaignDataset,
+  type CampaignRecord,
+} from "../core/campaign-data.js";
 import type { CampaignMutation } from "../core/campaign-mutations.js";
 import type { MessageKey } from "./ui-localization.js";
 
@@ -20,7 +24,12 @@ export interface CampaignAppearanceSaveDetail {
 export class CampaignAppearanceEditError extends Error {
   override readonly name = "CampaignAppearanceEditError";
 
-  constructor(message: string, readonly kind: "invalid" | "stale" = "invalid") { super(message); }
+  constructor(
+    message: string,
+    readonly kind: "invalid" | "stale" = "invalid",
+  ) {
+    super(message);
+  }
 }
 
 export const campaignThemes: readonly CampaignThemeDefinition[] = Object.freeze([
@@ -52,7 +61,8 @@ export function prepareCampaignAppearanceSave(
   detail: CampaignAppearanceSaveDetail,
 ): CampaignMutation {
   const record = campaignAppearanceRecord(campaign);
-  if (!Number.isSafeInteger(detail.expectedRevision) || !isCampaignThemeID(detail.theme)) throw invalidAppearance();
+  if (!Number.isSafeInteger(detail.expectedRevision) || !isCampaignThemeID(detail.theme))
+    throw invalidAppearance();
   if (detail.expectedRevision !== (record?.revision ?? 0)) {
     throw new CampaignAppearanceEditError("campaign appearance revision is stale", "stale");
   }
@@ -94,11 +104,17 @@ function invalidAppearance(): CampaignAppearanceEditError {
 }
 
 function readStorage(key: string): string | null {
-  try { return typeof window === "undefined" ? null : window.localStorage.getItem(key); }
-  catch { return null; }
+  try {
+    return typeof window === "undefined" ? null : window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 
 function writeStorage(key: string, value: string): void {
-  try { if (typeof window !== "undefined") window.localStorage.setItem(key, value); }
-  catch { /* Cached appearance is optional; campaign data remains authoritative. */ }
+  try {
+    if (typeof window !== "undefined") window.localStorage.setItem(key, value);
+  } catch {
+    /* Cached appearance is optional; campaign data remains authoritative. */
+  }
 }

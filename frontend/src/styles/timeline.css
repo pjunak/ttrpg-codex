@@ -4,8 +4,8 @@
 
 /* Shell: fills viewport like a map view */
 .tl-shell {
-  --text-xs: .75rem;
-  --text-sm: .875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
   --space-5: 1.25rem;
   --radius-pill: 999px;
   position: fixed;
@@ -19,17 +19,45 @@
   overflow: hidden;
 }
 @media (max-width: 768px) {
-  .tl-shell { left: 0; bottom: var(--bottom-nav-h); }
+  .tl-shell {
+    left: 0;
+    bottom: var(--bottom-nav-h);
+  }
 }
 
 /* Toolbar */
-codex-timeline-slot { display: block; min-height: 1px; }
-.tl-shell codex-timeline-slot .addon-contribution { margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
-.tl-shell codex-timeline-slot .addon-isolated-frame { min-height: 0; background: transparent; }
-.tl-shell codex-timeline-slot iframe { display: block; width: 100%; height: 1px; border: 0; background: transparent; }
-.tl-toolbar codex-timeline-slot { flex: 0 1 16rem; max-width: 100%; }
-.tl-card codex-timeline-slot { padding: .2rem .75rem; }
-.tl-col > codex-timeline-slot { padding: .2rem .5rem; }
+codex-timeline-slot {
+  display: block;
+  min-height: 1px;
+}
+.tl-shell codex-timeline-slot .addon-contribution {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.tl-shell codex-timeline-slot .addon-isolated-frame {
+  min-height: 0;
+  background: transparent;
+}
+.tl-shell codex-timeline-slot iframe {
+  display: block;
+  width: 100%;
+  height: 1px;
+  border: 0;
+  background: transparent;
+}
+.tl-toolbar codex-timeline-slot {
+  flex: 0 1 16rem;
+  max-width: 100%;
+}
+.tl-card codex-timeline-slot {
+  padding: 0.2rem 0.75rem;
+}
+.tl-col > codex-timeline-slot {
+  padding: 0.2rem 0.5rem;
+}
 
 .tl-toolbar {
   display: flex;
@@ -65,7 +93,9 @@ codex-timeline-slot { display: block; min-height: 1px; }
   border-radius: 4px;
   cursor: pointer;
   letter-spacing: 0.04em;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 .tl-add-btn:hover {
   background: rgba(var(--accent-gold-rgb), 0.12);
@@ -80,7 +110,9 @@ codex-timeline-slot { display: block; min-height: 1px; }
   overflow-y: hidden;
   scrollbar-width: none;
 }
-.tl-board-viewport::-webkit-scrollbar { display: none; }
+.tl-board-viewport::-webkit-scrollbar {
+  display: none;
+}
 
 /* Horizontal pan slider under the board — the single, deliberately
    visible scroll control (shown only when the board overflows; two-way
@@ -97,7 +129,9 @@ codex-timeline-slot { display: block; min-height: 1px; }
   background: transparent;
   cursor: pointer;
 }
-.tl-hscroll[hidden] { display: none; }
+.tl-hscroll[hidden] {
+  display: none;
+}
 .tl-hscroll::-webkit-slider-runnable-track {
   height: 10px;
   border-radius: var(--radius-pill);
@@ -130,9 +164,13 @@ codex-timeline-slot { display: block; min-height: 1px; }
   box-shadow: var(--shadow-sm);
 }
 .tl-hscroll:hover::-webkit-slider-thumb,
-.tl-hscroll:active::-webkit-slider-thumb { background: var(--accent-gold); }
+.tl-hscroll:active::-webkit-slider-thumb {
+  background: var(--accent-gold);
+}
 .tl-hscroll:hover::-moz-range-thumb,
-.tl-hscroll:active::-moz-range-thumb { background: var(--accent-gold); }
+.tl-hscroll:active::-moz-range-thumb {
+  background: var(--accent-gold);
+}
 .tl-hscroll:focus-visible {
   outline: 2px solid var(--accent-gold);
   outline-offset: 2px;
@@ -153,12 +191,14 @@ codex-timeline-slot { display: block; min-height: 1px; }
   flex: 0 0 260px;
   display: flex;
   flex-direction: column;
-  background: rgba(28,20,8,0.55);
+  background: rgba(28, 20, 8, 0.55);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.14);
   border-radius: 8px;
   overflow: hidden;
   max-height: 100%;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 .tl-col:hover {
   border-color: rgba(var(--accent-gold-rgb), 0.28);
@@ -195,22 +235,72 @@ codex-timeline-slot { display: block; min-height: 1px; }
   text-transform: uppercase;
   color: var(--accent-gold);
 }
-.tl-col-title:disabled { cursor: default; opacity: 1; }
-.tl-col-title:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 3px; }
-.tl-add-btn, .tl-col-add, .tl-card-open { text-decoration: none; }
-.tl-col-add { text-align: center; }
-.tl-card-open { display: block; color: inherit; }
-.tl-card-actions { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; margin-top: .6rem; }
-.tl-card-actions button, .tl-card-actions select, .tl-card-actions a {
-  min-height: 28px; max-width: 100%; background: var(--bg-surface); color: var(--text-parchment);
-  border: 1px solid var(--border-subtle); border-radius: 3px; padding: .2rem .4rem; font: .7rem var(--font-ui);
+.tl-col-title:disabled {
+  cursor: default;
+  opacity: 1;
 }
-.tl-card-actions select { flex: 1; min-width: 0; }
-.tl-card-actions a { text-decoration: none; }
-.tl-card-actions :disabled, .tl-add-btn:disabled { opacity: .5; cursor: default; }
-.tl-message { margin: 0; padding: .6rem 1rem; background: var(--bg-surface); color: var(--text-parchment); font: .8rem var(--font-ui); }
-.tl-card:focus-within { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
-.tl-col-phantom .tl-col-title { color: var(--text-muted); font-style: italic; }
+.tl-col-title:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 3px;
+}
+.tl-add-btn,
+.tl-col-add,
+.tl-card-open {
+  text-decoration: none;
+}
+.tl-col-add {
+  text-align: center;
+}
+.tl-card-open {
+  display: block;
+  color: inherit;
+}
+.tl-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+  margin-top: 0.6rem;
+}
+.tl-card-actions button,
+.tl-card-actions select,
+.tl-card-actions a {
+  min-height: 28px;
+  max-width: 100%;
+  background: var(--bg-surface);
+  color: var(--text-parchment);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  padding: 0.2rem 0.4rem;
+  font: 0.7rem var(--font-ui);
+}
+.tl-card-actions select {
+  flex: 1;
+  min-width: 0;
+}
+.tl-card-actions a {
+  text-decoration: none;
+}
+.tl-card-actions :disabled,
+.tl-add-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.tl-message {
+  margin: 0;
+  padding: 0.6rem 1rem;
+  background: var(--bg-surface);
+  color: var(--text-parchment);
+  font: 0.8rem var(--font-ui);
+}
+.tl-card:focus-within {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+.tl-col-phantom .tl-col-title {
+  color: var(--text-muted);
+  font-style: italic;
+}
 .tl-col-count {
   font-family: var(--font-ui);
   font-size: 0.7rem;
@@ -221,7 +311,9 @@ codex-timeline-slot { display: block; min-height: 1px; }
   min-width: 1.2em;
   text-align: center;
 }
-.tl-col-count:empty { display: none; }
+.tl-col-count:empty {
+  display: none;
+}
 
 /* Column body — scrollable when content overflows */
 .tl-col-body {
@@ -233,7 +325,7 @@ codex-timeline-slot { display: block; min-height: 1px; }
   gap: 8px;
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--accent-gold-rgb), 0.25) transparent;
-  min-height: 40px;  /* drop target stays clickable when empty */
+  min-height: 40px; /* drop target stays clickable when empty */
 }
 .tl-col-empty {
   margin: auto;
@@ -244,8 +336,13 @@ codex-timeline-slot { display: block; min-height: 1px; }
   line-height: 1.5;
   text-align: center;
 }
-.tl-col-body::-webkit-scrollbar { width: 6px; }
-.tl-col-body::-webkit-scrollbar-thumb { background: rgba(var(--accent-gold-rgb), 0.25); border-radius: 3px; }
+.tl-col-body::-webkit-scrollbar {
+  width: 6px;
+}
+.tl-col-body::-webkit-scrollbar-thumb {
+  background: rgba(var(--accent-gold-rgb), 0.25);
+  border-radius: 3px;
+}
 
 /* Add-event button in column footer */
 .tl-col-add {
@@ -260,7 +357,10 @@ codex-timeline-slot { display: block; min-height: 1px; }
   font-size: 0.72rem;
   letter-spacing: 0.05em;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
 }
 .tl-col-add:hover {
   color: var(--accent-gold);
@@ -270,27 +370,30 @@ codex-timeline-slot { display: block; min-height: 1px; }
 
 /* ── Card ─────────────────────────────────────────────────────── */
 .tl-card {
-  background: linear-gradient(160deg, rgba(28,20,8,0.97) 0%, rgba(14,10,3,0.99) 100%);
-  border-top: 2px solid var(--tc, #8B6914);
-  border-left:   1px solid var(--border-subtle);
-  border-right:  1px solid var(--border-faint);
-  border-bottom: 1px solid rgba(0,0,0,0.5);
+  background: linear-gradient(160deg, rgba(28, 20, 8, 0.97) 0%, rgba(14, 10, 3, 0.99) 100%);
+  border-top: 2px solid var(--tc, #8b6914);
+  border-left: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-faint);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.5);
   border-radius: 5px;
   padding: 8px 10px 10px;
   box-shadow:
-    0 0 0 1px rgba(0,0,0,0.45),
-    0 2px 8px rgba(0,0,0,0.5),
-    0 0 6px -3px var(--tc, #8B6914);
+    0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 0 6px -3px var(--tc, #8b6914);
   cursor: pointer;
   user-select: none;
-  transition: transform 0.18s ease, box-shadow 0.18s, margin-top 0.22s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s,
+    margin-top 0.22s ease;
   flex-shrink: 0;
 }
 .tl-card:hover {
   box-shadow:
-    0 0 0 1px rgba(0,0,0,0.55),
-    0 6px 18px rgba(0,0,0,0.6),
-    0 0 12px -2px var(--tc, #8B6914);
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 6px 18px rgba(0, 0, 0, 0.6),
+    0 0 12px -2px var(--tc, #8b6914);
   transform: translateY(-1px);
 }
 .tl-card:focus-visible {
@@ -309,7 +412,7 @@ codex-timeline-slot { display: block; min-height: 1px; }
   font-family: var(--font-ui);
   font-size: 0.72rem;
   line-height: 1.45;
-  color: rgba(212,196,154,0.78);
+  color: rgba(212, 196, 154, 0.78);
   margin-bottom: 6px;
   display: -webkit-box;
   -webkit-line-clamp: 5;
@@ -333,12 +436,22 @@ codex-timeline-slot { display: block; min-height: 1px; }
   -webkit-box-orient: vertical;
   word-break: break-word;
 }
-.tl-card-loc   { color: rgba(130,180,130,0.8); }
-.tl-more       { opacity: 0.55; }
+.tl-card-loc {
+  color: rgba(130, 180, 130, 0.8);
+}
+.tl-more {
+  opacity: 0.55;
+}
 
-.tl-shell.is-editing .tl-card { cursor: grab; }
-.tl-shell.is-editing .tl-card:active { cursor: grabbing; }
-.tl-card.tl-drag-src { opacity: 0.35; }
+.tl-shell.is-editing .tl-card {
+  cursor: grab;
+}
+.tl-shell.is-editing .tl-card:active {
+  cursor: grabbing;
+}
+.tl-card.tl-drag-src {
+  opacity: 0.35;
+}
 
 /* ── Stacked column (> STACK_THRESHOLD cards) ────────────────── */
 /* Collapsed: cards overlap so only a strip of each peeks out,
@@ -346,16 +459,19 @@ codex-timeline-slot { display: block; min-height: 1px; }
    or toggling .tl-col-expanded restores normal spacing. */
 .tl-col-stacked .tl-col-body > .tl-card + .tl-card {
   margin-top: -54px;
-  transition: margin-top 0.22s ease, box-shadow 0.18s, transform 0.18s;
+  transition:
+    margin-top 0.22s ease,
+    box-shadow 0.18s,
+    transform 0.18s;
 }
 .tl-col-stacked .tl-col-body > .tl-card:hover {
   /* Hovering a peeking card pops that one card up without expanding
      the whole stack — useful for a quick peek in read-only mode. */
   z-index: 4;
   box-shadow:
-    0 0 0 1px rgba(0,0,0,0.55),
-    0 8px 22px rgba(0,0,0,0.65),
-    0 0 14px -2px var(--tc, #8B6914);
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 8px 22px rgba(0, 0, 0, 0.65),
+    0 0 14px -2px var(--tc, #8b6914);
 }
 .tl-col-stacked:hover .tl-col-body > .tl-card + .tl-card,
 .tl-shell.is-editing .tl-col-stacked .tl-col-body > .tl-card + .tl-card,
@@ -363,8 +479,18 @@ codex-timeline-slot { display: block; min-height: 1px; }
 .tl-col-stacked.tl-col-expanded .tl-col-body > .tl-card + .tl-card {
   margin-top: 0;
 }
-@media (prefers-reduced-motion: reduce) { .tl-shell * { transition: none !important; } }
-@media (pointer: coarse) { .tl-card-actions button, .tl-card-actions select, .tl-card-actions a { min-height: 36px; } }
+@media (prefers-reduced-motion: reduce) {
+  .tl-shell * {
+    transition: none !important;
+  }
+}
+@media (pointer: coarse) {
+  .tl-card-actions button,
+  .tl-card-actions select,
+  .tl-card-actions a {
+    min-height: 36px;
+  }
+}
 
 /* ── Drop indicator (thin gold line between cards) ────────────── */
 .tl-drop-indicator {

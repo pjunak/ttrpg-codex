@@ -6,7 +6,7 @@ import type {
   BrowserPermissionGrant,
   BrowserRole,
 } from "./generation-manager.js";
-import type { Disposer, GenerationScope } from "./generation-scope.js";
+import type { GenerationScope } from "./generation-scope.js";
 import type { BrowserDataAPI } from "./data-client.js";
 import type { BrowserContentAPI } from "./content-client.js";
 import type { BrowserServiceAPI } from "./service-client.js";
@@ -23,18 +23,22 @@ export interface BrowserElementBinding {
 
 export interface BrowserActionBinding {
   readonly kind: "action";
-  readonly run: (request: unknown, context: BrowserInvocationContext) => unknown | Promise<unknown>;
+  readonly run: (request: unknown, context: BrowserInvocationContext) => unknown;
 }
 
 export interface BrowserModelProviderBinding {
   readonly kind: "model-provider";
-  readonly provide: (request: unknown, context: BrowserInvocationContext) => unknown | Promise<unknown>;
+  readonly provide: (request: unknown, context: BrowserInvocationContext) => unknown;
 }
 
 /** Host-only binding used to mount one sandboxed document into a visual outlet. */
 export interface BrowserIsolatedFrameBinding {
   readonly kind: "isolated-frame";
-  readonly mount: (host: HTMLElement, hostContext?: unknown, edits?: BrowserContributionEditHandle) => Disposer | BrowserIsolatedMount;
+  readonly mount: (
+    host: HTMLElement,
+    hostContext?: unknown,
+    edits?: BrowserContributionEditHandle,
+  ) => (() => void) | BrowserIsolatedMount;
 }
 
 export interface BrowserIsolatedMount {
@@ -48,14 +52,10 @@ export interface BrowserDeclarativeBinding {
 }
 
 export type BrowserContributionBinding =
-  | BrowserElementBinding
-  | BrowserActionBinding
-  | BrowserModelProviderBinding;
+  BrowserElementBinding | BrowserActionBinding | BrowserModelProviderBinding;
 
 export type ActiveBrowserContributionBinding =
-  | BrowserContributionBinding
-  | BrowserIsolatedFrameBinding
-  | BrowserDeclarativeBinding;
+  BrowserContributionBinding | BrowserIsolatedFrameBinding | BrowserDeclarativeBinding;
 
 export interface BrowserInvocationContext {
   readonly signal: AbortSignal;
@@ -186,8 +186,7 @@ export class BrowserContributionRegistry {
       publishDeclarative: (contributionId) => session.publishDeclarative(contributionId),
       bindIsolatedCallback: (contributionId, binding) =>
         session.bindIsolatedCallback(contributionId, binding),
-      bindIsolated: (contributionId, binding) =>
-        session.bindIsolated(contributionId, binding),
+      bindIsolated: (contributionId, binding) => session.bindIsolated(contributionId, binding),
       dispose: () => {
         releaseFallback();
         session.dispose();
@@ -200,21 +199,29 @@ export class BrowserContributionRegistry {
     role: BrowserRole,
   ): readonly ActiveBrowserContribution[] {
     return [...this.#active.values()]
-      .filter((active) =>
-        active.descriptor.surface === surface &&
-        (active.descriptor.roles.length === 0 || active.descriptor.roles.includes(role))
+      .filter(
+        (active) =>
+          active.descriptor.surface === surface &&
+          (active.descriptor.roles.length === 0 || active.descriptor.roles.includes(role)),
       )
       .sort(compareActiveContributions)
       .map(({ key: _key, ...active }) => active);
   }
 
   settleGraph(graph: BrowserGenerationSet): void {
-    this.edits.retain(new Set(graph.addons.filter(addon => addon.mode === "integrated").flatMap(addon =>
-      addon.contributions.map(contribution => `${addon.addonId}:${contribution.id}`))));
+    this.edits.retain(
+      new Set(
+        graph.addons
+          .filter((addon) => addon.mode === "integrated")
+          .flatMap((addon) =>
+            addon.contributions.map((contribution) => `${addon.addonId}:${contribution.id}`),
+          ),
+      ),
+    );
     this.#changed();
   }
 
-  subscribe(listener: BrowserContributionListener): Disposer {
+  subscribe(listener: BrowserContributionListener): () => void {
     this.#listeners.add(listener);
     let subscribed = true;
     return () => {
@@ -267,10 +274,18 @@ class RegistrySession {
       }),
     );
     const capabilities = new Set(descriptor.capabilities);
-    const permissions = new Map(descriptor.permissions.map((permission) => [
-      permission.id,
-      Object.freeze({ id: permission.id, resources: Object.freeze([...permission.resources]) }),
-    ] as const));
+    const permissions = new Map(
+      descriptor.permissions.map(
+        (permission) =>
+          [
+            permission.id,
+            Object.freeze({
+              id: permission.id,
+              resources: Object.freeze([...permission.resources]),
+            }),
+          ] as const,
+      ),
+    );
     this.context = Object.freeze({
       addon: Object.freeze({
         id: descriptor.addonId,
@@ -285,12 +300,28 @@ class RegistrySession {
       services,
       ui: Object.freeze({
         enhance: (root: HTMLElement): UIControlsHandle => {
-          this.#assertOpen(); this.context.capabilities.require("ui.controls.v1");
-          if (descriptor.mode !== "integrated") throw new BrowserSDKAuthorityError("DOM controls require an integrated contribution.");
-          const handle = enhanceControls(root, { signal }); this.#uiHandles.add(handle);
-          return Object.freeze({ refresh: () => { this.#assertOpen(); handle.refresh(); }, dispose: () => { handle.dispose(); this.#uiHandles.delete(handle); } });
+          this.#assertOpen();
+          this.context.capabilities.require("ui.controls.v1");
+          if (descriptor.mode !== "integrated")
+            throw new BrowserSDKAuthorityError("DOM controls require an integrated contribution.");
+          const handle = enhanceControls(root, { signal });
+          this.#uiHandles.add(handle);
+          return Object.freeze({
+            refresh: () => {
+              this.#assertOpen();
+              handle.refresh();
+            },
+            dispose: () => {
+              handle.dispose();
+              this.#uiHandles.delete(handle);
+            },
+          });
         },
-        showRuleDetails: (details: RuleDetails) => { this.#assertOpen(); this.context.capabilities.require("ui.rule-details"); return showRuleDetails(details, signal); },
+        showRuleDetails: (details: RuleDetails) => {
+          this.#assertOpen();
+          this.context.capabilities.require("ui.rule-details");
+          return showRuleDetails(details, signal);
+        },
         declarations: () => {
           this.#assertOpen();
           return [...this.#declarations.values()];
@@ -306,7 +337,8 @@ class RegistrySession {
       return;
     }
     this.#closed = true;
-    for (const handle of this.#uiHandles) handle.dispose(); this.#uiHandles.clear();
+    for (const handle of this.#uiHandles) handle.dispose();
+    this.#uiHandles.clear();
     let changed = false;
     for (const active of this.#active.values()) {
       if (this.#global.get(active.key) === active) {
@@ -348,10 +380,7 @@ class RegistrySession {
         `isolated contribution ${contributionId} on ${declaration.surface} is not a callback surface`,
       );
     }
-    return this.#register(
-      declaration,
-      normalizeBinding(declaration, binding, this.context.signal),
-    );
+    return this.#register(declaration, normalizeBinding(declaration, binding, this.context.signal));
   }
 
   bindIsolated(
@@ -375,16 +404,16 @@ class RegistrySession {
         `isolated contribution ${contributionId} requires a frame mount function`,
       );
     }
-    return this.#register(declaration, Object.freeze({
-      kind: "isolated-frame",
-      mount: binding.mount,
-    }));
+    return this.#register(
+      declaration,
+      Object.freeze({
+        kind: "isolated-frame",
+        mount: binding.mount,
+      }),
+    );
   }
 
-  #bind(
-    contributionId: string,
-    binding: BrowserContributionBinding,
-  ): BrowserContributionHandle {
+  #bind(contributionId: string, binding: BrowserContributionBinding): BrowserContributionHandle {
     this.#assertOpen();
     const declaration = this.#declaration(contributionId);
     const normalizedBinding = normalizeBinding(declaration, binding, this.context.signal);
@@ -403,10 +432,16 @@ class RegistrySession {
     }
     const key = `${this.#descriptor.addonId}:${contributionId}`;
     if (this.#global.has(key)) {
-      throw new BrowserContributionBindingError(`contribution ${key} is owned by another generation`);
+      throw new BrowserContributionBindingError(
+        `contribution ${key} is owned by another generation`,
+      );
     }
     const active: RegisteredContribution = Object.freeze({
-      permissions: Object.freeze(this.#descriptor.permissions.map(grant => Object.freeze({ id: grant.id, resources: Object.freeze([...grant.resources]) }))),
+      permissions: Object.freeze(
+        this.#descriptor.permissions.map((grant) =>
+          Object.freeze({ id: grant.id, resources: Object.freeze([...grant.resources]) }),
+        ),
+      ),
       key,
       addonId: this.#descriptor.addonId,
       generationId: this.#descriptor.generationId,
@@ -515,11 +550,13 @@ function permissionAPI(
   return Object.freeze({
     has,
     resources: (permission: string): readonly string[] =>
-      active() ? permissions.get(permission)?.resources ?? [] : [],
+      active() ? (permissions.get(permission)?.resources ?? []) : [],
     require: (permission: string, resource?: string): void => {
       if (!has(permission, resource)) {
         const suffix = resource === undefined ? "" : ` for resource ${resource}`;
-        throw new BrowserSDKAuthorityError(`browser permission ${permission}${suffix} is unavailable`);
+        throw new BrowserSDKAuthorityError(
+          `browser permission ${permission}${suffix} is unavailable`,
+        );
       }
     },
   });
@@ -595,7 +632,13 @@ function expectedBindingKind(
     case "graph-contributor":
     case "wiki-kind":
       return "model-provider";
-    default:
+    case "article-section":
+    case "editor-panel":
+    case "graph-node-kind":
+    case "record-renderer":
+    case "route":
+    case "settings":
+    case "slot":
       return "element";
   }
 }
@@ -604,9 +647,11 @@ function compareActiveContributions(
   left: RegisteredContribution,
   right: RegisteredContribution,
 ): number {
-  return left.descriptor.order - right.descriptor.order ||
+  return (
+    left.descriptor.order - right.descriptor.order ||
     left.addonId.localeCompare(right.addonId) ||
-    left.descriptor.id.localeCompare(right.descriptor.id);
+    left.descriptor.id.localeCompare(right.descriptor.id)
+  );
 }
 
 function freezeContribution(

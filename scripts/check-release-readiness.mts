@@ -9,7 +9,9 @@ const start = acceptance.indexOf(startMarker);
 const end = acceptance.indexOf(endMarker);
 
 if (start < 0 || end <= start) {
-  console.error("Release blocked: docs/rewrite/FEATURE_PARITY_AUDIT.md does not contain the product-parity gate markers.");
+  console.error(
+    "Release blocked: docs/rewrite/FEATURE_PARITY_AUDIT.md does not contain the product-parity gate markers.",
+  );
   process.exit(1);
 }
 

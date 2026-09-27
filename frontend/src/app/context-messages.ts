@@ -2,13 +2,17 @@ export const contextEn = {
   "recordAddons.coreSaved": "Core fields saved. Add-on panels save separately.",
   "recordAddons.retry": "Retry panels",
   "recordAddons.title": "Add-on panels",
-  "recordAddons.pendingRestart": "Unsaved changes are waiting for this add-on to reopen. Keep this page open.",
-  "recordAddons.separateSave": "Each add-on saves its own data. Save entry applies only to the core fields above.",
+  "recordAddons.pendingRestart":
+    "Unsaved changes are waiting for this add-on to reopen. Keep this page open.",
+  "recordAddons.separateSave":
+    "Each add-on saves its own data. Save entry applies only to the core fields above.",
   "recordAddons.failed": "Some add-on panels could not be opened. Other fields remain available.",
-  "recordAddons.markdownInvalid": "This text could not be displayed. Open its editor to review the source.",
+  "recordAddons.markdownInvalid":
+    "This text could not be displayed. Open its editor to review the source.",
   "map.editLocation": "Edit location",
   "map.markerDetails": "Marker details",
-  "map.missingDraft": "This location is no longer available. Your edits are kept; they cannot overwrite or recreate the missing location.",
+  "map.missingDraft":
+    "This location is no longer available. Your edits are kept; they cannot overwrite or recreate the missing location.",
   "activity.created": "Created",
   "activity.updated": "Details updated",
   "activity.fieldUpdated": "{field} updated",
@@ -19,7 +23,8 @@ export const contextEn = {
   "activity.visibility": "Visibility updated",
   "activity.more": " · {count} more changes",
   "jump.title": "Quick search",
-  "jump.help": "Search, then use ↑ or ↓ to move through results and Enter to open. Escape returns to your current page.",
+  "jump.help":
+    "Search, then use ↑ or ↓ to move through results and Enter to open. Escape returns to your current page.",
   "jump.recent": "Recently opened and updated",
   "jump.empty": "No recent entries. Type to search the archive.",
   "jump.full": "Open full search",
@@ -30,13 +35,18 @@ export const contextCs: Record<keyof typeof contextEn, string> = {
   "recordAddons.coreSaved": "Základní údaje byly uloženy. Panely doplňků se ukládají samostatně.",
   "recordAddons.retry": "Znovu načíst panely",
   "recordAddons.title": "Panely doplňků",
-  "recordAddons.pendingRestart": "Neuložené změny čekají na opětovné otevření doplňku. Ponechte tuto stránku otevřenou.",
-  "recordAddons.separateSave": "Každý doplněk ukládá svá vlastní data. Uložení záznamu se týká pouze základních polí výše.",
-  "recordAddons.failed": "Některé panely doplňků se nepodařilo otevřít. Ostatní pole zůstávají dostupná.",
-  "recordAddons.markdownInvalid": "Tento text nelze zobrazit. Otevřete editor a zkontrolujte zdroj.",
+  "recordAddons.pendingRestart":
+    "Neuložené změny čekají na opětovné otevření doplňku. Ponechte tuto stránku otevřenou.",
+  "recordAddons.separateSave":
+    "Každý doplněk ukládá svá vlastní data. Uložení záznamu se týká pouze základních polí výše.",
+  "recordAddons.failed":
+    "Některé panely doplňků se nepodařilo otevřít. Ostatní pole zůstávají dostupná.",
+  "recordAddons.markdownInvalid":
+    "Tento text nelze zobrazit. Otevřete editor a zkontrolujte zdroj.",
   "map.editLocation": "Upravit místo",
   "map.markerDetails": "Podrobnosti značky",
-  "map.missingDraft": "Toto místo již není dostupné. Úpravy jsou zachovány; nemohou přepsat ani znovu vytvořit chybějící místo.",
+  "map.missingDraft":
+    "Toto místo již není dostupné. Úpravy jsou zachovány; nemohou přepsat ani znovu vytvořit chybějící místo.",
   "activity.created": "Vytvořeno",
   "activity.updated": "Podrobnosti upraveny",
   "activity.fieldUpdated": "Upraveno: {field}",
@@ -47,7 +57,8 @@ export const contextCs: Record<keyof typeof contextEn, string> = {
   "activity.visibility": "Viditelnost upravena",
   "activity.more": " · další změny: {count}",
   "jump.title": "Rychlé hledání",
-  "jump.help": "Hledejte, šipkami ↑ a ↓ vyberte výsledek a klávesou Enter jej otevřete. Escape vás vrátí na aktuální stránku.",
+  "jump.help":
+    "Hledejte, šipkami ↑ a ↓ vyberte výsledek a klávesou Enter jej otevřete. Escape vás vrátí na aktuální stránku.",
   "jump.recent": "Nedávno otevřené a upravené",
   "jump.empty": "Žádné nedávné záznamy. Začněte hledat v archivu.",
   "jump.full": "Otevřít úplné hledání",
