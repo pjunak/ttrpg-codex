@@ -123,8 +123,9 @@ different semantics. Display names may change.
 - Use host data/service clients rather than hand-authoring authority metadata.
   Keep payloads serializable and schema validated; never return functions,
   facades, DOM, or raw HTML.
-- Package every deployment target declared in the manifest and keep committed
-  binaries synchronized with source for a release candidate.
+- Build and package every deployment target declared in the manifest from the
+  candidate source. First-party repositories keep generated binaries ignored;
+  inspect the resulting ZIP and retain its source revision and checksum.
 
 ## Build and verify
 

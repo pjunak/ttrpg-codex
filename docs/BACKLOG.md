@@ -6,11 +6,11 @@ Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
-**Progress estimate, September 27:** about **95% implemented**, or **90%**
+**Progress estimate, September 27:** about **96% implemented**, or **91%**
 including remaining workflow, release and site acceptance. These are approximate
-effort estimates, with plausible ranges of 90–95% and 85–90%, respectively.
-[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-update-september-27).
-**Original rows closed:** 31 of 40 (78%); open workflow tasks contain completed
+effort estimates, with plausible ranges of 92–97% and 87–93%, respectively.
+[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-class-replacements).
+**Original rows closed:** 32 of 40 (80%); open workflow tasks contain completed
 slices. The later T63 layout and authored state are implemented; smaller UI
 refinements and complete session acceptance remain separately visible below.
 
@@ -91,6 +91,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T68-HOST — Keep the selected disabled package and distinguish saved builds**~~ — `18d7b5c`; protect the selected version from newer unactivated uploads; explain inactive builds and show build IDs in cleanup; [evidence and retention boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#asurai-saved-packages-and-recovery-retention).
 - [x] ~~**T16-RETENTION — Keep selected builds with independent campaign and add-on recovery**~~ — retire obsolete packages and only their add-on recovery context after healthy startup/updates; preserve campaign recovery, current saves and backups; shared EN/CS recovery controls and atomic rollback tests. [Implementation and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#asurai-saved-packages-and-recovery-retention).
 - [x] ~~**T69-HOST — Complete updates through one saved-data confirmation and automatic housekeeping**~~ — optional scoped backup, validated healing or explicit reset, automatic restart/rollback, durable retry receipts, server review expiry and package cleanup; [implementation and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#guided-updates-and-automatic-housekeeping).
+- [x] ~~**T18-REPLACEMENTS-HOST — Accept class replacements and seven prior save schemas**~~ — exact companion pins, shared controls, imports, retries and preserved JSON/revisions; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -200,6 +201,7 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T63-PLACEMENT-COMP — Declare source-backed worn-item placements**~~ — `d826a6d`; 99 PHB/DMG records with prior fields preserved; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-backed-body-placement-and-preserved-equipment).
 - [x] ~~**T63-CONDITIONS-COMP — Correct and declare published condition facts**~~ — `2809098`; fifteen source-owned definitions, attributed summaries and preserved PHB record identity; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
 - [x] ~~**T14-COMP — Build browser output and reproducible ZIPs from source**~~ — `e0d9040`; fixed archive metadata/order, ignored output and unchanged content; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
+- [x] ~~**T18-COMP — Complete bounded class-level replacements**~~ — `65eefab`; source-owned Fighter and Blessed/Druidic Warrior allowances, stable records and published-rule provenance; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
 
 ### Remaining work
 
@@ -209,13 +211,6 @@ Standalone browsing must remain useful without Engine or Sheets.
   schema/provenance checks and Engine consumption. Preserve item IDs, books,
   custom-item authority and standalone browsing. A visual body field does not
   establish an edition rule, slot limit or armor bonus.
-- [ ] **T18-COMP / P1, review — Complete bounded class-level replacements.**
-  Add bounded level-up replacement for Fighter's style and Blessed/Druidic
-  Warrior cantrips. First define a durable acquisition/class-level allowance
-  with Engine/Sheets; the existing spell-swap ledger cannot represent these
-  choices. Coordinate typed state with T63 and reviewed T08 migration if the
-  released schema changes. Preserve spent allowances through save/import and
-  provider transitions. Encounter resolution remains C10.
 
 **C10, consumer-triggered:** [structured coverage gaps](../../addon-dnd-2024-compendium/data/GAPS.md)
 remain in narrative effects and reference-only renown/facilities/Circle Magic.
@@ -256,6 +251,7 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T63-HANDS-ENGINE — Preserve owned hands, grip and exact suspension**~~ — `495ca51`; source-owned damage/effects, restoration fingerprints and detached validation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#hands-grip-and-preserved-off-hand-instances).
 - [x] ~~**T63-ENGINE — Define authored conditions and their supported effects**~~ — `c62e358`; closed optional inputs, source eligibility, bounded Speed/D20 effects and preserved explanations; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
 - [x] ~~**T14-ENGINE — Build native workers as release artifacts**~~ — `0e8747f`; ignored binaries, versioned schemas and reproducible target packages; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
+- [x] ~~**T18-REPLACEMENTS-ENGINE — Enforce source-owned class replacement allowances**~~ — `ffbde98`; typed history, current-level budgets and acquisition-time prerequisites; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
 
 ### Remaining work
 
@@ -314,6 +310,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T63-COMPACT-SHEETS — Adopt the final compact character workspace**~~ — `d00da27`, `9a99722`; shared cards, right attributes, Equipment/mannequin, Backpack dialog, explicit stacks, localized saved values and class-owned levels; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-character-sheet-workspace).
 - [x] ~~**T63-CONDITIONS-SHEETS — Share authored conditions across both Combat layouts**~~ — `40f11a8`; localized host controls, worker preservation, automatic saving and provider-free reading/transfer/print; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
 - [x] ~~**T14-SHEETS — Build browser assets and workers as package artifacts**~~ — `a1ce463`; ignored runtime output, versioned schemas/interfaces and unchanged package bytes; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
+- [x] ~~**T18-REPLACEMENTS-SHEETS — Share replacement controls and protect spent allowances**~~ — `6d5807a`; both layouts/locales, keyboard focus, guarded writes and exact retries; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
 
 ### Remaining work
 
@@ -378,11 +375,10 @@ Record exact source pins and inspected package hashes before closing acceptance.
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Finish bounded class-level replacements across Compendium, Engine and Sheets. | Source-owned allowances survive advancement, save/import and provider transitions; any needed T08 migration is reviewed and atomic. |
-| 2 | Whole character sessions: finish Engine and Sheets T18 on the current T63 workspace. | Representative builds and play preserve authored values through provider changes; package evidence and remaining human/device checks are explicit. |
-| 3 | Everyday planning and reliability: finish DM Tools T18 and investigate recurring startup failures. | Complete desktop/phone workflows and concrete failures have action-level evidence; successful retries alone do not establish a fix. |
-| 4 | Continue smaller T63 frame refinements and the remaining source-fact review. | Shared controls, saved state, focus and responsive layouts remain intact; missing facts have owner/provenance evidence. |
-| 5 | Final integration and authorized delivery T15–T17; retain completed T02 coverage. | All four inspected packages pass without suite skips; exact served/installed builds, site data/retention, device checks and rollback assets are recorded. |
+| 1 | Whole character sessions: finish Engine and Sheets T18 on the current T63 workspace. | Representative builds and play preserve authored values through provider changes; package evidence and remaining human/device checks are explicit. |
+| 2 | Everyday planning and reliability: finish DM Tools T18 and investigate recurring startup failures. | Complete desktop/phone workflows and concrete failures have action-level evidence; successful retries alone do not establish a fix. |
+| 3 | Continue smaller T63 frame refinements and the remaining source-fact review. | Shared controls, saved state, focus and responsive layouts remain intact; missing facts have owner/provenance evidence. |
+| 4 | Final integration and authorized delivery T15–T17; retain completed T02 coverage. | All four inspected packages pass without suite skips; exact served/installed builds, site data/retention, device checks and rollback assets are recorded. |
 
 T14 suffixes divide the existing generated-artifact task by repository; T18
 suffixes divide workflow acceptance; T63 suffixes share the design and ordered

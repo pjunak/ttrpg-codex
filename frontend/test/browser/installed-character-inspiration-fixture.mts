@@ -18,13 +18,14 @@ const text = (locale: string) => locale === "cs"
   : { inspiration: "Inspiration", available: "Available", saved: /^Saved$/, layout: "Sheet layout", replace: "Replace character", close: "Close" };
 
 export function registerInspirationSchemaTest(enabled: boolean, fixture: () => Fixture): void {
-  test("Optional play-field schema reviews and guided updates preserve all six prior schema-4 generations", { skip: !enabled, timeout: 90000 }, async t => {
+  test("Optional character-field schema reviews and guided updates preserve all seven prior schema-4 generations", { skip: !enabled, timeout: 90000 }, async t => {
     const f = fixture(), archive = await readFile(resolve(process.env.CODEX_SHEETS_ZIP!));
     // Prior data schemas are reconstructed byte-for-byte. Workers/UI remain
     // current; this is stored-data preservation, not an old-native-binary claim.
-    const prior = (inspiration: boolean, quickUse = false, storage = false, placement = false, hands = false) => replacementImportPackage(archive, "4.0.0", (files, manifest) => {
+    const prior = (inspiration: boolean, quickUse = false, storage = false, placement = false, hands = false, conditions = false) => replacementImportPackage(archive, "4.0.0", (files, manifest) => {
       const path = manifest.recordExtensions[0].schema, schema = JSON.parse(files[path]!.toString());
-      delete schema.properties.inputs.properties.play.properties.conditions;
+      delete schema.properties.inputs.properties.build.properties.replacements;
+      if (!conditions) delete schema.properties.inputs.properties.play.properties.conditions;
       if (!hands) delete schema.properties.inputs.properties.play.properties.hands;
       if (!placement) delete schema.properties.inputs.properties.play.properties.inventory.items.properties.bodyPlacement;
       if (!storage) {
@@ -34,7 +35,7 @@ export function registerInspirationSchemaTest(enabled: boolean, fixture: () => F
       if (!quickUse) delete schema.properties.inputs.properties.play.properties.quickUse;
       if (!inspiration) delete schema.properties.inputs.properties.play.properties.inspiration;
       const body = JSON.stringify(schema, null, 2) + "\n";
-      assert.equal(createHash("sha256").update(body).digest("hex"), hands ? "728967ab2b471220ec17f52030f7d34aded1ecce9248e600d7d9ac7c501e3c2a" : placement ? "40cfb16266fc094d3f5ae97bb9c605ea28dc248e467a62397f1a2918dae37a0f" : storage ? "41929bb042c3a538d5c08603b787bfb5f7c957c988af5e60baa714be8d3fe2d5" : quickUse ? "9e775d6054fb803b1b5bf87c874a20e7d4c3d039e8abbb2062dd646bc1bed0d5" : inspiration
+      assert.equal(createHash("sha256").update(body).digest("hex"), conditions ? "5138d0625bd00def2cd43e00f9992c4768c50b484de78a4e70f6e7082a39c485" : hands ? "728967ab2b471220ec17f52030f7d34aded1ecce9248e600d7d9ac7c501e3c2a" : placement ? "40cfb16266fc094d3f5ae97bb9c605ea28dc248e467a62397f1a2918dae37a0f" : storage ? "41929bb042c3a538d5c08603b787bfb5f7c957c988af5e60baa714be8d3fe2d5" : quickUse ? "9e775d6054fb803b1b5bf87c874a20e7d4c3d039e8abbb2062dd646bc1bed0d5" : inspiration
         ? "cf799a12adb9aac840e5349732d79d34226f72bc9b866e438e61400071efb373"
         : "d50dd66156a2a9e9aa1c25f20f069d6b86eeacb2d8d206b0aee461c3351ae317");
       files[path] = body;
@@ -60,7 +61,7 @@ export function registerInspirationSchemaTest(enabled: boolean, fixture: () => F
       const activation = await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/activation-reviews", { headers, data: { generationId: staged.generationId } }));
       assert.ok(activation.proposal.blockers.some((row: { code: string }) => row.code === "DATA_MIGRATION_REQUIRED"));
       const current = await jsonResponse(await f.admin.get("/api/admin/addons/dnd-sheets"));
-      const guided = suffix === "placement" || suffix === "hands" || suffix === "conditions";
+      const guided = suffix === "placement" || suffix === "hands" || suffix === "conditions" || suffix === "class-replacements";
       if (!guided) await jsonResponse(await f.admin.post("/api/admin/addons/dnd-sheets/disable", { headers, data: { expectedStateRevision: current.state.revision } }));
       const plan = await jsonResponse(await f.admin.post(guided
         ? `/api/admin/addon-activation-reviews/${activation.reviewId}/update/saved-data`
@@ -118,7 +119,11 @@ export function registerInspirationSchemaTest(enabled: boolean, fixture: () => F
     const handed = await readyCharacter(f,"conditions-preserved-hands");
     handed.state.inputs.play.hands = { main:"",off:"",grip:"one" };
     saved.set("conditions-preserved-hands",await save(f,"conditions-preserved-hands",handed.state.inputs,handed.revision,"hands"));
-    await upgrade(archive, "conditions");
+    await upgrade(prior(true,true,true,true,true,true), "conditions");
+    const conditioned = await readyCharacter(f,"replacements-preserved-conditions");
+    conditioned.state.inputs.play.conditions = [{id:"poisoned",level:1}];
+    saved.set("replacements-preserved-conditions",await save(f,"replacements-preserved-conditions",conditioned.state.inputs,conditioned.revision,"conditions"));
+    await upgrade(archive, "class-replacements");
   });
 }
 

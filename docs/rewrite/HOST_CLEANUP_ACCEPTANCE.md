@@ -3747,3 +3747,88 @@ and authorized site/device verification. The maintainer accepts the new compact
 layout as a step forward and wants its remaining details improved in smaller
 steps. Conditional host extensions, narrative adjudication and an untriggered
 value-transforming migration are not new requirements for finishing this audit.
+
+### Bounded class-level replacements
+
+The Compendium declares one later-class-level exchange for the Fighter's
+original Fighting Style and one cantrip exchange for Blessed/Druidic Warrior.
+These facts follow the [published 2024 class rules](https://www.dndbeyond.com/sources/dnd/br-2024/character-classes),
+checked September 27. Champion's additional style receives no invented
+replacement allowance. The three feature summaries now explain the supported
+exchanges; record IDs, class progression and sourcebook structure are preserved.
+
+The Engine exposes generic replacement guidance and an atomic command, backed
+by the optional typed `build.replacements` ledger. Its owner is the granting
+source, class, choice and class level. Removing/recreating a level row, resting,
+importing or changing providers cannot refresh the spent allowance. Unused
+earlier levels are not banked. Ordinary Builder corrections remain available
+without rewriting the ledger. Prerequisite validation reconstructs unchanged
+feat replacements at their actual acquisition level; later benefits do not
+qualify earlier multiclass decisions, and nonrepeatable feats remain distinct.
+
+Sheets renders one shared replacement panel in each owning class tab through
+host comboboxes, rule details and the existing command coordinator. Both layouts
+and locales retain automatic saving, exact retries, conflict recovery and focus
+on the completed result. Worker checks permit only the selected choice change
+and one appended ledger entry. Other authored values survive. An older provider
+that drops this state is incompatible; it cannot erase the accepted snapshot.
+
+Focused installed acceptance passes four cases: the real Fighter, Paladin,
+Ranger and Champion bounds; shared keyboard/import/reload workflows in English
+compact and Czech classic layouts; and preserved upgrades through **all seven
+prior schema-4 generations**. The narrow Czech case uses 390-pixel width and
+200% text, checks horizontal containment and restores keyboard focus to the
+spent-allowance message. Existing saved JSON and revision numbers remain exact
+through the host's reviewed schema update, including the guided **Heal** route
+while the previous generation remains active. This does not require a save
+reset or guessed value conversion.
+
+The schema fixture identifies each prior schema by its exact SHA-256. It uses
+current workers/UI with those historical data schemas; it does not claim to run
+every historical native binary. Initial fixture failures were a missing/invalid
+condition level in the newly added seed and expecting HTTP rejection for the
+service's existing conflict response. The corrected cases retain strict
+preservation and conflict assertions; no production deadline or gate changed.
+
+All owning gates pass: Engine Go tests/vet and rules/provider/engine race checks;
+Sheets 36 client cases, Go tests/vet and coordinator race checks; Compendium 83
+cases and tooling checks. Every affected ZIP passes host inspection, with native
+Windows amd64 execution and cross-built Linux amd64/arm64 workers. Host
+`npm run check` passes 42 tooling, 406 unit and 285 browser cases plus Go
+tests/vet. Its 194 optional companion skips are reserved for the separate full
+installed gate. Release readiness passes all 33 gates; Gitleaks 8.30.1 passes
+ten scanner regressions and all three companion staged scans.
+
+Exact packages under host base `6ce8890` plus this acceptance patch:
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `7f1d02b` | `0aef61147fd6cbae22b5e2768767025f7d8305ff08a45e2a5275596e397a039c` |
+| dnd-engine | `ffbde98` | `c280337d9097c489d97eaffba04ba99e75a667e1153e466455c9fd18d9c3a3ad` |
+| dnd-sheets | `6d5807a` | `fc1856fb3f5d26f229ed39a8cff4a02a25cfc20d7a175f939c6c9f56023f283c` |
+| dnd-2024-compendium | `65eefab` | `251df8112f53463d86a2999d63123462631a7b96ab97dce503de99b1835ca64e` |
+
+The full installed suite passes **267/267 cases, zero failures and zero skips**,
+in 932.3 seconds. The new provider-free checks preserve the exact saved state
+and replacement ledger through reading, export and print after rules are
+disabled. The inspected packages and frontend remain fixed throughout the run;
+every companion reports `sourceDirty: false`. Local evidence is retained in
+`release/companions/provenance.json` and `installed.tap`. The host staged scan
+also reports no leaks. These are Windows native results; Linux workers are
+cross-built and inspected, with Linux execution left to the publication gates.
+
+### Cleanup progress after class replacements
+
+The overall audit is approximately **91% complete** (87–93%), with implementation
+at approximately **96%** (92–97%). These are effort estimates, not a ratio of
+automated tests. Closing the original T18-COMP row brings the unchanged baseline
+to **32/40 rows (80%)**, or **32/39 (82%)** excluding conditional T08. The new
+Engine, Sheets and host acceptance slices do not inflate that denominator.
+
+Remaining original rows are T08, T15, T15-DM, T16, T17, T18-DM, T18-ENGINE and
+T18-SHEETS. The next batch is complete build/play acceptance on the current
+compact workspace, followed by planning-session acceptance and investigation
+of unexplained startup/provider failures. Smaller frame/source-fact refinements
+and authorized site/device verification remain separate. Linux CI execution,
+publication and live-site acceptance of this source set are not established by
+these local checks. No push, publication, deployment or live data change occurred.
