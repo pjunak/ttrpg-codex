@@ -1,6 +1,6 @@
 # Project backlog
 
-Work for the five repositories, reviewed September 26, 2026. This remains
+Work for the five repositories, reviewed September 27, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
 Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
@@ -85,6 +85,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T66-PERF-HOST — Accept the optimized engine in the full installed suite**~~ — 247/247 local cases; multiclass sessions and provider-free output now confirmed on Linux; [evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-editor-calculation-cost).
 - [x] ~~**T67-HOST — Wait for current play guidance after a retry receipt**~~ — `dcac524`; held-response regression and successful Linux build/deployment-verification jobs; [race diagnosis and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#acknowledged-commands-and-browser-readiness).
 - [x] ~~**T63-PLACEMENT-HOST — Accept body placement and four prior schemas**~~ — exact source pins, 254/254 installed cases and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-backed-body-placement-and-preserved-equipment).
+- [x] ~~**T63-HANDS-HOST — Accept hand suspension and five prior schemas**~~ — 257/257 installed cases, exact retries, shared controls and provider-free output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#hands-grip-and-preserved-off-hand-instances).
 - [x] ~~**T68-HOST — Keep the selected disabled package and distinguish saved builds**~~ — `18d7b5c`; protect the selected version from newer unactivated uploads; explain inactive builds and show build IDs in cleanup; [evidence and retention boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#asurai-saved-packages-and-recovery-retention).
 - [x] ~~**T16-RETENTION — Keep selected builds with independent campaign and add-on recovery**~~ — retire obsolete packages and only their add-on recovery context after healthy startup/updates; preserve campaign recovery, current saves and backups; shared EN/CS recovery controls and atomic rollback tests. [Implementation and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#asurai-saved-packages-and-recovery-retention).
 - [x] ~~**T69-HOST — Complete updates through one saved-data confirmation and automatic housekeeping**~~ — optional scoped backup, validated healing or explicit reset, automatic restart/rollback, durable retry receipts, server review expiry and package cleanup; [implementation and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#guided-updates-and-automatic-housekeeping).
@@ -257,14 +258,14 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T63-STORAGE-ENGINE — Validate named groups and owned-item membership**~~ — `b15fcb8`; optional DTOs, unchanged mechanics and strict references; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#storage-containers-and-preserved-inventory).
 - [x] ~~**T66-ENGINE — Avoid redundant editor progression calculations**~~ — `66b5bfb`; unchanged validation rules, rebuilt workers and about 45% less measured calculation time; [regressions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-editor-calculation-cost).
 - [x] ~~**T63-PLACEMENT-ENGINE — Validate body placement independently of mechanics**~~ — `69e3d05`; source-owned options, saved explanations and schema freshness; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-backed-body-placement-and-preserved-equipment).
+- [x] ~~**T63-HANDS-ENGINE — Preserve owned hands, grip and exact suspension**~~ — `495ca51`; source-owned damage/effects, restoration fingerprints and detached validation; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#hands-grip-and-preserved-off-hand-instances).
 
 ### Remaining work
 
-- [ ] **T63-ENGINE / P2 — Define and evaluate the new equipment and play state.**
-  Establish the [T63](#t63-character-sheet-design) data/eligibility contract before
-  Sheets persists new fields: held items and grip, suspended
-  off-hand effects and conditions
-  as needed after auditing existing representations. Return saved explanations
+- [ ] **T63-ENGINE / P2 — Define authored conditions and their supported effects.**
+  Audit existing representations, then establish the remaining
+  [T63](#t63-character-sheet-design) condition state and eligibility contract before
+  Sheets persists it. Return saved explanations
   and option guidance; preserve input identity and authored state. Coordinate
   schema/service compatibility with the Sheets worker; do not implement these
   mechanics as browser arithmetic or broaden this into a combat resolver.
@@ -323,6 +324,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T63-QUICK-USE-SHEETS — Share pinned items across Sheet and Combat**~~ — `3ee2ccd`; real quantities, safe removal, keyboard focus and saved output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#quick-use-inventory-and-preserved-characters).
 - [x] ~~**T63-STORAGE-SHEETS — Edit containers and share item destinations**~~ — `250c442`; safe group removal, preserved control keys, worker checks and saved output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#storage-containers-and-preserved-inventory).
 - [x] ~~**T63-PLACEMENT-SHEETS — Preserve placement in shared inventory controls**~~ — `460c728`; localized fields, shared targets, atomic transitions and saved output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-backed-body-placement-and-preserved-equipment).
+- [x] ~~**T63-HANDS-SHEETS — Share hand and grip controls across Sheet and Combat**~~ — `1dbb048`; exact suspension, guarded worker writes, responsive controls and saved output; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#hands-grip-and-preserved-off-hand-instances).
 
 ### Remaining work
 
@@ -358,8 +360,8 @@ The current [workflow reference](rewrite/CHARACTER_BUILD_HISTORY.md) and
 [Sheets README](../../addon-dnd-character-sheets/README.md) still describe a
 1,120 px frame, a Levels tab and inventory/currency in the existing workspace.
 Engine mechanical slot guidance remains `armor`/`shield`/`worn`, with separate
-source-backed body-placement choices. Current saved Play/Item types still lack
-the active-hand state in the mockups. Implement and validate those differences
+source-backed body-placement choices. Saved hand/grip state and shared controls
+are accepted; conditions and the final workspace layout remain open. Implement and validate those differences
 before updating current-state documentation or marking T63 complete.
 
 Schema 4 supports atomic location/attunement changes, optional authored
@@ -370,9 +372,11 @@ source-compatible display organization independently from equipment mechanics.
 includes unchanged JSON/revisions through all three prior schema upgrades.
 [Body-placement acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-backed-body-placement-and-preserved-equipment)
 covers the reusable inventory field and all four previous schema generations.
-Typed main/off-hand and suspended-instance references and conditions remain
-open. Those fields need agreed Engine/worker DTOs and demonstrated preservation
-before their UI writes them. T08-COMPATIBLE provides the reviewed path when existing JSON fits the
+[Hand acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#hands-grip-and-preserved-off-hand-instances)
+covers typed main/off-hand references, grip, exact suspended identity, shared
+Sheet/Combat controls and all five previous schema generations. Conditions remain
+open and need agreed Engine/worker DTOs and demonstrated preservation before
+their UI writes them. T08-COMPATIBLE provides the reviewed path when existing JSON fits the
 target; value-changing conversions remain open under T08. Keep display placement
 separate from armor/shield mechanics; do not encode new state in notes, resource
 counters or active-feature keys. The complete shared-card layout remains open.
@@ -445,20 +449,12 @@ counters or active-feature keys. The complete shared-card layout remains open.
   allocations, Engine capacity/prerequisites and atomic quantity cleanup are
   preserved; **Stow & unattune** saves both changes together. [Current contract](../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md#equipment-and-attunement)
   and [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#equipped-only-selection-and-preserved-attunement).
-- Main/off hand belong only in Sheet and Combat. Use one joined two-hand area
-  with a central, clearly labelled grip switch and fitting hand/link icon.
-  Allow a compatible main-hand weapon to use both hands even with an occupied
-  off hand: keep that exact off-hand item visible but gray/inactive, temporarily
-  unequip it, and exclude its attacks, AC and other active equipment effects.
-  Turning two-handing off restores the same item when still available/eligible.
-  Do not silently clear attunement allocation, delete inventory or recreate a
-  missing item. If it was consumed, removed, moved by another editor or made
-  ineligible, leave the hand free and explain why it was not restored.
-- Derive grip options, versatile/required-two-hand damage, shields, capacity
-  and active effects through the Engine. Persist the main/off-hand references,
-  chosen grip and suspended-item identity through autosave/reload/transfer.
-  Sheet omits hit/damage numbers; Combat and explanation cards update together.
-  Quick-use pins reference owned instances, share quantities with Storage and
+- [x] ~~**Main/off hand, grip and exact suspension**~~ — shared joined controls,
+  preserved attunement, Engine-owned effects/damage, safe restoration and saved
+  transfer/output are [accepted](rewrite/HOST_CLEANUP_ACCEPTANCE.md#hands-grip-and-preserved-off-hand-instances).
+  Sheet omits attack numbers; Combat and saved explanations agree. Keep this
+  behavior when moving the controls into the final shared-card layout.
+- Quick-use pins reference owned instances, share quantities with Storage and
   preserve consumed/spent state. Conditions are authored play state with bounded
   supported effects; T63 does not authorize an encounter/combat-resolution engine.
 
@@ -466,7 +462,7 @@ counters or active-feature keys. The complete shared-card layout remains open.
 
 | Step | Owners and work | Required evidence before closing the step |
 | --- | --- | --- |
-| 1. Model and contracts | T63-ENGINE with the Sheets worker, and T63-COMP for missing source facts. Body placement is accepted; finish closed fields for hand/grip/suspension and conditions. Preserve accepted Inspiration, quick-use references and container membership. Separate display organization from mechanical rules. | Agreed serializable inputs, eligibility, saved projections/explanations and worker commands; stable instance identity, atomic transitions and exact retries. Regenerate owning schemas/types. Demonstrate current-character preservation and version compatibility; use T08 only if an actual released-schema migration is required, never another sheet reset or ad hoc startup converter. |
+| 1. Model and contracts | T63-ENGINE with the Sheets worker, and T63-COMP for missing source facts. Body placement and hands/grip/suspension are accepted; finish the closed condition state and supported effects. Preserve accepted Inspiration, quick-use references and container membership. Separate display organization from mechanical rules. | Agreed serializable inputs, eligibility, saved projections/explanations and worker commands; stable instance identity, atomic transitions and exact retries. Regenerate owning schemas/types. Demonstrate current-character preservation and version compatibility; use T08 only if an actual released-schema migration is required, never another sheet reset or ad hoc startup converter. |
 | 2. Frame and Builder | T63-SHEETS; extend shared host controls only for a demonstrated gap. Implement navigation, sizing/density, remove Levels and remap its repair/navigation targets. | Tab and class controls work with keyboard/touch, both locales and enlarged text. Earlier progression remains editable, class-zero removal picks a valid destination, and invalid options cannot be selected. Existing incomplete-build autosave, conflicts and DM authorization regressions pass. |
 | 3. Equipment and storage | T63-SHEETS consumes step 1 for mannequin/Other worn, shared item addition, Backpack dialog, bottom currency and equipped-only attunement selection. | Add, equip, replace, stow, unattune, consume and remove flows preserve identity and authored fields. New Face/Legs items are correctly filtered; no arbitrary ring/body limits or invented item bonuses. Search/sort/compartment and focus survive additions, cancellation, retries and tab changes. |
 | 4. Sheet and Combat | T63-SHEETS/ENGINE implement shared cards, explanations, attribute arrangements, conditions, Inspiration, hands and quick use. | Both tabs show identical shared-card geometry and authored values. Demonstrate occupied-shield two-handing, gray suspended off hand, changed AC/damage and exact restoration; also missing/ineligible off-hand cases and duplicate item copies. Verify current/max HP, hit-dice details, differing spellcasting sources and resource/consumable preservation. |

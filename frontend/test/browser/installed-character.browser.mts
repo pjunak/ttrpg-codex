@@ -21,6 +21,7 @@ import { registerClassStyleTests, verifyFrozenClassStyles } from './installed-ch
 import { registerPassiveFeatTests, verifyFrozenPassiveFeats } from './installed-character-passive-fixture.mts';
 import { registerProficiencyTests, verifyFrozenProficiencies } from './installed-character-proficiency-fixture.mts';
 import { registerPlacementTests, verifyFrozenPlacement } from "./installed-character-placement-fixture.mts";
+import { registerHandsTests, verifyFrozenHands } from "./installed-character-hands-fixture.mts";
 import { registerStorageTests, verifyFrozenStorage } from "./installed-character-storage-fixture.mts";
 import { registerQuickUseTests, verifyFrozenQuickUse } from "./installed-character-quick-use-fixture.mts";
 import { registerInspirationSchemaTest, registerInspirationTests, verifyFrozenInspiration } from "./installed-character-inspiration-fixture.mts";
@@ -198,6 +199,7 @@ registerInspirationTests(enabled, () => ({ admin, browser, csrf, origin, output,
 registerQuickUseTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerStorageTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerPlacementTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerHandsTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerMulticlassAcceptanceTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterOutputTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCharacterCreationTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
@@ -240,7 +242,7 @@ test('source adoption remains explicit and absent rules freeze mechanics without
  const fixture = { admin, browser, csrf, origin, output, call };
  await verifyFrozenCreatedCharacters(fixture);
  // Finished workflows must not retain browser sessions until this parent ends.
- for (const verify of [verifyFrozenSessionOutputs, verifyFrozenSizes, verifyFrozenAdvancements, verifyFrozenClassStyles, verifyFrozenSpellDetails, verifyFrozenPassiveFeats, verifyFrozenProficiencies, verifyFrozenMulticlassSessions, verifyFrozenAttunements, verifyFrozenInspiration, verifyFrozenQuickUse, verifyFrozenStorage, verifyFrozenPlacement]) {
+ for (const verify of [verifyFrozenSessionOutputs, verifyFrozenSizes, verifyFrozenAdvancements, verifyFrozenClassStyles, verifyFrozenSpellDetails, verifyFrozenPassiveFeats, verifyFrozenProficiencies, verifyFrozenMulticlassSessions, verifyFrozenAttunements, verifyFrozenInspiration, verifyFrozenQuickUse, verifyFrozenStorage, verifyFrozenPlacement, verifyFrozenHands]) {
   const retained = browser.contexts().length;
   await verify(t, fixture);
   assert.equal(browser.contexts().length, retained, verify.name + ' must release its browser contexts');

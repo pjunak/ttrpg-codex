@@ -3445,3 +3445,70 @@ inspected ZIPs, with **1/1 passing and zero skips**.
 
 This work is local. T15–T17 retain the publication and live-site verification
 boundary; no Asurai/Tiamat deployment or data removal was performed.
+
+## Hands, grip and preserved off-hand instances
+
+September 27, 2026. T63-HANDS adds optional owned main/off-hand identities, grip
+and exact suspended-instance state. Engine commands own eligibility, two-hand
+capacity, damage and equipment effects. Suspension carries the selected off-hand
+instance, removes its active attacks/AC/effects and keeps attunement allocated.
+Release restores only that unchanged, still eligible item. Removed, consumed,
+edited, moved or blocked instances leave the hand free with a saved explanation;
+no item is recreated. Earlier characters receive no default hand assignments.
+
+Sheets shares one joined hand control between Sheet and Combat, using borrowed
+native fields, button variants, semantic tokens and stable focus keys. Its grip
+toggle keeps a stable accessible name and pressed state. Suspended items have
+both a muted appearance and an explicit inactive description. Sheet omits attack
+numbers; Combat and saved rule-detail controls use the same Engine projection.
+The worker rejects unrelated authored-state changes, forged restoration and a
+repeated grip command that forgets its suspended item.
+
+The [installed hand fixture](../../frontend/test/browser/installed-character-hands-fixture.mts)
+covers English/Czech, both layouts/skins, 1,360/1,024/390/320 px viewports and
+enlarged phone text. It exercises occupied-shield suspension, changed AC and
+versatile damage, keyboard/focus, exact restoration after reload, removed/moved
+instances, a lost reply with one saved revision, reviewed transfer, saved print
+and provider-free output. Desktop and enlarged Czech phone screenshots were
+visually inspected. Pure tests additionally cover consumed/ineligible/blocked
+restoration, duplicate source copies, required-two-handed weapons, detached
+input, invalid closed fields and suspended magic-item effects after an external
+move. The worker covers empty inventory and preservation of other authored fields.
+
+The prior-schema fixture now reconstructs and checks the exact hashes of all
+five preceding schema-4 generations. Guided **Heal and update** covers both
+the placement and hand additions, preserving saved JSON, document revisions,
+provider recovery and a complete backup without manual disable/reactivation.
+These fixtures use current workers/UI with the exact older data schemas; they
+do not claim execution of archived native binaries.
+
+Engine passes all Go tests/vet and rules/provider/engine race checks. Sheets
+passes `npm run check` (32 unit cases plus Go tests/vet) and character-worker
+race checks. Both packages were rebuilt and inspected. The host gate passes
+**42 tooling, 406 unit and 285 browser cases**, plus all Go tests/vet; its
+184 optional companion skips are accounted for separately by installed testing.
+Release readiness passes all **33 gates**. Both companion commits pass Gitleaks
+8.30.1, and the host's ten secret-scanner exception regressions pass.
+
+Full installed acceptance passes **257/257 cases, zero failures and zero skips**
+in 896.9 seconds against the source set below. This includes the five-schema
+upgrade and final provider-free hand output alongside the existing complete
+companion workflows. The final frontend build stayed unchanged throughout the
+run. The staged host patch also passes Gitleaks 8.30.1 with no leaks.
+
+The prepared source set uses host base `cd1ca0c` plus this acceptance patch and
+the following clean companion commits. Local package identities are:
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| dnd-engine | `495ca51` | `fc1517d785b33f6a94d6eb7b8edbb07d1dbb1b3a30d1d5a7447f59eb9e39027b` |
+| dnd-sheets | `1dbb048` | `a940b31a6e6de487028b37db52efe2b30a55dbc2982d65eeee8a515236e6110d` |
+| dnd-2024-compendium | `d826a6d` | `cc666f31c4a82118c2829e90cbffbb0a8937e126eaf9d3953545731237901195` |
+
+Conditions, final shared-card geometry, the Equipment workspace/mannequin and
+broader T63 layout remain open. No new compendium fields or host D&D-specific
+runtime seams were needed. Action costs and conditional mounted exceptions are
+not automated. Physical touch, spoken screen-reader output, printer output and
+non-Chromium browsers remain human acceptance boundaries. No publication,
+deployment or live campaign change was performed.

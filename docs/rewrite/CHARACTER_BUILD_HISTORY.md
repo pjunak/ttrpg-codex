@@ -10,7 +10,7 @@ the sheet so enlarged text and recovery controls remain readable.
 
 The next user-directed workspace design is tracked in
 [T63 in the suite backlog](../BACKLOG.md#t63-character-sheet-design), including
-Equipment, body/hand placement and revised Sheet/Combat layouts. It is planned
+Equipment, the body mannequin and revised Sheet/Combat layouts. It is planned
 work; the behavior described here remains the current implementation contract
 until its owning changes and installed acceptance land.
 
@@ -56,7 +56,17 @@ Engine source options and the shared native field. It adds no mechanical slots
 or bonuses. Stowing, zero quantity and final-unit consumption clear placement
 atomically; ordinary stowing preserves attunement. Old characters gain no
 default assignments, and saved display, print/export and replacement imports
-retain the field without a provider. The mannequin and hand/grip work remain T63.
+retain the field without a provider. The mannequin remains T63 work.
+
+Sheet and Combat share owned main/off-hand selectors and a two-handed grip
+toggle. Eligibility and effects come from the Engine; Combat also shows saved
+attack/damage details. Two-handing temporarily carries the exact off-hand item
+and suppresses its active equipment effects while preserving attunement. It
+stays visibly suspended. Releasing the grip restores only an unchanged and still
+eligible instance; otherwise the hand stays free with an explanation. Reload,
+provider-free reading, print and transfer preserve those identities. No turn or
+action costs are tracked. The controls use shared host fields, button styling,
+focus keys and saved-rule details in both layouts.
 
 Inventory,
 equipment, currency, HP, spells and resources remain editable in their ordinary
@@ -130,7 +140,7 @@ a lost acknowledgment retries the exact adoption rather than a fresh save.
 
 Install the host with worker-only extension and compatible schema-review support
 before the updated sheet ZIP. The permanent namespace and schema version remain
-unchanged, but optional Inspiration changes the closed schema hash. Materialized
+unchanged, but the optional authored play fields change the closed schema hash. Materialized
 installations use the host's guided update confirmation and **Heal and update**
 for the inspected package. The host preserves existing JSON and character
 revisions without adding defaults, and handles runtime restart automatically. See the
