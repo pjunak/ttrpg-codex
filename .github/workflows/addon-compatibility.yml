@@ -21,6 +21,8 @@ jobs:
     name: Build, inspect and exercise installed companions
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    env:
+      GOWORK: "off"
     steps:
       - name: Resolve private coverage
         id: coverage
@@ -111,15 +113,33 @@ jobs:
         working-directory: ttrpg-codex
 
       - name: Test and package DM Tools against the candidate host
-        run: npm ci && go mod download -modfile=go.tools.mod && npm run check && go run ./cmd/build-package
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          GOFLAGS=$(node ../ttrpg-codex/scripts/prepare-companion-go.mts "$RUNNER_TEMP/dm-tools-go")
+          export GOFLAGS
+          go mod download -modfile=go.tools.mod
+          npm run check
+          go run ./cmd/build-package
         working-directory: addon-dm-tools
 
       - name: Test and package D&D Engine against the candidate host
-        run: go mod download -modfile=go.tools.mod && go run ./tools/check.go && go run ./cmd/build-package
+        run: |
+          GOFLAGS=$(node ../ttrpg-codex/scripts/prepare-companion-go.mts "$RUNNER_TEMP/dnd-engine-go")
+          export GOFLAGS
+          go mod download -modfile=go.tools.mod
+          go run ./tools/check.go
+          go run ./cmd/build-package
         working-directory: addon-dnd-engine
 
       - name: Test and package Character Sheets against the candidate host
-        run: npm ci && go mod download -modfile=go.tools.mod && npm run check && npm run package
+        run: |
+          npm ci
+          GOFLAGS=$(node ../ttrpg-codex/scripts/prepare-companion-go.mts "$RUNNER_TEMP/dnd-sheets-go")
+          export GOFLAGS
+          go mod download -modfile=go.tools.mod
+          npm run check
+          npm run package
         working-directory: addon-dnd-character-sheets
 
       - name: Test and package Compendium against the candidate host

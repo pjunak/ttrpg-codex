@@ -26,6 +26,7 @@ covered by `tsconfig.node.json`; Node executes them through built-in type
 stripping. Use `npm run format` and `go run ./tools/check.go format` for formatting.
 CI also checks workflows and reachable Go vulnerabilities; the matching local
 commands are `npm run check:workflows` and `npm run check:vulnerabilities`.
+Workflow checks require ShellCheck on `PATH` locally as well as in CI.
 `npm run check:dependencies` audits the npm lockfile for high or critical advisories.
 See [the contributor toolchain](CONTRIBUTING.md#quality-toolchain) for scopes and
 diagnostics. Useful focused checks include:

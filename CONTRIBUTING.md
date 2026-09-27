@@ -97,6 +97,9 @@ Deliberate exceptions such as
 snapshotting mutable collections have a narrow, explained comment. Formatting
 is separate from linting; embedded Lit templates retain their existing content.
 Git attributes and EditorConfig keep formatter inputs on LF across platforms.
+Workflow checks require [ShellCheck](https://github.com/koalaman/shellcheck#installing)
+on `PATH`, including Windows development. The runner fails if it is missing,
+so local actionlint checks include the same shell analysis as GitHub's Linux runner.
 
 Go analysis tools are pinned separately in `go.tools.mod` and `go.tools.sum` so
 tool dependencies do not upgrade application dependencies. The Go runner invokes
@@ -130,6 +133,18 @@ packages remain in the same job; private package contents are never uploaded as
 CI artifacts. `release/companions/provenance.json` records exact host/sibling
 commits and ZIP hashes and is retained as the job artifact. Failed installed
 acceptance also records the source/hash table in the job summary.
+
+The host and DM Tools each install Chromium using their own pinned Playwright
+version. Updating the host browser dependency must not leave the companion's
+rendering test without its required browser executable.
+
+When the candidate host changes Go dependencies, compatibility CI uses
+`scripts/prepare-companion-go.mts` from each Go companion's root. It copies the
+companion's module files to a separate scratch directory and reconciles them
+with `go mod tidy -modfile` from the companion root. Checks and package builders inherit that
+absolute module path with `-mod=readonly`; analysis tools still use their own
+`go.tools.mod`. Workspaces are disabled for this check. The pinned source files
+remain unchanged, and the normal clean-source and ZIP inspection gates still run.
 
 When companion source changes, run its owning gates and commit it first. From
 clean adjacent checkouts, explicitly update the host's source set with

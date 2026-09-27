@@ -131,3 +131,46 @@ void test("companion checkouts use verified immutable refs before any package bu
   assert.ok(workflow.indexOf("actions/setup-node") < resolver);
   assert.match(workflow, /node scripts\/companion-suite\.mts test "\$SUITE_MODE"/);
 });
+
+void test("DM rendering installs the browser owned by its pinned dependency version", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/addon-compatibility.yml", import.meta.url),
+    "utf8",
+  );
+  const step = workflow
+    .split("- name: Test and package DM Tools against the candidate host")[1]
+    ?.split("\n      - ")[0];
+  assert.ok(step, "The pinned DM Tools check must remain in compatibility CI");
+  assert.match(step, /working-directory: addon-dm-tools/);
+  const install = step.indexOf("npm ci");
+  const browser = step.indexOf("npx playwright install --with-deps chromium");
+  const check = step.indexOf("npm run check");
+  assert.ok(install >= 0 && browser > install && check > browser);
+});
+
+void test("candidate-host Go reconciliation precedes every companion check and package build", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/addon-compatibility.yml", import.meta.url),
+    "utf8",
+  );
+  assert.match(workflow, /GOWORK: "off"/);
+  for (const [name, scratch, gate, build] of [
+    ["DM Tools", "dm-tools-go", "npm run check", "go run ./cmd/build-package"],
+    ["D&D Engine", "dnd-engine-go", "go run ./tools/check.go", "go run ./cmd/build-package"],
+    ["Character Sheets", "dnd-sheets-go", "npm run check", "npm run package"],
+  ]) {
+    const step = workflow
+      .split(`- name: Test and package ${name} against the candidate host`)[1]
+      ?.split("\n      - ")[0];
+    assert.ok(step);
+    const preparation = step.indexOf(
+      `GOFLAGS=$(node ../ttrpg-codex/scripts/prepare-companion-go.mts "$RUNNER_TEMP/${scratch}")`,
+    );
+    const exportFlags = step.indexOf("export GOFLAGS");
+    assert.ok(preparation >= 0 && exportFlags > preparation);
+    assert.ok(step.indexOf(gate) > exportFlags);
+    assert.ok(step.indexOf(build) > step.indexOf(gate));
+    assert.doesNotMatch(step, /export GOFLAGS=|continue-on-error/);
+  }
+  assert.match(workflow, /git -C "\$repository" diff --exit-code/);
+});

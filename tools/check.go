@@ -111,6 +111,10 @@ func goFiles() []string {
 }
 
 func workflows() {
+	shellcheck, err := exec.LookPath("shellcheck")
+	if err != nil {
+		must(fmt.Errorf("workflow checks require ShellCheck on PATH, including local runs: %w", err))
+	}
 	var files []string
 	must(filepath.WalkDir(".github/workflows", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -123,7 +127,7 @@ func workflows() {
 	}))
 	sort.Strings(files)
 	// actionlint 1.7.12 predates GitHub's queue property; keep all other validation.
-	args := []string{"tool", "-modfile=go.tools.mod", "actionlint", "-ignore", `unexpected key "queue" for "concurrency" section`}
+	args := []string{"tool", "-modfile=go.tools.mod", "actionlint", "-shellcheck", shellcheck, "-ignore", `unexpected key "queue" for "concurrency" section`}
 	run("go", append(args, files...)...)
 }
 
