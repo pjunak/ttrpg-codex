@@ -1,3 +1,5 @@
+import { equipmentView, hpActionsView } from "./installed-character-navigation-fixture.mts";
+import { expandCharacterDetails } from "./installed-character-navigation-fixture.mts";
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { readFile } from 'node:fs/promises';
@@ -79,12 +81,12 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
     let next = await settled();
     assert.equal(next.state.inputs.build.levels.length, 2); assert.equal(next.state.inputs.play.hp, stored.state.inputs.play.hp);
     assert.ok(next.state.projection.sheet.derived.maxHp > stored.state.projection.sheet.derived.maxHp);
-    await sheet.locator('#dnd-tab-sheet').click();
+    await equipmentView(sheet);
     await sheet.getByRole('button', { name: '+ ' + text.shield, exact: true }).click();
     await sheet.getByRole('dialog').getByRole('button', { name: 'Travel Shield', exact: true }).click();
     await settled();
     for (const [coin, value] of [['GP', '37'], ['SP', '8']]) { await sheet.getByLabel(coin!, { exact: true }).fill(value!); await settled(); }
-    await sheet.getByRole('button', { name: text.damage, exact: true }).click();
+    await hpActionsView(sheet); await sheet.getByRole('button', { name: text.damage, exact: true }).click();
     const damage = sheet.locator('.dse-hp-adjust'); await damage.getByLabel(text.amount, { exact: true }).fill('2');
     await damage.getByRole('button', { name: text.damage, exact: true }).click(); next = await settled();
     assert.equal(next.state.inputs.play.hp, stored.state.inputs.play.hp - 2);
@@ -93,7 +95,7 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
     const free = grant.slots.find((id: string) => id.startsWith('charge:'));
     await sheet.locator('[data-spell-grant][data-spell-name="Detect Magic"]').getByRole('button', { name: text.cast, exact: true }).click();
     next = await settled(); assert.equal(next.state.inputs.play.resourceUses[free], 1);
-    await sheet.locator('#dnd-tab-combat').click(); await sheet.getByRole('button', { name: text.short, exact: true }).click();
+    await sheet.locator('#dnd-tab-combat').click(); await expandCharacterDetails(sheet); await sheet.getByRole('button', { name: text.short, exact: true }).click();
     next = await settled(); assert.equal(next.state.inputs.play.resourceUses[free], 1);
     await sheet.getByRole('button', { name: text.long, exact: true }).click(); next = await settled();
     assert.equal(next.state.inputs.play.resourceUses[free], 0); assert.equal(next.state.inputs.play.hp, next.state.projection.sheet.derived.maxHp);
@@ -104,7 +106,7 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
     const envelope = await exported(page, sheet, locale);
     assert.deepEqual(envelope.inputs, stored.state.inputs); assert.deepEqual(envelope.savedProjection, stored.state.projection);
     assert.equal(envelope.externalHistory, undefined);
-    await sheet.locator('#dnd-tab-sheet').click(); await sheet.getByLabel('GP', { exact: true }).fill('12'); next = await settled();
+    await equipmentView(sheet); await sheet.getByLabel('GP', { exact: true }).fill('12'); next = await settled();
     await sheet.locator('#dnd-tab-tools').click();
     await review(sheet, locale, envelope, true);
     await sheet.getByRole('dialog').getByRole('button', { name: text.close, exact: true }).click();

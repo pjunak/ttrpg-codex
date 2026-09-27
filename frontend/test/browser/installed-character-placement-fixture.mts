@@ -1,3 +1,4 @@
+import { characterTab, inventoryView } from "./installed-character-navigation-fixture.mts";
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -22,7 +23,7 @@ export function registerPlacementTests(enabled: boolean, fixture: () => Fixture)
     const f = fixture(), key = "placement-" + locale, initial = await seed(f, key);
     assert.ok(initial.state.inputs.play.inventory.every((item: Record<string, unknown>) => !Object.hasOwn(item, "bodyPlacement")));
     const { page, sheet, status, read } = await openBuilder(t, f, key, locale);
-    await sheet.locator("#dnd-tab-sheet").click();
+    await inventoryView(sheet);
     for (const [id, placement] of [["armor", "body"], ["amulet", "neck"], ["ring", "other"], ["copy", "other"]]) {
       const select = sheet.locator(control(id!)); await select.focus(); await select.selectOption(placement!);
       await status.filter({ hasText: savedPattern(locale) }).waitFor();
@@ -33,8 +34,8 @@ export function registerPlacementTests(enabled: boolean, fixture: () => Fixture)
     assert.deepEqual(saved.state.projection.sheet.derived, initial.state.projection.sheet.derived, "Placement cannot change mechanics");
     assert.deepEqual(saved.state.inputs.play.inventory.map(({ bodyPlacement: _, ...item }: Record<string, any>) => item), initial.state.inputs.play.inventory);
     for (const layout of ["compact", "classic"]) {
-      await sheet.locator("#dnd-tab-tools").click(); await sheet.getByRole("combobox", { name: locale === "cs" ? "Rozložení deníku" : "Sheet layout", exact: true }).selectOption(layout);
-      await sheet.locator("#dnd-tab-sheet").click();
+      await characterTab(sheet, "tools"); await sheet.getByRole("combobox", { name: locale === "cs" ? "Rozložení deníku" : "Sheet layout", exact: true }).selectOption(layout);
+      await inventoryView(sheet);
       for (const width of [1360, 1024, 390, 320]) {
         await page.setViewportSize({ width, height: 1000 });
         await page.evaluate(({ width, layout }) => { document.documentElement.style.fontSize = width < 500 ? "200%" : ""; document.documentElement.dataset.theme = layout === "compact" ? "classic" : "moonlit"; }, { width, layout });
@@ -54,9 +55,9 @@ export function registerPlacementTests(enabled: boolean, fixture: () => Fixture)
     const used = await f.call("save", { key, operation: "play", operationId: key + "-consume", expectedRevision: saved.revision, change: { operation: "consume-item", itemId: "ring" }, summary: "Use placed item" });
     assert.equal(used.status, "ready"); assert.equal(used.state.inputs.play.inventory[2].bodyPlacement, undefined);
     assert.equal(used.state.inputs.play.inventory[3].bodyPlacement, "other", "A duplicate source is a different owned instance");
-    await page.reload(); await page.locator("#character-view-addons").click(); await sheet.locator("#dnd-tab-sheet").click();
+    await page.reload(); await page.locator("#character-view-addons").click(); await inventoryView(sheet);
     assert.equal(await sheet.locator(control("copy")).inputValue(), "other");
-    await sheet.locator("#dnd-tab-tools").click();
+    await characterTab(sheet, "tools");
     const transfer = await exported(page, sheet, locale); assert.deepEqual(transfer.inputs.play, used.state.inputs.play);
     transfer.inputs.play.inventory[3].notes = "Imported placed copy";
     await review(sheet, locale, transfer, false);
@@ -72,7 +73,7 @@ export function registerPlacementTests(enabled: boolean, fixture: () => Fixture)
   for (const outcome of ["lost-reply", "disjoint", "conflict", "deleted-item"]) test("Body placement autosave preserves " + outcome, { skip: !enabled, timeout: 60000 }, async t => {
     const f = fixture(), key = "placement-save-" + outcome, initial = await seed(f, key);
     const { page, sheet, status, read } = await openBuilder(t, f, key);
-    await sheet.locator("#dnd-tab-sheet").click();
+    await inventoryView(sheet);
     const writes: Record<string, any>[] = [];
     let release!: () => void, entered!: () => void;
     const held = new Promise<void>(resolve => { release = resolve; }), arriving = new Promise<void>(resolve => { entered = resolve; });
@@ -132,10 +133,10 @@ export async function verifyFrozenPlacement(t: TestContext, f: Fixture): Promise
     const { page, sheet, read } = await openBuilder(t, f, key, locale);
     try {
       const loaded = await read(); assert.equal(loaded.status, "unavailable"); assert.deepEqual(loaded.state, saved.state);
-      await sheet.locator("#dnd-tab-sheet").click();
+      await inventoryView(sheet);
       assert.equal(await sheet.locator(control("copy")).count(), 0);
       assert.match(await sheet.locator('[data-item="copy"] .dse-item-placement').innerText(), locale === "cs" ? /Další nošené předměty/ : /Other worn/);
-      await sheet.locator("#dnd-tab-tools").click();
+      await characterTab(sheet, "tools");
       assert.deepEqual((await exported(page, sheet, locale)).inputs.play, saved.state.inputs.play);
       const popup = await printOutput(page, sheet, locale);
       assert.match(await popup.locator("body").innerText(), locale === "cs" ? /Umístění na těle: Další nošené předměty/ : /Body placement: Other worn/);

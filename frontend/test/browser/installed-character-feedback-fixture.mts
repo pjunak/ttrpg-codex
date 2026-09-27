@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { hpActionsView } from "./installed-character-navigation-fixture.mts";
 import { test } from "node:test";
 import { resolve } from "node:path";
 import type { Fixture } from "./installed-character-builder-fixture.mts";
@@ -26,7 +27,7 @@ export function registerCharacterFeedbackTests(enabled: boolean, fixture: () => 
       await sheet.locator("#dnd-tab-tools").click();
       await page.waitForFunction(() => !document.querySelector(".addon-dnd-character")?.hasAttribute("aria-busy"));
       await sheet.getByLabel(cs ? "Rozložení deníku" : "Sheet layout", { exact: true }).selectOption(scenario.layout);
-      await sheet.locator("#dnd-tab-sheet").click();
+      await hpActionsView(sheet);
       const hp = sheet.getByLabel(cs ? "Aktuální životy" : "Current HP", { exact: true });
       await hp.waitFor(); assert.equal(await sheet.getAttribute("data-layout"), scenario.layout);
       assert.equal(await hp.getAttribute("max"), String(maximum));

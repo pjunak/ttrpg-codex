@@ -1,3 +1,4 @@
+import { expandCharacterDetails } from "./installed-character-navigation-fixture.mts";
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { resolve } from 'node:path';
@@ -122,13 +123,13 @@ export function registerSpellOwnershipTests(enabled:boolean,fixture:()=>Fixture)
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await search.evaluate(node=>node.closest('section')?.scrollIntoView({block:'start'}));
   await page.screenshot({path:resolve(f.output,'spell-filter-phone-'+locale+'.png')});
-  await sheet.locator('#dnd-tab-combat').click();
+  await sheet.locator('#dnd-tab-combat').click(); await expandCharacterDetails(sheet);
   await sheet.locator('.dse-attack').getByText(locale==='cs'?'Zranění při držení oběma rukama:':'Versatile damage:',{exact:false}).waitFor();
   await sheet.locator('.dse-attack').getByRole('button',{name:/1d8/}).waitFor();
   await sheet.locator('.dse-attack').getByRole('button',{name:/1d10/}).waitFor();
   await sheet.locator('.dse-attack').getByRole('button',{name:'Sap',exact:true}).waitFor();
-  assert.match(await sheet.locator('.dse-combat').first().innerText(),/120 ft/);
-  assert.match(await sheet.locator('.dse-combat').first().innerText(),/Touching stone; ends after 10 minutes/);
+  assert.match(await sheet.locator('.dsc-combat,.dse-layout-classic .dse-combat').first().innerText(),/120 ft/);
+  assert.match(await sheet.locator('.dsc-combat,.dse-layout-classic .dse-combat').first().innerText(),/Touching stone; ends after 10 minutes/);
   assert.equal(await sheet.locator('.dse-resource').evaluateAll(nodes=>nodes.every(node=>{const name=node.querySelector('span')?.getBoundingClientRect(),count=node.querySelector('strong')?.getBoundingClientRect();return !name||!count||name.bottom<=count.top+1||name.right<=count.left+1;})),true,'resource labels must not overlap their counters');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,JSON.stringify(await sheet.locator('*').evaluateAll(nodes=>nodes.map(node=>({tag:node.tagName,cls:node.className,right:node.getBoundingClientRect().right,width:node.getBoundingClientRect().width})).filter(row=>row.width>0&&row.right>innerWidth).slice(-15))));
   await sheet.locator('.dse-attack').evaluate(node=>node.closest('section')?.scrollIntoView({block:'start'}));
@@ -148,7 +149,7 @@ export async function verifyFrozenSpellDetails(t:TestContext,f:Fixture) {
  await sheet.locator('#dnd-tab-spells').click();
  await sheet.getByRole('searchbox',{name:'Filter spells',exact:true}).first().fill('Detect Magic');
  assert.equal(await sheet.locator('[data-spell-name="Detect Magic"]:visible').count(),5);
- await sheet.locator('#dnd-tab-combat').click();assert.match(await sheet.locator('.dse-combat').first().innerText(),/120 ft/);
+ await sheet.locator('#dnd-tab-combat').click(); await expandCharacterDetails(sheet);assert.match(await sheet.locator('.dsc-combat,.dse-layout-classic .dse-combat').first().innerText(),/120 ft/);
  await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('button',{name:'Print / PDF',exact:true}).click();
  const popupEvent=page.waitForEvent('popup');
  await sheet.getByRole('button',{name:'Open print preview',exact:true}).click();

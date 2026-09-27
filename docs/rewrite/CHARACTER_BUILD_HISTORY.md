@@ -1,18 +1,20 @@
 # Character building and play
 
 The host owns profiles, portraits and campaign relationships. Character Sheets
-adds a rules-calculated workspace with a vertical left rail: Sheet, Combat,
-Spells, Builder and Tools. Tools sits at the bottom, with Builder just above it.
-The workspace is capped at 1,120 px; Compact uses denser ability cards and keeps
-currency next to inventory. The host character heading is not repeated. When
+adds a rules-calculated workspace. Compact uses the final standalone mockup:
+Sheet, Combat, Equipment, Spells, Builder and Tools in a left rail. Tools sits
+at the bottom, with Builder just above it. Compact fits up to 1,360 px within the
+host article; Classic retains its 1,120 px, five-tab arrangement. Compact places
+attributes/skills on the right and inventory/currency in Equipment. The host
+character heading is not repeated. When
 space is too narrow relative to text size, the vertical navigation stacks above
 the sheet so enlarged text and recovery controls remain readable.
 
-The next user-directed workspace design is tracked in
-[T63 in the suite backlog](../BACKLOG.md#t63-character-sheet-design), including
-Equipment, the body mannequin and revised Sheet/Combat layouts. It is planned
-work; the behavior described here remains the current implementation contract
-until its owning changes and installed acceptance land.
+Remaining [T63 work](../BACKLOG.md#t63-character-sheet-design) includes authored
+conditions and final acceptance. The current Compact frame retains the largest
+measured tab height at a given width, growing for new/expanded content. It does
+not render hidden duplicate forms to predict unvisited content, and narrow
+screens use normal document flow.
 
 <a id="character-model"></a>
 <a id="f16-f19-and-f20-first-complete-play-slice"></a>
@@ -21,7 +23,8 @@ until its owning changes and installed acceptance land.
 ## Building a character over a campaign
 
 The Builder is the character's ordered progression. Character contains origin,
-base abilities and origin choices. Levels shows overall progression. Each class
+base abilities and origin choices. Compact puts Origin before ability scores.
+Classic retains a separate Levels view. Each class
 has its own tab for its levels and granted choices; the + tab offers additional
 classes allowed by the rules. Earlier decisions can be changed later. DM given
 has its own Builder tab. Progress starts expanded on the left; narrow screens
@@ -48,15 +51,20 @@ entries. The Backpack editor creates, renames and removes groups; inventory and
 the existing item picker share destination options. Removing a group keeps its
 items, and equipping explicitly clears membership. These groups add no physical
 items or carrying-capacity rules. Their names and contents remain readable in
-saved output and print without a rules provider. The final Equipment tab and
-searchable floating Backpack dialog remain T63 work.
+saved output and print without a rules provider. Compact's Equipment tab opens
+Backpack as a floating dialog with search, compartment filtering and sorting.
+The shared item picker preserves that context on return. New instances are the
+default; explicitly selecting an existing carried stack changes only its
+quantity. All five coin fields stay at the bottom of Equipment.
 
 Body placement is an optional per-instance assignment in inventory, using live
 Engine source options and the shared native field. It adds no mechanical slots
 or bonuses. Stowing, zero quantity and final-unit consumption clear placement
 atomically; ordinary stowing preserves attunement. Old characters gain no
 default assignments, and saved display, print/export and replacement imports
-retain the field without a provider. The mannequin remains T63 work.
+retain the field without a provider. The mannequin exposes ten placements with
+source-backed candidates; Other worn is a dynamic list. Mechanical equipment
+controls remain separate from display placement.
 
 Sheet and Combat share owned main/off-hand selectors and a two-handed grip
 toggle. Eligibility and effects come from the Engine; Combat also shows saved
@@ -67,6 +75,13 @@ eligible instance; otherwise the hand stays free with an explanation. Reload,
 provider-free reading, print and transfer preserve those identities. No turn or
 action costs are tracked. The controls use shared host fields, button styling,
 focus keys and saved-rule details in both layouts.
+
+Compact shares the same HP/AC/Speed/Proficiency/Inspiration geometry on Sheet
+and Combat. Current HP is directly rewritable; a short bar supplements the
+number. Temporary HP remains editable. Combat shows only ability modifiers and
+saves in its small ability row, with distinct casting sources in the reference
+panel. Additional attacks, rest/recovery, training, senses, feats and traits
+remain accessible through disclosures.
 
 Inventory,
 equipment, currency, HP, spells and resources remain editable in their ordinary
@@ -92,7 +107,9 @@ grant instead of accumulating superseded entries.
 
 Autosave coalesces input and serializes writes. Disjoint concurrent fields can
 merge; overlapping edits stay pending with a visible conflict. Rejected values
-stay editable with their save blockers. Retry reuses the exact uncertain request
+stay editable with their save blockers. Save feedback and retry actions remain
+inside the active inventory/picker dialog when one is open, so the modal never
+hides recovery controls. Retry reuses the exact uncertain request
 before submitting newer edits, and Reload asks before discarding pending input.
 Network failures never claim a successful save. Pending input stays in the open
 page and the host navigation guard remains active until it is saved or explicitly

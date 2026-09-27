@@ -1,3 +1,4 @@
+import { characterTab, inventoryView } from "./installed-character-navigation-fixture.mts";
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -26,7 +27,7 @@ export function registerQuickUseTests(enabled: boolean, fixture: () => Fixture):
   for (const locale of ["en", "cs"]) test("Quick use shares owned quantities, depleted pins and saved output (" + locale + ")", { skip: !enabled, timeout: 90000 }, async t => {
     const f = fixture(), key = "quick-use-" + locale, text = messages(locale), initial = await seed(f, key);
     const { page, sheet, status, read } = await openBuilder(t, f, key, locale);
-    await sheet.locator("#dnd-tab-sheet").click();
+    await inventoryView(sheet);
     for (const id of ["one", "copy", "stored", "empty"]) {
       const pin = sheet.locator('[data-focus-key="inventory/' + id + '/quick-use"]');
       await pin.focus(); await pin.press("Space"); await status.filter({ hasText: text.saved }).waitFor();
@@ -38,7 +39,7 @@ export function registerQuickUseTests(enabled: boolean, fixture: () => Fixture):
     assert.deepEqual(saved.state.inputs.play.inventory, initial.state.inputs.play.inventory);
     const one = sheet.locator('[data-quick-use-item="one"]'), use = one.locator('[data-focus-key$="/use"]');
     for (const layout of ["compact", "classic"]) {
-      await sheet.locator("#dnd-tab-tools").click(); await sheet.getByRole("combobox", { name: text.layout, exact: true }).selectOption(layout);
+      await characterTab(sheet, "tools"); await sheet.getByRole("combobox", { name: text.layout, exact: true }).selectOption(layout);
       for (const width of [1360, 1024, 390, 320]) {
         await page.setViewportSize({ width, height: 1000 });
         await page.evaluate(({ width, layout }) => { document.documentElement.style.fontSize = width < 500 ? "200%" : ""; document.documentElement.dataset.theme = layout === "compact" ? "classic" : "moonlit"; }, { width, layout });
@@ -67,15 +68,17 @@ export function registerQuickUseTests(enabled: boolean, fixture: () => Fixture):
     assert.equal(saved.state.inputs.play.inventory[0].notes, "Keep one");
     assert.deepEqual(saved.state.inputs.play.currency, initial.state.inputs.play.currency);
     assert.equal(saved.state.inputs.play.inspiration, true);
-    await sheet.locator("#dnd-tab-sheet").click();
+    await inventoryView(sheet);
     const quantity = sheet.locator('[data-focus-key="inventory/one/quantity"]');
     assert.equal(await quantity.inputValue(), "0");
     await quantity.fill("2"); await status.filter({ hasText: text.saved }).waitFor();
     assert.equal((await read()).state.inputs.play.inventory[0].quantity, 2);
+    await characterTab(sheet, "sheet");
     assert.equal(await use.isEnabled(), true);
     await unpin.click(); await status.filter({ hasText: text.saved }).waitFor();
     assert.equal((await read()).state.inputs.play.inventory[0].quantity, 2, "Unpinning keeps the exact inventory entry");
     assert.equal(await sheet.locator('[data-focus-key="quick-use/copy/unpin"]').evaluate(node => node === document.activeElement), true);
+    await inventoryView(sheet);
     const pin = sheet.locator('[data-focus-key="inventory/one/quick-use"]'); await pin.click(); await status.filter({ hasText: text.saved }).waitFor();
     const remove = sheet.locator('[data-focus-key="inventory/copy/remove"]'); await remove.click(); await status.filter({ hasText: text.saved }).waitFor();
     saved = await read();
@@ -83,7 +86,7 @@ export function registerQuickUseTests(enabled: boolean, fixture: () => Fixture):
     assert.deepEqual(saved.state.inputs.play.inventory.map((item: { id: string }) => item.id), ["one", "stored", "empty"]);
     await page.reload(); await page.locator("#character-view-addons").click(); await sheet.locator("#dnd-tab-combat").click();
     assert.equal(await sheet.locator("[data-quick-use-item]").count(), 3);
-    await sheet.locator("#dnd-tab-tools").click();
+    await characterTab(sheet, "tools");
     const transfer = await exported(page, sheet, locale);
     assert.deepEqual(transfer.inputs.play.quickUse, saved.state.inputs.play.quickUse);
     transfer.inputs.play.quickUse = ["empty", "one", "stored"];
@@ -219,7 +222,7 @@ export async function verifyFrozenQuickUse(t: TestContext, f: Fixture): Promise<
         await sheet.locator('[data-quick-use-item="empty"]').getByText(text.notes, { exact: true }).click();
         await sheet.getByText("Keep empty", { exact: true }).first().waitFor();
       }
-      await sheet.locator("#dnd-tab-tools").click();
+      await characterTab(sheet, "tools");
       assert.deepEqual((await exported(page, sheet, locale)).inputs.play.quickUse, saved.state.inputs.play.quickUse);
       const popup = await printOutput(page, sheet, locale);
       await popup.getByRole("heading", { name: text.quick, exact: true }).waitFor(); assert.equal(await popup.locator("[data-quick-use-item]").count(), 3); await popup.close();

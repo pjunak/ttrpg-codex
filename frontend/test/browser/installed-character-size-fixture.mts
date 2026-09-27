@@ -11,7 +11,7 @@ type Row = Record<string, any>;
 type Source = { addonId: string; setId: string; id: string; enabled: boolean };
 const sizedCharacters = new Map<string, Row>();
 const group = (sheet: Locator, id: string) => sheet.locator('[id="character-choice-' + encodeURIComponent(id) + '"]');
-const sizeTile = (sheet: Locator, locale: string) => sheet.locator('.dse-vitals .codex-tile').filter({ has: sheet.page().locator('.dse-stat-label').filter({ hasText: locale === 'cs' ? /^Velikost$/ : /^Size$/ }) });
+const sizeTile = (sheet: Locator, locale: string) => sheet.locator('.dse-vitals .codex-tile, .dsc-size').filter({ has: sheet.page().locator('.dse-stat-label').filter({ hasText: locale === 'cs' ? /^Velikost$/ : /^Size$/ }) });
 const sizeChoice = (species: string, value: string) => ({ id: 'species:' + species + ':size', slot: 0, value });
 
 async function human(f: Fixture, key: string) {

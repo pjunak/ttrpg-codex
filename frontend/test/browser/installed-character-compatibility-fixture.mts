@@ -39,6 +39,8 @@ export function registerCharacterCompatibilityTests(enabled: boolean, fixture: (
       const locale = variant === "major" ? "cs" : "en", { page, sheet } = await openBuilder(t, f, key, locale);
       await sheet.locator("#dnd-tab-sheet").click();
       assert.equal(await sheet.getByLabel(locale === "cs" ? "Aktuální životy" : "Current HP", { exact: true }).isDisabled(), true);
+      assert.equal(frozen.state.projection.sheet.derived.size, "Medium");
+      await sheet.locator(".dsc-size").getByRole("button", { name: locale === "cs" ? "Střední" : "Medium", exact: true }).waitFor();
       await sheet.locator("#dnd-tab-tools").click();
       assert.deepEqual((await exported(page, sheet, locale)).inputs, saved.state.inputs);
       const popup = await printOutput(page, sheet, locale);

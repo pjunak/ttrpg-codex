@@ -1,3 +1,4 @@
+import { inventoryView, characterTab } from "./installed-character-navigation-fixture.mts";
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { resolve } from 'node:path';
@@ -134,22 +135,22 @@ export function registerMulticlassAcceptanceTests(enabled:boolean,fixture:()=>Fi
   const f=fixture(),key='attunement-class-'+locale;let stored=await sourceItems(f,key);
   const {page,sheet,status,read}=await openBuilder(t,f,key,locale),attune=locale==='cs'?'Sladit se: ':'Attune ',saved=locale==='cs'?/^Uloženo$/:/^Saved$/;
   if(locale==='cs'){await sheet.locator('#dnd-tab-tools').click();await sheet.getByRole('combobox',{name:'Rozložení deníku',exact:true}).selectOption('classic');}
-  await sheet.locator('#dnd-tab-sheet').click();
+  await inventoryView(sheet);
   const staff=sheet.getByRole('button',{name:attune+'staff-of-power',exact:true});
   assert.equal(await staff.isDisabled(),true);
   assert.equal(await staff.getAttribute('aria-description'),locale==='cs'?'Splňte předpoklad tohoto předmětu nebo zaznamenejte rozhodnutí DM.':"Meet this item's prerequisite or record a DM ruling.");
   const input=structuredClone(stored.state.inputs);input.build.baseScores={STR:14,DEX:12,CON:13,INT:15,WIS:10,CHA:8};input.build.levels.push({id:'wizard-entry',classId:'wizard'});
   stored=await complete(f,key,input,stored.revision,'wizard');
-  await page.reload();await page.locator('#character-view-addons').click();await sheet.locator('#dnd-tab-sheet').click();await staff.waitFor();
+  await page.reload();await page.locator('#character-view-addons').click();await inventoryView(sheet);await staff.waitFor();
   await sheet.getByRole('combobox',{name:(locale==='cs'?'Přesunout: ':'Move ')+'staff-of-power',exact:true}).selectOption('equipped');
   await status.filter({hasText:saved}).waitFor();
   assert.equal(await staff.isDisabled(),false);await staff.focus();await staff.press('Enter');await status.filter({hasText:saved}).waitFor();
   stored=await read();assert.equal(stored.state.inputs.play.inventory[0].attuned,true);
-  await sheet.locator('#dnd-tab-builder').click();await sheet.locator('#dnd-builder-tab-wizard').click();
+  await characterTab(sheet, 'builder');await sheet.locator('#dnd-builder-tab-wizard').click();
   await sheet.getByRole('button',{name:locale==='cs'?'Odebrat úroveň':'Remove level',exact:true}).click();
   await status.filter({hasText:locale==='cs'?'Předpoklad není splněn.':'The prerequisite is not met.'}).waitFor();
   assert.equal((await read()).revision,stored.revision);
-  await sheet.locator('#dnd-tab-sheet').click();assert.equal(await staff.isDisabled(),false,'an attuned item must remain available for explicit repair');
+  await inventoryView(sheet);assert.equal(await staff.isDisabled(),false,'an attuned item must remain available for explicit repair');
   assert.equal(await staff.getAttribute('aria-description'),locale==='cs'?'Splňte předpoklad tohoto předmětu nebo zaznamenejte rozhodnutí DM.':"Meet this item's prerequisite or record a DM ruling.");
   await page.setViewportSize({width:390,height:1000});await page.addStyleTag({content:'html {font-size:200% !important;}'});
   await staff.scrollIntoViewIfNeeded();await page.screenshot({path:resolve(f.output,'attunement-repair-'+locale+'.png')});
@@ -161,6 +162,6 @@ export function registerMulticlassAcceptanceTests(enabled:boolean,fixture:()=>Fi
   const move=sheet.getByRole('combobox',{name:(locale==='cs'?'Přesunout: ':'Move ')+'staff-of-power',exact:true});
   assert.equal(await move.evaluate(node=>node===document.activeElement),true,'focus stays with the repaired item when its action becomes disabled');
   await page.screenshot({path:resolve(f.output,'attunement-repaired-'+locale+'.png')});
-  await page.reload();await page.locator('#character-view-addons').click();await sheet.locator('#dnd-tab-sheet').click();await staff.waitFor();assert.equal(await staff.isDisabled(),true);
+  await page.reload();await page.locator('#character-view-addons').click();await inventoryView(sheet);await staff.waitFor();assert.equal(await staff.isDisabled(),true);
  });
 }

@@ -1,3 +1,5 @@
+import { inventoryView, characterTab } from "./installed-character-navigation-fixture.mts";
+import { expandCharacterDetails } from "./installed-character-navigation-fixture.mts";
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { resolve } from 'node:path';
@@ -122,19 +124,19 @@ export function registerPassiveFeatTests(enabled: boolean, fixture: () => Fixtur
       await page.addStyleTag({ content: 'html { font-size:200% !important; }' });
     }
     await sheet.locator('#dnd-tab-sheet').click();
-    await sheet.locator('.dse-counter').getByRole('button', { name: String(baseHP + 40), exact: true }).waitFor();
-    const armor = sheet.locator('.dse-ac');
+    await sheet.locator('.dse-counter, .dsc-hp-values').getByRole('button', { name: String(baseHP + 40), exact: true }).waitFor();
+    const armor = sheet.locator('.dse-ac, [data-stat=armorClass]');
     await armor.getByRole('button', { name: '19', exact: true }).click();
     const details = sheet.getByRole('dialog'); await details.waitFor();
     assert.match(await details.innerText(), /Defense/); await page.keyboard.press('Escape');
-    const move = sheet.getByRole('combobox', { name: (cs ? 'Přesunout: ' : 'Move ') + 'suit', exact: true });
+    await inventoryView(sheet); const move = sheet.getByRole('combobox', { name: (cs ? 'Přesunout: ' : 'Move ') + 'suit', exact: true });
     await move.focus(); await move.selectOption('carried'); await status.filter({ hasText: cs ? /^Uloženo$/ : /^Saved$/ }).waitFor();
     assert.equal(await move.evaluate(node => node === document.activeElement), true);
     stored = await read(); assert.equal(stored.state.projection.sheet.derived.armorClass, 14);
     assert.equal(term(stored.state.projection, 'derived.armorClass', 'defense')?.status, 'inactive');
     await move.selectOption('equipped'); await status.filter({ hasText: cs ? /^Uloženo$/ : /^Saved$/ }).waitFor();
     assertAuthored((await read()).state.inputs, initial);
-    await sheet.locator('#dnd-tab-combat').click();
+    await characterTab(sheet, 'combat'); await expandCharacterDetails(sheet);
     await sensePanel(sheet, locale).getByRole('button', { name: cs ? 'Mimosmyslové vnímání' : 'Blindsight', exact: true }).waitFor();
     assert.match(await sensePanel(sheet, locale).innerText(), /10 ft/);
     assert.match(await sensePanel(sheet, locale).innerText(), /60 ft/);
@@ -168,7 +170,7 @@ export async function verifyFrozenPassiveFeats(t: TestContext, f: Fixture) {
       await route.continue();
     });
     await sheet.locator('#dnd-tab-sheet').click();
-    await sheet.locator('.dse-ac').getByRole('button', { name: '19', exact: true }).click();
+    await sheet.locator('.dse-ac, [data-stat=armorClass]').getByRole('button', { name: '19', exact: true }).click();
     const dialog = sheet.getByRole('dialog'); await dialog.waitFor(); assert.match(await dialog.innerText(), /Defense/);
     await dialog.locator(':scope > details > summary').filter({ hasText: locale === 'cs' ? 'Uložené údaje zdroje' : 'Saved source evidence' }).click();
     const evidence = expected.state.projection.evidence.find((row: Row) => row.reference.id === 'defense');

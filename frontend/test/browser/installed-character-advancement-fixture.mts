@@ -1,3 +1,4 @@
+import { expandCharacterDetails } from "./installed-character-navigation-fixture.mts";
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { resolve } from 'node:path';
@@ -153,7 +154,7 @@ export function registerCharacterAdvancementTests(enabled: boolean, fixture: () 
     assert.equal(await ability.getByLabel('INT', { exact: true }).inputValue(), '1');
     stored = await read(); assertAuthored(stored.state.inputs, initial.state.inputs);
     assert.equal(stored.state.projection.sheet.abilities.INT.cap, 30);
-    await sheet.locator('#dnd-tab-combat').click();
+    await sheet.locator('#dnd-tab-combat').click(); await expandCharacterDetails(sheet);
     const feats = sheet.locator('.dse-section').filter({ has: page.getByRole('heading', { name: cs ? 'Odbornosti' : 'Feats', exact: true }) });
     await feats.getByRole('button', { name: 'Boon of Combat Prowess', exact: true }).waitFor();
     if (cs) await page.addStyleTag({ content: 'html { font-size:200% !important; }' });
@@ -175,7 +176,7 @@ export async function verifyFrozenAdvancements(t: TestContext, f: Fixture) {
       if (route.request().postDataJSON()?.method === 'query-records') queries++;
       await route.continue();
     });
-    await sheet.locator('#dnd-tab-combat').click();
+    await sheet.locator('#dnd-tab-combat').click(); await expandCharacterDetails(sheet);
     await sheet.getByRole('button', { name: 'Boon of Combat Prowess', exact: true }).waitFor();
     await sheet.locator('#dnd-tab-tools').click();
     const envelope = await exported(page, sheet, locale); assert.deepEqual(envelope.inputs, expected.state.inputs);

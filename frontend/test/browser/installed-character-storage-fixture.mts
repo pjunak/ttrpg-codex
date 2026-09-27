@@ -1,3 +1,4 @@
+import { characterTab, inventoryView } from "./installed-character-navigation-fixture.mts";
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -35,7 +36,7 @@ export function registerStorageTests(enabled: boolean, fixture: () => Fixture): 
   for (const locale of ["en", "cs"]) test("Storage organizes instances across edits, equipment, transfer and print (" + locale + ")", { skip: !enabled, timeout: 120000 }, async t => {
     const f = fixture(), key = "storage-" + locale, text = messages(locale), initial = await seed(f, key);
     const { page, sheet, status, read } = await openBuilder(t, f, key, locale);
-    await sheet.locator("#dnd-tab-sheet").click();
+    await inventoryView(sheet);
     const ids: string[] = [];
     for (const label of ["Travel pack", "Pouch"]) {
       await sheet.getByRole("button", { name: text.add, exact: true }).click();
@@ -57,7 +58,7 @@ export function registerStorageTests(enabled: boolean, fixture: () => Fixture): 
     await move.selectOption("equipped"); await status.filter({ hasText: text.saved }).waitFor();
     assert.equal((await read()).state.inputs.play.inventory[3].containerId, undefined);
     assert.equal(await sheet.locator('[data-focus-key="inventory/dagger/container"] option[value="' + pack + '"]').isDisabled(), true);
-    await sheet.getByRole("button", { name: text.addItem, exact: true }).click();
+    await sheet.locator('.dse-bp-head > button, [data-focus-key="pack/add"]').click();
     const picker = sheet.getByRole("dialog");
     await picker.getByLabel(text.destination, { exact: true }).selectOption(pouch);
     await picker.getByLabel(text.find, { exact: true }).fill("dagger");
@@ -70,8 +71,8 @@ export function registerStorageTests(enabled: boolean, fixture: () => Fixture): 
     assert.equal(saved.state.inputs.play.inventory[3].name, "Personal dagger");
     assert.equal(saved.state.inputs.play.inventory[3].location, "equipped");
     for (const layout of ["compact", "classic"]) {
-      await sheet.locator("#dnd-tab-tools").click(); await sheet.getByRole("combobox", { name: text.layout, exact: true }).selectOption(layout);
-      await sheet.locator("#dnd-tab-sheet").click();
+      await characterTab(sheet, "tools"); await sheet.getByRole("combobox", { name: text.layout, exact: true }).selectOption(layout);
+      await inventoryView(sheet);
       for (const width of [1360, 1024, 390, 320]) {
         await page.setViewportSize({ width, height: 1000 });
         await page.evaluate(({ width, layout }) => { document.documentElement.style.fontSize = width < 500 ? "200%" : ""; document.documentElement.dataset.theme = layout === "compact" ? "classic" : "moonlit"; }, { width, layout });
@@ -89,9 +90,9 @@ export function registerStorageTests(enabled: boolean, fixture: () => Fixture): 
     assert.equal(saved.state.inputs.play.inventory.length, 5);
     for (const index of [1, 4]) assert.equal(saved.state.inputs.play.inventory[index].containerId, undefined);
     assert.equal(saved.state.inputs.play.inventory[0].containerId, pack); assert.equal(saved.state.inputs.play.inventory[2].containerId, pack);
-    await page.reload(); await page.locator("#character-view-addons").click(); await sheet.locator("#dnd-tab-sheet").click();
+    await page.reload(); await page.locator("#character-view-addons").click(); await inventoryView(sheet);
     assert.equal(await sheet.locator('[data-focus-key="storage/' + pack + '/name"]').inputValue(), "Renamed pack");
-    await sheet.locator("#dnd-tab-tools").click();
+    await characterTab(sheet, "tools");
     const transfer = await exported(page, sheet, locale); assert.deepEqual(transfer.inputs.play, saved.state.inputs.play);
     transfer.inputs.play.containers[0].name = "Imported pack";
     await review(sheet, locale, transfer, false); await sheet.getByRole("button", { name: text.replace, exact: true }).click();
@@ -109,7 +110,7 @@ export function registerStorageTests(enabled: boolean, fixture: () => Fixture): 
   for (const outcome of ["lost-reply", "disjoint", "conflict", "removed-container"]) test("Storage autosave retains " + outcome, { skip: !enabled, timeout: 60000 }, async t => {
     const f = fixture(), key = "storage-save-" + outcome, initial = await seed(f, key, true);
     const { page, sheet, status, read } = await openBuilder(t, f, key);
-    await sheet.locator("#dnd-tab-sheet").click();
+    await inventoryView(sheet);
     const writes: Record<string, any>[] = [];
     let release!: () => void, entered!: () => void;
     const held = new Promise<void>(resolve => { release = resolve; }), arriving = new Promise<void>(resolve => { entered = resolve; });
@@ -158,8 +159,8 @@ export function registerStorageTests(enabled: boolean, fixture: () => Fixture): 
   test("Storage item picker puts narrative quantities in the chosen container", { skip: !enabled, timeout: 60000 }, async t => {
     const f = fixture(), key = "storage-narrative", initial = await seed(f, key, true);
     const { sheet, status, read } = await openBuilder(t, f, key);
-    await sheet.locator("#dnd-tab-sheet").click();
-    await sheet.getByRole("button", { name: "Add item", exact: true }).click();
+    await inventoryView(sheet);
+    await sheet.locator('.dse-bp-head > button, [data-focus-key="pack/add"]').click();
     const picker = sheet.getByRole("dialog");
     await picker.getByLabel("Destination container", { exact: true }).selectOption("pouch");
     await picker.locator("summary").filter({ hasText: /^Add narrative item$/ }).click();
@@ -199,12 +200,12 @@ export async function verifyFrozenStorage(t: TestContext, f: Fixture): Promise<v
     const { page, sheet, read } = await openBuilder(t, f, key, locale);
     try {
       const loaded = await read(); assert.equal(loaded.status, "unavailable"); assert.deepEqual(loaded.state, saved.state);
-      await sheet.locator("#dnd-tab-sheet").click();
+      await inventoryView(sheet);
       assert.equal(await sheet.locator('[data-focus-key="storage/add"]').count(), 0);
       assert.equal(await sheet.locator(".dse-storage [data-container]").count(), 1);
       assert.match(await sheet.locator(".dse-storage").innerText(), /Imported pack/);
       assert.match(await sheet.locator(".dse-storage").innerText(), /Trail supplies × 0/);
-      await sheet.locator("#dnd-tab-tools").click();
+      await characterTab(sheet, "tools");
       assert.deepEqual((await exported(page, sheet, locale)).inputs.play, saved.state.inputs.play);
       const popup = await printOutput(page, sheet, locale);
       await popup.getByRole("heading", { name: text.heading, exact: true }).waitFor();

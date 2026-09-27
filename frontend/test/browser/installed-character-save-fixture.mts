@@ -35,6 +35,11 @@ export async function openCharacter(t: TestContext, fixture: Fixture, key: strin
   t.after(() => assert.deepEqual(errors, []));
   await page.goto(origin + '/#/characters/' + key); await page.locator('#character-view-addons').click();
   const sheet = page.locator('.addon-dnd-character');
+  // These transaction tests edit inventory, currency and Inspiration together.
+  // Classic presents those controls together; Compact modal/navigation cases
+  // are exercised by the storage, placement and Compact acceptance fixtures.
+  await sheet.locator('#dnd-tab-tools').click(); await sheet.getByLabel('Sheet layout', { exact: true }).selectOption('classic');
+  await sheet.locator('#dnd-tab-sheet').click();
   await sheet.locator('.dse-item-notes summary').first().click();
   const name = sheet.getByLabel('Name', { exact: true }).first(), status = sheet.locator('[data-character-status]');
   await name.waitFor(); await page.waitForFunction(() => !document.querySelector('.addon-dnd-character')?.hasAttribute('aria-busy'));

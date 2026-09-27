@@ -137,7 +137,7 @@ export function registerCharacterBuilderTests(enabled: boolean, fixture: () => F
     const reduced = await save(f, key, inputs, 1, 'changed-first-class');
     assert.deepEqual(reduced.state.inputs.build.choices.filter((choice: { id: string }) => choice.id === skills.id), [first]);
     const { page, sheet, status, read } = await openBuilder(t, f, key);
-    await sheet.locator('#dnd-builder-tab-levels').click();
+    await sheet.locator('#dnd-builder-tab-fighter').click();
     await sheet.getByRole('button', { name: 'Remove level', exact: true }).first().click();
     await status.filter({ hasText: /^Saved$/ }).waitFor();
     const repaired = await read();
@@ -165,7 +165,7 @@ export function registerCharacterBuilderTests(enabled: boolean, fixture: () => F
     await hpMode.focus(); await hpMode.selectOption('rolled'); await status.filter({ hasText: /^Saved$/ }).waitFor();
     await focused(hpMode);
     assert.equal((await read()).state.inputs.build.levels[3].hitPoints, 1);
-    await sheet.locator('#dnd-builder-tab-levels').click(); await sheet.getByRole('button', { name: 'Remove level', exact: true }).last().click();
+    await sheet.locator('#dnd-builder-tab-rogue').click(); await sheet.getByRole('button', { name: 'Remove level', exact: true }).last().click();
     await status.filter({ hasText: /^Saved$/ }).waitFor();
     stored = await read();
     assert.equal(stored.state.inputs.build.levels.length, 3);
@@ -258,7 +258,7 @@ export function registerCharacterBuilderTests(enabled: boolean, fixture: () => F
     await group('rogue-expertise-6').scrollIntoViewIfNeeded();
     await page.screenshot({ path: resolve(f.output, 'expertise-choices.png') });
 
-    await sheet.locator('#dnd-builder-tab-levels').click(); await sheet.getByRole('button', { name: 'Remove level', exact: true }).last().click();
+    await sheet.locator('#dnd-builder-tab-rogue').click(); await sheet.getByRole('button', { name: 'Remove level', exact: true }).last().click();
     await status.filter({ hasText: /^Saved$/ }).waitFor();
     stored = await read();
     assert.equal(stored.state.inputs.build.choices.some((choice: { id: string }) => choice.id === 'rogue-expertise-6'), false);

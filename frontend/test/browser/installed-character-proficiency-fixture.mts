@@ -1,3 +1,4 @@
+import { expandCharacterDetails } from "./installed-character-navigation-fixture.mts";
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { resolve } from 'node:path';
@@ -68,7 +69,7 @@ async function addRogueTraining(f: Fixture, key: string, initial: Row) {
   return stored;
 }
 async function assertTraining(sheet: Locator, stored: Row, locale: string, granted: boolean) {
-  await sheet.locator('#dnd-tab-combat').click();
+  await sheet.locator('#dnd-tab-combat').click(); await expandCharacterDetails(sheet);
   await sheet.getByRole('heading', { name: text(locale).heading, exact: true }).waitFor();
   const view = await snapshot(sheet), facts = stored.state.projection.sheet.proficiencies;
   assert.deepEqual(view.saves, [...text(locale).saves, ...(granted ? [text(locale).wisdom] : [])]);
@@ -93,7 +94,7 @@ export function registerProficiencyTests(enabled: boolean, fixture: () => Fixtur
       await sheet.locator('#dnd-tab-tools').click(); await sheet.getByLabel('Rozložení deníku', { exact: true }).selectOption('classic');
     }
     await assertIndicators(sheet, false, locale);
-    await sheet.locator('#dnd-tab-combat').click();
+    await sheet.locator('#dnd-tab-combat').click(); await expandCharacterDetails(sheet);
     await training(sheet, 'expertise').getByText(text(locale).none, { exact: true }).waitFor();
     let stored = await addRogueTraining(f, key, initial);
     const beforeGrant = structuredClone(stored.state.inputs);

@@ -1,3 +1,4 @@
+import { classicLayout } from "./installed-character-navigation-fixture.mts";
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { resolve } from 'node:path';
@@ -32,7 +33,7 @@ export function registerEquipmentTests(enabled: boolean, fixture: () => Fixture)
         item('spare-armor', 'armor', 'leather-armor', 'stored'), item('carried-armor', 'armor', 'padded-armor'),
         item('old-shield', 'armor', 'shield', 'equipped'), item('new-shield', 'armor', 'shield', 'stored'), item('spare-shield', 'armor', 'shield', 'stored'),
       ];
-      const initial = await equipmentCharacter(f, key, inventory), { page, sheet, status, read } = await openBuilder(t, f, key, locale);
+      const initial = await equipmentCharacter(f, key, inventory), { page, sheet, status, read } = await openBuilder(t, f, key, locale); await classicLayout(sheet);
       if (locale === 'cs') { await sheet.locator('#dnd-tab-tools').click(); await sheet.getByRole('combobox', { name: messages.layout, exact: true }).selectOption('classic'); }
       await sheet.locator('#dnd-tab-sheet').click();
       await sheet.locator('[data-equipment-slot="shield"] .dse-equipment-slot').getByRole('button', { name: 'old-shield', exact: true }).waitFor();
@@ -55,7 +56,7 @@ export function registerEquipmentTests(enabled: boolean, fixture: () => Fixture)
       await page.reload(); await page.locator('#character-view-addons').click(); await sheet.locator('#dnd-tab-sheet').click();
       await sheet.locator('[data-equipment-slot="shield"] .dse-equipment-slot').getByRole('button', { name: 'new-shield', exact: true }).waitFor();
       await sheet.locator('[data-equipment-slot="armor"] .dse-equipment-slot').getByRole('button', { name: 'new-armor', exact: true }).waitFor();
-      assert.equal(await sheet.getAttribute('data-layout'), locale === 'cs' ? 'classic' : 'compact');
+      assert.equal(await sheet.getAttribute('data-layout'), 'classic');
       await page.setViewportSize({ width: 390, height: 1000 }); await page.addStyleTag({ content: 'html { font-size:200% !important; }' });
       assert.equal(await sheet.locator('.dse-bp-head > button').evaluate(node => {
         const style = getComputedStyle(node);
@@ -94,7 +95,7 @@ export function registerEquipmentTests(enabled: boolean, fixture: () => Fixture)
       const invalid = await f.call('save', { key, operation: 'build', operationId: key + '-forged', expectedRevision: stored.revision, summary: 'Excess attunement', inputs: rejected });
       assert.equal(invalid.status, 'invalid'); assert.ok(invalid.evaluation.guidance.saveIssues.some((issue: { id: string }) => issue.id === 'attunement-capacity'));
       assert.deepEqual((await f.call('load', { key })).state, stored.state);
-      const { page, sheet, status, read } = await openBuilder(t, f, key, locale);
+      const { page, sheet, status, read } = await openBuilder(t, f, key, locale); await classicLayout(sheet);
       if (locale === 'cs') { await sheet.locator('#dnd-tab-tools').click(); await sheet.getByRole('combobox', { name: messages.layout, exact: true }).selectOption('classic'); }
       await sheet.locator('#dnd-tab-sheet').click();
       const amulet = sheet.getByRole('button', { name: messages.attune + 'amulet', exact: true });
@@ -134,7 +135,7 @@ function registerAttunementTransitionTests(enabled: boolean, fixture: () => Fixt
         item('old-amulet', 'magic-item', 'amulet-of-health', 'carried', true),
         item('spare-ring', 'magic-item', 'ring-of-protection'),
       ], expected = structuredClone(inventory);
-      const initial = await equipmentCharacter(f, key, inventory), { page, sheet, status, read } = await openBuilder(t, f, key, locale);
+      const initial = await equipmentCharacter(f, key, inventory), { page, sheet, status, read } = await openBuilder(t, f, key, locale); await classicLayout(sheet);
       if (locale === 'cs') { await sheet.locator('#dnd-tab-tools').click(); await sheet.getByRole('combobox', { name: messages.layout, exact: true }).selectOption('classic'); }
       await sheet.locator('#dnd-tab-sheet').click();
       const allocations = sheet.locator('[data-equipment-slot="attuned"]');
@@ -196,7 +197,7 @@ function registerAttunementTransitionTests(enabled: boolean, fixture: () => Fixt
     test('stow and unattune retries the complete transition once (' + locale + ')', { skip: !enabled, timeout: 60000 }, async t => {
       const f = fixture(), key = 'attunement-retry-' + locale, messages = text(locale), delivered = locale === 'cs';
       const inventory = [item('ring', 'magic-item', 'ring-of-protection', 'equipped', true), item('amulet', 'magic-item', 'amulet-of-health', 'stored', true)];
-      const initial = await equipmentCharacter(f, key, inventory), { page, sheet, status, read } = await openBuilder(t, f, key, locale);
+      const initial = await equipmentCharacter(f, key, inventory), { page, sheet, status, read } = await openBuilder(t, f, key, locale); await classicLayout(sheet);
       const requests: unknown[] = [];
       await page.route('**/services/call', async route => {
         const body = route.request().postDataJSON();
@@ -227,7 +228,7 @@ function registerAttunementTransitionTests(enabled: boolean, fixture: () => Fixt
   for (const conflict of [false, true]) test('stow and unattune preserves ' + (conflict ? 'conflicting inventory changes' : 'independent concurrent edits'), { skip: !enabled, timeout: 60000 }, async t => {
     const f = fixture(), key = 'attunement-concurrent-' + conflict;
     const initial = await equipmentCharacter(f, key, [item('ring', 'magic-item', 'ring-of-protection', 'equipped', true)]);
-    const { page, sheet, status, read } = await openBuilder(t, f, key);
+    const { page, sheet, status, read } = await openBuilder(t, f, key); await classicLayout(sheet);
     let enter!: () => void, release!: () => void, hold = true;
     const entered = new Promise<void>(resolve => { enter = resolve; }), held = new Promise<void>(resolve => { release = resolve; });
     t.after(() => release());
@@ -261,7 +262,7 @@ function registerAttunementTransitionTests(enabled: boolean, fixture: () => Fixt
 export async function verifyFrozenAttunements(t: TestContext, f: Fixture) {
   assert.equal(frozenAttunements.size, 2, 'Both equipment retry sessions must precede provider-free acceptance');
   for (const [key, expected] of frozenAttunements) {
-    const locale = key.endsWith('-cs') ? 'cs' : 'en', { page, sheet, read } = await openBuilder(t, f, key, locale);
+    const locale = key.endsWith('-cs') ? 'cs' : 'en', { page, sheet, read } = await openBuilder(t, f, key, locale); await classicLayout(sheet);
     const loaded = await read(); assert.equal(loaded.status, 'unavailable'); assert.deepEqual(loaded.state, expected.state);
     await sheet.locator('#dnd-tab-sheet').click();
     const allocations = sheet.locator('[data-equipment-slot="attuned"]');

@@ -1,3 +1,5 @@
+import { equipmentView } from "./installed-character-navigation-fixture.mts";
+import { expandCharacterDetails } from "./installed-character-navigation-fixture.mts";
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { resolve } from 'node:path';
@@ -121,7 +123,7 @@ export function registerCharacterCreationTests(enabled: boolean, fixture: () => 
     await sheet.locator('#dnd-builder-tab-dm-given').click();
     assert.equal(await sheet.getByRole('button', { name: wizard ? 'Přidat dar od PJ' : 'Give a DM grant', exact: true }).count(), wizard ? 0 : 1);
     await sheet.locator('#dnd-tab-tools').click(); await sheet.getByLabel(text.layout, { exact: true }).selectOption(wizard ? 'classic' : 'compact');
-    await sheet.locator('#dnd-tab-combat').click(); await sheet.getByRole('button', { name: text.long, exact: true }).click();
+    await sheet.locator('#dnd-tab-combat').click(); await expandCharacterDetails(sheet); await sheet.getByRole('button', { name: text.long, exact: true }).click();
     stored = await settled(); assert.ok(stored.state.inputs.play.hp > 0);
     assert.equal(stored.state.inputs.play.hp, stored.state.projection.sheet.derived.maxHp);
     if (wizard) {
@@ -149,7 +151,7 @@ export function registerCharacterCreationTests(enabled: boolean, fixture: () => 
       const charge = grant.slots.find((id: string) => id.startsWith('charge:')); assert.ok(charge);
       await sheet.locator('[data-spell-grant][data-spell-name="Detect Magic"]').getByRole('button', { name: 'Seslat získané kouzlo', exact: true }).click();
       stored = await settled(); assert.equal(stored.state.inputs.play.resourceUses[charge], 1);
-      await sheet.locator('#dnd-tab-combat').click(); await sheet.getByRole('button', { name: text.long, exact: true }).click();
+      await sheet.locator('#dnd-tab-combat').click(); await expandCharacterDetails(sheet); await sheet.getByRole('button', { name: text.long, exact: true }).click();
       stored = await settled();
       assert.equal(stored.state.inputs.play.resourceUses[slot], 0); assert.equal(stored.state.inputs.play.resourceUses[charge], 0);
       await sheet.locator('#dnd-tab-spells').click();
@@ -157,8 +159,9 @@ export function registerCharacterCreationTests(enabled: boolean, fixture: () => 
       assert.equal(await spell.isVisible(), true);
       await page.screenshot({ path: resolve(f.output, 'creation-prepared-' + locale + '.png'), fullPage: true });
     }
-    await sheet.locator('#dnd-tab-sheet').click(); await sheet.getByLabel('GP', { exact: true }).fill('19');
+    await equipmentView(sheet); await sheet.getByLabel('GP', { exact: true }).fill('19');
     stored = await settled();
+    await sheet.locator('#dnd-tab-sheet').click();
     await page.setViewportSize({ width: 390, height: 1000 });
     await page.waitForFunction(() => (document.querySelector('.campaign-sidebar')?.getBoundingClientRect().right ?? 0) <= 1);
     await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
@@ -170,6 +173,7 @@ export function registerCharacterCreationTests(enabled: boolean, fixture: () => 
     await ability.screenshot({ path: resolve(f.output, 'creation-ability-phone-' + locale + '.png') });
     await page.screenshot({ path: resolve(f.output, 'creation-ready-phone-' + locale + '.png'), fullPage: true });
     await page.reload(); await page.locator('#character-view-addons').click();
+    await equipmentView(sheet);
     await sheet.getByLabel('GP', { exact: true }).waitFor();
     await page.waitForFunction(() => !document.querySelector('.addon-dnd-character')?.hasAttribute('aria-busy'));
     assert.equal(await sheet.getAttribute('data-layout'), wizard ? 'classic' : 'compact');

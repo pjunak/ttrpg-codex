@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { expandCharacterDetails } from './installed-character-navigation-fixture.mts';
 import { test, type TestContext } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -192,6 +193,7 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
       assert.equal(restored.status, 'ready'); assert.equal(restored.rulesChanged, false);
       assert.deepEqual(restored.state, stored.state); assert.equal(restored.revision, stored.revision);
       await selectTab('combat');
+      await expandCharacterDetails(sheet);
       await sheet.getByRole('button', { name: cs ? 'Krátký odpočinek' : 'Short rest', exact: true }).click();
       await status.filter({ hasText: saved }).waitFor(); stored = await read();
       assert.equal(stored.state.inputs.play.resourceUses['pact-slot'], 0);

@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import type { Locator, Page } from 'playwright';
 import { createCharacter, openBuilder, save, type Fixture } from './installed-character-builder-fixture.mts';
 import { unloadBlocked } from './installed-planner-navigation-fixture.mts';
+import { hpActionsView } from './installed-character-navigation-fixture.mts';
 
 export async function readyCharacter(f: Fixture, key: string) {
   const inputs = await createCharacter(f, key);
@@ -32,7 +33,7 @@ export async function readyCharacter(f: Fixture, key: string) {
 }
 
 async function damage(sheet: Locator) {
-  await sheet.locator('#dnd-tab-sheet').click();
+  await hpActionsView(sheet);
   await sheet.getByRole('button', { name: 'Damage', exact: true }).click();
   await sheet.locator('.dse-hp-adjust').getByLabel('Amount', { exact: true }).fill('2');
   await sheet.locator('.dse-hp-adjust').getByRole('button', { name: 'Damage', exact: true }).click();

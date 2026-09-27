@@ -3512,3 +3512,72 @@ runtime seams were needed. Action costs and conditional mounted exceptions are
 not automated. Physical touch, spoken screen-reader output, printer output and
 non-Chromium browsers remain human acceptance boundaries. No publication,
 deployment or live campaign change was performed.
+
+## Compact character-sheet workspace
+
+September 27, 2026. The user's final `character-sheet-mockup-standalone.html`
+now supplies the Compact layout: six left-side tabs, shared HP/AC/Speed/
+Proficiency/Inspiration cards, right-side attributes and skills, a modifier/save
+Combat row, and separate Equipment. Classic retains its existing arrangement.
+The host still owns character identity and the reusable control, dialog, theme
+and rule-detail contracts; no D&D-specific host runtime API was added.
+
+Equipment exposes ten source-filtered body fields, dynamic Other worn,
+attunement, container shortcuts and bottom currency. Backpack is a searchable,
+sortable dialog with a compartment filter. The same add-item picker returns to
+that context, defaults to a new instance, and offers explicit carried-stack
+selection. Stack additions retain names, notes, grants and identity; a removed
+or moved stack rejects the complete proposed addition. Modal save failures and
+retry controls remain visible, and closing a placement dialog restores focus.
+Compact Builder edits levels in their owning class and remaps progress/repair
+links away from its removed standalone Levels tab.
+
+The [Compact fixture](../../frontend/test/browser/installed-character-compact-fixture.mts)
+checks shared card geometry, health labels, Inspiration/HP/currency persistence,
+body-slot stow/re-equip, unchanged inventory identities, stack versus new-copy
+addition, preserved filters/sort, cancellation and reload. English/Czech,
+both skins, 1,360/1,024/390/320 px widths and 200% narrow-screen text are covered.
+Desktop Sheet/Combat/Equipment and enlarged phone screenshots were generated;
+desktop Sheet and Equipment were visually inspected. Existing installed fixtures
+now follow the new Equipment/dialog/disclosure routes. The simultaneous
+inventory/currency/Inspiration transaction fixtures use Classic; Compact has
+separate modal storage, placement, quick-use, feedback and recovery coverage.
+
+Sheets `d00da27` with localization fix `9a99722` passes `npm run check`:
+**35 unit cases**, Go tests and vet.
+Its rebuilt ZIP passes the host inspector. The host gate passes **42 tooling,
+406 unit and 285 browser cases**, plus Go tests/vet; its 186 optional companion
+skips are accounted for separately by the installed suite. The five focused
+Compact/feedback cases pass without skips. Release readiness passes all **33
+gates**, the ten scanner regressions pass with Gitleaks 8.30.1, and the Sheets
+commit scan reports no leaks. The final host patch also passes the staged scan.
+Three new body-slot test selectors were expressed through the existing selector
+helper pattern after the scanner treated their literal attributes as generic
+API keys; no scanner exceptions were added. Both Compact cases pass again with
+those unchanged selector targets and the exact inspected suite ZIPs.
+The complete-suite run identified a Czech saved-size regression. Both layouts
+now share the localized size/missing-choice display; four targeted Compact and
+incompatible-provider cases pass against the corrected ZIP before the final run.
+
+The final full installed suite passes **259/259 cases, zero failures and zero
+skips**, in 800.4 seconds. This includes the complete provider-free saved-output
+chain and the existing companion workflows. The frontend build and inspected
+ZIPs stayed unchanged throughout the run.
+
+The final source set uses host base `65edf2c` plus this acceptance patch and
+the following clean companion commits:
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `0eeac9b` | `ba4ec18594f595af47c4454de9a5a99c077199d7757e93a6ba7b52370278d9f0` |
+| dnd-engine | `495ca51` | `fc1517d785b33f6a94d6eb7b8edbb07d1dbb1b3a30d1d5a7447f59eb9e39027b` |
+| dnd-sheets | `9a99722` | `8678058d394796aa6c91dbb72208842749fedb9b7d01f245d910fa9f59982e26` |
+| dnd-2024-compendium | `d826a6d` | `cc666f31c4a82118c2829e90cbffbb0a8937e126eaf9d3953545731237901195` |
+
+No worker, saved-schema, permission or service-version change is needed for
+this layout. Conditions remain open pending an Engine/worker contract. Desktop
+tabs retain the largest measured view at their current width and grow for new
+or expanded content; predicting unvisited content's height remains a separate
+design boundary. Small screens use normal flow. Physical touch, spoken
+screen-reader, printer and non-Chromium acceptance remain separate. No push,
+publication, deployment or live campaign change was performed.
