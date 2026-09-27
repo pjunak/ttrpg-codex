@@ -18,6 +18,12 @@ import {
 } from "./installed-character-output-fixture.mts";
 import { jsonResponse, installReviewedPackage } from "./installed-graph-fixture.mts";
 import { replacementImportPackage } from "./installed-import-fixture.mts";
+import {
+  addWorkspaceState,
+  exerciseWorkspace,
+  advanceWorkspace,
+  assertWorkspacePreserved,
+} from "./installed-character-workspace-fixture.mts";
 
 type Row = Record<string, any>;
 type Source = { addonId: string; setId: string; id: string; enabled: boolean };
@@ -78,6 +84,7 @@ async function builtSession(f: Fixture, key: string) {
   input.play.hp = 3;
   input.play.temporaryHp = 2;
   input.notes = "Keep the entire multiclass session";
+  addWorkspaceState(input);
   stored = await completeMulticlass(f, key, input, stored.revision, "level-eleven");
   assert.deepEqual(
     stored.evaluation.sheet.spellcasting.slots.filter((n: number) => n > 0),
@@ -135,7 +142,8 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
         t.diagnostic(
           "Saved multiclass state bytes: " + Buffer.byteLength(JSON.stringify(stored.state)),
         );
-        const { page, sheet, status, read } = await openBuilder(t, f, key, locale);
+        const session = await openBuilder(t, f, key, locale);
+        const { page, sheet, status, read } = session;
         const saved = cs ? /^Uloženo$/ : /^Saved$/;
         const selectTab = async (tab: string) => {
           await sheet.locator("#dnd-tab-" + tab).click();
@@ -177,11 +185,20 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
           return (await response.json()).result as Row;
         };
         if (cs) {
-          await sheet.locator("#dnd-tab-tools").click();
-          await sheet.getByLabel("Rozložení deníku", { exact: true }).selectOption("classic");
           await page.setViewportSize({ width: 390, height: 1000 });
-          await page.addStyleTag({ content: "html {font-size:200% !important;}" });
+          await page.addInitScript(() => {
+            document.addEventListener("DOMContentLoaded", () => {
+              document.documentElement.style.fontSize = "200%";
+              document.documentElement.dataset.theme = "moonlit";
+            });
+          });
+          await page.evaluate(() => {
+            document.documentElement.style.fontSize = "200%";
+            document.documentElement.dataset.theme = "moonlit";
+          });
         }
+        stored = await exerciseWorkspace(session, locale);
+        checkpoint("Compact authored state and class replacement saved");
         await sheet.locator("#dnd-tab-spells").click();
         for (const [classId, spell, slot] of [
           ["Fighter", "Shield", "pact-slot"],
@@ -390,6 +407,9 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
           "Spellfire Spark",
           "Detect Magic",
           "Retain notes",
+          "Road dagger",
+          "Road supplies",
+          cs ? "Vyčerpání" : "Exhaustion",
         ])
           assert.ok(printed.includes(name), name);
         await popup.close();
@@ -426,7 +446,9 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
           .getByRole("button", { name: cs ? "Krátký odpočinek" : "Short rest", exact: true })
           .click();
         await status.filter({ hasText: saved }).waitFor();
+        const beforeRest = stored;
         stored = await read();
+        assertWorkspacePreserved(stored.state.inputs, beforeRest.state.inputs);
         assert.equal(stored.state.inputs.play.resourceUses["pact-slot"], 0);
         for (const key of ["slot-1", "slot-3", ...grantKeys])
           assert.equal(stored.state.inputs.play.resourceUses[key], 1);
@@ -435,11 +457,8 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
         );
         assert.equal(stored.state.inputs.play.resourceUses[spentSource.key], 1);
         checkpoint("Short rest saved");
-        const beforeLevel = structuredClone(stored),
-          input = structuredClone(stored.state.inputs);
-        input.build.levels.push({ id: "wizard-four", classId: "wizard" });
-        input.build.spells.spellbook.wizard.push("see-invisibility", "web");
-        stored = await completeMulticlass(f, key, input, stored.revision, "level-twelve");
+        const beforeLevel = structuredClone(stored);
+        stored = await advanceWorkspace(session, locale, checkpoint);
         assert.equal(stored.state.inputs.play.hp, beforeLevel.state.inputs.play.hp);
         assert.deepEqual(
           stored.state.inputs.play.resourceUses,
@@ -475,10 +494,47 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
           beforeRevoke.state.inputs.play.inventory,
         );
         assert.equal(stored.state.inputs.notes, beforeRevoke.state.inputs.notes);
+        assertWorkspacePreserved(stored.state.inputs, beforeRevoke.state.inputs);
         await page.reload();
         await page.locator("#character-view-addons").click();
         await selectTab("sheet");
         assert.deepEqual((await read()).state, stored.state);
+        // A full rest and layout switch must retain the entire authored session,
+        // including the spent class allowance and owned hand identities.
+        await selectTab("combat");
+        await expandCharacterDetails(sheet);
+        await sheet
+          .getByRole("button", { name: cs ? "Dlouhý odpočinek" : "Long rest", exact: true })
+          .click();
+        await status.filter({ hasText: saved }).waitFor();
+        const rested = await read();
+        assertWorkspacePreserved(rested.state.inputs, stored.state.inputs);
+        assert.equal(rested.state.inputs.play.hp, rested.state.projection.sheet.derived.maxHp);
+        for (const pool of ["pact-slot", "slot-1", "slot-3", survivingKey])
+          assert.equal(rested.state.inputs.play.resourceUses[pool], 0);
+        stored = rested;
+        await selectTab("tools");
+        const layout = sheet.getByLabel(cs ? "Rozložení deníku" : "Sheet layout", { exact: true });
+        await layout.selectOption("classic");
+        assert.equal(await sheet.getAttribute("data-layout"), "classic");
+        await layout.selectOption("compact");
+        assert.equal(await sheet.getAttribute("data-layout"), "compact");
+        const portable = await exported(page, sheet, locale);
+        assert.deepEqual(portable.inputs, stored.state.inputs);
+        await reviewImport(sheet, locale, portable, true);
+        await sheet
+          .getByRole("dialog")
+          .getByRole("button", { name: cs ? "Zavřít" : "Close", exact: true })
+          .click();
+        assert.deepEqual(
+          (await read()).state,
+          stored.state,
+          "Cancelling replacement review preserves the session",
+        );
+        await page.screenshot({
+          path: resolve(f.output, "compact-session-complete-" + locale + ".png"),
+          fullPage: true,
+        });
         accepted.set(key, structuredClone(stored.state));
         checkpoint("Restored session accepted");
       },

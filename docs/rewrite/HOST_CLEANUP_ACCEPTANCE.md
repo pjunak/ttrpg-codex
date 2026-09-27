@@ -3832,3 +3832,92 @@ of unexplained startup/provider failures. Smaller frame/source-fact refinements
 and authorized site/device verification remain separate. Linux CI execution,
 publication and live-site acceptance of this source set are not established by
 these local checks. No push, publication, deployment or live data change occurred.
+
+### Compact sessions and readable enlarged navigation
+
+September 28, 2026. The final character session now explicitly requires Compact
+in both English and Czech. The Czech journey runs at 390 px with 200% text in
+Moonlit. Synthetic Fighter/Warlock/Wizard characters carry Inspiration, storage
+membership, quick-use references, body placement and owned hands. They add a
+condition and spend a Fighter replacement through the shared controls before
+casting with independent class and granted resource pools.
+
+The same character then survives selected-source removal, denied adoption,
+source restoration, an incompatible response or service major, a stale handle,
+blocked play and frozen print/export. Restoring the original provider preserves
+the exact state and revision. Short rest, an amended/withdrawn independent DM
+grant, advancement and long rest retain the unrelated authored fields and spent
+replacement ledger. The final Wizard level now uses the class tab and Builder
+repair controls: the unfinished level saves, followed by its ability increases,
+new cantrip and spellbook selections. A Wizard advancement does not refresh the
+Fighter's allowance. Reload, Classic/Compact switching and cancellation of a
+reviewed replacement import leave the accepted state intact. The full suite's
+later provider-free output checks use these same accepted characters.
+
+These extend the existing two sessions instead of creating a duplicate suite.
+The unchanged isolated regressions still cover blank-to-ready creation,
+conflicting/disjoint edits, exact retries, session expiry, generation recovery,
+import commit and historical schema preservation. Initial test corrections
+followed the actual UI: hands belong to Sheet/Combat, and Wizard advancement
+requires a cantrip as well as spellbook entries. Redundant setup interactions
+were removed; the existing 120-second session deadline and preservation
+assertions were retained.
+
+Screenshot inspection found a separate defect that page-overflow checks missed:
+Compact's fixed three-column navigation broke enlarged phone labels into
+single-letter lines. The new label measurement fails against the preceding
+inspected Sheets package at 390 px: English labels occupy four to seven lines.
+Sheets `c682e88` lets the shared tabs wrap at their natural width and synchronizes
+their orientation with the rendered flex direction through the existing scoped
+resize observer. The shared host keyboard controller remains responsible for
+selection and focus; no new control implementation, palette or font was added.
+This follows the [WAI tab keyboard pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/)
+and preserves readable [reflow](https://www.w3.org/WAI/WCAG22/Understanding/reflow.html),
+reviewed September 28. It is not a claim of complete accessibility conformance.
+
+The rebuilt package passes both localized compact fixtures at 1,360/1,024/390/
+320 px, both skins, enlarged text, label containment and shared arrow-key focus.
+The 320-pixel navigation screenshots were inspected; labels remain whole and
+readable. All four companion owning gates pass on the unified toolchain,
+including the applicable Go static analysis and selected race checks. The final
+host `npm run check` and all 33 release-readiness gates pass.
+
+Inspected source set under host `73504d4` plus this acceptance patch:
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `d6ed281` | `9b4ec55695d29fef1565cb8f70029cd80dab3ba84c5a45f3d7398048102ebfa8` |
+| dnd-engine | `3f59578` | `b0ab1a5b3fb5d245e31d8256adef0d48c244e1fc203536255fab7b191c3ef7f7` |
+| dnd-sheets | `c682e88` | `58a8f8f5b70fffc0c80138426e071b2ec27346a3946aa5bfec14e04733cf97a1` |
+| dnd-2024-compendium | `80e3fd0` | `1864b929960c9dbe44d69b8a4195b6cd60b5bbc4da6cc6552a329aa987e72a82` |
+
+The full installed suite passes **267/267 cases, zero failures and zero skips**,
+in 934.9 seconds. Each companion reports `sourceDirty: false`. Local logs use
+the `compact-session-` prefix under
+`frontend/test-results/`; before/after label regressions use `compact-tabs-`.
+`release/companions/provenance.json` records the full source identities and hashes.
+The packages and frontend remained fixed during the full installed run.
+
+Human screen-reader, physical touch and printer checks remain unperformed.
+Windows amd64 workers execute locally; Linux amd64/arm64 workers are cross-built
+and inspected, with execution left to CI. The unvisited-tab frame boundary,
+source-fact review, DM planning sessions, unexplained startup/provider failures
+and authorized site operations remain open. In particular, passing this batch
+does not explain the T53 Engine availability loss. No push, publication,
+deployment or live-data change was performed.
+
+### Cleanup progress after compact sessions
+
+The overall audit is approximately **92% complete** (88–94%), with implementation
+at approximately **96%** (92–97%). These remain effort estimates rather than a
+ratio of automated tests. Closing original T18-SHEETS brings the unchanged
+baseline to **33/40 rows (83%)**, or **33/39 (85%)** excluding conditional T08.
+The later T63 acceptance and tab fix do not inflate that denominator.
+
+Remaining original rows are T08, T15, T15-DM, T16, T17, T18-DM and T18-ENGINE.
+The compact Engine session slice is accepted, but original T18-ENGINE stays
+open because the T53 rules-availability loss still has no established cause.
+Next work is planning-session acceptance and diagnosis of startup/provider
+failures, followed by smaller frame/source-fact refinements and authorized
+site/device verification. These local results do not establish Linux execution
+or acceptance of this source set on either live site.

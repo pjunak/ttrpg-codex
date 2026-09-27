@@ -202,8 +202,14 @@ They also check player authorization and frozen output after provider removal.
 The [multiclass provider sessions](../../frontend/test/browser/installed-character-multiclass-provider-fixture.mts)
 combine Fighter/Warlock/Wizard progression, distinct spell pools, amended and
 withdrawn grants, selected-source loss, incompatible/stale providers, recovery,
-rest and level-up. Both locales retain exact saved inputs and readable print/
-export output when providers are unavailable. First-import cases verify complete,
+rest and level-up. Both locales explicitly exercise Compact; Czech uses an
+enlarged phone view. The [workspace steps](../../frontend/test/browser/installed-character-workspace-fixture.mts)
+carry Inspiration, conditions, quick-use references, storage membership, body
+placement, owned hands and spent class replacements through that same session.
+The final Wizard advancement uses the class tab and next-choice controls,
+saving the unfinished level before its ability, cantrip and spellbook choices.
+Both locales retain exact saved inputs and readable print/export output when
+providers are unavailable. First-import cases verify complete,
 localized review groups and cancellation without writing an empty sheet.
 Future work belongs in the [suite backlog](../BACKLOG.md).
 

@@ -244,6 +244,56 @@ export function registerCompactTests(enabled: boolean, fixture: () => Fixture): 
             document.documentElement.dataset.theme =
               width === 1024 || width === 320 ? "moonlit" : "classic";
           }, width);
+          const navigation = sheet.locator(".dnd-sheet-tabs");
+          await page.waitForFunction(() => {
+            const nav = document.querySelector(".addon-dnd-character .dnd-sheet-tabs")!;
+            return (
+              nav.getAttribute("aria-orientation") ===
+              (getComputedStyle(nav).flexDirection === "column" ? "vertical" : "horizontal")
+            );
+          });
+          const labels = await navigation.getByRole("tab").evaluateAll((tabs) =>
+            tabs.map((tab) => {
+              const walker = document.createTreeWalker(tab, NodeFilter.SHOW_TEXT);
+              const lines = [];
+              for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (!node.textContent?.trim()) continue;
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                lines.push(...range.getClientRects());
+              }
+              const box = tab.getBoundingClientRect();
+              return {
+                label: tab.textContent,
+                lines: lines.length,
+                fits: lines.every((line) => line.left >= box.left && line.right <= box.right),
+              };
+            }),
+          );
+          assert.ok(
+            labels.every((label) => label.lines === 1 && label.fits),
+            JSON.stringify({ width, locale, labels }),
+          );
+          await sheet.locator("#dnd-tab-sheet").focus();
+          await page.keyboard.press(
+            (await navigation.getAttribute("aria-orientation")) === "vertical"
+              ? "ArrowDown"
+              : "ArrowRight",
+          );
+          assert.equal(
+            await sheet.locator("#dnd-tab-combat").getAttribute("aria-selected"),
+            "true",
+          );
+          assert.equal(
+            await sheet
+              .locator("#dnd-tab-combat")
+              .evaluate((node) => node === document.activeElement),
+            true,
+          );
+          if (width === 320)
+            await navigation.screenshot({
+              path: resolve(f.output, "compact-tabs-phone-" + locale + ".png"),
+            });
           for (const tab of ["sheet", "combat", "equipment", "builder"]) {
             await sheet.locator("#dnd-tab-" + tab).click();
             assert.equal(

@@ -1,24 +1,24 @@
 # Project backlog
 
-Work for the five repositories, reviewed September 27, 2026. This remains
+Work for the five repositories, reviewed September 28, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
 Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
-**Progress estimate, September 27:** about **96% implemented**, or **91%**
+**Progress estimate, September 28:** about **96% implemented**, or **92%**
 including remaining workflow, release and site acceptance. These are approximate
-effort estimates, with plausible ranges of 92–97% and 87–93%, respectively.
-[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-class-replacements).
-**Original rows closed:** 32 of 40 (80%); open workflow tasks contain completed
-slices. The later T63 layout and authored state are implemented; smaller UI
-refinements and complete session acceptance remain separately visible below.
+effort estimates, with plausible ranges of 92–97% and 88–94%, respectively.
+[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-compact-sessions).
+**Original rows closed:** 33 of 40 (83%); open workflow tasks contain completed
+slices. The later T63 layout, authored state and compact session acceptance are
+complete; smaller UI refinements and human/device checks remain visible below.
 
 **P1:** preservation, blocked workflows or release confidence. **P2:** usability,
 resilience and maintenance. **Confirmed** means source/browser evidence exists;
 **review** means an unresolved acceptance or design question, not a proven bug.
-Implementation is not release acceptance: remaining Engine/Sheets work still
-needs its package and workflow checks. Task IDs remain stable; gaps in numbering
+Implementation is not release acceptance: unresolved provider/startup failures
+and planning/site workflows still need evidence. Task IDs remain stable; gaps in numbering
 are completed work. Historical gates do not close the remaining tasks.
 
 - [Host](#ttrpg-codex)
@@ -92,6 +92,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T16-RETENTION — Keep selected builds with independent campaign and add-on recovery**~~ — retire obsolete packages and only their add-on recovery context after healthy startup/updates; preserve campaign recovery, current saves and backups; shared EN/CS recovery controls and atomic rollback tests. [Implementation and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#asurai-saved-packages-and-recovery-retention).
 - [x] ~~**T69-HOST — Complete updates through one saved-data confirmation and automatic housekeeping**~~ — optional scoped backup, validated healing or explicit reset, automatic restart/rollback, durable retry receipts, server review expiry and package cleanup; [implementation and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#guided-updates-and-automatic-housekeeping).
 - [x] ~~**T18-REPLACEMENTS-HOST — Accept class replacements and seven prior save schemas**~~ — exact companion pins, shared controls, imports, retries and preserved JSON/revisions; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
+- [x] ~~**T63-HOST — Accept the agreed character-sheet workspace through installed packages**~~ — complete EN/CS compact sessions, enlarged-text tab measurement and shared keyboard focus; 267/267 installed cases with zero skips; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -104,11 +105,6 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 
 ### Validation follow-up
 
-- [ ] **T63-HOST / P2 — Accept the agreed character-sheet workspace through installed packages.**
-  Compact layout fixtures now cover the Equipment dialog, body fields, shared
-  cards and frame, class navigation and preserved play. Accept the complete
-  workflow with exact companion pins and inspected package hashes; continue
-  [T63 frame refinements](#t63-character-sheet-design) in smaller follow-ups.
 - [ ] **T57-VERIFY / P2 — Explain intermittent startup timeouts.**
   T57 timed out before the timeline mounted; T60 hit one phone-settings timeout;
   T61 timed out fetching rules policy during installed-fixture setup.
@@ -252,15 +248,15 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T63-ENGINE — Define authored conditions and their supported effects**~~ — `c62e358`; closed optional inputs, source eligibility, bounded Speed/D20 effects and preserved explanations; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
 - [x] ~~**T14-ENGINE — Build native workers as release artifacts**~~ — `0e8747f`; ignored binaries, versioned schemas and reproducible target packages; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
 - [x] ~~**T18-REPLACEMENTS-ENGINE — Enforce source-owned class replacement allowances**~~ — `ffbde98`; typed history, current-level budgets and acquisition-time prerequisites; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
+- [x] ~~**T18-SESSIONS-ENGINE — Accept current authored state through compact play and advancement**~~ — source/provider loss and recovery preserve independent equipment, resources, conditions and replacement history; [exact-package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation). T53 availability diagnosis remains open below.
 
 ### Remaining work
 
 - [ ] **T18-ENGINE / P1, review — Close rules/provider evidence gaps.**
-  T64 completes the representative Fighter/Warlock/Wizard session through
-  sourcebook removal, incompatible responses/majors, stale handles and restoration,
-  retaining DM effects and authored play. Repeat final session acceptance on the
-  implemented T63 state/workspace. Keep pure, service and exact-package evidence;
-  narrative adjudication remains C10, not a claim of exhaustive correctness.
+  Final compact Fighter/Warlock/Wizard sessions now preserve the implemented
+  T63 state through sourcebook removal, incompatible responses/majors, stale
+  handles, restoration and advancement; pure, service and exact-package evidence
+  is retained. Narrative adjudication remains C10, not exhaustive correctness.
   Investigate the one unexplained rules-availability loss during T53 validation;
   character setup captures provider diagnostics if it recurs. T54's 13-case
   diagnostic replay passed without reproducing it; no cause is established.
@@ -311,20 +307,16 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T63-CONDITIONS-SHEETS — Share authored conditions across both Combat layouts**~~ — `40f11a8`; localized host controls, worker preservation, automatic saving and provider-free reading/transfer/print; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
 - [x] ~~**T14-SHEETS — Build browser assets and workers as package artifacts**~~ — `a1ce463`; ignored runtime output, versioned schemas/interfaces and unchanged package bytes; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
 - [x] ~~**T18-REPLACEMENTS-SHEETS — Share replacement controls and protect spent allowances**~~ — `6d5807a`; both layouts/locales, keyboard focus, guarded writes and exact retries; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
+- [x] ~~**T63-TABS-SHEETS — Keep compact tabs readable with enlarged phone text**~~ — `c682e88`; natural-width wrapping and rendered keyboard orientation reuse the host tabs; old package fails the regression, rebuilt package passes both locales and four widths; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation).
+- [x] ~~**T18-SHEETS — Accept a whole build-and-play session on the compact workspace**~~ — shared Builder advancement, amended grants, source/provider recovery, rest, reload, import cancellation and provider-free output preserve current authored state; [267/267 installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation). Human/device checks remain separate below.
 
 ### Remaining work
 
 - [ ] **T63-SHEETS / P2 — Refine the compact frame in smaller follow-ups.**
   Compact follows the final standalone mockup and both layouts share authored
   conditions. Resolve the unvisited-tab sizing boundary while retaining the
-  accepted working layout. Complete session acceptance under T18; see the
+  accepted working layout and session behavior; see the
   [remaining work](#t63-character-sheet-design).
-- [ ] **T18-SHEETS / P1, review — Accept a whole build-and-play session.**
-  T64 completes the existing workspace's representative multiclass play,
-  amended grants, source/provider loss, restoration, rest, advancement and frozen
-  output. Run the final session against the implemented T63 workspace; earlier
-  passes do not accept that new design. Human screen-reader, physical touch and
-  printer checks remain separate from browser/PDF evidence.
 
 <a id="t63-character-sheet-design"></a>
 
@@ -358,10 +350,10 @@ audit fixes. Remaining work:
    Predicting an unvisited tab's full height remains different from the mockup's
    duplicate hidden sizing forms. Resolve that remaining design boundary without
    clipping content, imposing inner tab scrollers or duplicating editable forms.
-2. **Final T18 sessions on the complete workspace.** Preserve current automatic
-   saving, incomplete builds, retroactive progression, independent DM grants,
-   source adoption and provider failure/recovery. Keep physical touch, spoken
-   screen-reader and printer acceptance separate from browser/PDF evidence.
+2. **Human/device acceptance.** Compact T18 sessions now pass through the real
+   Builder, current authored state and provider failure/recovery. Physical touch,
+   spoken screen-reader and printer checks remain unperformed and separate from
+   the accepted browser/PDF evidence.
 
 Every new state-changing slice must retain reload, disjoint/conflicting edits,
 exact retry, session expiry and provider/generation recovery. Keep host-owned
@@ -375,10 +367,9 @@ Record exact source pins and inspected package hashes before closing acceptance.
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Whole character sessions: finish Engine and Sheets T18 on the current T63 workspace. | Representative builds and play preserve authored values through provider changes; package evidence and remaining human/device checks are explicit. |
-| 2 | Everyday planning and reliability: finish DM Tools T18 and investigate recurring startup failures. | Complete desktop/phone workflows and concrete failures have action-level evidence; successful retries alone do not establish a fix. |
-| 3 | Continue smaller T63 frame refinements and the remaining source-fact review. | Shared controls, saved state, focus and responsive layouts remain intact; missing facts have owner/provenance evidence. |
-| 4 | Final integration and authorized delivery T15–T17; retain completed T02 coverage. | All four inspected packages pass without suite skips; exact served/installed builds, site data/retention, device checks and rollback assets are recorded. |
+| 1 | Everyday planning and reliability: finish DM Tools T18, investigate startup failures and the T53 Engine availability loss. | Complete desktop/phone workflows and concrete failures have action-level evidence; successful retries alone do not establish a fix. |
+| 2 | Continue smaller T63 frame refinements and the remaining source-fact review. | Shared controls, saved state, focus and responsive layouts remain intact; missing facts have owner/provenance evidence. |
+| 3 | Final integration and authorized delivery T15–T17; retain completed T02 coverage. | All four inspected packages pass without suite skips; exact served/installed builds, site data/retention, human/device checks and rollback assets are recorded. |
 
 T14 suffixes divide the existing generated-artifact task by repository; T18
 suffixes divide workflow acceptance; T63 suffixes share the design and ordered
