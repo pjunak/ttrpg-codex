@@ -161,7 +161,13 @@ export function registerProficiencyTests(enabled: boolean, fixture: () => Fixtur
           key = "training-ui-" + locale,
           cs = locale === "cs";
         const initial = await readyCharacter(f, key);
-        const { page, sheet, status, read } = await openBuilder(t, f, key, locale);
+        const {
+          close: closeSession,
+          page,
+          sheet,
+          status,
+          read,
+        } = await openBuilder(t, f, key, locale);
         if (cs) {
           await sheet.locator("#dnd-tab-tools").click();
           await sheet.getByLabel("Rozložení deníku", { exact: true }).selectOption("classic");
@@ -276,7 +282,7 @@ export function registerProficiencyTests(enabled: boolean, fixture: () => Fixtur
           "Reading and printing never write training",
         );
         frozen.set(key, { stored: structuredClone(stored), display });
-        await page.context().close();
+        await closeSession();
       },
     );
 }
@@ -285,7 +291,7 @@ export async function verifyFrozenProficiencies(t: TestContext, f: Fixture) {
   assert.equal(frozen.size, 2, "Both training sessions must precede provider-free acceptance");
   for (const [key, expected] of frozen) {
     const locale = key.endsWith("-cs") ? "cs" : "en",
-      { page, sheet, read } = await openBuilder(t, f, key, locale);
+      { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     const loaded = await read();
     assert.equal(loaded.status, "unavailable");
     assert.deepEqual(loaded.state, expected.stored.state);
@@ -321,6 +327,6 @@ export async function verifyFrozenProficiencies(t: TestContext, f: Fixture) {
     await popup.close();
     assert.equal(queries, 0);
     assert.deepEqual((await read()).state, expected.stored.state);
-    await page.context().close();
+    await closeSession();
   }
 }

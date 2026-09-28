@@ -470,7 +470,7 @@ export async function verifyFrozenInspiration(t: TestContext, f: Fixture): Promi
   for (const [key, saved] of frozen) {
     const locale = key.endsWith("-cs") ? "cs" : "en",
       messages = text(locale);
-    const { page, sheet, read } = await openBuilder(t, f, key, locale);
+    const { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     try {
       const loaded = await read();
       assert.equal(loaded.status, "unavailable");
@@ -488,7 +488,7 @@ export async function verifyFrozenInspiration(t: TestContext, f: Fixture): Promi
       await popup.getByText(messages.available, { exact: true }).waitFor();
       await popup.close();
     } finally {
-      await page.context().close();
+      await closeSession();
     }
   }
 }

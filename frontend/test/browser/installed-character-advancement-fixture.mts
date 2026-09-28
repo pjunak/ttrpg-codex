@@ -347,7 +347,7 @@ export function registerCharacterAdvancementTests(enabled: boolean, fixture: () 
 export async function verifyFrozenAdvancements(t: TestContext, f: Fixture) {
   for (const [key, expected] of frozenCharacters) {
     const locale = key.endsWith("-cs") ? "cs" : "en",
-      { page, sheet, read } = await openBuilder(t, f, key, locale);
+      { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     const stored = await read();
     assert.equal(stored.status, "unavailable");
     assert.deepEqual(stored.state, expected.state);
@@ -367,6 +367,6 @@ export async function verifyFrozenAdvancements(t: TestContext, f: Fixture) {
     await popup.close();
     assert.equal(queries, 0);
     assert.deepEqual((await read()).state, expected.state);
-    await page.context().close();
+    await closeSession();
   }
 }

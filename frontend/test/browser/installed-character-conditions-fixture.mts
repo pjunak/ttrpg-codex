@@ -228,7 +228,7 @@ export async function verifyFrozenConditions(t: TestContext, f: Fixture): Promis
   for (const [key, saved] of frozen) {
     const locale = key.endsWith("-cs") ? "cs" : "en",
       text = messages(locale),
-      { page, sheet, read } = await openBuilder(t, f, key, locale);
+      { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     try {
       const loaded = await read();
       assert.equal(loaded.status, "unavailable");
@@ -257,7 +257,7 @@ export async function verifyFrozenConditions(t: TestContext, f: Fixture): Promis
       await popup.close();
       assert.equal((await read()).revision, saved.revision);
     } finally {
-      await page.context().close();
+      await closeSession();
     }
   }
 }

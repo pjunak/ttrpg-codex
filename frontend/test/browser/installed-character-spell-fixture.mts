@@ -404,7 +404,7 @@ export function registerSpellOwnershipTests(enabled: boolean, fixture: () => Fix
 }
 
 export async function verifyFrozenSpellDetails(t: TestContext, f: Fixture) {
-  const { page, sheet, read } = await openBuilder(t, f, "spell-ui-en");
+  const { close: closeSession, page, sheet, read } = await openBuilder(t, f, "spell-ui-en");
   const frozen = await read();
   assert.equal(frozen.status, "unavailable");
   await sheet.locator("#dnd-tab-spells").click();
@@ -430,5 +430,5 @@ export async function verifyFrozenSpellDetails(t: TestContext, f: Fixture) {
   assert.match(await popup.locator("body").innerText(), /Touching stone; ends after 10 minutes/);
   await popup.close();
   assert.equal((await read()).revision, frozen.revision);
-  await page.context().close();
+  await closeSession();
 }

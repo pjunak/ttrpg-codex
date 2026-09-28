@@ -451,7 +451,7 @@ export async function verifyFrozenQuickUse(t: TestContext, f: Fixture): Promise<
   for (const [key, saved] of frozen) {
     const locale = key.endsWith("-cs") ? "cs" : "en",
       text = messages(locale);
-    const { page, sheet, read } = await openBuilder(t, f, key, locale);
+    const { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     try {
       const loaded = await read();
       assert.equal(loaded.status, "unavailable");
@@ -480,7 +480,7 @@ export async function verifyFrozenQuickUse(t: TestContext, f: Fixture): Promise<
       assert.equal(await popup.locator("[data-quick-use-item]").count(), 3);
       await popup.close();
     } finally {
-      await page.context().close();
+      await closeSession();
     }
   }
 }

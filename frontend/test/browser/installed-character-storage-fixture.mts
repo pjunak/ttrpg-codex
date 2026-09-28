@@ -402,7 +402,7 @@ export async function verifyFrozenStorage(t: TestContext, f: Fixture): Promise<v
   for (const [key, saved] of frozen) {
     const locale = key.endsWith("-cs") ? "cs" : "en",
       text = messages(locale);
-    const { page, sheet, read } = await openBuilder(t, f, key, locale);
+    const { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     try {
       const loaded = await read();
       assert.equal(loaded.status, "unavailable");
@@ -419,7 +419,7 @@ export async function verifyFrozenStorage(t: TestContext, f: Fixture): Promise<v
       assert.equal(await popup.locator("[data-container]").count(), 1);
       await popup.close();
     } finally {
-      await page.context().close();
+      await closeSession();
     }
   }
 }

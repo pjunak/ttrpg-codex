@@ -211,7 +211,13 @@ export function registerPassiveFeatTests(enabled: boolean, fixture: () => Fixtur
         assert.equal(stored.state.projection.sheet.derived.speed, 60);
         assert.equal(stored.state.projection.sheet.senses.blindsight, 10);
         assert.equal(stored.state.projection.sheet.senses.truesight, 60);
-        const { page, sheet, status, read } = await openBuilder(t, f, key, locale);
+        const {
+          close: closeSession,
+          page,
+          sheet,
+          status,
+          read,
+        } = await openBuilder(t, f, key, locale);
         if (cs) {
           await sheet.locator("#dnd-tab-tools").click();
           await sheet
@@ -287,7 +293,7 @@ export function registerPassiveFeatTests(enabled: boolean, fixture: () => Fixtur
         await popup.close();
         assert.deepEqual((await read()).state, stored.state);
         frozen.set(key, structuredClone(stored));
-        await page.context().close();
+        await closeSession();
       },
     );
 }
@@ -312,7 +318,7 @@ async function assertPrintedStats(page: Page, projection: Row) {
 export async function verifyFrozenPassiveFeats(t: TestContext, f: Fixture) {
   for (const [key, expected] of frozen) {
     const locale = key.endsWith("-cs") ? "cs" : "en",
-      { page, sheet, read } = await openBuilder(t, f, key, locale);
+      { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     const loaded = await read();
     assert.equal(loaded.status, "unavailable");
     assert.deepEqual(loaded.state, expected.state);
@@ -346,6 +352,6 @@ export async function verifyFrozenPassiveFeats(t: TestContext, f: Fixture) {
     await popup.close();
     assert.equal(queries, 0);
     assert.deepEqual((await read()).state, expected.state);
-    await page.context().close();
+    await closeSession();
   }
 }

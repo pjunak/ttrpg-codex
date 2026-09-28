@@ -266,7 +266,7 @@ export function registerHandsTests(enabled: boolean, fixture: () => Fixture): vo
 export async function verifyFrozenHands(t: TestContext, f: Fixture): Promise<void> {
   for (const [key, saved] of frozen) {
     const locale = key.endsWith("-cs") ? "cs" : "en",
-      { page, sheet, read } = await openBuilder(t, f, key, locale);
+      { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     try {
       const current = await read();
       assert.equal(current.status, "unavailable");
@@ -280,7 +280,7 @@ export async function verifyFrozenHands(t: TestContext, f: Fixture): Promise<voi
       assert.match(await popup.locator("body").innerText(), /Personal shield/);
       await popup.close();
     } finally {
-      await page.context().close();
+      await closeSession();
     }
   }
 }

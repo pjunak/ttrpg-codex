@@ -669,7 +669,7 @@ export async function verifyFrozenAttunements(t: TestContext, f: Fixture) {
   );
   for (const [key, expected] of frozenAttunements) {
     const locale = key.endsWith("-cs") ? "cs" : "en",
-      { page, sheet, read } = await openBuilder(t, f, key, locale);
+      { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     await classicLayout(sheet);
     const loaded = await read();
     assert.equal(loaded.status, "unavailable");
@@ -701,6 +701,6 @@ export async function verifyFrozenAttunements(t: TestContext, f: Fixture) {
       expected.state,
       "Reading, printing and export never rewrite allocations",
     );
-    await page.context().close();
+    await closeSession();
   }
 }

@@ -300,7 +300,7 @@ export function registerPlacementTests(enabled: boolean, fixture: () => Fixture)
 export async function verifyFrozenPlacement(t: TestContext, f: Fixture): Promise<void> {
   for (const [key, saved] of frozen) {
     const locale = key.endsWith("-cs") ? "cs" : "en";
-    const { page, sheet, read } = await openBuilder(t, f, key, locale);
+    const { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     try {
       const loaded = await read();
       assert.equal(loaded.status, "unavailable");
@@ -320,7 +320,7 @@ export async function verifyFrozenPlacement(t: TestContext, f: Fixture): Promise
       );
       await popup.close();
     } finally {
-      await page.context().close();
+      await closeSession();
     }
   }
 }

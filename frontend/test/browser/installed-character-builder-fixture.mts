@@ -3,6 +3,7 @@ import { test, type TestContext } from "node:test";
 import { resolve } from "node:path";
 import type { APIRequestContext, Browser, Locator } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
 
 export interface Fixture {
   admin: APIRequestContext;
@@ -78,17 +79,16 @@ export async function save(
   return result;
 }
 export async function openBuilder(t: TestContext, f: Fixture, key: string, locale = "en") {
+  const errors: string[] = [];
   const context = await f.browser.newContext({
     storageState: await f.admin.storageState(),
     viewport: { width: 1440, height: 1000 },
     reducedMotion: "reduce",
   });
-  t.after(() => context.close());
+  const close = await trackBrowserContext(t, context, () => assert.deepEqual(errors, []));
   await context.addInitScript((locale) => localStorage.setItem("codex_lang", locale), locale);
-  const page = await context.newPage(),
-    errors: string[] = [];
+  const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
-  t.after(() => assert.deepEqual(errors, []));
   await page.goto(f.origin + "/#/characters/" + key);
   await page.locator("#character-view-addons").click();
   const sheet = page.locator(".addon-dnd-character");
@@ -97,6 +97,7 @@ export async function openBuilder(t: TestContext, f: Fixture, key: string, local
     () => !document.querySelector(".addon-dnd-character")?.hasAttribute("aria-busy"),
   );
   return {
+    close,
     page,
     sheet,
     status: sheet.locator("[data-character-status]"),

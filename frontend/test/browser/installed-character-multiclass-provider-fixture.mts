@@ -552,7 +552,7 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
         const original = await openBuilder(t, f, key + "-source", locale);
         await original.sheet.locator("#dnd-tab-tools").click();
         const envelope = await exported(original.page, original.sheet, locale);
-        await original.page.context().close();
+        await original.close();
         const blank = await createCharacterRecord(f, key);
         assert.equal(blank.revision, 0);
         assert.ok(!blank.state);
@@ -606,7 +606,7 @@ export async function verifyFrozenMulticlassSessions(t: TestContext, f: Fixture)
       frozen = await f.call("load", { key });
     assert.equal(frozen.status, "unavailable");
     assert.deepEqual(frozen.state, state);
-    const { page, sheet } = await openBuilder(t, f, key, locale);
+    const { close: closeSession, page, sheet } = await openBuilder(t, f, key, locale);
     try {
       await sheet.locator("#dnd-tab-tools").click();
       const portable = await exported(page, sheet, locale);
@@ -618,7 +618,7 @@ export async function verifyFrozenMulticlassSessions(t: TestContext, f: Fixture)
       await popup.close();
       assert.deepEqual((await f.call("load", { key })).state, state);
     } finally {
-      await page.context().close();
+      await closeSession();
     }
   }
 }

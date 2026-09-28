@@ -1,11 +1,11 @@
 import type { TestContext } from "node:test";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import type { BrowserContext } from "playwright";
 
-/** Owns context cleanup and keeps inspectable traces when a synthetic UI test fails. */
+/** Owns context cleanup; use the returned function for an explicit early close. */
 export async function trackBrowserContext(
   t: Pick<TestContext, "after" | "passed" | "name" | "diagnostic">,
   context: {
@@ -13,9 +13,9 @@ export async function trackBrowserContext(
     close: BrowserContext["close"];
   },
   verify?: () => void,
-): Promise<void> {
+): Promise<() => Promise<void>> {
   await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
-  t.after(async () => {
+  const finish = async (): Promise<void> => {
     const failures: unknown[] = [];
     // Node stops later after hooks when one throws, so verification and cleanup
     // must share this hook to preserve diagnostics for page-error failures.
@@ -30,7 +30,7 @@ export async function trackBrowserContext(
         await mkdir(directory, { recursive: true });
         const suffix = createHash("sha256").update(t.name).digest("hex").slice(0, 10);
         const name = t.name.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 90);
-        const path = join(directory, `${name}-${suffix}.zip`);
+        const path = join(directory, `${name}-${suffix}-${randomUUID()}.zip`);
         await context.tracing.stop({ path });
         t.diagnostic(`Browser trace: ${path}`);
       } else {
@@ -46,6 +46,12 @@ export async function trackBrowserContext(
       }
     }
     if (failures.length > 0)
-      throw new AggregateError(failures, "Browser verification or cleanup failed");
-  });
+      throw new AggregateError(failures, "Browser verification or cleanup failed", {
+        cause: failures[0],
+      });
+  };
+  let cleanup: Promise<void> | undefined;
+  const close = (): Promise<void> => (cleanup ??= finish());
+  t.after(close);
+  return close;
 }

@@ -5,6 +5,8 @@ import { trackBrowserContext } from "../frontend/test/browser/browser-diagnostic
 function probe(t: TestContext, traceError?: Error) {
   let after: Parameters<TestContext["after"]>[0] | undefined;
   let closed = false;
+  let closes = 0,
+    stops = 0;
   let tracePath: string | undefined;
   const diagnostics: string[] = [];
   const context: Parameters<typeof trackBrowserContext>[0] = {
@@ -19,11 +21,14 @@ function probe(t: TestContext, traceError?: Error) {
     tracing: {
       async start() {},
       async stop(options) {
+        stops++;
+        if (closed) throw new Error("Tracing stopped after its context closed");
         tracePath = options?.path;
         if (traceError) throw traceError;
       },
     },
     async close() {
+      closes++;
       closed = true;
     },
   };
@@ -33,6 +38,9 @@ function probe(t: TestContext, traceError?: Error) {
     diagnostics,
     get closed() {
       return closed;
+    },
+    get calls() {
+      return { closes, stops };
     },
     get tracePath() {
       return tracePath;
@@ -75,4 +83,30 @@ void test("failed trace saving still closes the context and preserves the page e
     return true;
   });
   assert.equal(fixture.closed, true);
+});
+
+void test("multiple browser views retain separate traces for the same failed test", async (t) => {
+  const views = [probe(t), probe(t)];
+  for (const fixture of views) {
+    await trackBrowserContext(fixture.context, fixture.browser, () => {
+      throw new Error("Retain this view's diagnostic evidence");
+    });
+    await assert.rejects(fixture.finish(), AggregateError);
+    assert.equal(fixture.closed, true);
+    assert.ok(fixture.tracePath?.endsWith(".zip"));
+    assert.deepEqual(fixture.diagnostics, [`Browser trace: ${fixture.tracePath}`]);
+  }
+  assert.notEqual(views[0]!.tracePath, views[1]!.tracePath);
+});
+
+void test("explicit browser cleanup verifies and stops tracing once before closing", async (t) => {
+  const fixture = probe(t);
+  let verifications = 0;
+  const close = await trackBrowserContext(fixture.context, fixture.browser, () => {
+    verifications++;
+  });
+  await close();
+  await fixture.finish();
+  assert.equal(verifications, 1);
+  assert.deepEqual(fixture.calls, { closes: 1, stops: 1 });
 });

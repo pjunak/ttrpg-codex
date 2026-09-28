@@ -453,7 +453,7 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
 export async function verifyFrozenSessionOutputs(t: TestContext, f: Fixture) {
   for (const locale of ["en", "cs"]) {
     const key = "whole-session-" + locale,
-      { page, sheet, read } = await openBuilder(t, f, key, locale);
+      { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     const frozen = await read();
     assert.equal(frozen.status, "unavailable");
     await sheet.locator("#dnd-tab-tools").click();
@@ -463,6 +463,6 @@ export async function verifyFrozenSessionOutputs(t: TestContext, f: Fixture) {
     await assertPrint(popup, locale, frozen.state, true);
     await popup.close();
     assert.equal((await read()).revision, frozen.revision);
-    await page.context().close();
+    await closeSession();
   }
 }

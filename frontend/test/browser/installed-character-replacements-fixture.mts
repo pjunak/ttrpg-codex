@@ -265,7 +265,7 @@ export function registerClassReplacementTests(enabled: boolean, fixture: () => F
 export async function verifyFrozenClassReplacements(t: TestContext, f: Fixture) {
   for (const [key, expected] of frozen) {
     const locale = key.endsWith("-cs") ? "cs" : "en",
-      { page, sheet, read } = await openBuilder(t, f, key, locale);
+      { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
     const loaded = await read();
     assert.equal(loaded.status, "unavailable");
     assert.deepEqual(loaded.state, expected.state);
@@ -279,6 +279,6 @@ export async function verifyFrozenClassReplacements(t: TestContext, f: Fixture) 
     );
     await popup.close();
     assert.deepEqual((await read()).state, expected.state);
-    await page.context().close();
+    await closeSession();
   }
 }
