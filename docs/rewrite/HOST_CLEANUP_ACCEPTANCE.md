@@ -4038,3 +4038,97 @@ Windows amd64 workers execute locally; Linux workers are cross-built and
 inspected, with execution left to CI. Physical touch, spoken screen-reader and
 printer acceptance remain unperformed. No push, publication, deployment or
 live-data change was performed.
+
+### Cancellable startup and worker health admission
+
+Implemented in host `66f8cbd` (worker admission) and `83647ab` (browser startup).
+
+September 28 follow-up fixes two independently reproduced reliability defects
+in shared host infrastructure. It does not attribute the uncaptured T18-DM,
+T57 or T53 incidents to either cause. Five unchanged sidebar/timeline/drag
+diagnostic runs passed **25/25 cases** before implementation; a successful replay
+does not close the historical startup findings.
+
+Browser reset previously queued teardown behind the activation it needed to
+cancel. An unresolved stylesheet, dynamic import or activation could therefore
+leave Sign out busy indefinitely. Reset now invalidates pending reconciliations
+and closes the partial generation immediately, then completes ordered active
+teardown. A late import cannot invoke the old activation entrypoint. An already
+running activation may settle later, but its cleanup runs once and cannot publish
+the stopped generation. Shared resource ownership avoids duplicate style cleanup;
+late cleanup failures follow the existing session-scoped diagnostics. Add-on
+JavaScript and disposal still require cooperative, settling cleanup functions.
+
+The controlled unit regression fails against the preceding runtime because reset
+does not finish before activation is released. Both production-browser cases also
+fail against the preceding build at the existing 7-second action deadline: one
+holds the stylesheet response, the other the module response. They pass with the
+repair while those responses remain held, then sign in again and confirm exactly
+one current contribution and the expected owned styles. Unit coverage separately
+exercises cancellation during resource preparation, import and activation,
+authority invalidation, early disposal failures and late cleanup failures.
+
+The native peer previously shared health/shutdown admission with domain calls.
+At a negotiated domain capacity of one, a blocked ordinary call made a healthy
+native worker's probe fail with `HEALTH_FAILED` / `RATE_LIMITED`; the monitor then
+terminated that process. The reusable Go peer now reserves one slot per direction
+for exact metadata-free `codex/health` and `codex/shutdown` requests. Domain
+capacity, zero-queue rejection, metadata validation and real health deadlines
+remain unchanged. Requests bearing domain metadata cannot use the reservation.
+
+Incoming lifecycle admission stays held while a response waits for the serialized
+writer and returns immediately before that frame is written. This keeps blocked
+output bounded and permits immediate health-to-shutdown handoff after the response
+is visible. A deliberately blocked writer reproduces the unbounded admission risk
+with an earlier draft of this repair; the final success/error regressions prove
+that only the current writer and one reserved waiter proceed, with the next
+request rejected. The native-process regression proves that saturation leaves
+the original healthy worker ready and does not restart it. Full SDK and package
+manager race tests pass, including existing real crash and health-hang behavior.
+
+All four companion owner gates and package builds pass. Host inspection accepts
+the exact packages below against host base `adb2a7a` plus this working patch.
+Companion sources remain clean and the pinned source commits are unchanged.
+The three native ZIP hashes change because their workers compile the updated
+host SDK; Compendium has no native worker and retains its previous hash.
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `2a48d5b` | `7eee08d08b6d9b16a19687b916acc3ba9ce5b3117536bb71824e2d2f3bf06d2f` |
+| dnd-engine | `3f59578` | `d822b1b346baa4ceb8354897fd849a5435bef9f361f1617e56f18c970f88748e` |
+| dnd-sheets | `8d54166` | `992cd511d269dd19601a84532275995508c1b7022611870b1da575693d208028` |
+| dnd-2024-compendium | `80e3fd0` | `1864b929960c9dbe44d69b8a4195b6cd60b5bbc4da6cc6552a329aa987e72a82` |
+
+The full host gate passes **71 tool tests, 413 frontend unit cases and 289 browser
+checks**; its 194 optional installed entries are covered separately by the strict
+package suite. Go, Staticcheck, the selected host race scope, and explicit full
+`workerrpc`/`packagemanager` race tests pass. All **33 historical release-readiness
+gates** pass. The strict full installed suite passes **269/269 cases, zero
+failures and zero skips**, in 1,088.3 seconds against the exact rebuilt packages
+above. No assertion or deadline was relaxed.
+
+Local logs use the `reliability-` prefix under `frontend/test-results/`; the
+separate `t18-engine-worker-health-admission.log` records controlled negative and
+positive Go evidence. `release/companions/provenance.json` records full source
+identities and archive hashes. Worker packages must be rebuilt, published and
+reviewed through their normal lifecycle to deliver incoming health admission to
+existing installations; a host image update supplies only the outgoing half.
+The publishing action refuses to overwrite different bytes at an existing commit
+release. If a companion source commit is already published, its rebuilt worker
+needs a fresh companion build commit and updated acceptance pins during authorized
+delivery. An unpublished commit's first package build must use this updated host
+SDK. There is no wire protocol, schema, manifest or service-version change.
+
+### Cleanup progress after startup and worker repairs
+
+The estimate remains approximately **93% complete** (89–95%), with implementation
+at approximately **96%** (92–97%). These repairs close demonstrated reliability
+slices, while the original uncaptured startup/provider findings remain open.
+Original rows closed remain **33/40 (83%)**, or **33/39 (85%)** excluding conditional
+T08; new subtask rows do not inflate that denominator.
+
+The remaining scope is historical failure diagnosis, smaller UI and source-fact
+refinements, and authorized site/device acceptance. Windows amd64 native workers
+execute locally; Linux workers are cross-built and inspected, with execution left
+to CI. Physical touch, spoken screen-reader and printer acceptance remain
+unperformed. No push, publication, deployment or live-data change was performed.

@@ -9,7 +9,7 @@ references; their detailed findings and the unchanged accepted release gates liv
 **Progress estimate, September 28:** about **96% implemented**, or **93%**
 including remaining workflow, release and site acceptance. These are approximate
 effort estimates, with plausible ranges of 92–97% and 89–95%, respectively.
-[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-planning-sessions).
+[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-startup-and-worker-repairs).
 **Original rows closed:** 33 of 40 (83%); open workflow tasks contain completed
 slices. Compact character and large planning sessions are accepted; smaller UI
 refinements, unexplained failures and human/device checks remain visible below.
@@ -94,6 +94,8 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T18-REPLACEMENTS-HOST — Accept class replacements and seven prior save schemas**~~ — exact companion pins, shared controls, imports, retries and preserved JSON/revisions; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
 - [x] ~~**T63-HOST — Accept the agreed character-sheet workspace through installed packages**~~ — complete EN/CS compact sessions, enlarged-text tab measurement and shared keyboard focus; 267/267 installed cases with zero skips; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation).
 - [x] ~~**T18-SESSIONS-HOST — Accept large planning sessions and separate browser failure traces**~~ — 269/269 installed cases with zero skips, EN/CS nested workflows, enlarged phone controls and owned trace cleanup; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#large-planning-sessions-and-shared-target-controls).
+- [x] ~~**T57-STARTUP-HOST — Allow sign-out during stalled add-on activation**~~ — `83647ab`; cancel partial generations immediately, reject stale activation and dispose late resources once; [controlled before/after evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancellable-startup-and-worker-health-admission).
+- [x] ~~**T18-HEALTH-HOST — Keep healthy workers available during domain saturation**~~ — `66f8cbd`; bounded, separate health/shutdown admission in the shared Go SDK, with blocked-output and native-process regressions; [cause, package evidence and delivery boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancellable-startup-and-worker-health-admission).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -112,6 +114,8 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   Subsequent runs passed; no shared cause is established. Retain bounded
   timeline/settings page captures and character-fixture host diagnostics.
   Preserve deadlines and assertions; [T61 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
+  The distinct stalled-activation sign-out defect is fixed above; it does not
+  establish the cause of these historical timeouts.
 
 ### Lifecycle, maintenance and operations
 
@@ -258,6 +262,8 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   Investigate the one unexplained rules-availability loss during T53 validation;
   character setup captures provider diagnostics if it recurs. T54's 13-case
   diagnostic replay passed without reproducing it; no cause is established.
+  The host SDK now fixes independently reproduced health failure under domain
+  saturation, but the original T53 run lacks evidence attributing it to that cause.
 
 Engine fixes must expose results/guidance through the versioned contract; no
 edition rules in Sheets controls, provider-ID special cases or combat resolver.
