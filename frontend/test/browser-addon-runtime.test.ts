@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { BrowserAddonRuntime } from "../src/addons/browser-addon-runtime.js";
 import {
   BrowserGraphClient,
@@ -224,7 +224,61 @@ describe("BrowserAddonRuntime", () => {
     expect(runtime.activeGenerations()).toEqual([]);
     expect(stopReasons).toEqual(["authority-changed"]);
   });
+
+  it("finishes reset while activation is stalled and disposes its late result once", async () => {
+    const started = deferred();
+    const release = deferred();
+    const stopped = vi.fn();
+    const lateDisposed = vi.fn();
+    let attempts = 0;
+    const manager = new BrowserGenerationManager(async (_descriptor, context) => {
+      context.scope.add("owned handle", stopped);
+      if (++attempts === 1) {
+        started.resolve();
+        await release.promise;
+        return lateDisposed;
+      }
+      return undefined;
+    });
+    const runtime = new BrowserAddonRuntime(
+      new BrowserGraphClient(async () => jsonGraphResponse(graph)),
+      manager,
+    );
+    const refresh = runtime.refresh(new AbortController().signal);
+    const rejected = expect(refresh).rejects.toBeInstanceOf(BrowserGraphRefreshInvalidatedError);
+    await started.promise;
+    const reset = runtime.reset("authority-changed");
+    let resetFinished = false;
+    void reset.then(() => {
+      resetFinished = true;
+    });
+    try {
+      await vi.waitFor(() => expect(resetFinished).toBe(true));
+      await rejected;
+      expect(stopped).toHaveBeenCalledOnce();
+      expect(lateDisposed).not.toHaveBeenCalled();
+      expect(runtime.activeGenerations()).toEqual([]);
+      await runtime.refresh(new AbortController().signal);
+      expect(runtime.activeGenerations()).toEqual(graph.addons);
+    } finally {
+      release.resolve();
+      await Promise.allSettled([refresh, rejected, reset]);
+    }
+    await vi.waitFor(() => expect(lateDisposed).toHaveBeenCalledOnce());
+    expect(runtime.activeGenerations()).toEqual(graph.addons);
+    await runtime.reset();
+    expect(stopped).toHaveBeenCalledTimes(2);
+    expect(lateDisposed).toHaveBeenCalledOnce();
+  });
 });
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
 
 function queuedFetch(responses: Response[]): BrowserGraphFetch {
   return async () => {

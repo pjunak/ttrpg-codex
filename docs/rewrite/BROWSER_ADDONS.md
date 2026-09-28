@@ -152,8 +152,10 @@ Transport or boundary-validation failures do not call reconciliation, so the
 last successfully activated generation set keeps running. `reset()` first
 advances the coordinator's authority epoch and invalidates the graph client's
 cache, so queued work and fetched-but-unapplied responses cannot continue. It
-then queues ordered disposal of active generations. Explicit logout, role and
-permission changes use the `authority-changed` stop reason. This prevents an old
+immediately cancels any generation still activating, then completes ordered
+disposal of active generations. Cancellation does not wait behind the pending
+stylesheet, module import or activation it needs to interrupt. Explicit logout,
+role and permission changes use the `authority-changed` stop reason. This prevents an old
 credential context from restoring browser authority while its resources are
 being torn down.
 
@@ -230,6 +232,21 @@ entry URL, requires an `activate(context)` export, and adapts the v3
 `{ dispose() }` result into scope-owned cleanup. Cleanup unpublishes
 contributions, invokes module cleanup, and then removes generation styles;
 partial activation retains fallback cleanup for every acquired resource.
+
+Stopping during startup closes the partial generation and invalidates queued
+reconciliations. An uncancellable import may still finish, but its old activation
+entrypoint cannot run afterward. If an already-running activation returns late,
+its disposer runs once without publishing that generation; late cleanup errors
+reach the owning session's diagnostics while that session retains authority.
+Resource cleanup is shared between the partial-start fallback and final module
+disposal, so styles are removed once.
+This does not forcibly terminate arbitrary add-on code: modules must still honor
+their signal and return settling cleanup functions.
+
+`generation-manager.test.ts` and `browser-addon-runtime.test.ts` cover cancellation
+at resource preparation, import and activation, stale refresh rejection and
+once-only late cleanup. `addon-startup.browser.mts` holds real stylesheet/module
+responses through sign-out, then verifies fresh sign-in and generation ownership.
 
 Integrated modules receive a public `BrowserAddonContext`, never the internal
 generation scope or graph descriptor. The context exposes immutable add-on

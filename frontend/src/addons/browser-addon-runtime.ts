@@ -19,8 +19,8 @@ export interface BrowserAddonRefreshResult {
 /**
  * Serializes the complete fetch-to-activation operation for browser add-ons.
  * A failed refresh leaves the current generation graph running. Reset clears
- * conditional HTTP authority immediately, then disposes lifecycle state after
- * any operation already in progress has settled.
+ * conditional HTTP authority immediately and interrupts pending activation
+ * before ordered lifecycle disposal.
  */
 export class BrowserAddonRuntime {
   readonly #client: BrowserGraphClient;
@@ -43,9 +43,14 @@ export class BrowserAddonRuntime {
       this.#assertCurrentAuthority(authorityEpoch);
       const transport = await this.#client.refresh(signal);
       this.#assertCurrentAuthority(authorityEpoch);
-      const lifecycle = await this.#manager.reconcile(transport.graph);
-      this.#assertCurrentAuthority(authorityEpoch);
-      return { transport, lifecycle };
+      try {
+        const lifecycle = await this.#manager.reconcile(transport.graph);
+        this.#assertCurrentAuthority(authorityEpoch);
+        return { transport, lifecycle };
+      } catch (cause) {
+        this.#assertCurrentAuthority(authorityEpoch);
+        throw cause;
+      }
     });
     this.#tail = operation.then(
       () => undefined,
@@ -57,7 +62,9 @@ export class BrowserAddonRuntime {
   reset(reason: GenerationStopReason = "disabled"): Promise<readonly BrowserDisposalFailure[]> {
     this.#authorityEpoch += 1;
     this.#client.reset();
-    const operation = this.#tail.then(() => this.#manager.dispose(reason));
+    const operation = Promise.all([this.#tail, this.#manager.dispose(reason)]).then(
+      ([, failures]) => failures,
+    );
     this.#tail = operation.then(
       () => undefined,
       () => undefined,

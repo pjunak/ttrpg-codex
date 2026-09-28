@@ -1,5 +1,10 @@
 import { validContributionLabels } from "./contribution-label.js";
-import { GenerationScope, type Disposer, type GenerationStopReason } from "./generation-scope.js";
+import {
+  GenerationClosedError,
+  GenerationScope,
+  type Disposer,
+  type GenerationStopReason,
+} from "./generation-scope.js";
 import type { BrowserAddonContext, BrowserAddonSDKSession } from "./browser-sdk.js";
 
 const addonIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -150,12 +155,19 @@ export class BrowserDependencyActivationError extends Error {
  */
 export class BrowserGenerationManager {
   readonly #activator: BrowserGenerationActivator;
+  readonly #onLateFailure: (failure: BrowserDisposalFailure) => void;
   readonly #active = new Map<string, ActiveGeneration>();
+  #pending: ActiveGeneration | undefined;
+  #epoch = 0;
   #graphRevision = "";
   #tail: Promise<void> = Promise.resolve();
 
-  constructor(activator: BrowserGenerationActivator) {
+  constructor(
+    activator: BrowserGenerationActivator,
+    onLateFailure: (failure: BrowserDisposalFailure) => void = () => undefined,
+  ) {
     this.#activator = activator;
+    this.#onLateFailure = onLateFailure;
   }
 
   get graphRevision(): string {
@@ -170,7 +182,8 @@ export class BrowserGenerationManager {
 
   reconcile(target: BrowserGenerationSet): Promise<BrowserReconcileResult> {
     const normalized = normalizeGenerationSet(target);
-    const operation = this.#tail.then(() => this.#reconcile(normalized));
+    const epoch = this.#epoch;
+    const operation = this.#tail.then(() => this.#reconcile(normalized, epoch));
     this.#tail = operation.then(
       () => undefined,
       () => undefined,
@@ -179,8 +192,24 @@ export class BrowserGenerationManager {
   }
 
   dispose(reason: GenerationStopReason = "disabled"): Promise<readonly BrowserDisposalFailure[]> {
+    this.#epoch += 1;
+    // Cancellation cannot queue behind the activation it needs to interrupt.
+    const pending = this.#pending;
+    const pendingDisposal = pending?.scope.dispose(reason).then(
+      () => [],
+      (cause: unknown) => [
+        {
+          addonId: pending.descriptor.addonId,
+          generationId: pending.descriptor.generationId,
+          cause,
+        },
+      ],
+    );
     const operation = this.#tail.then(async () => {
-      const failures = await this.#disposeActive(new Map(), reason, reason);
+      const failures = [
+        ...((await pendingDisposal) ?? []),
+        ...(await this.#disposeActive(new Map(), reason, reason)),
+      ];
       this.#graphRevision = "";
       return failures;
     });
@@ -191,7 +220,11 @@ export class BrowserGenerationManager {
     return operation;
   }
 
-  async #reconcile(target: NormalizedGenerationSet): Promise<BrowserReconcileResult> {
+  async #reconcile(
+    target: NormalizedGenerationSet,
+    epoch: number,
+  ): Promise<BrowserReconcileResult> {
+    this.#assertCurrent(epoch);
     if (this.#matches(target)) {
       return {
         graphRevision: target.graphRevision,
@@ -205,6 +238,7 @@ export class BrowserGenerationManager {
     const activationFailures: BrowserActivationFailure[] = [];
 
     for (const addonId of target.activationOrder) {
+      this.#assertCurrent(epoch);
       const descriptor = target.addons.get(addonId);
       if (descriptor === undefined) {
         throw new BrowserGenerationPlanError(
@@ -225,17 +259,10 @@ export class BrowserGenerationManager {
       }
 
       const scope = new GenerationScope(`${addonId}@${descriptor.generationId}`);
+      const pending = { descriptor, scope };
+      this.#pending = pending;
       try {
-        const disposer = await this.#activator(descriptor, {
-          addonId,
-          addonVersion: descriptor.addonVersion,
-          generationId: descriptor.generationId,
-          signal: scope.signal,
-          scope,
-        });
-        if (disposer !== undefined) {
-          scope.add("module activation", disposer);
-        }
+        await this.#activate(pending);
         scope.assertActive();
         this.#active.set(addonId, { descriptor, scope });
       } catch (cause: unknown) {
@@ -254,9 +281,12 @@ export class BrowserGenerationManager {
             cause: disposalCause,
           });
         }
+      } finally {
+        if (this.#pending === pending) this.#pending = undefined;
       }
     }
 
+    this.#assertCurrent(epoch);
     this.#graphRevision = target.graphRevision;
     return {
       graphRevision: target.graphRevision,
@@ -264,6 +294,61 @@ export class BrowserGenerationManager {
       activationFailures,
       disposalFailures,
     };
+  }
+
+  #assertCurrent(epoch: number): void {
+    if (epoch !== this.#epoch) throw new DOMException("Browser activation cancelled", "AbortError");
+  }
+
+  async #activate({ descriptor, scope }: ActiveGeneration): Promise<void> {
+    let abort!: () => void;
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      abort = () => reject(scope.signal.reason);
+    });
+    scope.signal.addEventListener("abort", abort, { once: true });
+    const reportLateFailure = (cause: unknown) =>
+      this.#onLateFailure({
+        addonId: descriptor.addonId,
+        generationId: descriptor.generationId,
+        cause,
+      });
+    try {
+      scope.assertActive();
+      const activation = Promise.resolve(
+        this.#activator(descriptor, {
+          addonId: descriptor.addonId,
+          addonVersion: descriptor.addonVersion,
+          generationId: descriptor.generationId,
+          signal: scope.signal,
+          scope,
+        }),
+      ).then(
+        async (disposer) => {
+          if (scope.active) {
+            if (disposer !== undefined) scope.add("module activation", disposer);
+          } else {
+            // Uncancellable imports/activation may settle after a new session starts.
+            try {
+              await disposer?.();
+            } catch (cause) {
+              reportLateFailure(cause);
+            }
+          }
+        },
+        (cause: unknown) => {
+          if (
+            !scope.active &&
+            cause !== scope.signal.reason &&
+            !(cause instanceof GenerationClosedError)
+          )
+            reportLateFailure(cause);
+          throw cause;
+        },
+      );
+      await Promise.race([activation, cancelled]);
+    } finally {
+      scope.signal.removeEventListener("abort", abort);
+    }
   }
 
   async #disposeActive(
@@ -337,7 +422,20 @@ export function createModuleActivator(
     if (descriptor.mode !== "integrated") {
       throw new TypeError(`browser add-on ${descriptor.addonId} is not an integrated module`);
     }
-    const resourceDisposer = await prepareResources(descriptor, context.scope);
+    const disposeResources = await prepareResources(descriptor, context.scope);
+    let resourcesDisposed = false;
+    const resourceDisposer =
+      disposeResources === undefined
+        ? undefined
+        : async () => {
+            if (resourcesDisposed) return;
+            resourcesDisposed = true;
+            await disposeResources();
+          };
+    if (!context.scope.active) {
+      await resourceDisposer?.();
+      context.scope.assertActive();
+    }
     const releaseResourceFallback =
       resourceDisposer === undefined
         ? undefined
@@ -349,6 +447,7 @@ export function createModuleActivator(
       }
     }
     const imported = await importModule(descriptor.entryUrl);
+    context.scope.assertActive();
     if (!isBrowserGenerationModule(imported)) {
       throw new TypeError(
         `browser add-on module ${descriptor.entryUrl} must export activate(context)`,

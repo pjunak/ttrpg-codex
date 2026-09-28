@@ -261,7 +261,118 @@ describe("BrowserGenerationManager", () => {
     expect(result.activationFailures).toHaveLength(1);
     expect(result.activationFailures[0]?.cause).toBeInstanceOf(TypeError);
   });
+
+  it.each(["resources", "import", "activation"])(
+    "cancels pending %s and cleans late resources without reviving contributions",
+    async (phase) => {
+      const started = deferred();
+      const release = deferred();
+      const resourcesDisposed = vi.fn();
+      const moduleDisposed = vi.fn();
+      const activated = vi.fn();
+      const lateFailure = vi.fn();
+      const registry = new BrowserContributionRegistry();
+      const hold = async (current: string) => {
+        if (phase !== current) return;
+        started.resolve();
+        await release.promise;
+      };
+      const manager = new BrowserGenerationManager(
+        createModuleActivator(
+          async () => {
+            await hold("import");
+            return {
+              activate: async () => {
+                activated();
+                await hold("activation");
+                return { dispose: moduleDisposed };
+              },
+            };
+          },
+          (descriptor, scope) => registry.open(descriptor, scope),
+          async () => {
+            await hold("resources");
+            return resourcesDisposed;
+          },
+        ),
+        lateFailure,
+      );
+      const pending = manager.reconcile({
+        contractVersion: 2,
+        graphRevision: "graph-1",
+        addons: [providerV1],
+      });
+      const cancelled = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+      await started.promise;
+      try {
+        expect(await manager.dispose("authority-changed")).toEqual([]);
+        await cancelled;
+        expect(manager.activeGenerations()).toEqual([]);
+      } finally {
+        release.resolve();
+      }
+      await vi.waitFor(() => expect(resourcesDisposed).toHaveBeenCalledOnce());
+      if (phase === "activation")
+        await vi.waitFor(() => expect(moduleDisposed).toHaveBeenCalledOnce());
+      else expect(activated).not.toHaveBeenCalled();
+      expect(lateFailure).not.toHaveBeenCalled();
+      await manager.dispose();
+      expect(resourcesDisposed).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("reports cleanup failures both at cancellation and after late activation", async () => {
+    const started = deferred();
+    const release = deferred();
+    const lateFailure = vi.fn();
+    const earlyError = new Error("owned resource failed");
+    const lateError = new Error("late module cleanup failed");
+    const manager = new BrowserGenerationManager(async (_descriptor, context) => {
+      context.scope.add("owned resource", () => {
+        throw earlyError;
+      });
+      started.resolve();
+      await release.promise;
+      return () => {
+        throw lateError;
+      };
+    }, lateFailure);
+    const pending = manager.reconcile({
+      contractVersion: 2,
+      graphRevision: "graph-1",
+      addons: [providerV1],
+    });
+    const cancelled = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    await started.promise;
+    try {
+      const failures = await manager.dispose("authority-changed");
+      expect(failures).toMatchObject([
+        {
+          addonId: providerV1.addonId,
+          cause: { failures: [{ label: "owned resource", cause: earlyError }] },
+        },
+      ]);
+      await cancelled;
+    } finally {
+      release.resolve();
+    }
+    await vi.waitFor(() =>
+      expect(lateFailure).toHaveBeenCalledExactlyOnceWith({
+        addonId: providerV1.addonId,
+        generationId: providerV1.generationId,
+        cause: lateError,
+      }),
+    );
+  });
 });
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
 
 function generation(
   addonId: string,

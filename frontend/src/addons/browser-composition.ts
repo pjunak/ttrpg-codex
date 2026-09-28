@@ -58,10 +58,12 @@ export function createBrowserAddonComposition(
   const activateFrame = createIsolatedFrameActivator(document, contributions, (cause) =>
     callbacks.onDiagnostic?.(cause),
   );
-  const manager = new BrowserGenerationManager((descriptor, context) =>
-    descriptor.mode === "isolated"
-      ? activateFrame(descriptor, context)
-      : activateModule(descriptor, context),
+  const manager = new BrowserGenerationManager(
+    (descriptor, context) =>
+      descriptor.mode === "isolated"
+        ? activateFrame(descriptor, context)
+        : activateModule(descriptor, context),
+    (failure) => callbacks.onDiagnostic?.(failure),
   );
   const runtime = new BrowserAddonRuntime(new BrowserGraphClient(), manager);
   return {
