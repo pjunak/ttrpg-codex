@@ -136,7 +136,7 @@ func (manager *Manager) workerReadyLocked(state State) {
 	watch.blocked, watch.retryAt, watch.message = false, time.Time{}, ""
 	watch.readySince, watch.nextHealth = now, now.Add(manager.monitoring.config.HealthInterval)
 }
-func (manager *Manager) workerFailureLocked(ctx context.Context, state State, cause error) {
+func (manager *Manager) workerFailureLocked(ctx context.Context, state State, cause error, runtime Runtime) {
 	if manager.monitoring == nil {
 		return
 	}
@@ -149,8 +149,8 @@ func (manager *Manager) workerFailureLocked(ctx context.Context, state State, ca
 	if !watch.readySince.IsZero() && now.Sub(watch.readySince) >= manager.monitoring.config.RestartPolicy.StableAfter {
 		watch.failures = 0
 	}
-	if active, ok := manager.runtimes[state.AddonID]; ok && active.runtime != nil {
-		value := workersupervisor.AdministrativeSnapshot(active.runtime.Snapshot())
+	if runtime != nil {
+		value := workersupervisor.AdministrativeSnapshot(runtime.Snapshot())
 		watch.snapshot = &value
 	}
 	watch.failures++
@@ -285,7 +285,7 @@ func (manager *Manager) checkWorkers(ctx context.Context) error {
 			}
 		}
 		if failure != nil {
-			manager.workerFailureLocked(ctx, state, failure)
+			manager.workerFailureLocked(ctx, state, failure, active.runtime)
 			roots = append(roots, state.AddonID)
 		} else if !watch.readySince.IsZero() && now.Sub(watch.readySince) >= manager.monitoring.config.RestartPolicy.StableAfter {
 			watch.failures = 0

@@ -176,6 +176,13 @@ monitoring categories, including `TRANSPORT_FAILED`, instead of replacing them
 with `PROCESS_EXITED`. Missing or unsupported monitoring categories use that
 fallback; raw failure text remains excluded.
 
+If a recovery worker fails during startup, its sanitized snapshot replaces the
+previous process evidence even though the candidate never becomes a live runtime.
+Supported lifecycle categories such as `HEALTH_FAILED` and `STARTUP_TIMEOUT`
+remain specific; an untyped startup error uses `STARTUP_FAILED`. Capture happens
+before candidate cleanup, without changing service authority or retry accounting.
+Failures before a worker is constructed retain the last available process snapshot.
+
 Automatic cohort transitions have a two-minute deadline. Host shutdown cancels
 and joins the monitor before stopping runtimes, including an in-flight health
 probe, and leaves durable activation selected for the next host start.

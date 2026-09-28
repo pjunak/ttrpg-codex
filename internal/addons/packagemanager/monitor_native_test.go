@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ type nativeMonitorFactory struct {
 	executable string
 	directory  string
 	firstMode  string
+	retryMode  string
 	started    string
 	release    string
 	concurrent int
@@ -28,6 +30,8 @@ func (factory *nativeMonitorFactory) New(spec RuntimeSpec) (Runtime, error) {
 	mode := "healthy"
 	if len(factory.instances) == 0 {
 		mode = factory.firstMode
+	} else if factory.retryMode != "" {
+		mode = factory.retryMode
 	}
 	environment := map[string]string{"CODEX_MONITOR_WORKER_TEST": mode}
 	if factory.started != "" {
@@ -192,6 +196,90 @@ func TestWorkerMonitoringRetainsNativeTransportFailure(t *testing.T) {
 	}
 }
 
+func TestWorkerMonitoringRetainsFailedNativeStartup(t *testing.T) {
+	for _, fixture := range []struct {
+		name, mode, code string
+		retry            bool
+	}{
+		{"boot-health", "startup-health", workersupervisor.CodeHealthFailed, false},
+		{"retry-health", "startup-health", workersupervisor.CodeHealthFailed, true},
+		{"retry-timeout", "startup-hang", workersupervisor.CodeStartupTimed, true},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			ctx := context.Background()
+			manager, _, now := monitoringFixture(t)
+			executable, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			factory := &nativeMonitorFactory{executable: executable, directory: t.TempDir(), firstMode: "healthy", retryMode: fixture.mode}
+			if fixture.retry {
+				factory.firstMode = "crash"
+			}
+			manager.runtimeFactory = factory
+			installUninstallFixture(t, manager, packageSpec{ID: "native-worker", Version: "1.0.0", Worker: true})
+			first := factory.instances[0]
+			failures := 1
+			if fixture.retry {
+				waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+				if err := first.Wait(waitCtx); err == nil || waitCtx.Err() != nil {
+					t.Fatal("fixture did not crash", err)
+				}
+				tickWorkers(t, manager)
+				*now = now.Add(time.Second)
+				tickWorkers(t, manager)
+				failures = 2
+			} else {
+				if err := manager.Shutdown(ctx); err != nil {
+					t.Fatal(err)
+				}
+				results, err := manager.Recover(ctx)
+				if err != nil || len(results) != 1 || results[0].Recovered {
+					t.Fatal("fixture did not fail startup", results, err)
+				}
+			}
+			if len(factory.instances) != 2 {
+				t.Fatalf("expected one recovery attempt, got %d instances", len(factory.instances))
+			}
+			failed := factory.instances[1].Snapshot()
+			if failed.PID == first.Snapshot().PID || failed.PID == 0 || failed.ExitedAt == nil || failed.ExitCode == nil ||
+				workersupervisor.SafeFailureCode(failed.LastError) != fixture.code || !strings.Contains(failed.StderrTail, "private-startup-diagnostic") {
+				t.Fatalf("failed process fixture is incomplete: %+v", failed)
+			}
+			snapshot, err := manager.Snapshot(ctx, "native-worker", 20)
+			if err != nil || snapshot.Runtime == nil {
+				t.Fatal("missing failure snapshot", err)
+			}
+			if snapshot.Runtime.PID != failed.PID {
+				t.Errorf("failed startup retained an earlier process: got PID %d, want %d", snapshot.Runtime.PID, failed.PID)
+			}
+			if !strings.HasPrefix(snapshot.Runtime.LastError, fixture.code+":") {
+				t.Errorf("failed startup lost its category: %q", snapshot.Runtime.LastError)
+			}
+			expected := workersupervisor.AdministrativeSnapshot(failed)
+			expected.LastError = snapshot.Runtime.LastError
+			if !reflect.DeepEqual(*snapshot.Runtime, expected) {
+				t.Errorf("failed startup lost its sanitized process evidence: got %+v, want %+v", snapshot.Runtime, expected)
+			}
+			watch := manager.monitoring.watches["native-worker"]
+			if watch.failures != failures || watch.retryAt.Sub(*now) != time.Duration(failures)*time.Second {
+				t.Fatalf("failed startup changed recovery accounting: %+v", watch)
+			}
+			tickWorkers(t, manager)
+			if len(factory.instances) != 2 {
+				t.Fatal("failed startup bypassed backoff")
+			}
+			factory.retryMode = "healthy"
+			*now = watch.retryAt
+			tickWorkers(t, manager)
+			if len(factory.instances) != 3 || factory.instances[2].Snapshot().State != workersupervisor.StateReady {
+				t.Fatal("failed startup diagnostics prevented the next recovery")
+			}
+		})
+	}
+}
+
 func TestMonitoredNativeWorkerProcess(t *testing.T) {
 	mode := os.Getenv("CODEX_MONITOR_WORKER_TEST")
 	if mode == "" {
@@ -230,6 +318,18 @@ func TestMonitoredNativeWorkerProcess(t *testing.T) {
 		}),
 		Health: func(ctx context.Context) (workerrpc.NativeWorkerHealth, error) {
 			checks++
+			if checks == 1 && (mode == "startup-health" || mode == "startup-hang") {
+				_, _ = fmt.Fprintln(os.Stderr, "private-startup-diagnostic")
+				if mode == "startup-hang" {
+					select {
+					case <-ctx.Done():
+						return workerrpc.NativeWorkerHealth{}, ctx.Err()
+					case <-time.After(time.Minute):
+						return workerrpc.NativeWorkerHealth{}, context.DeadlineExceeded
+					}
+				}
+				return workerrpc.NativeWorkerHealth{Status: "degraded"}, nil
+			}
 			if checks == 1 && mode == "crash" {
 				go func() { time.Sleep(250 * time.Millisecond); os.Exit(17) }()
 			}

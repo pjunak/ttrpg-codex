@@ -292,6 +292,9 @@ func TestWorkerMonitoringStartupFailureAndGenerationReplacement(t *testing.T) {
 	if err != nil || len(results) != 1 || results[0].Recovered || manager.monitoring.watches["provider"].failures != 1 {
 		t.Fatal("startup failure not scheduled", results, err)
 	}
+	if !strings.HasPrefix(results[0].Error, workersupervisor.CodeStartupFailed+":") || strings.Contains(results[0].Error, "fixture startup failure") {
+		t.Fatal("untyped startup failure lost its safe fallback", results[0])
+	}
 	review, err := manager.PrepareDisable(context.Background(), "provider")
 	if err != nil {
 		t.Fatal(err)

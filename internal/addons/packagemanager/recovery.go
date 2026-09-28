@@ -160,7 +160,13 @@ func (manager *Manager) recoverCandidate(
 	if err == nil && runtime != nil {
 		err = runtime.Start(ctx)
 		if err != nil && !errors.Is(ctx.Err(), context.Canceled) {
-			manager.workerFailureLocked(ctx, candidate.state, &workersupervisor.LifecycleError{Code: workersupervisor.CodeStartupFailed, Cause: err})
+			var failure *workersupervisor.LifecycleError
+			if !errors.As(err, &failure) {
+				failure = &workersupervisor.LifecycleError{Code: workersupervisor.CodeStartupFailed, Cause: err}
+			}
+			// A failed candidate never enters the live runtime map. Capture its
+			// evidence directly before cleanup can change its lifecycle state.
+			manager.workerFailureLocked(ctx, candidate.state, failure, runtime)
 		}
 	}
 	if err == nil {
@@ -233,7 +239,7 @@ func (manager *Manager) recordRecoveryFailureLocked(ctx context.Context, state S
 	watch := manager.watchForStateLocked(state)
 	// A scheduled attempt that fails before launch still consumes its budget.
 	if watch != nil && watch.blocked && !watch.retryAt.IsZero() && !manager.store.now().Before(watch.retryAt) && !errors.Is(ctx.Err(), context.Canceled) {
-		manager.workerFailureLocked(ctx, state, &workersupervisor.LifecycleError{Code: workersupervisor.CodeStartupFailed, Cause: cause})
+		manager.workerFailureLocked(ctx, state, &workersupervisor.LifecycleError{Code: workersupervisor.CodeStartupFailed, Cause: cause}, nil)
 	}
 	if watch != nil && watch.blocked {
 		cause = errors.New(watch.message)
