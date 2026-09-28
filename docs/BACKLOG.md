@@ -6,19 +6,19 @@ Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
-**Progress estimate, September 28:** about **96% implemented**, or **92%**
+**Progress estimate, September 28:** about **96% implemented**, or **93%**
 including remaining workflow, release and site acceptance. These are approximate
-effort estimates, with plausible ranges of 92–97% and 88–94%, respectively.
-[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-compact-sessions).
+effort estimates, with plausible ranges of 92–97% and 89–95%, respectively.
+[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-planning-sessions).
 **Original rows closed:** 33 of 40 (83%); open workflow tasks contain completed
-slices. The later T63 layout, authored state and compact session acceptance are
-complete; smaller UI refinements and human/device checks remain visible below.
+slices. Compact character and large planning sessions are accepted; smaller UI
+refinements, unexplained failures and human/device checks remain visible below.
 
 **P1:** preservation, blocked workflows or release confidence. **P2:** usability,
 resilience and maintenance. **Confirmed** means source/browser evidence exists;
 **review** means an unresolved acceptance or design question, not a proven bug.
 Implementation is not release acceptance: unresolved provider/startup failures
-and planning/site workflows still need evidence. Task IDs remain stable; gaps in numbering
+and site workflows still need evidence. Task IDs remain stable; gaps in numbering
 are completed work. Historical gates do not close the remaining tasks.
 
 - [Host](#ttrpg-codex)
@@ -93,6 +93,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T69-HOST — Complete updates through one saved-data confirmation and automatic housekeeping**~~ — optional scoped backup, validated healing or explicit reset, automatic restart/rollback, durable retry receipts, server review expiry and package cleanup; [implementation and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#guided-updates-and-automatic-housekeeping).
 - [x] ~~**T18-REPLACEMENTS-HOST — Accept class replacements and seven prior save schemas**~~ — exact companion pins, shared controls, imports, retries and preserved JSON/revisions; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
 - [x] ~~**T63-HOST — Accept the agreed character-sheet workspace through installed packages**~~ — complete EN/CS compact sessions, enlarged-text tab measurement and shared keyboard focus; 267/267 installed cases with zero skips; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation).
+- [x] ~~**T18-SESSIONS-HOST — Accept large planning sessions and separate browser failure traces**~~ — 269/269 installed cases with zero skips, EN/CS nested workflows, enlarged phone controls and owned trace cleanup; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#large-planning-sessions-and-shared-target-controls).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -150,18 +151,15 @@ not a new generic-planner rewrite. [Product contract](../../addon-dm-tools/docs/
 - [x] ~~**T19-DM — Scoped bundle contributions, DM/player review and durable receipt checks**~~ — `da116c3`.
 - [x] ~~**T30 — Recover unsaved planning work across forced replacement**~~ — `0eeac9b`; explicit resume/download/discard, original revisions and uncertain-save protection. [Contract](../../addon-dm-tools/docs/GRAPH.md#recovery-across-generations) · [installed evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#dm-tools-draft-recovery-follow-up).
 - [x] ~~**T14-DM — Build browser assets and workers from source-only checkouts**~~ — `7f1d02b`; standalone packaging, ignored output and source-clean CI; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
+- [x] ~~**T18-SESSIONS-DM — Complete large planning sessions with shared controls and readable phones**~~ — `f32e45f`, `2a48d5b`; searchable targets, distinct repeated titles, filtered shared notes, preserved focus/scroll and nested workflow acceptance; [evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#large-planning-sessions-and-shared-target-controls).
 
 ### Remaining work
 
-- [ ] **T18-DM / P1, review — Audit complete planning sessions, including UX.**
-  Exercise large/nested plans, card/flow creation, ownership moves, target
-  selection, multi-anchor notes, deletion/undo, reader/editor transitions and
-  refresh while editing. Compare preserved behavior with current interaction at
-  desktop/phone and keyboard/touch. Record concrete failing steps and fixes;
-  passing graph fixtures alone do not close workflow parity. Investigate the
-  intermittent pre-action canvas-load timeout in the installed group-selection
-  case; it passed subsequent package acceptance, but no cause/fix is established
-  ([T42 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-origin-choices-and-shared-field-focus)).
+- [ ] **T18-DM / P1, review — Explain the intermittent planner startup timeout.**
+  Complete large/nested sessions are accepted above. The pre-action canvas-load
+  timeout in the installed group-selection case remains unexplained; passing
+  reruns and new traces do not establish a fix. Retain the existing deadlines
+  and capture a failing run ([original evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-origin-choices-and-shared-field-focus)).
 - [ ] **T15-DM / P1, operational — Validate existing consequence targets before
   activating stricter planning validation.** The target-validation fix is already
   implemented. Check the intended site's data after a verified backup; report
@@ -309,6 +307,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T18-REPLACEMENTS-SHEETS — Share replacement controls and protect spent allowances**~~ — `6d5807a`; both layouts/locales, keyboard focus, guarded writes and exact retries; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
 - [x] ~~**T63-TABS-SHEETS — Keep compact tabs readable with enlarged phone text**~~ — `c682e88`; natural-width wrapping and rendered keyboard orientation reuse the host tabs; old package fails the regression, rebuilt package passes both locales and four widths; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation).
 - [x] ~~**T18-SHEETS — Accept a whole build-and-play session on the compact workspace**~~ — shared Builder advancement, amended grants, source/provider recovery, rest, reload, import cancellation and provider-free output preserve current authored state; [267/267 installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation). Human/device checks remain separate below.
+- [x] ~~**T18-FOCUS-SHEETS — Preserve new focus through delayed dialog cleanup**~~ — `8d54166`; a queued Backpack close no longer steals focus from the next selected tab; controlled EN/CS installed regression and owner gates pass; [cause and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#large-planning-sessions-and-shared-target-controls).
 
 ### Remaining work
 
@@ -367,7 +366,7 @@ Record exact source pins and inspected package hashes before closing acceptance.
 
 | Order | Work | Exit evidence |
 | --- | --- | --- |
-| 1 | Everyday planning and reliability: finish DM Tools T18, investigate startup failures and the T53 Engine availability loss. | Complete desktop/phone workflows and concrete failures have action-level evidence; successful retries alone do not establish a fix. |
+| 1 | Reliability: investigate planner/host startup failures and the T53 Engine availability loss. | Accepted character/planning sessions stay covered; concrete failures have cause/fix evidence, not just successful retries. |
 | 2 | Continue smaller T63 frame refinements and the remaining source-fact review. | Shared controls, saved state, focus and responsive layouts remain intact; missing facts have owner/provenance evidence. |
 | 3 | Final integration and authorized delivery T15–T17; retain completed T02 coverage. | All four inspected packages pass without suite skips; exact served/installed builds, site data/retention, human/device checks and rollback assets are recorded. |
 

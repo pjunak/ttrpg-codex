@@ -3921,3 +3921,120 @@ Next work is planning-session acceptance and diagnosis of startup/provider
 failures, followed by smaller frame/source-fact refinements and authorized
 site/device verification. These local results do not establish Linux execution
 or acceptance of this source set on either live site.
+
+### Large planning sessions and shared target controls
+
+September 28, 2026. DM Tools now has two complete installed-package sessions:
+English keyboard desktop and Czech touch emulation at 390 px with 200% text in
+Moonlit. Each starts with 224 synthetic planning items, including nested
+containers, repeated titles and a 207-card canvas. Reads cross the 200-record
+page boundary with pinned collection revisions. The journey creates a branch
+flow, a quest and child event, a reference to the correct repeated title, and a
+shared note. It preserves a draft through a remote update and explicit refresh,
+moves the authored subtree, cancels and confirms deletion, undoes the deletion,
+then reloads the saved work. Undo must restore authored content with fresh
+timestamps/revisions; unrelated records retain exact saved values and revisions.
+Fixture cleanup restores all six collections to their original records.
+
+This exposed three product gaps. Flow targets bypassed the host's searchable
+selector; repeated planning titles were ambiguous; note anchors had an
+unfiltered campaign-wide list. Flow and annotation targets now share readable
+choice labels, with ownership paths and IDs only where needed. Long flow lists
+use the existing shared combobox. Connecting a selected pair refreshes that
+control before moving keyboard focus into its input. Notes use the host search
+and clear action, keep linked choices visible, and announce localized counts
+or no matches. Enter in the filter cannot submit the note. Filters remain
+mounted view state and are excluded from saved data and recovery drafts.
+
+These reuse the [WAI combobox pattern](https://www.w3.org/WAI/ARIA/apg/patterns/combobox/),
+native [fieldset and legend grouping](https://www.w3.org/WAI/tutorials/forms/grouping/),
+and [status messages](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html)
+reviewed September 28. No new control framework, schema, permission or backend
+write contract was introduced.
+
+Screenshot review also found enlarged Czech phone actions broken into fragments
+above a cramped inner editor. Phone dialog actions now wrap at their natural
+width; the dialog uses the available width and one scrolling surface. Saving
+preserves that surface's scroll position, bounded by the updated content. The
+regression measures whole words inside action/tab bounds, rather than relying
+only on page overflow. The old package fails the searchable-target assertion;
+intermediate packages fail enlarged labels, selected-pair focus and scroll
+preservation (saving jumped from 2,206 px to the top). The corrected package
+passes those checks, search clearing, filter persistence and
+the complete sessions. Existing graph/recovery fixtures retain their assertions
+and use one shared helper for native or enhanced selection.
+
+Installed DM and character Builder browser contexts use the common failure-trace
+helper. Each view gets a unique trace path, so two browser views of the same failing test
+cannot overwrite each other's evidence. The new helper regression fails with
+the preceding filename scheme. The helper also returns one idempotent cleanup
+function for fixtures that finish a browser session before the test ends.
+Explicit cleanup and the after hook share verification, trace finalization and
+context closure in that order; underlying failures are retained as the cause.
+The initial broad trace integration produced seven after-hook failures because
+existing fixtures closed their contexts directly. The cleanup regression and
+all such callers now use the owning function. This was a test-infrastructure
+regression in this batch, separate from the product focus defect below.
+The historical T18-DM pre-action canvas timeout did not reproduce; successful
+runs and better diagnostics do not establish its cause or close that finding.
+
+The first complete run passed 268/269 cases and exposed a separate compact
+character focus race. Closing Backpack could leave a queued close handler that
+ran after the next tab received focus, then moved focus back to Utility pouch.
+The arrow key consequently never reached the tab. This matches the queued
+close event in the [HTML dialog lifecycle](https://html.spec.whatwg.org/multipage/interactive-elements.html#close-the-dialog).
+Holding that event until the Sheet tab receives focus reproduces the failure
+with the preceding Sheets package. Sheets `8d54166` now checks current focus
+before cleanup and restores the opener only when focus still belongs to the
+closing dialog or has been lost. Its render keeps the user's new control.
+The controlled regression passes both locales through all four viewport widths;
+it also waits for actual dialog teardown, without a sleep or a weaker keyboard
+assertion. This has a demonstrated cause and fix; the older unexplained startup
+and provider findings remain separate and open.
+
+The final DM Tools owning gate passes, including 58 unit cases, 28 Chromium
+rendering checks at each of DPR 1 and 2, Staticcheck and selected Go race tests.
+Package build and host inspection pass. The host owning gate passes 71 tool
+tests, 408 frontend unit cases, the applicable browser checks and Go/race gates;
+its optional installed cases require the separate package run. All 33 historical
+release-readiness gates pass. The preceding complete DM run passed 65/65 cases;
+the final scroll correction passes both complete sessions and refreshed static
+checks. Sheets also passes its full owner gate, including 39 unit cases and Go
+race checks, package build and host inspection. Six focused cases pass after the
+cleanup correction. The final complete pinned suite passes **269/269 cases,
+zero failures and zero skips** in 1,008.7 seconds. This includes the complete
+planning sessions, controlled dialog-close regression and provider-free output
+checks with explicit browser cleanup. No assertion or deadline was relaxed.
+
+Inspected source set under host base `f5773b6` plus this acceptance patch:
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `2a48d5b` | `c038d12af0d8ff48587a202f8076565c174ff305d68bcc7401a4e925c39d91a7` |
+| dnd-engine | `3f59578` | `b0ab1a5b3fb5d245e31d8256adef0d48c244e1fc203536255fab7b191c3ef7f7` |
+| dnd-sheets | `8d54166` | `81b5b2d1d280b361142954b1f2649423e3ae48ff8964e96d04108d3d3fa8007f` |
+| dnd-2024-compendium | `80e3fd0` | `1864b929960c9dbe44d69b8a4195b6cd60b5bbc4da6cc6552a329aa987e72a82` |
+
+Every companion is clean. Engine and Compendium sources and archives are
+unchanged from the previous accepted batch; their successful owner checks are
+reused. Local evidence uses the `planner-session-`, `planner-phone-` and
+`compact-focus-` prefixes under `frontend/test-results/`.
+`release/companions/provenance.json`
+records the full source identities and archive hashes.
+
+### Cleanup progress after planning sessions
+
+The overall audit is approximately **93% complete** (89–95%), with implementation
+at approximately **96%** (92–97%). This is an effort estimate, not a ratio of
+automated tests. Accepted planning workflows improve the overall estimate, but
+the original T18-DM row stays open for its unexplained startup timeout. Original
+rows closed remain **33/40 (83%)**, or **33/39 (85%)** excluding conditional T08;
+new session slices do not inflate that denominator.
+
+Remaining original rows are T08, T15, T15-DM, T16, T17, T18-DM and T18-ENGINE.
+Next work is diagnosis of unexplained startup/provider failures, followed by
+smaller frame/source-fact refinements and authorized site/device verification.
+Windows amd64 workers execute locally; Linux workers are cross-built and
+inspected, with execution left to CI. Physical touch, spoken screen-reader and
+printer acceptance remain unperformed. No push, publication, deployment or
+live-data change was performed.

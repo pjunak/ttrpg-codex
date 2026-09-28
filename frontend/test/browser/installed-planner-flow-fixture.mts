@@ -1,6 +1,10 @@
 import { required } from "./fixture-types.mts";
 import type { FixtureRecord, InstalledFixture, FixtureMutation } from "./fixture-types.mts";
-import { plannerTab, editPlannerCard } from "./installed-planner-dialog-fixture.mts";
+import {
+  choosePlannerOption,
+  plannerTab,
+  editPlannerCard,
+} from "./installed-planner-dialog-fixture.mts";
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { jsonResponse } from "./installed-graph-fixture.mts";
@@ -102,11 +106,11 @@ export async function exercisePlannerFlows({
   await plannerTab(page, "Links");
   await create.waitFor();
   assert.equal(
-    await create.getByLabel("Flow target").locator('option[value="flow-child"]').count(),
+    await create.locator('select[name="targetId"] option[value="flow-child"]').count(),
     0,
   );
   assert.equal(await create.getByLabel("Flow type").inputValue(), "option");
-  await create.getByLabel("Flow target").selectOption("flow-event");
+  await choosePlannerOption(create, "Flow target", "flow-event");
   await create.getByLabel("Flow label").fill("If the gate opens");
   await create.getByRole("button", { name: "Create flow", exact: true }).click();
   await page.getByText("Flow created.", { exact: true }).waitFor();
@@ -195,7 +199,7 @@ export async function exercisePlannerFlows({
 
   // Cycle validation happens before a write and leaves the new-flow draft intact.
   await editPlannerCard(page, card("flow-event"), "Links");
-  await create.getByLabel("Flow target").selectOption("flow-branch");
+  await choosePlannerOption(create, "Flow target", "flow-branch");
   await create.getByLabel("Flow label").fill("Invalid return");
   const beforeCycle = await records("planning_flow_links");
   await create.getByRole("button", { name: "Create flow", exact: true }).click();

@@ -9,6 +9,7 @@ import { exercisePackageCleanup } from "./installed-cleanup-fixture.mts";
 import { exercisePlanningReader } from "./installed-planning-reader-fixture.mts";
 import { exerciseRecordPanels } from "./installed-record-panels-fixture.mts";
 import { required } from "./fixture-types.mts";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
 import type { APIRequestContext, Browser, Page } from "playwright";
 import type { TestContext } from "node:test";
 import type { AddressInfo } from "node:net";
@@ -17,6 +18,7 @@ import type { Readable } from "node:stream";
 import type { FixtureCollection, FixtureRecord } from "./fixture-types.mts";
 import { plannerTab } from "./installed-planner-dialog-fixture.mts";
 import { exercisePlannerSelection } from "./installed-planner-selection-fixture.mts";
+import { exercisePlannerSession } from "./installed-planner-session-fixture.mts";
 import {
   exercisePlannerActions,
   exercisePlannerCreationFailures,
@@ -213,7 +215,7 @@ async function open(t: TestContext, role = "dm", mobile = false) {
     hasTouch: mobile,
     reducedMotion: "reduce",
   });
-  t.after(() => context.close());
+  await trackBrowserContext(t, context);
   if (role)
     await jsonResponse(
       await context.request.post("/api/login", {
@@ -809,6 +811,24 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     t.after(() => disable("dm-tools"));
     await exercisePlannerSelection({ t, open, admin, csrf, output });
   });
+
+if (process.env.CODEX_DM_TOOLS_ZIP)
+  for (const mobile of [false, true])
+    void test(
+      `installed large planning session preserves nested work on ${mobile ? "Czech touch phone" : "English keyboard desktop"}`,
+      { timeout: 120_000 },
+      async (t) => {
+        await installReviewedPackage(
+          admin,
+          csrf,
+          "dm-tools",
+          await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
+          dmToolsPermissions,
+        );
+        t.after(() => disable("dm-tools"));
+        await exercisePlannerSession({ t, open, admin, csrf, output, mobile });
+      },
+    );
 
 if (process.env.CODEX_DM_TOOLS_ZIP)
   void test("installed planner and overview update live without losing edits or canvas state", async (t) => {

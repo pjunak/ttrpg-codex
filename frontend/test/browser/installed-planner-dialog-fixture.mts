@@ -1,4 +1,24 @@
 import type { Page, Locator } from "playwright";
+
+export async function choosePlannerOption(root: Page | Locator, name: string, value: string) {
+  const select = root.getByLabel(name, { exact: true }).and(root.locator("select"));
+  if (await select.isVisible()) {
+    await select.selectOption(value);
+    return;
+  }
+  const target = await select.evaluate((node, value) => {
+    const options = [...(node as HTMLSelectElement).options],
+      option = options.find((option) => option.value === value);
+    if (!option) throw new Error("Missing fixture choice: " + value);
+    return {
+      label: option.label,
+      duplicate: options.filter((candidate) => candidate.label === option.label).indexOf(option),
+    };
+  }, value);
+  await root.getByRole("combobox", { name, exact: true }).fill(target.label);
+  await root.getByRole("option", { name: target.label, exact: true }).nth(target.duplicate).click();
+}
+
 export async function closePlannerEditor(page: Page, locale = "en") {
   const dialog = page.getByRole("dialog", {
     name: locale === "cs" ? "Upravit plánovací položku" : "Edit planning item",

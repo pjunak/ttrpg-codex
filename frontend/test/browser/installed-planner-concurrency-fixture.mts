@@ -1,5 +1,9 @@
 import type { FixtureRecord, InstalledFixture } from "./fixture-types.mts";
-import { plannerTab, editPlannerCard } from "./installed-planner-dialog-fixture.mts";
+import {
+  choosePlannerOption,
+  plannerTab,
+  editPlannerCard,
+} from "./installed-planner-dialog-fixture.mts";
 import assert from "node:assert/strict";
 import { jsonResponse } from "./installed-graph-fixture.mts";
 
@@ -149,8 +153,8 @@ export async function exercisePlannerConcurrency({
   await plannerTab(right, "Links");
   const createLeft = left.getByRole("form", { name: "Create story flow", exact: true });
   const createRight = right.getByRole("form", { name: "Create story flow", exact: true });
-  await createLeft.getByLabel("Flow target").selectOption("race-b");
-  await createRight.getByLabel("Flow target").selectOption("race-d");
+  await choosePlannerOption(createLeft, "Flow target", "race-b");
+  await choosePlannerOption(createRight, "Flow target", "race-d");
   await createRight.getByLabel("Flow label").fill("Keep this draft");
   await createLeft.getByRole("button", { name: "Create flow", exact: true }).click();
   await left.getByText("Flow created.", { exact: true }).waitFor();

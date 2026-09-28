@@ -236,7 +236,27 @@ export function registerCompactTests(enabled: boolean, fixture: () => Fixture): 
         await dialog.getByRole("button", { name: text.add, exact: true }).click();
         await dialog.getByRole("button", { name: text.close, exact: true }).click();
         assert.equal(await dialog.getByLabel(text.search, { exact: true }).inputValue(), "dagger");
+        // Native close is queued. Deliver it after the user focuses a different
+        // control so cleanup must retain that focus instead of stealing it back.
+        await dialog.evaluate((node) => {
+          node.addEventListener(
+            "close",
+            (event) => {
+              event.stopImmediatePropagation();
+              node.setAttribute("data-test-close-pending", "");
+              const release = (event: FocusEvent) => {
+                if (!(event.target instanceof HTMLElement) || event.target.id !== "dnd-tab-sheet")
+                  return;
+                document.removeEventListener("focusin", release);
+                node.dispatchEvent(new Event("close"));
+              };
+              document.addEventListener("focusin", release);
+            },
+            { once: true, capture: true },
+          );
+        });
         await dialog.getByRole("button", { name: text.close, exact: true }).click();
+        await sheet.locator("dialog[data-test-close-pending]").waitFor({ state: "attached" });
         for (const width of [1360, 1024, 390, 320]) {
           await page.setViewportSize({ width, height: 1000 });
           await page.evaluate((width) => {
@@ -275,6 +295,7 @@ export function registerCompactTests(enabled: boolean, fixture: () => Fixture): 
             JSON.stringify({ width, locale, labels }),
           );
           await sheet.locator("#dnd-tab-sheet").focus();
+          await sheet.locator("dialog.character-dialog").waitFor({ state: "detached" });
           await page.keyboard.press(
             (await navigation.getAttribute("aria-orientation")) === "vertical"
               ? "ArrowDown"
@@ -283,6 +304,12 @@ export function registerCompactTests(enabled: boolean, fixture: () => Fixture): 
           assert.equal(
             await sheet.locator("#dnd-tab-combat").getAttribute("aria-selected"),
             "true",
+            JSON.stringify({
+              locale,
+              width,
+              focus: await page.evaluate(() => document.activeElement?.outerHTML),
+              orientation: await navigation.getAttribute("aria-orientation"),
+            }),
           );
           assert.equal(
             await sheet

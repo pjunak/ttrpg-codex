@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { Locator, Page } from "playwright";
+import type { Page } from "playwright";
 import type { FixtureRecord, InstalledFixture } from "./fixture-types.mts";
 import { required } from "./fixture-types.mts";
 import { jsonResponse, installReviewedPackage } from "./installed-graph-fixture.mts";
 import { dmToolsPermissions } from "./installed-dm-fixture.mts";
 import { replacementImportPackage } from "./installed-import-fixture.mts";
 import {
+  choosePlannerOption as choose,
   closePlannerEditor,
   editPlannerCard,
   plannerTab,
@@ -119,24 +120,6 @@ async function fixtureData({ admin, csrf }: Fixture, prefix: string) {
     }),
   ]);
   return { a, b, c, parent, flow, reference, consequence, note, transact, records };
-}
-async function choose(root: Page | Locator, name: string, value: string) {
-  const select = root.getByLabel(name, { exact: true }).and(root.locator("select"));
-  if (await select.isVisible()) {
-    await select.selectOption(value);
-    return;
-  }
-  const target = await select.evaluate((node, value) => {
-    const options = [...(node as HTMLSelectElement).options],
-      option = options.find((option) => option.value === value);
-    if (!option) throw new Error("Missing fixture choice: " + value);
-    return {
-      label: option.label,
-      duplicate: options.filter((candidate) => candidate.label === option.label).indexOf(option),
-    };
-  }, value);
-  await root.getByRole("combobox", { name, exact: true }).fill(target.label);
-  await root.getByRole("option", { name: target.label, exact: true }).nth(target.duplicate).click();
 }
 async function edit(page: Page, id: string) {
   await page.goto(`/#/addons/dm-tools/planner?item=${id}`);

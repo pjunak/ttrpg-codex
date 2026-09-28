@@ -4,7 +4,7 @@
     {
       "id": "dm-tools",
       "repository": "pjunak/addon-dm-tools",
-      "revision": "d6ed281b2a62b49db20cce45d16e2f8c1bcccd98"
+      "revision": "2a48d5b84c7244ac0ecd1ea7aa9a7926b707e374"
     },
     {
       "id": "dnd-engine",
@@ -14,7 +14,7 @@
     {
       "id": "dnd-sheets",
       "repository": "pjunak/addon-dnd-character-sheets",
-      "revision": "c682e88143efc0bb8f199fce1cca1cf295a7fc12"
+      "revision": "8d54166715f5d0d6bc8bd223ae6dc3abed5bec5e"
     },
     {
       "id": "dnd-2024-compendium",
