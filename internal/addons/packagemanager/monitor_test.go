@@ -174,6 +174,9 @@ func TestWorkerMonitoringRecoversOnlyAffectedCohort(t *testing.T) {
 	if snapshot.Runtime == nil || snapshot.Runtime.State != workersupervisor.StateFailed || snapshot.Runtime.Identity.Version != "1.0.0" || !strings.Contains(snapshot.Runtime.LastError, "attempt 1") {
 		t.Fatal("failure not visible", snapshot)
 	}
+	if !strings.HasPrefix(snapshot.Runtime.LastError, workersupervisor.CodeProcessExited+":") {
+		t.Fatal("worker without a failure category lost the process-exit fallback", snapshot.Runtime)
+	}
 	*now = now.Add(time.Second)
 	tickWorkers(t, manager)
 	afterGraph, _ := manager.BrowserGraph(ctx)

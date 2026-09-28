@@ -267,7 +267,7 @@ func (manager *Manager) checkWorkers(ctx context.Context) error {
 		var failure error
 		snapshot := active.runtime.Snapshot()
 		if snapshot.State != workersupervisor.StateReady {
-			failure = &workersupervisor.LifecycleError{Code: workersupervisor.CodeProcessExited}
+			failure = &workersupervisor.LifecycleError{Code: workersupervisor.SafeFailureCode(snapshot.LastError)}
 		} else if healthRuntime, ok := active.runtime.(workerHealthRuntime); ok && !now.Before(watch.nextHealth) {
 			healthCtx, cancel := context.WithTimeout(ctx, manager.monitoring.config.HealthTimeout)
 			health, healthErr := healthRuntime.Health(healthCtx)

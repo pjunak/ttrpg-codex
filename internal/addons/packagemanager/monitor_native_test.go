@@ -2,9 +2,11 @@ package packagemanager
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -147,6 +149,49 @@ func TestWorkerMonitoringKeepsHealthyWorkerDuringDomainSaturation(t *testing.T) 
 	}
 }
 
+func TestWorkerMonitoringRetainsNativeTransportFailure(t *testing.T) {
+	manager, _, now := monitoringFixture(t)
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	factory := &nativeMonitorFactory{executable: executable, directory: t.TempDir(), firstMode: "transport"}
+	manager.runtimeFactory = factory
+	installUninstallFixture(t, manager, packageSpec{ID: "native-worker", Version: "1.0.0", Worker: true})
+	first := factory.instances[0]
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, callErr := first.Call(ctx, "fixture/break", map[string]any{}, &workerrpc.Meta{
+		RequestID: "broken-request", CorrelationID: "broken-correlation",
+		Generation: first.Snapshot().Identity.Generation, Deadline: time.Now().Add(5 * time.Second),
+	})
+	if callErr == nil || ctx.Err() != nil {
+		t.Fatal("malformed frame did not fail the native transport", callErr)
+	}
+	if err := first.Wait(ctx); err == nil || ctx.Err() != nil {
+		t.Fatal("failed native worker was not reaped", err)
+	}
+	if snapshot := first.Snapshot(); workersupervisor.SafeFailureCode(snapshot.LastError) != workersupervisor.CodeTransportFailed {
+		t.Fatalf("supervisor lost transport cause: %+v", snapshot)
+	}
+	tickWorkers(t, manager)
+	snapshot, err := manager.Snapshot(context.Background(), "native-worker", 20)
+	if err != nil || snapshot.Runtime == nil {
+		t.Fatal("missing failure snapshot", err)
+	}
+	if !strings.HasPrefix(snapshot.Runtime.LastError, workersupervisor.CodeTransportFailed+":") {
+		t.Fatalf("monitor replaced the transport cause: %+v", snapshot.Runtime)
+	}
+	if strings.Contains(snapshot.Runtime.LastError, "not-a-number") || snapshot.Runtime.StderrTail != "" {
+		t.Fatal("monitor exposed raw transport data", snapshot.Runtime)
+	}
+	*now = now.Add(time.Second)
+	tickWorkers(t, manager)
+	if len(factory.instances) != 2 || factory.instances[1].Snapshot().State != workersupervisor.StateReady {
+		t.Fatal("diagnostics changed automatic recovery")
+	}
+}
+
 func TestMonitoredNativeWorkerProcess(t *testing.T) {
 	mode := os.Getenv("CODEX_MONITOR_WORKER_TEST")
 	if mode == "" {
@@ -157,6 +202,11 @@ func TestMonitoredNativeWorkerProcess(t *testing.T) {
 		Reader: os.Stdin, Writer: os.Stdout,
 		HandlerFactory: workerrpc.NativeWorkerHandlerFactoryFunc(func(workerrpc.NativeWorkerContext) (workerrpc.RequestHandler, error) {
 			return workerrpc.RequestHandlerFunc(func(ctx context.Context, request workerrpc.Request) (any, error) {
+				if mode == "transport" && request.Method == "fixture/break" {
+					_, _ = fmt.Fprint(os.Stdout, "Content-Length: not-a-number\r\n\r\n")
+					<-ctx.Done()
+					return nil, ctx.Err()
+				}
 				if mode != "saturated" || request.Method != "fixture/block" {
 					return nil, nil
 				}

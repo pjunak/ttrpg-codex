@@ -171,6 +171,10 @@ calls fail with their original outcome; monitoring never replays
 a domain request, import or save. The coordinator records bounded failure
 categories and detached redacted health/exit/request snapshots; Settings shows
 these alongside tab-local browser diagnostics.
+When the supervisor has already failed, the coordinator retains supported
+monitoring categories, including `TRANSPORT_FAILED`, instead of replacing them
+with `PROCESS_EXITED`. Missing or unsupported monitoring categories use that
+fallback; raw failure text remains excluded.
 
 Automatic cohort transitions have a two-minute deadline. Host shutdown cancels
 and joins the monitor before stopping runtimes, including an in-flight health
