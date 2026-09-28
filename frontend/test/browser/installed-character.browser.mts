@@ -6,7 +6,7 @@ import {
 } from "./installed-character-navigation-fixture.mts";
 import assert from "node:assert/strict";
 import { before, after, test } from "node:test";
-import { readFile, writeFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { readFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { resolve, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile, spawn, type ChildProcessByStdio } from "node:child_process";
@@ -102,6 +102,7 @@ import {
 import { registerCompactTests } from "./installed-character-compact-fixture.mts";
 import { registerCompactFrameTests } from "./installed-character-frame-fixture.mts";
 import { registerEquipmentCatalogTests } from "./installed-character-equipment-catalog-fixture.mts";
+import { installedHostDiagnostics } from "./installed-host-diagnostics.mts";
 import {
   registerConditionTests,
   verifyFrozenConditions,
@@ -120,97 +121,80 @@ let directory: string,
   admin: APIRequestContext,
   browser: Browser,
   csrf: string,
-  origin: string,
-  hostOutput = "";
+  origin: string;
+const diagnostics = installedHostDiagnostics(output, () => host);
 before(async () => {
   if (!enabled) return;
-  await mkdir(output, { recursive: true });
-  directory = await mkdtemp(resolve(output, "host-"));
-  const binary = resolve(directory, process.platform === "win32" ? "codex.exe" : "codex");
-  await promisify(execFile)("go", ["build", "-o", binary, "./cmd/codex"], {
-    cwd: root,
-    windowsHide: true,
-    timeout: 120000,
-  });
-  const probe = createServer();
-  probe.listen(0, "127.0.0.1");
-  await once(probe, "listening");
-  const port = (probe.address() as AddressInfo).port;
-  await new Promise((done) => probe.close(done));
-  origin = `http://127.0.0.1:${port}`;
-  host = spawn(
-    binary,
-    [
-      "-listen",
-      `127.0.0.1:${port}`,
-      "-data-dir",
-      resolve(directory, "data"),
-      "-web-dir",
-      resolve(root, "frontend/dist"),
-    ],
-    {
+  await diagnostics.run("start-host", async () => {
+    await mkdir(output, { recursive: true });
+    directory = await mkdtemp(resolve(output, "host-"));
+    const binary = resolve(directory, process.platform === "win32" ? "codex.exe" : "codex");
+    await promisify(execFile)("go", ["build", "-o", binary, "./cmd/codex"], {
       cwd: root,
       windowsHide: true,
-      env: {
-        ...process.env,
-        CODEX_DM_PASSWORD: "local-character-dm",
-        CODEX_PLAYER_PASSWORD: "local-character-player",
+      timeout: 120000,
+    });
+    const probe = createServer();
+    probe.listen(0, "127.0.0.1");
+    await once(probe, "listening");
+    const port = (probe.address() as AddressInfo).port;
+    await new Promise((done) => probe.close(done));
+    origin = `http://127.0.0.1:${port}`;
+    host = spawn(
+      binary,
+      [
+        "-listen",
+        `127.0.0.1:${port}`,
+        "-data-dir",
+        resolve(directory, "data"),
+        "-web-dir",
+        resolve(root, "frontend/dist"),
+      ],
+      {
+        cwd: root,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          CODEX_DM_PASSWORD: "local-character-dm",
+          CODEX_PLAYER_PASSWORD: "local-character-player",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
       },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  host.stdout.on("data", (chunk) => {
-    hostOutput += chunk;
-  });
-  host.stderr.on("data", (chunk) => {
-    hostOutput += chunk;
-  });
-  admin = await request.newContext({ baseURL: origin });
-  let ready = false;
-  for (let i = 0; i < 100; i++) {
-    try {
-      if ((await admin.get("/api/health")).ok()) {
-        ready = true;
-        break;
+    );
+    host.stdout.on("data", (chunk) => {
+      diagnostics.append(chunk);
+    });
+    host.stderr.on("data", (chunk) => {
+      diagnostics.append(chunk);
+    });
+    admin = await request.newContext({ baseURL: origin });
+    let ready = false;
+    for (let i = 0; i < 100; i++) {
+      try {
+        if ((await admin.get("/api/health")).ok()) {
+          ready = true;
+          break;
+        }
+      } catch {
+        /* Local fixture starting. */
       }
-    } catch {
-      /* Local fixture starting. */
+      await sleep(100);
     }
-    await sleep(100);
-  }
-  assert.ok(ready, hostOutput);
-  csrf = (
-    await jsonResponse(await admin.post("/api/login", { data: { password: "local-character-dm" } }))
-  ).csrfToken;
+    assert.ok(ready, "Character fixture host did not become ready");
+  });
+  csrf = await diagnostics.run("login", async (evidence) => {
+    const response = await admin.post("/api/login", { data: { password: "local-character-dm" } });
+    evidence.status = response.status();
+    return (await jsonResponse(response)).csrfToken;
+  });
   const ids = ["dnd-engine", "dnd-sheets", "dnd-2024-compendium"];
   for (let index = 0; index < paths.length; index++)
-    await installReviewedPackage(
-      admin,
-      csrf,
-      ids[index]!,
-      await readFile(resolve(paths[index]!)),
-      [],
+    await diagnostics.run(`install-${ids[index]!}`, async () =>
+      installReviewedPackage(admin, csrf, ids[index]!, await readFile(resolve(paths[index]!)), []),
     );
-  try {
-    await enableAllRuleSources(admin, csrf);
-  } catch (cause) {
-    await writeFile(
-      resolve(output, "startup-failure.json"),
-      JSON.stringify(
-        {
-          stage: "enable-rule-sources",
-          hostExitCode: host.exitCode,
-          hostSignal: host.signalCode,
-          hostOutput: hostOutput.slice(-16000),
-        },
-        null,
-        2,
-      ),
-    );
-    throw cause;
-  }
-  await jsonResponse(
-    await admin.post("/api/campaign/transactions", {
+  await diagnostics.run("enable-rule-sources", () => enableAllRuleSources(admin, csrf));
+  await diagnostics.run("seed-character", async (evidence) => {
+    const response = await admin.post("/api/campaign/transactions", {
       headers: { "X-Codex-CSRF": csrf },
       data: {
         contractVersion: "campaign-mutation.v1",
@@ -224,9 +208,11 @@ before(async () => {
           },
         ],
       },
-    }),
-  );
-  browser = await chromium.launch({ headless: true });
+    });
+    evidence.status = response.status();
+    return jsonResponse(response);
+  });
+  browser = await diagnostics.run("launch-browser", () => chromium.launch({ headless: true }));
 });
 after(async () => {
   await browser?.close();
@@ -243,54 +229,62 @@ after(async () => {
   }
 });
 async function call(method: string, params: Record<string, unknown>) {
-  const state = await jsonResponse(await admin.get("/api/admin/addons/dnd-sheets"));
+  const state = await diagnostics.run(
+    "read-generation",
+    async (evidence) => {
+      const response = await admin.get("/api/admin/addons/dnd-sheets");
+      evidence.status = response.status();
+      return jsonResponse(response);
+    },
+    method,
+  );
   const base = `/api/addons/dnd-sheets/generations/${state.state.activeGenerationId}/services`,
     headers = { "X-Codex-CSRF": csrf };
-  const connection = await jsonResponse(
-    await admin.post(`${base}/connect`, {
-      headers,
-      data: {
-        contractVersion: "addon-service-connect.v1",
-        contract: "dnd5e.character",
-        range: "^2.0.0",
-        cardinality: "many",
-        includeOwn: true,
-      },
-    }),
-  );
-  const target = connection.providers.find(
-    (provider: { addonId: string }) => provider.addonId === "dnd-sheets",
-  );
-  assert.ok(target);
-  const response = await admin.post(`${base}/call`, {
-    headers,
-    data: {
-      contractVersion: "addon-service-call.v1",
-      contract: "dnd5e.character",
-      providerAddonId: target.addonId,
-      providerVersion: target.contractVersion,
-      providerGeneration: target.generation,
-      bindingRevision: target.bindingRevision,
-      method,
-      params: { contractVersion: "character.v2", key: "new-hero", ...params },
-      deadlineMs: 30000,
-    },
-  });
-  if (!response.ok())
-    await writeFile(
-      resolve(output, "service-failure.json"),
-      JSON.stringify(
-        {
-          method,
-          key: params["key"] ?? "new-hero",
-          status: response.status(),
-          hostOutput: hostOutput.slice(-16000),
+  const target = await diagnostics.run(
+    "connect-service",
+    async (evidence) => {
+      const response = await admin.post(`${base}/connect`, {
+        headers,
+        data: {
+          contractVersion: "addon-service-connect.v1",
+          contract: "dnd5e.character",
+          range: "^2.0.0",
+          cardinality: "many",
+          includeOwn: true,
         },
-        null,
-        2,
-      ),
-    );
-  return (await jsonResponse(response)).result;
+      });
+      evidence.status = response.status();
+      const connection = await jsonResponse(response);
+      const target = connection.providers.find(
+        (provider: { addonId: string }) => provider.addonId === "dnd-sheets",
+      );
+      assert.ok(target);
+      return target;
+    },
+    method,
+  );
+  return diagnostics.run(
+    "call-service",
+    async (evidence) => {
+      const response = await admin.post(`${base}/call`, {
+        headers,
+        data: {
+          contractVersion: "addon-service-call.v1",
+          contract: "dnd5e.character",
+          providerAddonId: target.addonId,
+          providerVersion: target.contractVersion,
+          providerGeneration: target.generation,
+          bindingRevision: target.bindingRevision,
+          method,
+          params: { contractVersion: "character.v2", key: "new-hero", ...params },
+          deadlineMs: 30000,
+        },
+      });
+      evidence.status = response.status();
+      return (await jsonResponse(response)).result;
+    },
+    method,
+  );
 }
 
 registerInspirationSchemaTest(enabled, () => ({ admin, browser, csrf, origin, output, call }));

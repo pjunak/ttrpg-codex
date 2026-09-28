@@ -4412,3 +4412,107 @@ The cleanup estimate remains **94% overall / 97% implemented**, with the same
 uncertainty ranges and original **33/40** closed-row count. These completed
 follow-ups do not close historical attribution or operational acceptance.
 No push, publication, deployment or live-data change was made.
+
+## Failed recovery starts and retained fixture evidence
+
+September 28, 2026 follow-up: native process regressions reproduce a second
+diagnostic loss in the host recovery coordinator. A candidate that failed
+`Start` never entered the live runtime map, which was the only place the monitor
+looked for its snapshot. Boot recovery therefore showed no process details;
+automatic retry could show the previous failed worker's PID, health and exit.
+The caller also wrapped every startup failure as `STARTUP_FAILED`, hiding the
+supervisor's specific health or timeout category.
+
+Recovery now supplies the candidate directly when recording its failure, before
+cleanup. It retains the sanitized process snapshot and supported typed category;
+untyped startup failures keep the safe `STARTUP_FAILED` fallback. No candidate
+is made live to obtain its diagnostics. Retry timing, exhaustion, cancellation,
+service authority and durable generation selection retain their existing rules.
+The runtime repair is committed as `597e5f2`.
+
+The new native cases cover initial recovery with rejected health, a failed retry
+with rejected health, and a failed retry with initial-health timeout. All three
+lose process evidence and categories against the preceding implementation. They
+pass after the repair, retain the failed candidate's actual PID/exit/transitions,
+omit raw stderr and transition messages, consume one failure budget entry, respect
+backoff and recover successfully on the next healthy attempt. Existing monitoring
+tests also cover generic startup failure, exhausted retries, changed generations,
+failed reinspection and cancellation. Before/after and complete package-manager/
+supervisor race results are retained in `frontend/test-results/recovery-startup-*`
+and `recovery-evidence-race.log`.
+
+The character acceptance fixture previously overwrote `service-failure.json` on
+each rejected service response, including intentional rejection tests. Transport,
+generation-lookup and connection failures escaped capture, most setup phases were
+uncovered, and a diagnostic write error could replace the original failure.
+Its accumulated host output was bounded only when written to a file.
+
+A shared fixture helper now keeps a 16,000-character tail in memory and writes
+separate `host-failure-*.json` artifacts grouped by fixture run. Setup and service
+stages include process identity/exit state, method and HTTP status when available.
+Transport exceptions retain evidence without a response; saving an artifact
+cannot replace the original exception. The helper does not serialize caught
+exceptions, record keys, credentials or request/response bodies. The retained
+tail is raw output from disposable local acceptance data. Four helper tests cover
+overlapping HTTP/transport failures, independent fixture runs, bounded output/exit state,
+artifact-write failure and successful actions. Expected rejection tests also
+produce artifacts, so artifact presence alone does not mean a suite failed.
+
+A controlled installed-fixture setup failure confirms the actual wiring: an
+absent engine ZIP fails in `install-dnd-engine`, retains a separate bounded host
+artifact, cleans up its disposable host and preserves the original `ENOENT`
+failure. The intentional failed run and passing evidence check are retained as
+`recovery-evidence-setup-injected.log` and
+`recovery-evidence-setup-verification.json` under `frontend/test-results/`.
+
+The installed compatibility workflow continues to publish only package provenance.
+Raw local diagnostics and traces can include private add-on content and are not
+added to public CI artifacts by this change.
+
+The expanded Windows host check with all four pinned packages enabled passes
+75 tool tests and 420 frontend unit tests. Its browser phase finishes with
+**522 passed, one failed and one cancelled, zero skipped**, out of 524 cases.
+It does not reach the subsequent Go gate and is not a passing full acceptance
+run. Evidence is retained in `recovery-evidence-host-check.log`.
+
+The English whole-multiclass provider session reaches its final acceptance
+checkpoint at 120,085 ms, just beyond its unchanged 120,000 ms test deadline.
+The retained browser trace contains successful requests, with the slowest service
+response around 2.7 seconds. This is a duration overrun, not evidence attributing
+the earlier T53 availability loss. A focused replay repeats the English deadline
+overrun; Czech completes at about 112 seconds. Profiling the repeated calculations
+and session cost remains necessary; no timeout or assertion was relaxed.
+
+The other failure is `net::ERR_NO_BUFFER_SPACE` before navigation into an isolated
+DM record panel. Login succeeds; the page request has no HTTP response. It passes
+in the focused replay. Windows System event **Tcpip 4231** records exhaustion of
+the global TCP ephemeral-port space at **18:00:53.545 UTC**, exactly matching the
+trace's failed navigation. Event 4266 later records UDP port exhaustion. The
+retained event summaries are in `recovery-evidence-windows-port-events.json`.
+Post-run connection/memory counts do not identify what caused the transient
+pressure, and no common cause with the multiclass overrun is established. The
+replay has **two passed, one cancelled, zero skipped** cases; see
+`recovery-evidence-failure-replay.log`.
+
+A standard `npm run check` without optional ZIP inputs also passes its static,
+75 tool and 420 frontend unit checks, then reports **290 browser passes, one
+failure and 198 optional skips**. The Czech-phone schema-upgrade case hits the
+same Chromium pre-navigation error. Its unchanged focused replay passes 1/1;
+see `recovery-evidence-core-check.log` and `recovery-evidence-phone-replay.log`.
+Neither full browser gate is reported green. The full Go test and standard race
+gate is run separately and passes (`recovery-evidence-go-check.log`), in addition
+to the complete package-manager/supervisor race run above. All 33 unchanged
+historical release gates pass. No machine-wide networking setting, timeout or
+assertion was changed to obtain a pass.
+
+The source base is host `12c2a32` plus this runtime/fixture patch. All four
+companion checkouts remain clean at their existing pins and their ZIP hashes
+match the preceding accepted package table. The owner source checks are reused;
+there is no companion or public-contract change. The new full-suite failures and
+their traces remain available locally. Linux CI and live-site validation were
+not performed.
+
+These changes improve retained evidence; they do not attribute the historical
+T57/T60/T61 startup timeouts, the T18-DM startup timeout or the T53 rules loss.
+Those original follow-ups and the site acceptance tasks remain open. The estimate
+remains **94% overall / 97% implemented**, with **33/40** original rows closed.

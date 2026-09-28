@@ -123,6 +123,18 @@ passing runs, and open a trace with `npx playwright show-trace <path-to-trace.zi
 Trace capture covers synthetic shared-control fixtures, not private installed
 package contents.
 
+The installed-character fixture also saves separate
+`frontend/test-results/installed-character/host-failure-*.json` records for
+setup and service failures. Each records its run, stage, method and HTTP status
+when available, process identity/exit state, and the latest 16,000 characters
+of disposable-host output. Transport exceptions are captured even when no HTTP
+response arrives. The helper does not serialize the caught exception or
+request/response bodies; artifact-write failure preserves the original error.
+Expected rejection tests produce records too: correlate their stage and time
+with the test result before treating them as failures. These ignored artifacts
+include raw output from local synthetic acceptance hosts; do not collect live-site
+data through this fixture helper.
+
 ### Companion compatibility
 
 The compatibility workflow checks out the exact source SHAs in

@@ -58,6 +58,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T07 — Measured, separately reviewed log retention and replay checkpoints**~~ — `31ebabb`; [operator procedure](SELF_HOSTING.md#reviewed-offline-storage-maintenance).
 - [x] ~~**T11 — Bounded, redacted worker and browser diagnostics**~~ — `9012bf6`.
 - [x] ~~**T11-CAUSE — Preserve worker failure categories through recovery**~~ — `d1f5a72`; redacted transport cause, process-exit fallback and native restart regression; [evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#worker-failure-categories-and-planner-startup-recovery).
+- [x] ~~**T11-STARTUP — Keep failed recovery workers' own process evidence**~~ — `597e5f2`; retain the new PID/exit and health/timeout category before cleanup, with native backoff and redaction regressions; [evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#failed-recovery-starts-and-retained-fixture-evidence).
 - [x] ~~**T14-HOST — Build/inspect companion artifacts before installed acceptance**~~ — `20c719c`.
 - [x] ~~**T19 — Atomic reviewed campaign bundles and receipt reconciliation**~~ — `94544bc`; [contract and validation](decisions/0001-campaign-bundle-imports.md).
 - [x] ~~**T29 — Measured campaign/asset compression and reproducible profiling**~~ — `8d3652a`; [results and measurement limits](rewrite/PERFORMANCE.md).
@@ -98,6 +99,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T57-STARTUP-HOST — Allow sign-out during stalled add-on activation**~~ — `83647ab`; cancel partial generations immediately, reject stale activation and dispose late resources once; [controlled before/after evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancellable-startup-and-worker-health-admission).
 - [x] ~~**T18-HEALTH-HOST — Keep healthy workers available during domain saturation**~~ — `66f8cbd`; bounded, separate health/shutdown admission in the shared Go SDK, with blocked-output and native-process regressions; [cause, package evidence and delivery boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancellable-startup-and-worker-health-admission).
 - [x] ~~**T57-CAMPAIGN-HOST — Release obsolete campaign reads during sign-out**~~ — `6f6d67a`; cancel old authority requests and queued work, reject late bodies/errors and preserve serialized current reads; [controlled failure and repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#campaign-read-cancellation-and-equipment-source-coverage).
+- [x] ~~**T57-EVIDENCE — Preserve separate character setup and service failures**~~ — bounded host output, stage/status/process records, transport capture and original errors survive artifact-write failure; [regressions and controlled setup failure](rewrite/HOST_CLEANUP_ACCEPTANCE.md#failed-recovery-starts-and-retained-fixture-evidence).
 - [x] ~~**T63-CATALOG-HOST — Accept source folders and seven-book wearable placements**~~ — EN/CS Compact/Classic filtering, keyboard search, cancel, enlarged phone controls and exact saved placement reload; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#campaign-read-cancellation-and-equipment-source-coverage).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
@@ -115,10 +117,14 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   T57 timed out before the timeline mounted; T60 hit one phone-settings timeout;
   T61 timed out fetching rules policy during installed-fixture setup.
   Subsequent runs passed; no shared cause is established. Retain bounded
-  timeline/settings page captures and character-fixture host diagnostics.
+  timeline/settings captures and the separate character-fixture failure records.
   Preserve deadlines and assertions; [T61 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
   The distinct stalled-activation and campaign-read sign-out defects are fixed
   above; they do not establish the cause of these historical timeouts.
+  September 28 also retained Chromium `ERR_NO_BUFFER_SPACE` failures before DM
+  panel/schema-review navigation. The first exactly matches Windows TCP port
+  exhaustion; focused replays pass, but the source of transient pressure remains
+  unknown. [Current failure evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#failed-recovery-starts-and-retained-fixture-evidence).
 
 ### Lifecycle, maintenance and operations
 
@@ -259,10 +265,13 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   handles, restoration and advancement; pure, service and exact-package evidence
   is retained. Narrative adjudication remains C10, not exhaustive correctness.
   Investigate the one unexplained rules-availability loss during T53 validation;
-  character setup captures provider diagnostics if it recurs. T54's 13-case
+  separate setup/service failure records are now retained. T54's 13-case
   diagnostic replay passed without reproducing it; no cause is established.
   The host SDK now fixes independently reproduced health failure under domain
   saturation, but the original T53 run lacks evidence attributing it to that cause.
+  Also profile the repeatable English whole-session deadline overrun: the
+  September 28 expanded run and focused replay exceed the unchanged 120 seconds;
+  recorded browser requests succeed. [Timing and replay evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#failed-recovery-starts-and-retained-fixture-evidence).
 
 Engine fixes must expose results/guidance through the versioned contract; no
 edition rules in Sheets controls, provider-ID special cases or combat resolver.
