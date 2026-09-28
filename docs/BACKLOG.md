@@ -9,7 +9,7 @@ references; their detailed findings and the unchanged accepted release gates liv
 **Progress estimate, September 28:** about **96% implemented**, or **93%**
 including remaining workflow, release and site acceptance. These are approximate
 effort estimates, with plausible ranges of 92–97% and 89–95%, respectively.
-[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-startup-and-worker-repairs).
+[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-compact-frame-acceptance).
 **Original rows closed:** 33 of 40 (83%); open workflow tasks contain completed
 slices. Compact character and large planning sessions are accepted; smaller UI
 refinements, unexplained failures and human/device checks remain visible below.
@@ -314,14 +314,13 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T63-TABS-SHEETS — Keep compact tabs readable with enlarged phone text**~~ — `c682e88`; natural-width wrapping and rendered keyboard orientation reuse the host tabs; old package fails the regression, rebuilt package passes both locales and four widths; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation).
 - [x] ~~**T18-SHEETS — Accept a whole build-and-play session on the compact workspace**~~ — shared Builder advancement, amended grants, source/provider recovery, rest, reload, import cancellation and provider-free output preserve current authored state; [267/267 installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation). Human/device checks remain separate below.
 - [x] ~~**T18-FOCUS-SHEETS — Preserve new focus through delayed dialog cleanup**~~ — `8d54166`; a queued Backpack close no longer steals focus from the next selected tab; controlled EN/CS installed regression and owner gates pass; [cause and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#large-planning-sessions-and-shared-target-controls).
+- [x] ~~**T63-SHEETS — Size the compact frame before first tab visits**~~ — `cc27a8b`, `418300b`; temporary inert samples use shared controls, preserve focus/scroll/data and leave one editable panel; desktop, Builder, enlarged-text and phone regression evidence in [frame acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-frame-sizing-before-first-visits).
 
 ### Remaining work
 
-- [ ] **T63-SHEETS / P2 — Refine the compact frame in smaller follow-ups.**
-  Compact follows the final standalone mockup and both layouts share authored
-  conditions. Resolve the unvisited-tab sizing boundary while retaining the
-  accepted working layout and session behavior; see the
-  [remaining work](#t63-character-sheet-design).
+No confirmed implementation gaps remain in this slice. Human/device acceptance
+remains open below; future visual refinements should name a concrete defect or
+requested change rather than retaining an unbounded cleanup item.
 
 <a id="t63-character-sheet-design"></a>
 
@@ -346,19 +345,13 @@ The subsequent [condition slice](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-con
 adds optional authored state through the existing reviewed compatible upgrade;
 all six preceding schema generations retain their JSON and revisions.
 
-The maintainer accepts this layout as a step forward and wants remaining UI
-details finished in smaller steps. These refinements do not block unrelated
-audit fixes. Remaining work:
-
-1. **Frame acceptance.** Compact retains the largest measured tab at the current
-   width, grows for new/expanded content and uses normal flow on narrow screens.
-   Predicting an unvisited tab's full height remains different from the mockup's
-   duplicate hidden sizing forms. Resolve that remaining design boundary without
-   clipping content, imposing inner tab scrollers or duplicating editable forms.
-2. **Human/device acceptance.** Compact T18 sessions now pass through the real
-   Builder, current authored state and provider failure/recovery. Physical touch,
-   spoken screen-reader and printer checks remain unperformed and separate from
-   the accepted browser/PDF evidence.
+The maintainer accepts this layout as a step forward and wants further visual
+refinements handled in small, concrete steps. Frame acceptance is complete:
+unvisited tabs and current Builder sections are measured with disposable inert
+samples, retaining one editable panel, unclipped content and natural phone flow.
+**Human/device acceptance remains open:** physical touch, spoken screen-reader
+and printer checks remain unperformed and separate from the accepted compact
+sessions, installed browser checks and PDF evidence.
 
 Every new state-changing slice must retain reload, disjoint/conflicting edits,
 exact retry, session expiry and provider/generation recovery. Keep host-owned
@@ -373,7 +366,7 @@ Record exact source pins and inspected package hashes before closing acceptance.
 | Order | Work | Exit evidence |
 | --- | --- | --- |
 | 1 | Reliability: investigate planner/host startup failures and the T53 Engine availability loss. | Accepted character/planning sessions stay covered; concrete failures have cause/fix evidence, not just successful retries. |
-| 2 | Continue smaller T63 frame refinements and the remaining source-fact review. | Shared controls, saved state, focus and responsive layouts remain intact; missing facts have owner/provenance evidence. |
+| 2 | Finish the remaining T63 source-fact review. | Missing facts have owner/provenance evidence; accepted frame and session behavior remains covered. |
 | 3 | Final integration and authorized delivery T15–T17; retain completed T02 coverage. | All four inspected packages pass without suite skips; exact served/installed builds, site data/retention, human/device checks and rollback assets are recorded. |
 
 T14 suffixes divide the existing generated-artifact task by repository; T18

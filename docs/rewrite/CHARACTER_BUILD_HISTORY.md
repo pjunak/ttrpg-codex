@@ -10,11 +10,14 @@ character heading is not repeated. When
 space is too narrow relative to text size, the vertical navigation stacks above
 the sheet so enlarged text and recovery controls remain readable.
 
-Remaining [T63 work](../BACKLOG.md#t63-character-sheet-design) includes frame
-and final acceptance. The current Compact frame retains the largest
-measured tab height at a given width, growing for new/expanded content. It does
-not render hidden duplicate forms to predict unvisited content, and narrow
-screens use normal document flow.
+The Compact desktop frame measures every tab and current Builder section before
+first visits, reusing that height during navigation and growing for expanded
+content. Width, font and saved-data changes refresh the measurements. Temporary
+inert samples borrow the same host controls and are removed immediately; they
+cannot edit saved data or resolve rule links. The visible panel stays mounted
+during resize, preserving focus and native input state. Narrow screens use normal
+document flow. [Human/device acceptance](../BACKLOG.md#t63-character-sheet-design)
+remains separate from the installed browser evidence.
 
 Both Combat layouts share saved condition controls, source-defined levels and
 condition details. Speed includes supported restrictions; the separate D20

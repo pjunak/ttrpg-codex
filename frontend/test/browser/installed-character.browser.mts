@@ -100,6 +100,7 @@ import {
   registerSkillGrantTests,
 } from "./installed-character-builder-fixture.mts";
 import { registerCompactTests } from "./installed-character-compact-fixture.mts";
+import { registerCompactFrameTests } from "./installed-character-frame-fixture.mts";
 import {
   registerConditionTests,
   verifyFrozenConditions,
@@ -293,6 +294,7 @@ async function call(method: string, params: Record<string, unknown>) {
 
 registerInspirationSchemaTest(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerCompactTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerCompactFrameTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerConditionTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 
 void test(

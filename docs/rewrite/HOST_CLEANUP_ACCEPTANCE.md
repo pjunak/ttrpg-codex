@@ -4132,3 +4132,91 @@ refinements, and authorized site/device acceptance. Windows amd64 native workers
 execute locally; Linux workers are cross-built and inspected, with execution left
 to CI. Physical touch, spoken screen-reader and printer acceptance remain
 unperformed. No push, publication, deployment or live-data change was performed.
+
+## Compact frame sizing before first visits
+
+September 28 follow-up closes the T63-SHEETS frame boundary in Sheets `cc27a8b`
+and `418300b`.
+The preceding package retained only visited heights. With the same saved Fighter
+and 18 named containers, the first Combat visit grew the desktop frame from
+913 to 1,248 CSS pixels in both English and Czech. The new installed regression
+fails that preceding package and passes the repair: every outer tab and current
+Builder section fits the initial 1,248-pixel frame at a 1,360-pixel viewport.
+
+Sheets now shares its existing tab factories with a disposable measurement
+surface. Each sample is inert, hidden from accessibility and interaction, and
+removed before moving to the next sample. It borrows `ui.controls.v1` through a
+separately disposed handle; copied Builder/picker state and namespaced IDs keep
+it independent of the live form. Rule details retain the same closed labels but
+carry no references, so sampling cannot resolve links or subscribe to rule data.
+The visible editable panel stays mounted during resize. Navigation reuses cached
+geometry; changes in width, font metrics/loading, locale or current data refresh
+it. Expanded content can grow the retained height, and the existing container
+query keeps narrow screens in natural document flow.
+
+The render-order regression separately fails the first implementation: switching
+tabs temporarily inserts a shorter panel before restoring the retained height,
+allowing the browser to clamp the document scroll position. The follow-up applies
+the cached height before mounting/enhancing the replacement. The EN/CS regression
+now records scroll position at the actual navigation click and verifies it remains
+unchanged after each tab transition, alongside focused-input preservation on resize.
+
+This follows the approved standalone reference's measurement intent without
+retaining its sample forms or simulated data. The design uses the
+[WAI tabs pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/) for the one active
+panel and the platform's
+[inert behavior](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/inert)
+and [hidden layout](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/visibility)
+for disposable samples. These sources support the implementation choices, not a
+claim of complete assistive-technology conformance. Classic keeps its previous
+layout. There is no schema, permission, rules or public SDK contract change.
+
+The focused installed cases cover all compact tabs and Builder sections, both
+locales/skins, 1,360/1,232/1,224/1,024/390/320-pixel widths, 125% desktop and 200%
+phone text, width-band changes, focused-input preservation, Classic switching,
+expanded disclosure state, unclipped content and natural phone heights. DOM and
+event probes verify zero duplicated IDs, unsafe samples or hidden rule-link
+resolutions, no surviving measurement/control handles, and no remeasurement for
+ordinary tab navigation. Inputs and revision remain unchanged. Full-page capture
+triggers an additional measurement; the cache assertion deliberately brackets
+navigation separately from screenshot capture. Measured sizing time is diagnostic
+only, not a hardware-independent performance guarantee.
+
+Both owner gates pass: Sheets includes 39 TypeScript cases, full Go tests and its
+targeted race scope; the host includes 71 tool cases, 413 frontend unit cases,
+289 browser checks, Go analysis/tests and the selected race scope. The host's
+196 optional installed entries are verified through the separate package suite.
+All 33 historical release-readiness gates pass. Unchanged companion owner results
+from the preceding batch are reused; all four exact ZIPs are inspected again.
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `2a48d5b` | `7eee08d08b6d9b16a19687b916acc3ba9ce5b3117536bb71824e2d2f3bf06d2f` |
+| dnd-engine | `3f59578` | `d822b1b346baa4ceb8354897fd849a5435bef9f361f1617e56f18c970f88748e` |
+| dnd-sheets | `418300b` | `9f47f7651f0343671280b73496091c3abd6319d5d18babfb6be080cb1b6b6796` |
+| dnd-2024-compendium | `80e3fd0` | `1864b929960c9dbe44d69b8a4195b6cd60b5bbc4da6cc6552a329aa987e72a82` |
+
+Host base is `fe0f166` plus this acceptance patch. Logs use `compact-frame-`
+under `frontend/test-results/`; rendered evidence lives in its
+`installed-character/` subdirectory. The local comparison artifact contains the
+unchanged before/after captures. `release/companions/provenance.json` records full
+source identities and exact archives. The strict full installed suite passes
+**271/271 cases, zero failures and zero skips**, in 1,036.8 seconds against these
+exact packages. The fresh independent review returns `ship` with no actionable
+findings. The new first-visit and return screenshots are byte-identical to the
+preceding package's return screenshot for this synthetic character, confirming
+that the accepted desktop appearance is preserved. No assertion or deadline was
+relaxed. The earlier in-progress suite was stopped when the scroll regression
+was found; this result is from the complete run of the corrected package.
+
+### Cleanup progress after compact frame acceptance
+
+The estimate remains approximately **93% complete** (89–95%), with implementation
+at approximately **96%** (92–97%). This closes one concrete frame refinement; it
+does not close the uncaptured startup/provider incidents or authorize site
+delivery. Original rows closed remain **33/40 (83%)**, or **33/39 (85%)** excluding
+conditional T08. Smaller follow-up rows do not inflate that denominator.
+
+Remaining work is historical failure diagnosis, source-fact review and authorized
+site/device acceptance. Physical touch, spoken screen-reader and printer checks
+remain unperformed. No push, publication, deployment or live-data change was made.

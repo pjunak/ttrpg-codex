@@ -79,6 +79,15 @@ export async function save(
   return result;
 }
 export async function openBuilder(t: TestContext, f: Fixture, key: string, locale = "en") {
+  return openSheet(t, f, key, locale, "builder");
+}
+export async function openSheet(
+  t: TestContext,
+  f: Fixture,
+  key: string,
+  locale = "en",
+  initialTab = "sheet",
+) {
   const errors: string[] = [];
   const context = await f.browser.newContext({
     storageState: await f.admin.storageState(),
@@ -92,7 +101,7 @@ export async function openBuilder(t: TestContext, f: Fixture, key: string, local
   await page.goto(f.origin + "/#/characters/" + key);
   await page.locator("#character-view-addons").click();
   const sheet = page.locator(".addon-dnd-character");
-  await sheet.locator("#dnd-tab-builder").click();
+  await sheet.locator("#dnd-tab-" + initialTab).click();
   await page.waitForFunction(
     () => !document.querySelector(".addon-dnd-character")?.hasAttribute("aria-busy"),
   );
