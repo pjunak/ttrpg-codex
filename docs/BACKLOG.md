@@ -57,6 +57,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T06 — Offline shared/recovery-aware blob collection and resumable unlink**~~ — `31ebabb`.
 - [x] ~~**T07 — Measured, separately reviewed log retention and replay checkpoints**~~ — `31ebabb`; [operator procedure](SELF_HOSTING.md#reviewed-offline-storage-maintenance).
 - [x] ~~**T11 — Bounded, redacted worker and browser diagnostics**~~ — `9012bf6`.
+- [x] ~~**T11-CAUSE — Preserve worker failure categories through recovery**~~ — `d1f5a72`; redacted transport cause, process-exit fallback and native restart regression; [evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#worker-failure-categories-and-planner-startup-recovery).
 - [x] ~~**T14-HOST — Build/inspect companion artifacts before installed acceptance**~~ — `20c719c`.
 - [x] ~~**T19 — Atomic reviewed campaign bundles and receipt reconciliation**~~ — `94544bc`; [contract and validation](decisions/0001-campaign-bundle-imports.md).
 - [x] ~~**T29 — Measured campaign/asset compression and reproducible profiling**~~ — `8d3652a`; [results and measurement limits](rewrite/PERFORMANCE.md).
@@ -158,13 +159,14 @@ not a new generic-planner rewrite. [Product contract](../../addon-dm-tools/docs/
 - [x] ~~**T30 — Recover unsaved planning work across forced replacement**~~ — `0eeac9b`; explicit resume/download/discard, original revisions and uncertain-save protection. [Contract](../../addon-dm-tools/docs/GRAPH.md#recovery-across-generations) · [installed evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#dm-tools-draft-recovery-follow-up).
 - [x] ~~**T14-DM — Build browser assets and workers from source-only checkouts**~~ — `7f1d02b`; standalone packaging, ignored output and source-clean CI; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
 - [x] ~~**T18-SESSIONS-DM — Complete large planning sessions with shared controls and readable phones**~~ — `f32e45f`, `2a48d5b`; searchable targets, distinct repeated titles, filtered shared notes, preserved focus/scroll and nested workflow acceptance; [evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#large-planning-sessions-and-shared-target-controls).
+- [x] ~~**T18-STARTUP-DM — Recover stalled initial planner reads**~~ — `117487b`; shared Reload cancels pending reads, keeps focus and recovery copies; desktop/phone failure and late-response acceptance; [evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#worker-failure-categories-and-planner-startup-recovery).
 
 ### Remaining work
 
 - [ ] **T18-DM / P1, review — Explain the intermittent planner startup timeout.**
-  Complete large/nested sessions are accepted above. The pre-action canvas-load
-  timeout in the installed group-selection case remains unexplained; passing
-  reruns and new traces do not establish a fix. Retain the existing deadlines
+  Large/nested sessions and explicit startup recovery are accepted above. The
+  pre-action canvas-load timeout in the installed group-selection case remains
+  unexplained; passing reruns and new traces do not establish a fix. Retain the existing deadlines
   and capture a failing run ([original evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#phb-origin-choices-and-shared-field-focus)).
 - [ ] **T15-DM / P1, operational — Validate existing consequence targets before
   activating stricter planning validation.** The target-validation fix is already

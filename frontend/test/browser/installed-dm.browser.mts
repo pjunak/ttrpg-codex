@@ -18,6 +18,7 @@ import type { Readable } from "node:stream";
 import type { FixtureCollection, FixtureRecord } from "./fixture-types.mts";
 import { plannerTab } from "./installed-planner-dialog-fixture.mts";
 import { exercisePlannerSelection } from "./installed-planner-selection-fixture.mts";
+import { exercisePlannerStartup } from "./installed-planner-startup-fixture.mts";
 import { exercisePlannerSession } from "./installed-planner-session-fixture.mts";
 import {
   exercisePlannerActions,
@@ -811,6 +812,25 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     t.after(() => disable("dm-tools"));
     await exercisePlannerSelection({ t, open, admin, csrf, output });
   });
+
+if (process.env.CODEX_DM_TOOLS_ZIP)
+  for (const failure of ["held", "rejected"] as const)
+    for (const mobile of [false, true])
+      void test(
+        `installed planner recovers ${failure} startup reads on ${mobile ? "phone" : "desktop"}`,
+        { timeout: 60_000 },
+        async (t) => {
+          await installReviewedPackage(
+            admin,
+            csrf,
+            "dm-tools",
+            await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
+            dmToolsPermissions,
+          );
+          t.after(() => disable("dm-tools"));
+          await exercisePlannerStartup({ t, open, admin, csrf, output, mobile, failure });
+        },
+      );
 
 if (process.env.CODEX_DM_TOOLS_ZIP)
   for (const mobile of [false, true])

@@ -4327,3 +4327,88 @@ follow-ups. Value-changing migrations and broader rules automation remain
 consumer-triggered extensions. Physical touch, spoken screen-reader and printer
 checks remain unperformed. No push, publication, deployment or live-data change
 was made.
+
+## Worker failure categories and planner startup recovery
+
+September 28 reliability follow-up fixes two independently reproduced defects.
+Neither is claimed as the cause of the historical T18-DM, T53 or T57 incidents.
+
+The package monitor replaced an already-failed supervisor's transport category
+with `PROCESS_EXITED`. It now keeps supported monitoring categories through
+withdrawal and backoff. Empty categories or those outside the monitoring
+allowlist retain the process-exit fallback. No raw transport error, worker stderr
+or payload is exposed; recovery budgets, deadlines and domain-call behavior are
+unchanged. A real native worker emits a malformed frame: the regression fails
+the preceding code's category,
+then passes the fix's redacted `TRANSPORT_FAILED` and successful replacement.
+The existing cohort test additionally asserts the missing-category fallback.
+
+The planner correctly offered Reload after a rejected initial read, but hid it
+while a read remained pending. The existing shared **Reload planner** control
+now remains usable during initial loading. An explicit retry aborts and replaces
+that read, preserving keyboard focus and stored recovery copies. Obsolete
+responses cannot complete the replacement load. Loaded views retain their
+existing busy/save guards; no automatic retry loop, new timeout or write replay
+was introduced. Existing labels, translations and theme controls are reused.
+
+Four installed regressions exercise held/rejected startup reads on desktop and
+phone. The held-read case fails the preceding DM Tools package because Reload
+is absent. The fixed package handles two successive replacements, a late reply
+while the next read is pending and another after it succeeds. Keyboard focus
+stays on Reload and the intended canvas opens. The rejected-read case retains
+the exact recovery copy, downloads its text and resumes it for review. All four
+assert zero browser writes and unchanged stored records. Rendered loading,
+error and recovered states were inspected at 1,440 and 390 px. Before/after
+logs and screenshots use `planner-startup-*` and `installed-dm/startup-*` under
+`frontend/test-results/`; the baseline loading image was recovered from its
+failure trace. This is Chromium emulation, not physical-device or spoken
+screen-reader acceptance.
+
+The separately retained group-selection trace from September 28 at 07:49 UTC
+does not reproduce the original September 17 startup failure: all six initial
+collection reads return 200 in 2–5 ms and the first selection resolves about
+83 ms after navigation. It then reaches the deliberate undo-conflict assertion.
+It predates the trace-finalization fix. T18-DM remains open because this later
+trace cannot establish the earlier timeout's pending phase or cause.
+
+Validation passes both owner gates: DM Tools has 58 tests, 28 rendering checks
+at each of DPR 1/2, and Go/race checks; the host has 71 tool tests, 420 frontend
+unit tests, 326 browser tests, Go analysis/full tests and its race scope.
+That host run installs the changed DM Tools ZIP; its 198 optional skips require
+the three other add-on packages. An additional complete race run covers the
+changed package manager and supervisor. The rebuilt DM Tools ZIP passes host
+inspection, and all 33 unchanged historical release gates pass.
+
+The host runtime fix is `d1f5a72`, and the DM Tools repair is `117487b`.
+`companion-revisions.json` records the new DM Tools commit; all four clean source
+checkouts match their pins and the inspected provenance below. The three
+unchanged add-on owner results are reused.
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `117487b` | `ad4ed59d0847acab73e5ba6648309db71d7a618b285a6b017181d94a6266ee42` |
+| dnd-engine | `3f59578` | `d822b1b346baa4ceb8354897fd849a5435bef9f361f1617e56f18c970f88748e` |
+| dnd-sheets | `8853959` | `d34bcc4c1d6a121217eab4e6910c045bb405b1d815bdc779ca173b160584b5bb` |
+| dnd-2024-compendium | `3463daf` | `1ab7306f44b73a0146c89b8b48b875e2c96a4f452a22fb58d53f59985a3cc828` |
+
+Independent source review found only overbroad category wording, which was
+corrected. The same reviewer then returned `ship` after checking the correction
+and unchanged runtime/test diff. A second fresh context could not be started
+because the native agent thread limit was reached; this is explicitly a reused
+review context. Local rendered evidence is recorded in the schema-validated
+planner-startup Designer report. Linux CI and live-site checks remain unperformed.
+
+The strict four-package installed suite passes **277/277**, with zero failures,
+cancellations or skips, in 1,178.1 seconds. Its source record is host `d1f5a72`
+plus the acceptance/test patch, with that uncommitted state explicitly recorded;
+all four companions are clean at the pinned commits above. Evidence is retained
+in `frontend/test-results/reliability-installed.log` and
+`release/companions/installed.tap`. Existing character, provider/source loss,
+multiclass, planner, imports, schema-upgrade and recovery workflows remain covered.
+The passing run does not explain the historical incidents. No deadline,
+assertion, test scope or release gate was weakened.
+
+The cleanup estimate remains **94% overall / 97% implemented**, with the same
+uncertainty ranges and original **33/40** closed-row count. These completed
+follow-ups do not close historical attribution or operational acceptance.
+No push, publication, deployment or live-data change was made.
