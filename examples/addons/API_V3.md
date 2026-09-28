@@ -1131,6 +1131,14 @@ Go workers should use `workerrpc.RunNativeWorker` as their process composition
 root. It validates and answers the serialized startup sequence, creates the
 concurrent generation-scoped peer, requires metadata on domain calls, serves
 runtime health, and exits only after the shutdown response has been written.
+The negotiated `maxConcurrentRequests` remains the zero-queue domain budget.
+The Go peer additionally reserves one bounded slot in each direction for
+metadata-free `codex/health` and `codex/shutdown`, so ordinary saturation does
+not masquerade as worker failure. Other methods and requests with domain
+metadata cannot use that slot. Health and shutdown retain their normal
+cancellation, deadline and response validation. Rebuild native worker packages
+against the updated SDK to receive the incoming reservation; no protocol,
+schema, manifest or service-version change is required.
 The handler factory receives the verified initialization snapshot and the peer
 used by `NewAddonDataClient` and `NewServiceClient`; it must not make host calls
 until `codex/start`:

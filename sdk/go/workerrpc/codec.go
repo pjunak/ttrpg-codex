@@ -108,6 +108,14 @@ func (c *Codec) Read(ctx context.Context) (Message, error) {
 }
 
 func (c *Codec) Write(ctx context.Context, value any) error {
+	return c.writeFrame(ctx, value, nil)
+}
+
+// writeFrame calls beforeWrite after acquiring the serialized writer and
+// immediately before publishing the frame. Callers can use it to transfer
+// ownership guarded by their own admission control without opening a gap in
+// which an unbounded number of frames can queue behind the writer.
+func (c *Codec) writeFrame(ctx context.Context, value any, beforeWrite func()) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -125,6 +133,9 @@ func (c *Codec) Write(ctx context.Context, value any) error {
 
 	c.write.Lock()
 	defer c.write.Unlock()
+	if beforeWrite != nil {
+		beforeWrite()
+	}
 	if err := writeAll(ctx, c.writer, header); err != nil {
 		return fmt.Errorf("write worker frame header: %w", err)
 	}

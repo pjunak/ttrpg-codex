@@ -90,7 +90,11 @@ type Peer struct {
 
 	outgoing chan struct{}
 	inbound  chan struct{}
-	stats    PeerSnapshot
+	// Lifecycle probes and shutdown retain one slot so domain saturation cannot
+	// be misclassified as process failure. Domain admission remains unchanged.
+	controlOutgoing chan struct{}
+	controlInbound  chan struct{}
+	stats           PeerSnapshot
 }
 
 func NewPeer(codec *Codec, config PeerConfig) (*Peer, error) {
@@ -110,13 +114,15 @@ func NewPeer(codec *Codec, config PeerConfig) (*Peer, error) {
 		config.MaxIncomingRequests = 16
 	}
 	return &Peer{
-		codec:    codec,
-		config:   config,
-		pending:  make(map[string]chan pendingResponse),
-		incoming: make(map[string]context.CancelFunc),
-		done:     make(chan struct{}),
-		outgoing: make(chan struct{}, config.MaxOutgoingRequests),
-		inbound:  make(chan struct{}, config.MaxIncomingRequests),
+		codec:           codec,
+		config:          config,
+		pending:         make(map[string]chan pendingResponse),
+		incoming:        make(map[string]context.CancelFunc),
+		done:            make(chan struct{}),
+		outgoing:        make(chan struct{}, config.MaxOutgoingRequests),
+		inbound:         make(chan struct{}, config.MaxIncomingRequests),
+		controlOutgoing: make(chan struct{}, 1),
+		controlInbound:  make(chan struct{}, 1),
 	}, nil
 }
 
@@ -146,9 +152,13 @@ func (peer *Peer) Call(ctx context.Context, method string, params any, meta *Met
 		return nil, err
 	}
 	defer cancel()
+	admission := peer.outgoing
+	if isLifecycleControl(method, meta) {
+		admission = peer.controlOutgoing
+	}
 	select {
-	case peer.outgoing <- struct{}{}:
-		defer func() { <-peer.outgoing }()
+	case admission <- struct{}{}:
+		defer func() { <-admission }()
 	default:
 		return nil, NewRPCError(JSONRPCApplication, KindRateLimited, "The peer outgoing request limit was reached.", true, nil)
 	}
@@ -353,8 +363,12 @@ func (peer *Peer) routeRequest(message Message) {
 		peer.stop(err)
 		return
 	}
+	admission := peer.inbound
+	if isLifecycleControl(envelope.Method, envelope.Meta) {
+		admission = peer.controlInbound
+	}
 	select {
-	case peer.inbound <- struct{}{}:
+	case admission <- struct{}{}:
 	default:
 		peer.increment(func(stats *PeerSnapshot) { stats.RejectedIncoming++ })
 		peer.writeFailure(envelope.ID, NewRPCError(JSONRPCApplication, KindRateLimited, "The host call concurrency limit was reached.", true, nil))
@@ -363,7 +377,7 @@ func (peer *Peer) routeRequest(message Message) {
 
 	ctx, cancel, failure := peer.incomingContext(envelope.Meta)
 	if failure != nil {
-		<-peer.inbound
+		<-admission
 		peer.writeFailure(envelope.ID, failure)
 		return
 	}
@@ -371,7 +385,7 @@ func (peer *Peer) routeRequest(message Message) {
 	if _, duplicate := peer.incoming[key]; duplicate {
 		peer.mu.Unlock()
 		cancel()
-		<-peer.inbound
+		<-admission
 		peer.writeFailure(envelope.ID, NewRPCError(JSONRPCInvalidRequest, KindConflict, "The worker reused an active request ID.", false, nil))
 		return
 	}
@@ -380,7 +394,11 @@ func (peer *Peer) routeRequest(message Message) {
 	peer.mu.Unlock()
 
 	request := Request{ID: envelope.ID, Method: envelope.Method, Params: envelope.Params, Meta: envelope.Meta}
-	go peer.handleRequest(ctx, key, cancel, request)
+	go peer.handleRequest(ctx, key, cancel, request, admission)
+}
+
+func isLifecycleControl(method string, meta *Meta) bool {
+	return meta == nil && (method == "codex/health" || method == "codex/shutdown")
 }
 
 func (peer *Peer) incomingContext(meta *Meta) (context.Context, context.CancelFunc, *RPCError) {
@@ -404,14 +422,26 @@ func (peer *Peer) incomingContext(meta *Meta) (context.Context, context.CancelFu
 	return ctx, cancel, nil
 }
 
-func (peer *Peer) handleRequest(ctx context.Context, key string, cancel context.CancelFunc, request Request) {
-	defer func() {
+func (peer *Peer) handleRequest(
+	ctx context.Context,
+	key string,
+	cancel context.CancelFunc,
+	request Request,
+	admission chan struct{},
+) {
+	finished := false
+	finish := func() {
+		if finished {
+			return
+		}
+		finished = true
 		cancel()
 		peer.mu.Lock()
 		delete(peer.incoming, key)
 		peer.mu.Unlock()
-		<-peer.inbound
-	}()
+		<-admission
+	}
+	defer finish()
 
 	var result any
 	var err error
@@ -428,14 +458,26 @@ func (peer *Peer) handleRequest(ctx context.Context, key string, cancel context.
 		if !errors.As(err, &failure) {
 			failure = ErrorFromContext(err)
 		}
-		peer.writeFailure(request.ID, failure)
+		var beforeWrite func()
+		if isLifecycleControl(request.Method, request.Meta) {
+			beforeWrite = finish
+		}
+		peer.writeFailureBeforeWrite(request.ID, failure, beforeWrite)
 		return
 	}
-	writeErr := peer.codec.Write(context.Background(), map[string]any{
+	// Release lifecycle admission only after this response owns the serialized
+	// writer. This lets an immediate health-to-shutdown transition proceed once
+	// the health response is visible without allowing blocked writes to queue an
+	// unbounded number of lifecycle handlers.
+	var beforeWrite func()
+	if isLifecycleControl(request.Method, request.Meta) {
+		beforeWrite = finish
+	}
+	writeErr := peer.codec.writeFrame(context.Background(), map[string]any{
 		"jsonrpc": "2.0",
 		"id":      json.RawMessage(request.ID),
 		"result":  result,
-	})
+	}, beforeWrite)
 	peer.notifyResponseWritten(request, writeErr)
 	if writeErr != nil {
 		peer.stop(writeErr)
@@ -496,14 +538,18 @@ func (peer *Peer) sendCancellation(id string) {
 }
 
 func (peer *Peer) writeFailure(id json.RawMessage, failure *RPCError) {
+	peer.writeFailureBeforeWrite(id, failure, nil)
+}
+
+func (peer *Peer) writeFailureBeforeWrite(id json.RawMessage, failure *RPCError, beforeWrite func()) {
 	if failure == nil {
 		failure = NewRPCError(JSONRPCInternalError, KindInternal, "The worker RPC operation failed.", false, nil)
 	}
-	if err := peer.codec.Write(context.Background(), map[string]any{
+	if err := peer.codec.writeFrame(context.Background(), map[string]any{
 		"jsonrpc": "2.0",
 		"id":      json.RawMessage(id),
 		"error":   failure,
-	}); err != nil {
+	}, beforeWrite); err != nil {
 		peer.stop(err)
 	}
 }

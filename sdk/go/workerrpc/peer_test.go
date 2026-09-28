@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -108,6 +110,143 @@ func TestPeerRejectsExcessIncomingWorkWithoutQueueing(t *testing.T) {
 	close(release)
 	if err := <-first; err != nil {
 		t.Fatalf("first Call: %v", err)
+	}
+}
+
+func TestPeerReservesLifecycleControlDuringDomainSaturation(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	host, _ := newTestPeerPair(t, nil,
+		RequestHandlerFunc(func(_ context.Context, request Request) (any, error) {
+			if request.Method == "codex/health" {
+				return map[string]any{"status": "ok"}, nil
+			}
+			if request.Method == "codex/shutdown" {
+				return map[string]any{}, nil
+			}
+			close(started)
+			<-release
+			return map[string]any{"ok": true}, nil
+		}),
+		func(config *PeerConfig) { config.MaxOutgoingRequests = 1 },
+		func(config *PeerConfig) {
+			config.MaxIncomingRequests = 1
+			config.RequireIncomingMeta = false
+		},
+	)
+
+	domain := make(chan error, 1)
+	go func() {
+		_, err := host.Call(context.Background(), "addon/service.call", map[string]any{}, testMeta())
+		domain <- err
+	}()
+	<-started
+	if _, err := host.Call(context.Background(), "addon/service.call", map[string]any{}, testMeta()); err == nil {
+		t.Fatal("domain request exceeded the configured capacity")
+	} else {
+		assertRPCError(t, err, KindRateLimited)
+	}
+	for _, method := range []string{"codex/health", "codex/shutdown"} {
+		if _, err := host.Call(context.Background(), method, map[string]any{}, testMeta()); err == nil {
+			t.Fatalf("metadata-bearing %s request used reserved lifecycle capacity", method)
+		} else {
+			assertRPCError(t, err, KindRateLimited)
+		}
+	}
+	body, err := host.Call(context.Background(), "codex/health", map[string]any{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var health struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(body, &health); err != nil || health.Status != "ok" {
+		t.Fatalf("health = %s, %v", body, err)
+	}
+	if _, err := host.Call(context.Background(), "codex/shutdown", map[string]any{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-domain; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPeerBoundsLifecycleHandlersBehindBlockedWriter(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		handlerErr error
+	}{
+		{name: "success"},
+		{name: "failure", handlerErr: NewRPCError(JSONRPCApplication, KindUnavailable, "not ready", true, nil)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			inputReader, inputWriter := io.Pipe()
+			output := newBlockingWriter()
+			codec := newTestCodec(t, inputReader, output, DefaultLimits)
+			invoked := make(chan struct{}, 3)
+			peer, err := NewPeer(codec, PeerConfig{
+				IDPrefix:            "bounded-control",
+				MaxIncomingRequests: 1,
+				RequireIncomingMeta: false,
+				Handler: RequestHandlerFunc(func(_ context.Context, _ Request) (any, error) {
+					invoked <- struct{}{}
+					return map[string]any{"status": "ok"}, test.handlerErr
+				}),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := peer.Start(); err != nil {
+				t.Fatal(err)
+			}
+			encoder := newTestCodec(t, strings.NewReader(""), inputWriter, DefaultLimits)
+			var releaseOnce sync.Once
+			releaseOutput := func() { releaseOnce.Do(func() { close(output.release) }) }
+			t.Cleanup(func() {
+				releaseOutput()
+				_ = inputWriter.Close()
+				_ = inputReader.Close()
+				peer.Close()
+			})
+
+			writeHealth := func(id string) {
+				t.Helper()
+				if err := encoder.Write(context.Background(), map[string]any{
+					"jsonrpc": "2.0",
+					"id":      id,
+					"method":  "codex/health",
+					"params":  map[string]any{},
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			writeHealth("health-1")
+			select {
+			case <-output.entered:
+			case <-time.After(2 * time.Second):
+				t.Fatal("first lifecycle response did not block in writer")
+			}
+			writeHealth("health-2")
+			waitFor(t, func() bool { return len(invoked) == 2 })
+			writeHealth("health-3")
+			waitFor(t, func() bool { return peer.Snapshot().RejectedIncoming == 1 })
+
+			if got := len(invoked); got != 2 {
+				t.Fatalf("blocked writer admitted %d lifecycle handlers, want 2", got)
+			}
+			if got := len(peer.controlInbound); got != 1 {
+				t.Fatalf("reserved lifecycle admission usage = %d, want 1", got)
+			}
+
+			releaseOutput()
+			waitFor(t, func() bool {
+				return peer.Snapshot().ActiveIncoming == 0 && len(peer.controlInbound) == 0
+			})
+		})
 	}
 }
 
@@ -327,4 +466,23 @@ func waitFor(t *testing.T, condition func() bool) {
 		}
 		time.Sleep(time.Millisecond)
 	}
+}
+
+type blockingWriter struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBlockingWriter() *blockingWriter {
+	return &blockingWriter{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (writer *blockingWriter) Write(body []byte) (int, error) {
+	writer.once.Do(func() { close(writer.entered) })
+	<-writer.release
+	return len(body), nil
 }

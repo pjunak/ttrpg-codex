@@ -96,6 +96,10 @@ Workers must not trust claimed actor fields or invent service handles.
 Implement only declared methods, honor cancellation, keep requests bounded, and
 make health meaningful. Package Linux amd64/arm64 and Windows amd64 targets when
 those deployments are supported. Production never invokes `go build`.
+The shared Go peer keeps health/shutdown admission separate from bounded domain
+work. Rebuild workers against the current SDK to receive that behavior; an image
+update alone does not replace an already installed worker ZIP. See the
+[native-worker initialization](API_V3.md#initialization) for the protocol.
 
 ## Data and services
 

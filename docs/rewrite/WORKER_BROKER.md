@@ -70,9 +70,17 @@ same time. Message IDs and `meta.requestId` are separate: the former correlates
 one JSON-RPC exchange; the latter identifies the logical operation in host
 diagnostics.
 
-Incoming and outgoing concurrency have independent fixed capacities. There is
-currently no waiting queue. A peer at capacity returns `RATE_LIMITED` rather
-than allocating unbounded work or goroutines.
+Incoming and outgoing domain concurrency have independent fixed capacities.
+There is no waiting queue. A peer at domain capacity returns `RATE_LIMITED`
+rather than allocating unbounded work or goroutines. Each direction separately
+reserves one lifecycle slot for metadata-free `codex/health` and
+`codex/shutdown`; other methods and metadata-bearing requests use the domain
+budget. Health therefore remains observable during ordinary call saturation.
+The lifecycle slot is also bounded; it grants no domain authority and keeps
+the existing cancellation and deadline rules. Incoming lifecycle admission stays
+held while its response waits for the serialized writer, then returns immediately
+before the frame is written. This bounds blocked-output work while allowing
+health-to-shutdown handoff as soon as the health response becomes observable.
 
 When an outgoing caller's context or metadata deadline ends, its pending entry
 is removed and the peer sends `$/cancelRequest` with the JSON-RPC message ID.

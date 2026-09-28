@@ -90,6 +90,14 @@ transport failure, or health deadline failure marks the generation failed and
 terminates the process. Readiness policy above the supervisor may decide how a
 reported `degraded` state affects routing.
 
+The RPC peer reserves one control slot in each direction for health and shutdown,
+separate from the negotiated domain-call capacity. Filling the domain budget
+must not make a healthy worker fail its probe. The probe still executes normally:
+malformed replies, transport errors and missed health deadlines retain the same
+failure and recovery behavior. The reservation is compiled into the host and
+native workers; existing worker ZIPs need rebuilding against the updated SDK to
+isolate their incoming admission as well.
+
 Graceful shutdown sends `codex/shutdown` and waits for a zero exit within the
 shutdown deadline. A remote error, non-zero exit, or timeout marks the
 generation failed; timeout also forces termination. Shutdown before launch is
@@ -173,7 +181,8 @@ transitive stop order, optional reconnection, untouched unrelated workers,
 same-package browser invalidation, non-replayed writes, startup failure, health
 hangs, backoff/exhaustion, stable/degraded periods, corrupt saved packages,
 generation replacement, explicit recovery and shutdown cancellation. Native
-subprocess tests prove crash/health-timeout termination and fresh-process restart.
+subprocess tests prove crash/health-timeout termination and fresh-process restart,
+and preserve a healthy process while its single domain slot remains occupied.
 `transport_cleanup_test.go` drives the real peer reader with an OS pipe to verify
 that intentional cleanup does not race a clean shutdown into failure, while
 unexpected closure and protocol errors retain their failure category.
