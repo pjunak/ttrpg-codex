@@ -4220,3 +4220,110 @@ conditional T08. Smaller follow-up rows do not inflate that denominator.
 Remaining work is historical failure diagnosis, source-fact review and authorized
 site/device acceptance. Physical touch, spoken screen-reader and printer checks
 remain unperformed. No push, publication, deployment or live-data change was made.
+
+## Campaign read cancellation and equipment source coverage
+
+September 28 follow-up covers one reproduced host failure and the remaining
+bounded T63 source-fact review. Holding `GET /api/campaign` during startup or a
+live refresh prevented sign-out from finishing: clearing the previous projection
+did not release the serialized request queue. Reads queued before reset also
+captured authority too late, allowing obsolete work to start under the next
+session. A delayed response body could still publish after caller cancellation.
+
+The shared campaign client now captures its authority when scheduling a read,
+cancels the old authority's request and releases the new queue on reset. It
+rejects obsolete queued work, late bodies and late failures. Reads within one
+authority remain ordered. The shell ignores invalidated results and does not
+restart the obsolete startup's event/add-on work. No deadline, retry rule or
+server authorization policy changed. This is separate from the historical
+T57 timeline/settings/rules-policy timeouts and T53 provider loss: their original
+causes remain unestablished.
+
+The controlled before/after evidence holds requests instead of relying on
+timing. Both startup and live-refresh cases fail the preceding host at the
+unchanged seven-second sign-out check. The repair passes both, including public
+projection display before releasing the old private response, late-response
+rejection, no stale error and reload. Unit cases cover headers and bodies that
+ignore cancellation, pre-reset queued reads, retained serialization, late network
+errors and explicit caller abort. The earlier stalled add-on startup regressions
+also pass. Logs under `frontend/test-results/` use `campaign-read-`; negative
+browser traces retain the exact failure phase.
+
+The source review adds 29 explicit wearable placements to existing Compendium
+records: four PHB, five DMG, four EFA, ten HoF, three AIF, one RHW and two LFL.
+Coverage is now 128 records across seven books. All prior parsed values, IDs,
+book identity, prose and mechanics remain unchanged. The stale AIF provenance
+placeholder now describes its already committed conversion inventory. The
+ordinary 38 PHB weapons already carry their hand/grip facts; no missing fact
+was invented from names or tags. Held shields remain separate from worn body
+placement. Multi-form magic weapons/shields still need an explicit instance
+base-form contract before their mechanical slots can be enabled; that boundary
+is documented in Compendium `data/GAPS.md` under C10.
+
+The review also found a consumer bug: the shared Sheets picker read generic
+`category`/`type`, ignoring the existing `armorType` and magic `itemType` fields.
+Armor and magic items consequently fell into Other. Both layouts now use the
+owning source field, retaining generic provider fallbacks. Armor folders reuse
+the existing translated proficiency labels; the host's controls and dialog,
+search, keyboard and selection behavior remain shared. Grouping grants no
+mechanical eligibility. No schema or public service contract changes.
+
+Two installed EN/CS cases fail the preceding packages' Other-only armor folders
+and pass the rebuilt packages. They cover Compact and Classic, keyboard folder
+navigation, shield and ring filtering, combined search/category behavior,
+cancel without a character revision change, both skins, four viewport widths
+and 200% phone text. Source placements from all seven books reach Engine
+guidance and the saved projection. A robe can be equipped and assigned Body,
+survives reload with exact saved inputs and leaves derived values unchanged.
+Wings of Flying retains its unsupported-mechanics explanation despite its
+Shoulders placement. Rendered desktop and enlarged-phone captures are under
+`frontend/test-results/installed-character/catalog-folders-*`; the local
+equipment-catalog comparison and designer report preserve before/after images.
+Phone native selectors retain their existing scrolling and truncated selected
+labels at 200% text; this batch does not claim a new mobile control design.
+
+The host gate passes 71 tool tests, 420 frontend unit tests, 291 browser checks,
+Go analysis/full tests and its race scope. Its 196 optional installed skips are
+from the run before registering the two new installed cases. The final host
+fast gate and both new installed cases pass after registration. Sheets passes
+40 TypeScript tests and its Go analysis/full/race scope; Compendium passes all
+83 tests. Both changed packages build and pass host inspection. All 33 historical
+release-readiness gates pass. Unchanged DM Tools/Engine owner results are reused;
+the complete pinned installed suite supplies the final integration evidence.
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| dm-tools | `2a48d5b` | `7eee08d08b6d9b16a19687b916acc3ba9ce5b3117536bb71824e2d2f3bf06d2f` |
+| dnd-engine | `3f59578` | `d822b1b346baa4ceb8354897fd849a5435bef9f361f1617e56f18c970f88748e` |
+| dnd-sheets | `8853959` | `d34bcc4c1d6a121217eab4e6910c045bb405b1d815bdc779ca173b160584b5bb` |
+| dnd-2024-compendium | `3463daf` | `1ab7306f44b73a0146c89b8b48b875e2c96a4f452a22fb58d53f59985a3cc828` |
+
+Host base is `8f7e012` plus this patch. All four companion worktrees are clean;
+`companion-revisions.json` and inspected `release/companions/provenance.json`
+agree on their exact identities. The fresh independent source review returns
+`ship` with no actionable findings. The strict full installed suite passes
+**273/273 cases, zero failures and zero skips**, in 1,070.5 seconds with these
+exact packages. Its log is `frontend/test-results/equipment-catalog-installed-full.log`;
+the unchanged runner also records `release/companions/installed.tap`.
+This includes existing provider/source loss, session recovery, multiclass,
+schema preservation, update/recovery and large planning workflows. No assertion,
+deadline or release gate was weakened.
+This is local Windows/Chromium evidence; Linux CI for this candidate has not
+been run.
+
+### Cleanup progress after equipment source review
+
+The effort estimate is approximately **94% complete** (90–96%), with
+implementation at approximately **97%** (93–98%). The one-point increase reflects
+closing the bounded equipment source review and its confirmed shared-picker
+defect, plus the reproduced campaign cancellation defect. It does not establish
+a cause for the historical incidents or count the packages as deployed.
+Original rows closed remain **33/40 (83%)**, or **33/39 (85%)** excluding conditional
+T08; added follow-up rows do not enlarge or inflate that denominator.
+
+Remaining acceptance work is historical failure diagnosis and authorized
+site/device verification, with smaller UI refinements handled as concrete
+follow-ups. Value-changing migrations and broader rules automation remain
+consumer-triggered extensions. Physical touch, spoken screen-reader and printer
+checks remain unperformed. No push, publication, deployment or live-data change
+was made.

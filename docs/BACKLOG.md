@@ -6,10 +6,10 @@ Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
-**Progress estimate, September 28:** about **96% implemented**, or **93%**
+**Progress estimate, September 28:** about **97% implemented**, or **94%**
 including remaining workflow, release and site acceptance. These are approximate
-effort estimates, with plausible ranges of 92–97% and 89–95%, respectively.
-[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-compact-frame-acceptance).
+effort estimates, with plausible ranges of 93–98% and 90–96%, respectively.
+[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-equipment-source-review).
 **Original rows closed:** 33 of 40 (83%); open workflow tasks contain completed
 slices. Compact character and large planning sessions are accepted; smaller UI
 refinements, unexplained failures and human/device checks remain visible below.
@@ -96,6 +96,8 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T18-SESSIONS-HOST — Accept large planning sessions and separate browser failure traces**~~ — 269/269 installed cases with zero skips, EN/CS nested workflows, enlarged phone controls and owned trace cleanup; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#large-planning-sessions-and-shared-target-controls).
 - [x] ~~**T57-STARTUP-HOST — Allow sign-out during stalled add-on activation**~~ — `83647ab`; cancel partial generations immediately, reject stale activation and dispose late resources once; [controlled before/after evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancellable-startup-and-worker-health-admission).
 - [x] ~~**T18-HEALTH-HOST — Keep healthy workers available during domain saturation**~~ — `66f8cbd`; bounded, separate health/shutdown admission in the shared Go SDK, with blocked-output and native-process regressions; [cause, package evidence and delivery boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancellable-startup-and-worker-health-admission).
+- [x] ~~**T57-CAMPAIGN-HOST — Release obsolete campaign reads during sign-out**~~ — `6f6d67a`; cancel old authority requests and queued work, reject late bodies/errors and preserve serialized current reads; [controlled failure and repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#campaign-read-cancellation-and-equipment-source-coverage).
+- [x] ~~**T63-CATALOG-HOST — Accept source folders and seven-book wearable placements**~~ — EN/CS Compact/Classic filtering, keyboard search, cancel, enlarged phone controls and exact saved placement reload; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#campaign-read-cancellation-and-equipment-source-coverage).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 
@@ -114,8 +116,8 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   Subsequent runs passed; no shared cause is established. Retain bounded
   timeline/settings page captures and character-fixture host diagnostics.
   Preserve deadlines and assertions; [T61 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
-  The distinct stalled-activation sign-out defect is fixed above; it does not
-  establish the cause of these historical timeouts.
+  The distinct stalled-activation and campaign-read sign-out defects are fixed
+  above; they do not establish the cause of these historical timeouts.
 
 ### Lifecycle, maintenance and operations
 
@@ -200,18 +202,13 @@ Standalone browsing must remain useful without Engine or Sheets.
 - [x] ~~**T63-CONDITIONS-COMP — Correct and declare published condition facts**~~ — `2809098`; fifteen source-owned definitions, attributed summaries and preserved PHB record identity; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#authored-conditions-and-preserved-character-state).
 - [x] ~~**T14-COMP — Build browser output and reproducible ZIPs from source**~~ — `e0d9040`; fixed archive metadata/order, ignored output and unchanged content; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
 - [x] ~~**T18-COMP — Complete bounded class-level replacements**~~ — `65eefab`; source-owned Fighter and Blessed/Druidic Warrior allowances, stable records and published-rule provenance; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
+- [x] ~~**T63-COMP — Complete the equipment source-fact review**~~ — `3463daf`; 29 missing wearable placements, 128 total across seven books, prior source values preserved and ordinary hand/grip facts verified; [coverage and consumer acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#campaign-read-cancellation-and-equipment-source-coverage).
 
 ### Remaining work
 
-- [ ] **T63-COMP / P2 — Supply source facts needed by the agreed equipment UI.**
-  Initial PHB/DMG placement facts are accepted. Continue the [T63](#t63-character-sheet-design)
-  source audit; add only missing placement, hand/grip or filtering facts with
-  schema/provenance checks and Engine consumption. Preserve item IDs, books,
-  custom-item authority and standalone browsing. A visual body field does not
-  establish an edition rule, slot limit or armor bonus.
-
 **C10, consumer-triggered:** [structured coverage gaps](../../addon-dnd-2024-compendium/data/GAPS.md)
-remain in narrative effects and reference-only renown/facilities/Circle Magic.
+remain in narrative effects, per-instance base forms for magic weapons/shields,
+and reference-only renown/facilities/Circle Magic.
 For a concrete needed mechanic, add source fields, schema/provenance checks and
 Engine/Sheets consumption together. Do not count reference prose as automation
 or import whole adventures/gazetteers merely to close a checklist.
@@ -315,6 +312,7 @@ Provider-free saved reading/notes/print/export remain required.
 - [x] ~~**T18-SHEETS — Accept a whole build-and-play session on the compact workspace**~~ — shared Builder advancement, amended grants, source/provider recovery, rest, reload, import cancellation and provider-free output preserve current authored state; [267/267 installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation). Human/device checks remain separate below.
 - [x] ~~**T18-FOCUS-SHEETS — Preserve new focus through delayed dialog cleanup**~~ — `8d54166`; a queued Backpack close no longer steals focus from the next selected tab; controlled EN/CS installed regression and owner gates pass; [cause and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#large-planning-sessions-and-shared-target-controls).
 - [x] ~~**T63-SHEETS — Size the compact frame before first tab visits**~~ — `cc27a8b`, `418300b`; temporary inert samples use shared controls, preserve focus/scroll/data and leave one editable panel; desktop, Builder, enlarged-text and phone regression evidence in [frame acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-frame-sizing-before-first-visits).
+- [x] ~~**T63-CATALOG-SHEETS — Group equipment through source-owned fields**~~ — `8853959`; shared picker uses armor and magic-item categories with existing localized labels and provider fallbacks; [both-layout acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#campaign-read-cancellation-and-equipment-source-coverage).
 
 ### Remaining work
 
@@ -366,8 +364,7 @@ Record exact source pins and inspected package hashes before closing acceptance.
 | Order | Work | Exit evidence |
 | --- | --- | --- |
 | 1 | Reliability: investigate planner/host startup failures and the T53 Engine availability loss. | Accepted character/planning sessions stay covered; concrete failures have cause/fix evidence, not just successful retries. |
-| 2 | Finish the remaining T63 source-fact review. | Missing facts have owner/provenance evidence; accepted frame and session behavior remains covered. |
-| 3 | Final integration and authorized delivery T15–T17; retain completed T02 coverage. | All four inspected packages pass without suite skips; exact served/installed builds, site data/retention, human/device checks and rollback assets are recorded. |
+| 2 | Final integration and authorized delivery T15–T17; retain completed T02 coverage. | All four inspected packages pass without suite skips; exact served/installed builds, site data/retention, human/device checks and rollback assets are recorded. |
 
 T14 suffixes divide the existing generated-artifact task by repository; T18
 suffixes divide workflow acceptance; T63 suffixes share the design and ordered
