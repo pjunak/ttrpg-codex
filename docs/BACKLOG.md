@@ -103,6 +103,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T63-CATALOG-HOST — Accept source folders and seven-book wearable placements**~~ — EN/CS Compact/Classic filtering, keyboard search, cancel, enlarged phone controls and exact saved placement reload; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#campaign-read-cancellation-and-equipment-source-coverage).
 - [x] ~~**T02 (including T02-LOCAL) — Publish and accept all four companion revisions with zero skips**~~ — host `5cc4945`; [104/104 Linux cases, exact sources and ZIP hashes](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
+- [x] ~~**T18-PERF-HOST — Pin and accept the faster multiclass calculation**~~ — 277/277 installed cases with zero skips; EN/CS sessions finish in 63/60 seconds with unchanged deadlines and saved-character checks; [package and acceptance evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-calculation-ownership-and-deferred-progression).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -256,6 +257,7 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
 - [x] ~~**T14-ENGINE — Build native workers as release artifacts**~~ — `0e8747f`; ignored binaries, versioned schemas and reproducible target packages; [build and package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#source-owned-add-on-builds-and-reproducible-packages).
 - [x] ~~**T18-REPLACEMENTS-ENGINE — Enforce source-owned class replacement allowances**~~ — `ffbde98`; typed history, current-level budgets and acquisition-time prerequisites; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#bounded-class-level-replacements).
 - [x] ~~**T18-SESSIONS-ENGINE — Accept current authored state through compact play and advancement**~~ — source/provider loss and recovery preserve independent equipment, resources, conditions and replacement history; [exact-package evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#compact-sessions-and-readable-enlarged-navigation). T53 availability diagnosis remains open below.
+- [x] ~~**T18-PERF-ENGINE — Remove redundant multiclass calculation copies**~~ — `c4063b5`; about 60% faster isolated evaluation with identical output, detached Builder results and unchanged progression rules; EN/CS sessions pass within the original deadline. [Profiling and regressions](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-calculation-ownership-and-deferred-progression).
 
 ### Remaining work
 
@@ -269,9 +271,6 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   diagnostic replay passed without reproducing it; no cause is established.
   The host SDK now fixes independently reproduced health failure under domain
   saturation, but the original T53 run lacks evidence attributing it to that cause.
-  Also profile the repeatable English whole-session deadline overrun: the
-  September 28 expanded run and focused replay exceed the unchanged 120 seconds;
-  recorded browser requests succeed. [Timing and replay evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#failed-recovery-starts-and-retained-fixture-evidence).
 
 Engine fixes must expose results/guidance through the versioned contract; no
 edition rules in Sheets controls, provider-ID special cases or combat resolver.

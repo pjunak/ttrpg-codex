@@ -4516,3 +4516,90 @@ These changes improve retained evidence; they do not attribute the historical
 T57/T60/T61 startup timeouts, the T18-DM startup timeout or the T53 rules loss.
 Those original follow-ups and the site acceptance tasks remain open. The estimate
 remains **94% overall / 97% implemented**, with **33/40** original rows closed.
+
+## Multiclass calculation ownership and deferred progression
+
+September 28, 2026. The preceding batch reproduced an English multiclass
+session exceeding the unchanged 120-second deadline. Its focused replay trace
+shows successful service requests averaging about 1.7 seconds for build saves,
+1.9 seconds for loads and 3.3 seconds for play commands. Catalog queries average
+18 ms. These timings identify calculation work as the next profiling target;
+they do not attribute the historical T53 rules-availability failure.
+
+An isolated replay uses the trace's synthetic twelve-level character inputs and
+the clean pinned Compendium catalog. Before the repair, five evaluations average
+**1,203 ms**. Allocation profiling puts about 94% of allocated bytes under
+progression checks, with about 58% under copying decoded source records.
+Builder options repeatedly copy complete class/feat records for read-only
+lookups. Applying each authored choice also clones the calculation's own
+decision map, and earlier progression levels normalize decisions even when no
+new relevant feat needs a prerequisite check.
+
+Engine `c4063b55ddbded24f4ce6af77a8e924f0dc6a7f7` addresses those three costs:
+
+- Builder readers borrow immutable decoded records within one evaluation.
+  Mutable lookups and nested values placed in returned choices stay detached.
+- Character decoding applies choices to its private decision map. The public
+  Builder operation still clones caller-owned decisions before changing them.
+- Progression still discovers every acquisition and enforces repetition. It
+  builds normalized prerequisite state when a relevant acquisition requires it;
+  class-only checks avoid copying prefixes that introduce no new class.
+
+The same five isolated evaluations now average **486 ms**, about **60% faster**,
+and their serialized result is byte-identical to the baseline. Sampled allocated
+bytes fall by roughly **64%**. A committed synthetic catalog benchmark provides
+repeatable profiling without private content: its three local samples fall from
+274–360 ms and 194–195 MB allocated per evaluation to 94–148 ms and 95 MB.
+These are local Windows measurements, not a Linux or live-site performance claim.
+The probes, trace-derived input and private catalog output remain ignored local
+evidence; none is packaged or committed.
+
+Ownership regressions mutate nested Builder output and reuse the same record
+snapshot, covering class/subclass/feature choices, selected package branches,
+feat choices and public decision updates. A progression regression checks that
+an earlier unrestricted feat can qualify a later acquisition and that removing
+it cannot let the later feat qualify itself. The existing arithmetic oracle,
+acquisition-order, replacement, source-freshness and detached-result tests pass.
+
+The full engine gate passes formatting, vet, Staticcheck, all Go tests and
+rules/provider/engine race tests. Sheets `npm run check` passes its static gates,
+40 module tests, Go tests and coordinator race tests with no source changes.
+All three engine workers are rebuilt; the release ZIP passes host inspection.
+Its SHA-256 is
+`0eb007249e2eb2493596c87fd99f73d639ef9d0c2eae603d5974186ac96e095c`.
+Only the engine source pin and package change; the other three pins stay intact.
+
+The focused installed replay passes **2/2 with zero skips**. The English/Czech
+session bodies complete in **62,200 / 66,872 ms**. Node reports 77,468 ms for
+English including initial fixture setup, and 66,887 ms for Czech. Both retain
+source loss/restoration, incompatible provider replacement, casts, rest,
+class replacement, level-up, focus checks and final persisted-state acceptance.
+No deadline, assertion, concurrency setting, public contract or rules policy is
+relaxed. Evidence is retained in `multiclass-performance-focused.log` and the
+engine's ignored `test-results/multiclass-profile/` directory.
+
+Strict full installed acceptance passes **277/277, zero failures, cancellations
+or skips**, in **885,653 ms**. Its English/Czech multiclass sessions complete in
+**62,816 / 59,602 ms**; the provider-free saved-character checks pass in that
+same run. Existing backup/schema preservation, optional-provider behavior and
+DM workflows also remain covered. `release/companions/provenance.json` records
+host base `96113c55a1da9028e0fe36bf3225e66e037d04ef` with this batch's host pin/docs
+changes and all four clean companion source commits. The full TAP is retained
+in `release/companions/installed.tap` and `multiclass-installed-full.log`.
+
+The standard host `npm run check` also passes: **75 tooling tests, 420 frontend
+unit tests, 291 browser passes**, Go tests and the standard selected race scope.
+Its **198 optional installed skips** are covered by the separate strict suite
+above, not counted as standard-run passes. The previously failing Czech-phone
+schema-upgrade case passes in this full host run. No new Tcpip 4231/4266
+port-exhaustion events are recorded during these two runs. This does not explain
+the earlier transient pressure. The host log and bounded event summary are
+retained in `multiclass-host-check.log` and `multiclass-completed-network.json`.
+
+All 33 unchanged historical release-readiness gates pass. The earlier T53
+availability loss and T57/T18-DM intermittent startup failures remain
+unattributed. No push, publication, deployment or live campaign operation was
+performed. Linux and live-site confirmation remain separate from these local
+results. The overall estimate stays **94% overall / 97% implemented**, with
+**33/40** original rows closed; this completes the confirmed performance
+follow-up without closing unrelated workflow or operational acceptance.
