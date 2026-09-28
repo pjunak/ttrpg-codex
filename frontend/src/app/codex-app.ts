@@ -20,6 +20,7 @@ import {
 import {
   campaignCollection,
   CampaignDataClient,
+  CampaignDataRefreshInvalidatedError,
   type CampaignDataset,
 } from "../core/campaign-data.js";
 import {
@@ -527,8 +528,9 @@ export class CodexApp extends LitElement {
       this.errorMessage = uiText("Session check failed: {0}", { "0": errorMessage(cause) });
     }
 
+    const authority = this.authority;
     await this.#loadCampaign(signal);
-    if (signal.aborted) return;
+    if (signal.aborted || this.authority !== authority) return;
     this.#startEventStream();
     if (this.#authenticated()) {
       try {
@@ -554,7 +556,7 @@ export class CodexApp extends LitElement {
     }
     try {
       const campaign = await this.#campaignData.refresh(signal);
-      if (!signal.aborted) {
+      if (!signal.aborted && this.#campaignData.current() === campaign) {
         applyCampaignTheme(campaign);
         applyBrandingFavicon(campaignBranding(campaign));
         this.campaignState = { state: "ready", campaign };
@@ -564,7 +566,7 @@ export class CodexApp extends LitElement {
         this.#routeOutlet?.refresh();
       }
     } catch (cause: unknown) {
-      if (signal.aborted) return;
+      if (signal.aborted || cause instanceof CampaignDataRefreshInvalidatedError) return;
       const current = this.#campaignData.current();
       if (retainCurrent && current !== undefined) {
         applyCampaignTheme(current);

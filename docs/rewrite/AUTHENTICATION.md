@@ -65,6 +65,14 @@ sessions also receive the public audience, while an effective DM additionally
 receives DM invalidations. The browser closes and reopens its single stream
 after an authority change so an older audience is never reused.
 
+Campaign reads serialize within the current authority. Changing authority clears
+the accepted projection, cancels its pending request and releases the new read
+queue immediately. Reads queued before that change cannot run under the new
+session, and late response bodies or failures cannot replace its projection or
+error state. Initial startup also checks its captured authority before starting
+events or add-ons. Sign-out therefore does not wait for an obsolete campaign
+request to finish; normal same-authority refresh ordering remains unchanged.
+
 Campaign transactions accept either authenticated role and always require the
 exact CSRF value bound to the current cookie. The effective role selects DM or
 player mutation policy; a DM using view-as-player deliberately receives player

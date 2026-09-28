@@ -144,7 +144,151 @@ describe("CampaignDataClient", () => {
     await expect(refresh).rejects.toBeInstanceOf(CampaignDataRefreshInvalidatedError);
     expect(client.current()).toBeUndefined();
   });
+
+  it("invalidates reads queued before reset without issuing them under new authority", async () => {
+    let calls = 0;
+    const client = new CampaignDataClient(async () => {
+      calls++;
+      return jsonResponse(dataset);
+    });
+    const refresh = client.refresh(new AbortController().signal);
+    client.reset();
+
+    await expect(refresh).rejects.toBeInstanceOf(CampaignDataRefreshInvalidatedError);
+    expect(calls).toBe(0);
+    expect(client.current()).toBeUndefined();
+  });
+
+  it.each(["headers", "body"] as const)(
+    "reset releases new reads while old %s remain stalled",
+    async (stage) => {
+      const held = deferred<Response>();
+      const body = deferred<string>();
+      const started = deferred<void>();
+      const signals: AbortSignal[] = [];
+      const currentDataset = {
+        ...dataset,
+        collections: dataset.collections.map((collection) => ({
+          ...collection,
+          records: [],
+        })),
+      };
+      const client = new CampaignDataClient(async (_input, init) => {
+        signals.push(init.signal as AbortSignal);
+        if (signals.length > 1) return jsonResponse(currentDataset);
+        if (stage === "headers") {
+          started.resolve();
+          return held.promise;
+        }
+        const response = jsonResponse(dataset);
+        response.text = () => {
+          started.resolve();
+          return body.promise;
+        };
+        return response;
+      });
+      const signal = new AbortController().signal;
+      const old = client.refresh(signal);
+      const queued = client.refresh(signal);
+      const oldRejected = expect(old).rejects.toBeInstanceOf(CampaignDataRefreshInvalidatedError);
+      const queuedRejected = expect(queued).rejects.toBeInstanceOf(
+        CampaignDataRefreshInvalidatedError,
+      );
+      try {
+        await started.promise;
+        client.reset();
+        expect(signals[0]?.aborted).toBe(true);
+        expect(signal.aborted).toBe(false);
+        await expect(client.refresh(signal)).resolves.toEqual(currentDataset);
+        expect(signals).toHaveLength(2);
+        expect(signals[1]?.aborted).toBe(false);
+      } finally {
+        held.resolve(jsonResponse(dataset));
+        body.resolve(JSON.stringify(dataset));
+        await Promise.all([oldRejected, queuedRejected]);
+      }
+      expect(client.current()).toEqual(currentDataset);
+    },
+  );
+
+  it("keeps reads serialized within the current authority", async () => {
+    const held = deferred<Response>();
+    let calls = 0;
+    const client = new CampaignDataClient(async () => {
+      calls++;
+      return calls === 1 ? held.promise : jsonResponse(dataset);
+    });
+    const signal = new AbortController().signal;
+    const first = client.refresh(signal);
+    const second = client.refresh(signal);
+    await Promise.resolve();
+    expect(calls).toBe(1);
+    held.resolve(jsonResponse(dataset));
+    await Promise.all([first, second]);
+    expect(calls).toBe(2);
+    expect(client.current()).toEqual(dataset);
+  });
+
+  it.each(["headers", "body"] as const)(
+    "reports late %s failures from a replaced authority as invalidated",
+    async (stage) => {
+      const held = deferred<Response>();
+      const body = deferred<string>();
+      const started = deferred<void>();
+      const client = new CampaignDataClient(async () => {
+        if (stage === "headers") {
+          started.resolve();
+          return held.promise;
+        }
+        const response = jsonResponse(dataset);
+        response.text = () => {
+          started.resolve();
+          return body.promise;
+        };
+        return response;
+      });
+      const refresh = client.refresh(new AbortController().signal);
+      await started.promise;
+      client.reset();
+      if (stage === "headers") held.reject(new TypeError("Network failure"));
+      else body.reject(new DOMException("Body stream aborted", "AbortError"));
+
+      await expect(refresh).rejects.toBeInstanceOf(CampaignDataRefreshInvalidatedError);
+      expect(client.current()).toBeUndefined();
+    },
+  );
+
+  it("never publishes a response body after its caller was cancelled", async () => {
+    const body = deferred<string>();
+    const started = deferred<void>();
+    const client = new CampaignDataClient(async () => {
+      const response = jsonResponse(dataset);
+      response.text = () => {
+        started.resolve();
+        return body.promise;
+      };
+      return response;
+    });
+    const controller = new AbortController();
+    const refresh = client.refresh(controller.signal);
+    await started.promise;
+    controller.abort();
+    body.resolve(JSON.stringify(dataset));
+
+    await expect(refresh).rejects.toBe(controller.signal.reason);
+    expect(client.current()).toBeUndefined();
+  });
 });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
 
 function jsonResponse(value: unknown): Response {
   const body = JSON.stringify(value);

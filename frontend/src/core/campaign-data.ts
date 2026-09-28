@@ -65,11 +65,12 @@ export class CampaignDataRefreshInvalidatedError extends Error {
   }
 }
 
-/** Serializes authoritative reads so an older projection can never win a race. */
+/** Serializes reads within one authority; reset releases the next authority immediately. */
 export class CampaignDataClient {
   readonly #fetchData: CampaignDataFetch;
   #current: CampaignDataset | undefined;
   #epoch = 0;
+  #controller = new AbortController();
   #tail: Promise<void> = Promise.resolve();
 
   constructor(fetchData: CampaignDataFetch = (input, init) => sessionFetch(input, init)) {
@@ -81,7 +82,14 @@ export class CampaignDataClient {
   }
 
   refresh(signal: AbortSignal): Promise<CampaignDataset> {
-    const operation = this.#tail.then(() => this.#refresh(signal));
+    const epoch = this.#epoch;
+    const requestSignal = AbortSignal.any([signal, this.#controller.signal]);
+    const operation = this.#tail
+      .then(() => this.#refresh(requestSignal, epoch))
+      .catch((cause: unknown) => {
+        this.#assertCurrent(requestSignal, epoch);
+        throw cause;
+      });
     this.#tail = operation.then(
       () => undefined,
       () => undefined,
@@ -91,12 +99,21 @@ export class CampaignDataClient {
 
   reset(): void {
     this.#epoch += 1;
+    this.#controller.abort(new CampaignDataRefreshInvalidatedError());
+    this.#controller = new AbortController();
+    // Old headers/body readers may settle late; they must neither block this
+    // authority nor publish into it, including reads queued before reset.
+    this.#tail = Promise.resolve();
     this.#current = undefined;
   }
 
-  async #refresh(signal: AbortSignal): Promise<CampaignDataset> {
+  #assertCurrent(signal: AbortSignal, epoch: number): void {
+    if (epoch !== this.#epoch) throw new CampaignDataRefreshInvalidatedError();
     signal.throwIfAborted();
-    const epoch = this.#epoch;
+  }
+
+  async #refresh(signal: AbortSignal, epoch: number): Promise<CampaignDataset> {
+    this.#assertCurrent(signal, epoch);
     const response = await this.#fetchData("/api/campaign", {
       method: "GET",
       headers: { Accept: "application/json" },
@@ -104,9 +121,7 @@ export class CampaignDataClient {
       cache: "no-store",
       signal,
     });
-    if (epoch !== this.#epoch) {
-      throw new CampaignDataRefreshInvalidatedError();
-    }
+    this.#assertCurrent(signal, epoch);
     if (!response.ok) {
       throw new CampaignDataHTTPError(response.status);
     }
@@ -126,6 +141,7 @@ export class CampaignDataClient {
       throw new BoundaryValidationError(boundary, "response exceeds 64 MiB");
     }
     const body = await response.text();
+    this.#assertCurrent(signal, epoch);
     if (new TextEncoder().encode(body).byteLength > maximumDatasetBytes) {
       throw new BoundaryValidationError(boundary, "response exceeds 64 MiB");
     }
@@ -136,9 +152,6 @@ export class CampaignDataClient {
       throw new BoundaryValidationError(boundary, "response must be valid JSON");
     }
     const dataset = parseCampaignDataset(value);
-    if (epoch !== this.#epoch) {
-      throw new CampaignDataRefreshInvalidatedError();
-    }
     this.#current = dataset;
     return dataset;
   }
