@@ -4603,3 +4603,63 @@ performed. Linux and live-site confirmation remain separate from these local
 results. The overall estimate stays **94% overall / 97% implemented**, with
 **33/40** original rows closed; this completes the confirmed performance
 follow-up without closing unrelated workflow or operational acceptance.
+
+## Worker health without blocking browser access
+
+September 29, 2026. Investigation of the remaining startup/provider failures
+found a distinct host defect: the monitor waited for every periodic health
+response while holding the package-manager mutex. A slow worker therefore
+blocked browser graph loading, add-on diagnostics and service admission, including
+access to unrelated healthy workers. Each probe could hold that lock until its
+configured health deadline; the production default remains five seconds.
+
+The controlled regression fails against the previous implementation while a
+health response is held open. With this change, graph and diagnostic reads and
+a browser call to another worker complete before that response is released.
+A real native-worker regression also holds an RPC health reply and verifies
+browser access without ending the probe.
+
+The monitor now collects observations under the lifecycle lock, waits for
+health outside it and validates observations against current state before
+applying them. One pending observation per worker prevents duplicate probes.
+Disable, update, reload and same-package recovery invalidate old observations;
+the latter must work even when the durable generation and revision are unchanged.
+A late result cannot clear a replacement worker's newer pending probe. Monitor
+cancellation releases observations without spending a recovery attempt. Health
+deadlines, failure categories, backoff, dependency ordering and service authority
+remain intact; the public SDK and companion packages are unchanged.
+
+[Manager regressions](../../internal/addons/packagemanager/monitor_concurrency_test.go)
+cover these lifecycle interleavings, cancellation and unrelated browser service
+access. [Native regressions](../../internal/addons/packagemanager/monitor_native_test.go)
+retain real crash, health timeout, domain saturation, transport failure and
+failed-restart coverage alongside the new pending-health case. The full affected
+package-manager, supervisor and service-broker race checks pass; the final expanded
+monitor subset also passes with the race detector.
+
+The before/after and race logs are retained locally as `health-lock-before.log`,
+`health-lock-focused.log`, `health-lock-race.log` and `health-lock-final-race.log`
+under `frontend/test-results/`. Source base: host `8d99520` plus this batch.
+
+The complete standard host `npm run check` passes: **75 tooling tests, 420
+frontend unit tests, 291 browser passes**, all Go tests and the standard selected
+race scope. There are **198 optional installed skips**, not counted as passes.
+The gate log is `health-lock-host-check.log`. All **33 unchanged historical
+release-readiness gates** pass, and changed document links/anchors are verified.
+
+Targeted installed acceptance passes **10/10 with zero failures, cancellations
+or skips**: initial character policy, full EN/CS multiclass source/provider
+replacement sessions, planner group selection, held/rejected planner startup on
+desktop/phone, and revision-guarded source/provider settings on both sizes.
+The character sessions reach their final checkpoints in **63,102 / 59,287 ms**
+within the unchanged 120-second deadline. Each fixture builds the changed host;
+the four companion checkouts remain clean at the pinned revisions and their ZIP
+SHA-256 values match the retained preceding package provenance. This batch's
+installed acceptance is scoped to these ten cases. The complete result is
+`frontend/test-results/health-lock-installed.log`.
+
+This establishes the health-lock defect, not the original T53 provider outage,
+T57/T60/T61 startup timeouts, T18-DM canvas timeout or Windows port-pressure
+trigger. Those items remain open. No push, publication, deployment or live-data
+operation is included. The estimate remains **94% overall / 97% implemented**
+and **33/40 original rows closed**; the confirmed subtask is checked separately.

@@ -25,13 +25,15 @@ type monitoredFactory struct {
 	waitStart bool
 }
 type monitoredRuntime struct {
-	factory    *monitoredFactory
-	spec       RuntimeSpec
-	state      workersupervisor.State
-	health     string
-	hang       bool
-	entered    chan struct{}
-	onShutdown func()
+	factory     *monitoredFactory
+	spec        RuntimeSpec
+	state       workersupervisor.State
+	health      string
+	hang        bool
+	entered     chan struct{}
+	release     <-chan struct{}
+	healthCalls int
+	onShutdown  func()
 }
 
 func (factory *monitoredFactory) New(spec RuntimeSpec) (Runtime, error) {
@@ -78,7 +80,8 @@ func (runtime *monitoredRuntime) Snapshot() workersupervisor.Snapshot {
 }
 func (runtime *monitoredRuntime) Health(ctx context.Context) (workersupervisor.Health, error) {
 	runtime.factory.mu.Lock()
-	status, hang, entered := runtime.health, runtime.hang, runtime.entered
+	status, hang, entered, release := runtime.health, runtime.hang, runtime.entered, runtime.release
+	runtime.healthCalls++
 	runtime.factory.mu.Unlock()
 	if entered != nil {
 		select {
@@ -89,6 +92,13 @@ func (runtime *monitoredRuntime) Health(ctx context.Context) (workersupervisor.H
 	if hang {
 		<-ctx.Done()
 		return workersupervisor.Health{}, ctx.Err()
+	}
+	if release != nil {
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return workersupervisor.Health{}, ctx.Err()
+		}
 	}
 	return workersupervisor.Health{Status: status}, nil
 }

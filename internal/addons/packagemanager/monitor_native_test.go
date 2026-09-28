@@ -16,14 +16,15 @@ import (
 )
 
 type nativeMonitorFactory struct {
-	executable string
-	directory  string
-	firstMode  string
-	retryMode  string
-	started    string
-	release    string
-	concurrent int
-	instances  []*workersupervisor.Supervisor
+	executable    string
+	directory     string
+	firstMode     string
+	retryMode     string
+	started       string
+	release       string
+	concurrent    int
+	healthTimeout time.Duration
+	instances     []*workersupervisor.Supervisor
 }
 
 func (factory *nativeMonitorFactory) New(spec RuntimeSpec) (Runtime, error) {
@@ -38,13 +39,17 @@ func (factory *nativeMonitorFactory) New(spec RuntimeSpec) (Runtime, error) {
 		environment["CODEX_MONITOR_WORKER_STARTED"] = factory.started
 		environment["CODEX_MONITOR_WORKER_RELEASE"] = factory.release
 	}
+	healthTimeout := factory.healthTimeout
+	if healthTimeout == 0 {
+		healthTimeout = time.Second
+	}
 	runtime, err := workersupervisor.New(workersupervisor.Config{
 		Identity: spec.Identity, Host: workersupervisor.HostInfo{Version: "2.0.0", Locale: "en", TimeZone: "UTC"},
 		ProtocolVersion: "1.0.0", Executable: factory.executable, WorkingDirectory: factory.directory,
 		Arguments:      []string{"-test.run=^TestMonitoredNativeWorkerProcess$"},
 		Environment:    environment,
 		Limits:         workersupervisor.WorkerLimits{MaxConcurrentRequests: factory.concurrent},
-		StartupTimeout: 5 * time.Second, HealthTimeout: time.Second, ShutdownTimeout: 3 * time.Second,
+		StartupTimeout: 5 * time.Second, HealthTimeout: healthTimeout, ShutdownTimeout: 3 * time.Second,
 		Logger: slog.New(slog.DiscardHandler),
 	})
 	if err == nil {
@@ -93,6 +98,69 @@ func TestWorkerMonitoringWithNativeCrashAndHealthHang(t *testing.T) {
 				t.Fatal("replacement worker survived shutdown")
 			}
 		})
+	}
+}
+
+func TestWorkerMonitoringNativeHealthLeavesBrowserAccessOpen(t *testing.T) {
+	manager, _, now := monitoringFixture(t)
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	factory := &nativeMonitorFactory{executable: executable, directory: directory, firstMode: "held-health",
+		started: filepath.Join(directory, "health-started"), release: filepath.Join(directory, "health-release"),
+		healthTimeout: 10 * time.Second}
+	manager.runtimeFactory = factory
+	manager.monitoring.config.HealthTimeout = 10 * time.Second
+	installUninstallFixture(t, manager, packageSpec{ID: "native-worker", Version: "1.0.0", Worker: true})
+	*now = now.Add(time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	done, joined := make(chan error, 1), make(chan struct{})
+	go func() {
+		defer close(joined)
+		done <- manager.checkWorkers(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-joined:
+		case <-time.After(3 * time.Second):
+			t.Error("native health did not stop")
+		}
+	})
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if _, err := os.Stat(factory.started); err == nil {
+			break
+		} else if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("native health probe did not start")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	awaitMonitorOperation(t, func() error {
+		if _, err := manager.BrowserGraph(ctx); err != nil {
+			return err
+		}
+		_, err := manager.Snapshot(ctx, "native-worker", 20)
+		return err
+	})
+	select {
+	case err := <-done:
+		t.Fatalf("native probe ended before release: %v", err)
+	default:
+	}
+	if err := os.WriteFile(factory.release, []byte("release"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if factory.instances[0].Snapshot().State != workersupervisor.StateReady || manager.monitoring.watches["native-worker"].failures != 0 {
+		t.Fatal("successful native health check caused a recovery")
 	}
 }
 
@@ -318,6 +386,23 @@ func TestMonitoredNativeWorkerProcess(t *testing.T) {
 		}),
 		Health: func(ctx context.Context) (workerrpc.NativeWorkerHealth, error) {
 			checks++
+			if checks > 1 && mode == "held-health" {
+				if err := os.WriteFile(os.Getenv("CODEX_MONITOR_WORKER_STARTED"), []byte("started"), 0o600); err != nil {
+					return workerrpc.NativeWorkerHealth{}, err
+				}
+				for {
+					if _, err := os.Stat(os.Getenv("CODEX_MONITOR_WORKER_RELEASE")); err == nil {
+						break
+					} else if !os.IsNotExist(err) {
+						return workerrpc.NativeWorkerHealth{}, err
+					}
+					select {
+					case <-ctx.Done():
+						return workerrpc.NativeWorkerHealth{}, ctx.Err()
+					case <-time.After(10 * time.Millisecond):
+					}
+				}
+			}
 			if checks == 1 && (mode == "startup-health" || mode == "startup-hang") {
 				_, _ = fmt.Fprintln(os.Stderr, "private-startup-diagnostic")
 				if mode == "startup-hang" {

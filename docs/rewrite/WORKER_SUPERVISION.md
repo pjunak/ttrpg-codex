@@ -136,9 +136,15 @@ restarts itself. The production host enables the package manager's
 its monitor after composition. Offline/embedded managers can omit monitoring.
 
 The coordinator polls runtime state every second and calls runtime health every
-30 seconds, with a five-second health deadline. Probes and lifecycle transitions
-are serialized through the package manager. A valid `degraded` result keeps the
-runtime available but does not count toward stability. A crash, invalid health
+30 seconds, with a five-second health deadline. Health waits run outside the
+package-manager lock, so a slow probe does not block browser graph, diagnostic or
+service access. One pending observation per worker prevents overlapping polls
+from duplicating probes. Results apply only to the same active state and runtime
+observation; disable, replacement, reload and same-package recovery invalidate
+obsolete results. Monitor cancellation releases its pending observations without
+consuming a retry. Lifecycle transitions remain serialized through the package
+manager. A valid `degraded` result keeps the runtime available but does not count
+toward stability. A crash, invalid health
 result or timeout withdraws the failed runtime and its affected live consumers.
 All affected service/request-context and data handles are withdrawn before
 consumer-before-provider shutdown. Unrelated runtimes remain running.

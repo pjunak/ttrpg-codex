@@ -33,6 +33,16 @@ type workerWatch struct {
 	nextHealth    time.Time
 	message       string
 	snapshot      *workersupervisor.Snapshot
+	observation   *workerObservation
+}
+type workerObservation struct {
+	state   State
+	watch   *workerWatch
+	runtime Runtime
+	probe   workerHealthRuntime
+	health  workersupervisor.Health
+	failure error
+	retry   bool
 }
 type workerMonitor struct {
 	config   MonitoringConfig
@@ -133,6 +143,9 @@ func (manager *Manager) workerReadyLocked(state State) {
 		manager.monitoring.watches[state.AddonID] = watch
 	}
 	now := manager.store.now()
+	// Recovery may restart the same package without a durable revision change.
+	// Its old in-flight probe must not describe the new process.
+	watch.observation = nil
 	watch.blocked, watch.retryAt, watch.message = false, time.Time{}, ""
 	watch.readySince, watch.nextHealth = now, now.Add(manager.monitoring.config.HealthInterval)
 }
@@ -146,6 +159,7 @@ func (manager *Manager) workerFailureLocked(ctx context.Context, state State, ca
 		manager.monitoring.watches[state.AddonID] = watch
 	}
 	now := manager.store.now()
+	watch.observation = nil
 	if !watch.readySince.IsZero() && now.Sub(watch.readySince) >= manager.monitoring.config.RestartPolicy.StableAfter {
 		watch.failures = 0
 	}
@@ -226,13 +240,95 @@ func (manager *Manager) workerCohortLocked(ctx context.Context, roots []string) 
 }
 func (manager *Manager) checkWorkers(ctx context.Context) error {
 	manager.mu.Lock()
+	observations, err := manager.observeWorkersLocked(ctx)
+	manager.mu.Unlock()
+	if err != nil || len(observations) == 0 {
+		return err
+	}
+	// A slow worker must not hold up browser startup, service admission or
+	// diagnostics. Lifecycle transitions may replace it while this probe waits.
+	for _, observation := range observations {
+		if ctx.Err() != nil {
+			break
+		}
+		if observation.probe != nil {
+			healthCtx, cancel := context.WithTimeout(ctx, manager.monitoring.config.HealthTimeout)
+			observation.health, observation.failure = observation.probe.Health(healthCtx)
+			cancel()
+			if observation.failure != nil || (observation.health.Status != "ok" && observation.health.Status != "degraded") {
+				observation.failure = &workersupervisor.LifecycleError{Code: workersupervisor.CodeHealthFailed, Cause: observation.failure}
+			}
+		}
+	}
+	manager.mu.Lock()
 	defer manager.mu.Unlock()
-	if manager.monitoring == nil || ctx.Err() != nil {
+	defer func() {
+		for _, observation := range observations {
+			if observation.watch.observation == observation {
+				observation.watch.observation = nil
+			}
+		}
+	}()
+	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 	states, err := manager.store.activeStates(ctx)
 	if err != nil {
 		return err
+	}
+	current := make(map[string]State, len(states))
+	for _, state := range states {
+		current[state.AddonID] = state
+	}
+	now := manager.store.now()
+	roots := []string{}
+	for _, observation := range observations {
+		state, watch := observation.state, observation.watch
+		latest, active := current[state.AddonID]
+		if !active || latest.ActiveGenerationID != state.ActiveGenerationID || latest.Revision != state.Revision ||
+			manager.monitoring.watches[state.AddonID] != watch || watch.observation != observation {
+			continue
+		}
+		_, live := manager.runtimes[state.AddonID]
+		if observation.retry {
+			if !live {
+				roots = append(roots, state.AddonID)
+			}
+			continue
+		}
+		if !live {
+			continue
+		}
+		if observation.probe != nil {
+			watch.nextHealth = now.Add(manager.monitoring.config.HealthInterval)
+			if observation.health.Status == "degraded" {
+				watch.readySince = time.Time{}
+			} else if observation.failure == nil && watch.readySince.IsZero() {
+				watch.readySince = now
+			}
+		}
+		if observation.failure != nil {
+			manager.workerFailureLocked(ctx, state, observation.failure, observation.runtime)
+			roots = append(roots, state.AddonID)
+		} else if !watch.readySince.IsZero() && now.Sub(watch.readySince) >= manager.monitoring.config.RestartPolicy.StableAfter {
+			watch.failures = 0
+		}
+	}
+	if len(roots) == 0 {
+		return nil
+	}
+	transitionCtx, cancel := context.WithTimeout(ctx, manager.monitoring.config.TransitionTimeout)
+	defer cancel()
+	return manager.recoverWorkerCohortLocked(transitionCtx, roots)
+}
+
+func (manager *Manager) observeWorkersLocked(ctx context.Context) ([]*workerObservation, error) {
+	if manager.monitoring == nil || ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	states, err := manager.store.activeStates(ctx)
+	if err != nil {
+		return nil, err
 	}
 	activeStates := map[string]State{}
 	for _, state := range states {
@@ -247,13 +343,18 @@ func (manager *Manager) checkWorkers(ctx context.Context) error {
 		}
 	}
 	now := manager.store.now()
-	roots := []string{}
+	observations := []*workerObservation{}
 	for _, state := range states {
 		active, live := manager.runtimes[state.AddonID]
 		watch := manager.watchForStateLocked(state)
+		if watch != nil && watch.observation != nil {
+			continue
+		}
 		if !live {
 			if watch != nil && watch.blocked && !watch.retryAt.IsZero() && !now.Before(watch.retryAt) {
-				roots = append(roots, state.AddonID)
+				observation := &workerObservation{state: state, watch: watch, retry: true}
+				watch.observation = observation
+				observations = append(observations, observation)
 			}
 			continue
 		}
@@ -264,39 +365,21 @@ func (manager *Manager) checkWorkers(ctx context.Context) error {
 			manager.workerReadyLocked(state)
 			watch = manager.watchForStateLocked(state)
 		}
-		var failure error
+		observation := &workerObservation{state: state, watch: watch, runtime: active.runtime}
 		snapshot := active.runtime.Snapshot()
 		if snapshot.State != workersupervisor.StateReady {
-			failure = &workersupervisor.LifecycleError{Code: workersupervisor.SafeFailureCode(snapshot.LastError)}
+			observation.failure = &workersupervisor.LifecycleError{Code: workersupervisor.SafeFailureCode(snapshot.LastError)}
 		} else if healthRuntime, ok := active.runtime.(workerHealthRuntime); ok && !now.Before(watch.nextHealth) {
-			healthCtx, cancel := context.WithTimeout(ctx, manager.monitoring.config.HealthTimeout)
-			health, healthErr := healthRuntime.Health(healthCtx)
-			cancel()
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			watch.nextHealth = now.Add(manager.monitoring.config.HealthInterval)
-			if healthErr != nil || (health.Status != "ok" && health.Status != "degraded") {
-				failure = &workersupervisor.LifecycleError{Code: workersupervisor.CodeHealthFailed, Cause: healthErr}
-			} else if health.Status == "degraded" {
-				watch.readySince = time.Time{}
-			} else if watch.readySince.IsZero() {
-				watch.readySince = now
-			}
+			observation.probe = healthRuntime
 		}
-		if failure != nil {
-			manager.workerFailureLocked(ctx, state, failure, active.runtime)
-			roots = append(roots, state.AddonID)
+		if observation.failure != nil || observation.probe != nil {
+			watch.observation = observation
+			observations = append(observations, observation)
 		} else if !watch.readySince.IsZero() && now.Sub(watch.readySince) >= manager.monitoring.config.RestartPolicy.StableAfter {
 			watch.failures = 0
 		}
 	}
-	if len(roots) == 0 {
-		return nil
-	}
-	transitionCtx, cancel := context.WithTimeout(ctx, manager.monitoring.config.TransitionTimeout)
-	defer cancel()
-	return manager.recoverWorkerCohortLocked(transitionCtx, roots)
+	return observations, nil
 }
 func (manager *Manager) recoverWorkerCohortLocked(ctx context.Context, roots []string) error {
 	sort.Strings(roots)
