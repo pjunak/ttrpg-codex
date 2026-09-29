@@ -185,7 +185,12 @@ existing data/service clients and resumes refresh without rebuilding an unchange
 graph or replaying writes. The supplier is never exposed to add-on code.
 Declined recovery, explicit stop and player-preview authority loss still clear
 cached authority and dispose generations. Stopping during a pending recovery
-decision also disposes any retained generations.
+decision cancels the wait and disposes any retained generations without waiting
+for that decision's network work. A start captures the session epoch before
+waiting; explicit stop invalidates pending starts and resumes. Concurrent stops
+share the owned cleanup promise, and a fresh start waits for that cleanup.
+Late recovery answers or failures cannot revive, dispose or report authority
+loss against the next session.
 
 [Session recovery](AUTHENTICATION.md#recovering-a-session-during-editing) covers
 mounted input only; a real graph change still follows the cold switch below.

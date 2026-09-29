@@ -178,6 +178,12 @@ replacing data, so an expired DM session cannot replace a private record's open
 editor with a public snapshot. Concurrent checks are coalesced and transport
 listeners end with the application component.
 
+Each shared authority check has its own abort scope. Explicit logout or role
+switch, accepted replacement authority and component disposal cancel it and
+release the shared promise. A new sign-in checks its own authority without
+waiting for the previous session's response. An obsolete check cannot replace
+current authority, open a stale recovery prompt or clear a newer pending check.
+
 When the previous role is no longer available, an English/Czech sign-in form
 appears in the current page using the shared field, button and status styles.
 Core editors and unchanged add-on contributions remain mounted with their

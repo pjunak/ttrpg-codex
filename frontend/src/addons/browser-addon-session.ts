@@ -2,6 +2,7 @@ import type { BrowserAddonRefreshResult, BrowserAddonRuntime } from "./browser-a
 import { BrowserGraphHTTPError } from "./browser-graph-client.js";
 import type { BrowserDisposalFailure } from "./generation-manager.js";
 import type { EventRefresh } from "../core/event-stream.js";
+import { waitForSignal } from "../core/abort-signal.js";
 
 export interface BrowserAddonRuntimePort {
   refresh(signal: AbortSignal): Promise<BrowserAddonRefreshResult>;
@@ -18,13 +19,20 @@ export interface BrowserAddonSessionCallbacks {
   readonly onRecoveryRequested?: () => Promise<boolean>;
 }
 
+interface AuthorityLoss {
+  readonly controller: AbortController;
+  readonly promise: Promise<void>;
+}
+
 /** Owns one authenticated browser add-on runtime; the application owns SSE. */
 export class BrowserAddonSession {
   readonly #runtime: BrowserAddonRuntimePort;
   readonly #callbacks: BrowserAddonSessionCallbacks;
   #controller: AbortController | undefined;
-  #authorityLoss: Promise<void> | undefined;
-  #retained = false;
+  #authorityLoss: AuthorityLoss | undefined;
+  #epoch = 0;
+  #needsCleanup = false;
+  #cleanup: Promise<readonly BrowserDisposalFailure[]> = Promise.resolve([]);
 
   constructor(
     runtime: BrowserAddonRuntimePort | BrowserAddonRuntime,
@@ -35,12 +43,14 @@ export class BrowserAddonSession {
   }
 
   async start(): Promise<void> {
-    await this.#authorityLoss;
-    if (this.#controller !== undefined) {
+    const epoch = this.#epoch;
+    await this.#cleanup;
+    await this.#authorityLoss?.promise;
+    if (epoch !== this.#epoch || this.#controller !== undefined) {
       return;
     }
     const controller = new AbortController();
-    this.#retained = false;
+    this.#needsCleanup = true;
     this.#controller = controller;
     await this.#refresh("initial", controller);
   }
@@ -57,19 +67,21 @@ export class BrowserAddonSession {
     await this.#refresh(event.cause, controller);
   }
 
-  async stop(): Promise<readonly BrowserDisposalFailure[]> {
-    const controller = this.#controller;
-    if (controller === undefined) {
-      await this.#authorityLoss;
-      if (!this.#retained) return [];
-      this.#retained = false;
-      return this.#runtime.reset("authority-changed");
-    }
+  stop(): Promise<readonly BrowserDisposalFailure[]> {
+    this.#epoch += 1;
+    this.#controller?.abort("authority-changed");
     this.#controller = undefined;
-    controller?.abort("authority-changed");
-    const failures = await this.#runtime.reset("authority-changed");
-    await this.#authorityLoss;
-    return failures;
+    this.#authorityLoss?.controller.abort("authority-changed");
+    this.#authorityLoss = undefined;
+    return this.#resetRuntime();
+  }
+
+  #resetRuntime(): Promise<readonly BrowserDisposalFailure[]> {
+    if (this.#needsCleanup) {
+      this.#needsCleanup = false;
+      this.#cleanup = this.#runtime.reset("authority-changed");
+    }
+    return this.#cleanup;
   }
 
   async #refresh(cause: "initial" | EventRefresh["cause"], owner: AbortController): Promise<void> {
@@ -89,9 +101,16 @@ export class BrowserAddonSession {
         error instanceof BrowserGraphHTTPError &&
         (error.status === 401 || error.status === 403)
       ) {
-        const loss = (this.#authorityLoss ??= this.#loseAuthority(owner));
+        const epoch = this.#epoch;
+        const controller = new AbortController();
+        const loss = (this.#authorityLoss ??= {
+          controller,
+          promise: Promise.resolve().then(() =>
+            this.#loseAuthority(owner, epoch, controller.signal),
+          ),
+        });
         try {
-          await loss;
+          await loss.promise;
         } finally {
           if (this.#authorityLoss === loss) this.#authorityLoss = undefined;
         }
@@ -101,8 +120,8 @@ export class BrowserAddonSession {
     }
   }
 
-  async #loseAuthority(owner: AbortController): Promise<void> {
-    if (this.#controller !== owner) {
+  async #loseAuthority(owner: AbortController, epoch: number, signal: AbortSignal): Promise<void> {
+    if (this.#controller !== owner || signal.aborted || epoch !== this.#epoch) {
       return;
     }
     this.#controller = undefined;
@@ -110,14 +129,17 @@ export class BrowserAddonSession {
     try {
       // The application may retain mounted views for same-role sign-in. This
       // does not authorize requests; the server still rejects the old session.
-      if (await this.#callbacks.onRecoveryRequested?.()) {
-        this.#retained = true;
-        return;
-      }
+      const retain = await waitForSignal(
+        Promise.resolve(this.#callbacks.onRecoveryRequested?.() ?? false),
+        signal,
+      );
+      if (signal.aborted || epoch !== this.#epoch || retain) return;
     } catch (error) {
+      if (signal.aborted || epoch !== this.#epoch) return;
       this.#callbacks.onDiagnostic?.(error);
     }
-    const failures = await this.#runtime.reset("authority-changed");
+    const failures = await this.#resetRuntime();
+    if (signal.aborted || epoch !== this.#epoch) return;
     for (const failure of failures) {
       this.#callbacks.onDiagnostic?.(failure);
     }

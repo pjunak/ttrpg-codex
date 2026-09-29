@@ -1,4 +1,5 @@
 import { formText } from "../core/forms.js";
+import { waitForSignal } from "../core/abort-signal.js";
 import type { CampaignTwinRequest } from "./codex-record-twins.js";
 import { uiText } from "./ui-localization.js";
 import { attachCharacterPortrait } from "./character-portrait.js";
@@ -213,6 +214,7 @@ export class CodexApp extends LitElement {
   declare private sessionRecoveryError: string;
   declare private sessionRestored: boolean;
   #sessionCheck: Promise<boolean> | undefined;
+  #sessionCheckController: AbortController | undefined;
   #searchReturnFocus: HTMLElement | undefined;
   readonly #mobileMedia = window.matchMedia("(max-width: 768px)");
   #request: AbortController | undefined;
@@ -288,6 +290,7 @@ export class CodexApp extends LitElement {
     this.#disposeRuleDetails?.();
     this.#disposeRuleDetails = undefined;
     this.#request?.abort("component-disconnected");
+    this.#cancelSessionCheck();
     this.#request = undefined;
     this.#events.close();
     window.removeEventListener("hashchange", this.#onHashChange);
@@ -520,10 +523,10 @@ export class CodexApp extends LitElement {
     }
 
     try {
-      this.authority = { state: "known", auth: await getAuth(signal) };
+      this.#acceptAuthority(await getAuth(signal));
     } catch (cause: unknown) {
       if (signal.aborted) return;
-      this.authority = { state: "known", auth: anonymousAuth() };
+      this.#acceptAuthority(anonymousAuth());
       browserDiagnostics.enable(false);
       this.errorMessage = uiText("Session check failed: {0}", { "0": errorMessage(cause) });
     }
@@ -635,11 +638,13 @@ export class CodexApp extends LitElement {
       !this.authority.auth.authenticated
     )
       return Promise.resolve(false);
-    const previous = this.authority.auth,
-      signal = this.#request.signal;
-    this.#sessionCheck = (async () => {
+    const previous = this.authority.auth;
+    const controller = new AbortController();
+    const signal = AbortSignal.any([this.#request.signal, controller.signal]);
+    this.#sessionCheckController = controller;
+    const check: Promise<boolean> = (async () => {
       try {
-        const current = await getAuth(signal);
+        const current = await waitForSignal(getAuth(signal), signal);
         if (signal.aborted || this.authority.state !== "known" || this.authority.auth !== previous)
           return false;
         if (
@@ -648,7 +653,7 @@ export class CodexApp extends LitElement {
           current.role === previous.role
         ) {
           if (current.csrfToken !== previous.csrfToken) {
-            this.authority = { state: "known", auth: current };
+            this.#acceptAuthority(current);
             this.#addons?.renewCsrfToken(current.csrfToken);
           }
           return true;
@@ -666,9 +671,25 @@ export class CodexApp extends LitElement {
       browserDiagnostics.enable(false);
       return false;
     })().finally(() => {
-      this.#sessionCheck = undefined;
+      if (this.#sessionCheck === check) {
+        this.#sessionCheck = undefined;
+        this.#sessionCheckController = undefined;
+      }
     });
-    return this.#sessionCheck;
+    this.#sessionCheck = check;
+    return check;
+  }
+
+  #cancelSessionCheck(): void {
+    const controller = this.#sessionCheckController;
+    this.#sessionCheck = undefined;
+    this.#sessionCheckController = undefined;
+    controller?.abort("authority-changed");
+  }
+
+  #acceptAuthority(auth: AuthState): void {
+    this.#cancelSessionCheck();
+    this.authority = { state: "known", auth };
   }
 
   #sessionRecoveryTemplate() {
@@ -722,7 +743,7 @@ export class CodexApp extends LitElement {
         this.sessionRecoveryError = this.#ui.t("session.sameRole");
         return;
       }
-      this.authority = { state: "known", auth: current };
+      this.#acceptAuthority(current);
       this.#addons?.renewCsrfToken(current.csrfToken);
       this.sessionRecovery = false;
       this.sessionRestored = true;
@@ -755,7 +776,7 @@ export class CodexApp extends LitElement {
     try {
       const auth = await loginSession(password, this.#request.signal);
       if (!auth.authenticated) throw new Error("sign-in did not create a session");
-      this.authority = { state: "known", auth };
+      this.#acceptAuthority(auth);
       form.reset();
       await this.#reloadForAuthority();
     } catch (cause: unknown) {
@@ -768,12 +789,13 @@ export class CodexApp extends LitElement {
 
   async #logout(): Promise<void> {
     if (this.busy || this.#request === undefined || !this.#confirmDiscardEdit()) return;
+    this.#cancelSessionCheck();
     this.busy = true;
     this.errorMessage = "";
     try {
       await this.#stopAddons();
       await logoutSession(this.#request.signal);
-      this.authority = { state: "known", auth: anonymousAuth() };
+      this.#acceptAuthority(anonymousAuth());
       this.sessionRecovery = false;
       this.sessionRecoveryError = "";
       this.sessionRestored = false;
@@ -804,13 +826,14 @@ export class CodexApp extends LitElement {
       return;
     const auth = this.authority.auth;
     const role = auth.role === "dm" ? "player" : "dm";
+    this.#cancelSessionCheck();
     this.busy = true;
     this.errorMessage = "";
     try {
       await this.#stopAddons();
       const next = await switchSessionRole(role, auth.csrfToken, this.#request.signal);
       if (!next.authenticated) throw new Error("role switch ended the session");
-      this.authority = { state: "known", auth: next };
+      this.#acceptAuthority(next);
       await this.#reloadForAuthority();
     } catch (cause: unknown) {
       if (!this.#request.signal.aborted) {
@@ -908,7 +931,7 @@ export class CodexApp extends LitElement {
           });
           return;
         }
-        this.authority = { state: "known", auth: anonymousAuth() };
+        this.#acceptAuthority(anonymousAuth());
         browserDiagnostics.enable(false);
         this.addonState = { state: "idle" };
         this.#campaignData.reset();

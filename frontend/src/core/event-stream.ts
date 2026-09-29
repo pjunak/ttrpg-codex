@@ -73,7 +73,9 @@ export class SharedEventStream {
     this.#listen(source, "addon-data-changed", callbacks, parseAddonDataChange);
     this.#listen(source, "browser-addons-changed", callbacks, parseBrowserAddonChange);
     this.#listen(source, "campaign-data-changed", callbacks, parseCampaignDataChange);
-    source.addEventListener("error", () => callbacks.onConnectionError?.());
+    source.addEventListener("error", () => {
+      if (source === this.#source) callbacks.onConnectionError?.();
+    });
   }
 
   close(): void {

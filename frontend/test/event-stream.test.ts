@@ -80,6 +80,28 @@ describe("shared event boundary", () => {
 });
 
 describe("SharedEventStream", () => {
+  it("ignores connection errors from replaced and closed sources", () => {
+    const sources: FakeEventSource[] = [];
+    const stream = new SharedEventStream(() => {
+      const source = new FakeEventSource();
+      sources.push(source);
+      return source;
+    });
+    const previousError = vi.fn(),
+      currentError = vi.fn();
+    stream.open({ onRefresh: vi.fn(), onConnectionError: previousError });
+    const previous = sources[0]!;
+    stream.open({ onRefresh: vi.fn(), onConnectionError: currentError });
+    previous.dispatch("error", new Event("error"));
+    expect(previousError).not.toHaveBeenCalled();
+    const current = sources[1]!;
+    current.dispatch("error", new Event("error"));
+    expect(currentError).toHaveBeenCalledOnce();
+    stream.close();
+    current.dispatch("error", new Event("error"));
+    expect(currentError).toHaveBeenCalledOnce();
+  });
+
   it("uses one credentialed source, routes refreshes, and ignores a replaced source", () => {
     const sources: FakeEventSource[] = [];
     const factory = vi.fn((url: string, init: EventSourceInit) => {

@@ -46,6 +46,11 @@ Authenticated streams re-check their session before each live publication and
 heartbeat. Password changes, logout, expiry or role rotation close the old
 connection; an ordinary reconnect resolves its current authority again.
 
+The browser accepts publications and connection errors only from its current
+EventSource. Closing or replacing the stream retires those callbacks, so a late
+error from the previous connection cannot change the new connection's status.
+Native EventSource still owns reconnect and replay; no extra retry loop is added.
+
 The broker bounds total subscriptions and each subscriber queue. A slow
 subscriber is disconnected rather than blocking publication or accumulating
 unbounded memory. Event payloads never contain credentials, session tokens, or

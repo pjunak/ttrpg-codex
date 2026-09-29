@@ -4726,3 +4726,57 @@ No Linux CI, publication, deployment or live-site operation is part of this
 local batch. The estimate stays **94% overall / 97% implemented**, with
 **33/40 original rows closed**. T57-REQUESTS-HOST is checked separately in the
 lean backlog.
+
+## Session recovery cancellation and sign-out
+
+September 29, 2026. Seven controlled regressions fail against host `f2b7f3e`:
+an immediate stop does not cancel a pending start, a queued resume survives stop,
+stop waits for unresolved recovery decisions, concurrent stops can finish before
+owned cleanup, and retired event sources still report connection errors. The
+three recovery cases include late retain, decline and failure results. Evidence
+is retained in `frontend/test-results/session-transition-before.log`.
+
+The session now captures its epoch before waiting, cancels obsolete recovery
+decisions and invalidates pending starts on stop. One cleanup promise covers
+owned runtime disposal; overlapping stops await it and fresh starts cannot
+overtake it. Retained same-role views still survive ordinary session renewal.
+Late recovery results cannot change or tear down a replacement session, and
+their failures remain observed. Retired EventSource errors now use the same
+ownership guard as stream publications.
+
+After those unit repairs, a native Chromium regression reproduced a second
+stall: fresh sign-in reused the earlier session's held authority check, so its
+new stream could not start a current check. It fails at the unchanged seven-second
+request deadline in `session-transition-browser-before.log`; the trace is retained
+in the local traces directory. The application now cancels and releases the shared
+check on explicit logout/role switch, accepted authority changes and component
+disposal. Only the owning promise can clear the shared slot. A late old response
+cannot open recovery or displace the current authority.
+
+The focused graph/session/event/generation suite passes **69/69** tests. Native
+startup coverage passes **6/6**, including fresh sign-in and its authority check
+before the obsolete response is released, no stale recovery/error UI afterward,
+graph/stylesheet/module cancellation and campaign projection preservation.
+The logs are `session-transition-focused.log` and `session-transition-browser.log`.
+
+The complete `npm run check` passes: **75 tool tests, 487 frontend unit tests,
+293 browser passes and 198 optional installed skips**, with all Go checks and
+the standard selected race tests passing. Formatting, typed lint, strict types
+and source guards also pass. The log is `session-transition-host-check.log`.
+All **33 release-readiness gates** pass.
+
+The targeted installed suite passes **25/25 with zero skips** against the changed
+host: character session recovery, same-role cookie renewal, graph handoff,
+planner startup and draft recovery, uncertain save/creation outcomes, reviewed
+sourcebook/provider settings, compendium retry and constructor replacement.
+The log is `session-transition-installed.log`. All four companion checkouts
+remain clean at the recorded source pins and the package hashes are unchanged.
+Their owner checks are reused; this is a targeted consumer rerun, not a new
+claim that the complete 277-case installed suite was run for this batch.
+
+These controlled failures do not attribute the historical timeline, Settings,
+planner or rules-availability timeouts. Those verification rows remain open.
+Validation is local Windows coverage; Linux CI, publication, deployment and
+live-site acceptance are outside this batch. The estimate remains **94% overall
+/ 97% implemented**, with **33/40 original rows closed**. T57-SESSION-HOST is
+checked separately in the lean backlog.
