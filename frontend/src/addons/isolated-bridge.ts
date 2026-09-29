@@ -1,4 +1,5 @@
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
+import { waitForSignal } from "../core/abort-signal.js";
 import { parseRuleDetails } from "./rule-details.js";
 import type { BrowserAddonContext } from "./browser-sdk.js";
 import {
@@ -999,25 +1000,4 @@ function assertJSONValue(
     }
     assertJSONValue((value as Record<string, unknown>)[key], label, depth + 1, nextAncestors);
   }
-}
-
-export function waitForSignal<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  signal.throwIfAborted();
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => {
-      signal.removeEventListener("abort", abort);
-      reject(signal.reason);
-    };
-    signal.addEventListener("abort", abort, { once: true });
-    void promise.then(
-      (value) => {
-        signal.removeEventListener("abort", abort);
-        resolve(value);
-      },
-      (cause: unknown) => {
-        signal.removeEventListener("abort", abort);
-        reject(cause);
-      },
-    );
-  });
 }

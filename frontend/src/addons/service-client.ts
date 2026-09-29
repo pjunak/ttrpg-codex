@@ -1,4 +1,5 @@
 import { sessionFetch } from "../core/player-preview.js";
+import { waitForSignal } from "../core/abort-signal.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 
 const maximumResponseBytes = 2 * 1024 * 1024 + 128 * 1024;
@@ -200,19 +201,25 @@ export class BrowserAddonServiceClient {
   ): Promise<unknown> {
     this.#signal.throwIfAborted();
     signal?.throwIfAborted();
-    const response = await this.#fetchService(`${this.#baseURL}/${operation}`, {
-      method: "POST",
-      headers: new Headers({
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-Codex-CSRF": this.#csrfToken(),
+    const combined = signal === undefined ? this.#signal : AbortSignal.any([this.#signal, signal]);
+    const response = await waitForSignal(
+      this.#fetchService(`${this.#baseURL}/${operation}`, {
+        method: "POST",
+        headers: new Headers({
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Codex-CSRF": this.#csrfToken(),
+        }),
+        credentials: "same-origin",
+        cache: "no-store",
+        body: JSON.stringify(body),
+        signal: combined,
       }),
-      credentials: "same-origin",
-      cache: "no-store",
-      body: JSON.stringify(body),
-      signal: signal === undefined ? this.#signal : AbortSignal.any([this.#signal, signal]),
-    });
-    const text = await response.text();
+      combined,
+    );
+    combined.throwIfAborted();
+    const text = await waitForSignal(response.text(), combined);
+    combined.throwIfAborted();
     if (new TextEncoder().encode(text).byteLength > maximumResponseBytes) {
       throw new BoundaryValidationError(
         `add-on service ${operation}`,

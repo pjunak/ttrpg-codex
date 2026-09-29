@@ -1,4 +1,5 @@
 import { sessionFetch } from "../core/player-preview.js";
+import { waitForSignal } from "../core/abort-signal.js";
 import type { AddonDataSubscribe } from "./data-changes.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 
@@ -437,14 +438,18 @@ export class BrowserAddonDataClient {
     if (write) {
       headers.set("X-Codex-CSRF", this.#csrfToken());
     }
-    const response = await this.#fetchData(`${this.#baseURL}/${operation}`, {
-      method: "POST",
-      headers,
-      credentials: "same-origin",
-      cache: "no-store",
-      body: JSON.stringify(body),
-      signal: combined,
-    });
+    const response = await waitForSignal(
+      this.#fetchData(`${this.#baseURL}/${operation}`, {
+        method: "POST",
+        headers,
+        credentials: "same-origin",
+        cache: "no-store",
+        body: JSON.stringify(body),
+        signal: combined,
+      }),
+      combined,
+    );
+    combined.throwIfAborted();
     if (!response.ok) {
       throw new AddonDataHTTPError(response.status, operation);
     }
@@ -459,7 +464,8 @@ export class BrowserAddonDataClient {
         "response must be application/json",
       );
     }
-    const text = await response.text();
+    const text = await waitForSignal(response.text(), combined);
+    combined.throwIfAborted();
     if (new TextEncoder().encode(text).byteLength > maximumResponseBytes) {
       throw new BoundaryValidationError(`add-on data ${operation}`, "response exceeds 2 MiB");
     }

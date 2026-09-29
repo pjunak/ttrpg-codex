@@ -127,8 +127,12 @@ second add-on-only SSE connection or reconnect policy.
 `BrowserGraphClient` serializes refreshes and owns the strong ETag for the last
 accepted graph. It sends same-origin credentials and `If-None-Match`, returns
 the cached immutable value for a 304, and never interprets an HTTP error body.
-`reset()` invalidates both the cache and any in-flight response so a role or
-session transition cannot repopulate stale authority.
+`reset()` clears the cache, aborts in-flight reads and releases their queue so a
+role or session transition can fetch a fresh graph immediately. Every refresh
+captures its authority epoch when queued. Old queued reads cannot fetch under
+the next authority; late headers, bodies and failures cannot replace its graph
+or ETag. Request cancellation also releases the caller without discarding the
+last accepted graph.
 
 A 200 response is accepted only when it is JSON below 512 KiB, uses contract
 version 2, has exact object fields, lowercase SHA-256 revisions and generation
@@ -138,6 +142,16 @@ contribution, duplicate, dependency, and cycle semantics before the client
 replaces its last good graph. Contribution configuration is bounded JSON with
 deterministic object ordering and prototype-sensitive keys rejected. Reusing
 one revision for different content is a boundary failure.
+
+The shared data, content and service clients combine generation and optional
+request signals. They pass that signal to fetch, stop awaiting cancelled headers
+or bodies and check cancellation before interpreting a response. Late transport
+failures remain observed and cancellation keeps its original reason. The same
+abort helper owns isolated-frame readiness waits. Transactions remain serialized
+within a live client, and queued transactions from a disposed generation never
+dispatch. Cancelling a request is not proof that the server rolled back a write:
+clients never replay it automatically; consumers retain explicit receipt/state
+reconciliation for uncertain outcomes.
 
 ## Runtime composition
 
@@ -154,10 +168,12 @@ advances the coordinator's authority epoch and invalidates the graph client's
 cache, so queued work and fetched-but-unapplied responses cannot continue. It
 immediately cancels any generation still activating, then completes ordered
 disposal of active generations. Cancellation does not wait behind the pending
-stylesheet, module import or activation it needs to interrupt. Explicit logout,
-role and permission changes use the `authority-changed` stop reason. This prevents an old
-credential context from restoring browser authority while its resources are
-being torn down.
+graph response, stylesheet, module import or activation it needs to interrupt.
+The next authority still waits for owned generation cleanup before fetching or
+activating; an obsolete transport promise cannot hold that cleanup queue open.
+Explicit logout, role and permission changes use the `authority-changed` stop
+reason. This prevents an old credential context from restoring browser authority
+while its resources are being torn down.
 
 `BrowserAddonSession` owns graph refresh behind the authenticated application
 shell, which owns the shared stream. Graph signals pass through the serialized

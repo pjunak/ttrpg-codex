@@ -1,4 +1,5 @@
 import { sessionFetch } from "../core/player-preview.js";
+import { waitForSignal } from "../core/abort-signal.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 
 const maximumResponseBytes = 5 * 1024 * 1024;
@@ -230,13 +231,18 @@ export class BrowserAddonContentClient {
   ): Promise<Readonly<Record<string, unknown>>> {
     this.#signal.throwIfAborted();
     signal?.throwIfAborted();
-    const response = await this.#fetchContent(this.#baseURL + suffix, {
-      method: "GET",
-      headers: new Headers({ Accept: "application/json" }),
-      credentials: "same-origin",
-      cache: "no-store",
-      signal: signal === undefined ? this.#signal : AbortSignal.any([this.#signal, signal]),
-    });
+    const combined = signal === undefined ? this.#signal : AbortSignal.any([this.#signal, signal]);
+    const response = await waitForSignal(
+      this.#fetchContent(this.#baseURL + suffix, {
+        method: "GET",
+        headers: new Headers({ Accept: "application/json" }),
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: combined,
+      }),
+      combined,
+    );
+    combined.throwIfAborted();
     if (!response.ok) {
       throw new AddonContentHTTPError(response.status, operation);
     }
@@ -251,7 +257,8 @@ export class BrowserAddonContentClient {
         "response must be application/json",
       );
     }
-    const text = await response.text();
+    const text = await waitForSignal(response.text(), combined);
+    combined.throwIfAborted();
     if (new TextEncoder().encode(text).byteLength > maximumResponseBytes) {
       throw new BoundaryValidationError(`add-on content ${operation}`, "response exceeds 5 MiB");
     }

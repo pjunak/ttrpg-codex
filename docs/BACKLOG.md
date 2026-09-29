@@ -105,6 +105,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T15-DELIVERY — Publish the tested host and deploy both sites**~~ — `5cc4945`; [Asurai/Tiamat rollout and health checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#coordinated-publication-verification).
 - [x] ~~**T18-PERF-HOST — Pin and accept the faster multiclass calculation**~~ — 277/277 installed cases with zero skips; EN/CS sessions finish in 63/60 seconds with unchanged deadlines and saved-character checks; [package and acceptance evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-calculation-ownership-and-deferred-progression).
 - [x] ~~**T57-HEALTH-LOCK — Keep browser access responsive during worker health checks**~~ — wait outside the package-manager lock, reject obsolete results after lifecycle changes and share pending probes; [controlled reproduction and validation](rewrite/HOST_CLEANUP_ACCEPTANCE.md#worker-health-without-blocking-browser-access).
+- [x] ~~**T57-REQUESTS-HOST — Release cancelled graph and add-on requests**~~ — discard obsolete queued reads and late responses, allow fresh sign-in after ordered cleanup, and share cancellation across data/content/service clients; [regressions and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancelled-browser-requests-and-fresh-authority).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -121,7 +122,7 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   Subsequent runs passed; no shared cause is established. Retain bounded
   timeline/settings captures and the separate character-fixture failure records.
   Preserve deadlines and assertions; [T61 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
-  The distinct stalled-activation, campaign-read sign-out and health-check lock
+  The distinct activation, campaign/graph cancellation and health-check lock
   defects are fixed above; they do not establish the cause of these historical timeouts.
   September 28 also retained Chromium `ERR_NO_BUFFER_SPACE` failures before DM
   panel/schema-review navigation. The first exactly matches Windows TCP port

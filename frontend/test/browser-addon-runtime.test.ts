@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { deferred } from "./deferred.js";
 import { BrowserAddonRuntime } from "../src/addons/browser-addon-runtime.js";
 import {
   BrowserGraphClient,
@@ -34,6 +35,82 @@ const graph: BrowserGenerationSet = {
 };
 
 describe("BrowserAddonRuntime", () => {
+  it("finishes graph reset and a fresh activation before obsolete transport settles", async () => {
+    const started = deferred();
+    const release = deferred<Response>();
+    const disposed = vi.fn();
+    let reads = 0;
+    const client = new BrowserGraphClient(async () => {
+      if (++reads === 2) {
+        started.resolve();
+        return release.promise;
+      }
+      return jsonGraphResponse(graph);
+    });
+    const manager = new BrowserGenerationManager(() => disposed);
+    const runtime = new BrowserAddonRuntime(client, manager);
+    const signal = new AbortController().signal;
+    await runtime.refresh(signal);
+    const old = runtime.refresh(signal);
+    const rejected = expect(old).rejects.toBeInstanceOf(BrowserGraphRefreshInvalidatedError);
+    await started.promise;
+    let finished = false;
+    const reset = runtime.reset("authority-changed").then((failures) => {
+      finished = true;
+      return failures;
+    });
+    try {
+      await vi.waitFor(() => expect(finished).toBe(true));
+      await expect(reset).resolves.toEqual([]);
+      expect(disposed).toHaveBeenCalledOnce();
+      expect(runtime.activeGenerations()).toEqual([]);
+      await runtime.refresh(signal);
+      expect(runtime.activeGenerations()).toEqual(graph.addons);
+    } finally {
+      release.resolve(jsonGraphResponse(graph));
+      await Promise.allSettled([old, rejected, reset]);
+    }
+    await rejected;
+    expect(runtime.activeGenerations()).toEqual(graph.addons);
+    await runtime.reset();
+    expect(disposed).toHaveBeenCalledTimes(2);
+  });
+
+  it("waits for owned generation cleanup before the next authority starts", async () => {
+    const disposing = deferred();
+    const release = deferred();
+    const events: string[] = [];
+    const client = new BrowserGraphClient(async () => {
+      events.push("fetch");
+      return jsonGraphResponse(graph);
+    });
+    const manager = new BrowserGenerationManager(() => {
+      events.push("activate");
+      return async () => {
+        events.push("dispose");
+        disposing.resolve();
+        await release.promise;
+        events.push("disposed");
+      };
+    });
+    const runtime = new BrowserAddonRuntime(client, manager);
+    const signal = new AbortController().signal;
+    await runtime.refresh(signal);
+    const reset = runtime.reset("authority-changed");
+    await disposing.promise;
+    const fresh = runtime.refresh(signal);
+    try {
+      await Promise.resolve();
+      expect(events).toEqual(["fetch", "activate", "dispose"]);
+    } finally {
+      release.resolve();
+      await Promise.all([reset, fresh]);
+    }
+    expect(events).toEqual(["fetch", "activate", "dispose", "disposed", "fetch", "activate"]);
+    expect(runtime.activeGenerations()).toEqual(graph.addons);
+    await runtime.reset();
+  });
+
   it("reconciles an unchanged graph without duplicating activation", async () => {
     const responses = [jsonGraphResponse(graph), new Response(null, { status: 304 })];
     const fetchGraph = queuedFetch(responses);
@@ -271,14 +348,6 @@ describe("BrowserAddonRuntime", () => {
     expect(lateDisposed).toHaveBeenCalledOnce();
   });
 });
-
-function deferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((settle) => {
-    resolve = settle;
-  });
-  return { promise, resolve };
-}
 
 function queuedFetch(responses: Response[]): BrowserGraphFetch {
   return async () => {

@@ -1,4 +1,5 @@
 import { sessionFetch } from "../core/player-preview.js";
+import { waitForSignal } from "../core/abort-signal.js";
 import { validContributionLabels } from "./contribution-label.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 import {
@@ -86,6 +87,7 @@ export class BrowserGraphClient {
   #current: BrowserGenerationSet | undefined;
   #etag: string | undefined;
   #epoch = 0;
+  #controller = new AbortController();
   #tail: Promise<void> = Promise.resolve();
 
   constructor(fetchGraph: BrowserGraphFetch = (input, init) => sessionFetch(input, init)) {
@@ -97,7 +99,14 @@ export class BrowserGraphClient {
   }
 
   refresh(signal: AbortSignal): Promise<BrowserGraphRefresh> {
-    const operation = this.#tail.then(() => this.#refresh(signal));
+    const epoch = this.#epoch;
+    const requestSignal = AbortSignal.any([signal, this.#controller.signal]);
+    const operation = this.#tail
+      .then(() => this.#refresh(requestSignal, epoch))
+      .catch((cause: unknown) => {
+        this.#assertCurrent(requestSignal, epoch);
+        throw cause;
+      });
     this.#tail = operation.then(
       () => undefined,
       () => undefined,
@@ -107,27 +116,35 @@ export class BrowserGraphClient {
 
   reset(): void {
     this.#epoch += 1;
+    this.#controller.abort(new BrowserGraphRefreshInvalidatedError());
+    this.#controller = new AbortController();
+    this.#tail = Promise.resolve();
     this.#current = undefined;
     this.#etag = undefined;
   }
 
-  async #refresh(signal: AbortSignal): Promise<BrowserGraphRefresh> {
+  #assertCurrent(signal: AbortSignal, epoch: number): void {
+    if (epoch !== this.#epoch) throw new BrowserGraphRefreshInvalidatedError();
     signal.throwIfAborted();
-    const epoch = this.#epoch;
+  }
+
+  async #refresh(signal: AbortSignal, epoch: number): Promise<BrowserGraphRefresh> {
+    this.#assertCurrent(signal, epoch);
     const headers = new Headers({ Accept: "application/json" });
     if (this.#etag !== undefined) {
       headers.set("If-None-Match", this.#etag);
     }
-    const response = await this.#fetchGraph("/api/addons/browser-graph", {
-      method: "GET",
-      headers,
-      credentials: "same-origin",
-      cache: "no-cache",
+    const response = await waitForSignal(
+      this.#fetchGraph("/api/addons/browser-graph", {
+        method: "GET",
+        headers,
+        credentials: "same-origin",
+        cache: "no-cache",
+        signal,
+      }),
       signal,
-    });
-    if (epoch !== this.#epoch) {
-      throw new BrowserGraphRefreshInvalidatedError();
-    }
+    );
+    this.#assertCurrent(signal, epoch);
     if (response.status === 304) {
       if (this.#current === undefined || this.#etag === undefined) {
         throw new BoundaryValidationError(boundary, "received 304 without a cached graph");
@@ -145,7 +162,8 @@ export class BrowserGraphClient {
     if (contentType !== "application/json") {
       throw new BoundaryValidationError(boundary, "response must be application/json");
     }
-    const body = await response.text();
+    const body = await waitForSignal(response.text(), signal);
+    this.#assertCurrent(signal, epoch);
     if (new TextEncoder().encode(body).byteLength > maximumGraphBytes) {
       throw new BoundaryValidationError(boundary, "response exceeds 512 KiB");
     }
@@ -166,9 +184,7 @@ export class BrowserGraphClient {
     ) {
       throw new BoundaryValidationError(boundary, "one graph revision described different content");
     }
-    if (epoch !== this.#epoch) {
-      throw new BrowserGraphRefreshInvalidatedError();
-    }
+    this.#assertCurrent(signal, epoch);
     const changed = this.#current?.graphRevision !== graph.graphRevision;
     this.#current = graph;
     this.#etag = etag;

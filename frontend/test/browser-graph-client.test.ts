@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { deferred } from "./deferred.js";
 import {
   BrowserGraphClient,
   BrowserGraphHTTPError,
@@ -160,6 +161,118 @@ describe("parseBrowserGenerationSet", () => {
 });
 
 describe("BrowserGraphClient", () => {
+  it("invalidates queued reads at reset without fetching under the next authority", async () => {
+    const started = deferred();
+    const pending = deferred<Response>();
+    const fetchGraph = vi.fn<BrowserGraphFetch>(async () => {
+      started.resolve();
+      return pending.promise;
+    });
+    const client = new BrowserGraphClient(fetchGraph);
+    const signal = new AbortController().signal;
+    const first = client.refresh(signal);
+    await started.promise;
+    const queued = client.refresh(signal);
+    const firstRejected = expect(first).rejects.toBeInstanceOf(BrowserGraphRefreshInvalidatedError);
+    const queuedRejected = expect(queued).rejects.toBeInstanceOf(
+      BrowserGraphRefreshInvalidatedError,
+    );
+    client.reset();
+    pending.resolve(jsonGraphResponse(graph));
+    await Promise.all([firstRejected, queuedRejected]);
+    expect(fetchGraph).toHaveBeenCalledOnce();
+    expect(client.current()).toBeUndefined();
+  });
+
+  for (const phase of ["headers", "body"] as const)
+    it(`starts a fresh graph before obsolete ${phase} finish and retains its ETag`, async () => {
+      const started = deferred();
+      const release = deferred();
+      const newer = { ...graph, graphRevision: "c".repeat(64), addons: [] };
+      let calls = 0;
+      let oldSignal: AbortSignal | null | undefined;
+      const headers: Headers[] = [];
+      const client = new BrowserGraphClient(async (_url, init) => {
+        headers.push(new Headers(init.headers));
+        if (++calls > 1)
+          return calls === 2 ? jsonGraphResponse(newer) : new Response(null, { status: 304 });
+        oldSignal = init.signal;
+        const response = jsonGraphResponse(graph);
+        if (phase === "headers") {
+          started.resolve();
+          await release.promise;
+        } else {
+          vi.spyOn(response, "text").mockImplementation(async () => {
+            started.resolve();
+            await release.promise;
+            return JSON.stringify(graph);
+          });
+        }
+        return response;
+      });
+      const signal = new AbortController().signal;
+      const old = client.refresh(signal);
+      const rejected = expect(old).rejects.toBeInstanceOf(BrowserGraphRefreshInvalidatedError);
+      await started.promise;
+      client.reset();
+      const fresh = client.refresh(signal);
+      try {
+        await vi.waitFor(() => expect(calls).toBe(2));
+        expect(oldSignal?.aborted).toBe(true);
+        await expect(fresh).resolves.toEqual({ graph: newer, changed: true });
+        expect(headers[1]?.has("If-None-Match")).toBe(false);
+      } finally {
+        release.resolve();
+        await Promise.allSettled([old, rejected, fresh]);
+      }
+      await rejected;
+      expect(client.current()).toEqual(newer);
+      await expect(client.refresh(signal)).resolves.toEqual({ graph: newer, changed: false });
+      expect(headers[2]?.get("If-None-Match")).toBe(`"${newer.graphRevision}"`);
+    });
+
+  for (const phase of ["headers", "body"] as const)
+    for (const outcome of ["invalid response", "failure"] as const)
+      it(`keeps the last graph when a cancelled ${phase} read ends with a late ${outcome}`, async () => {
+        const started = deferred();
+        const release = deferred();
+        let reads = 0;
+        const client = new BrowserGraphClient(async () => {
+          if (++reads === 1) return jsonGraphResponse(graph);
+          if (reads > 2) return new Response(null, { status: 304 });
+          const wait = async () => {
+            started.resolve();
+            await release.promise;
+            if (outcome === "failure") throw new Error("obsolete transport failure");
+          };
+          if (phase === "headers") {
+            await wait();
+            return new Response(null, { status: 401 });
+          }
+          const response = jsonGraphResponse(graph);
+          vi.spyOn(response, "text").mockImplementation(async () => {
+            await wait();
+            return "invalid JSON";
+          });
+          return response;
+        });
+        const signal = new AbortController().signal;
+        await client.refresh(signal);
+        const request = new AbortController();
+        const old = client.refresh(request.signal);
+        const rejected = expect(old).rejects.toBe("left-page");
+        await started.promise;
+        request.abort("left-page");
+        try {
+          await rejected;
+          await expect(client.refresh(signal)).resolves.toEqual({ graph, changed: false });
+        } finally {
+          release.resolve();
+        }
+        expect(client.current()).toEqual(graph);
+        expect(reads).toBe(3);
+      });
+
   it("conditionally refreshes and returns the cached graph on 304", async () => {
     const calls: Array<{ input: string; init: RequestInit }> = [];
     const responses = [jsonGraphResponse(graph), new Response(null, { status: 304 })];

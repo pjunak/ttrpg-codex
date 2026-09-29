@@ -39,19 +39,19 @@ export class BrowserAddonRuntime {
 
   refresh(signal: AbortSignal): Promise<BrowserAddonRefreshResult> {
     const authorityEpoch = this.#authorityEpoch;
-    const operation = this.#tail.then(async () => {
-      this.#assertCurrentAuthority(authorityEpoch);
-      const transport = await this.#client.refresh(signal);
-      this.#assertCurrentAuthority(authorityEpoch);
-      try {
+    const operation = this.#tail
+      .then(async () => {
+        this.#assertCurrentAuthority(authorityEpoch, signal);
+        const transport = await this.#client.refresh(signal);
+        this.#assertCurrentAuthority(authorityEpoch, signal);
         const lifecycle = await this.#manager.reconcile(transport.graph);
-        this.#assertCurrentAuthority(authorityEpoch);
+        this.#assertCurrentAuthority(authorityEpoch, signal);
         return { transport, lifecycle };
-      } catch (cause) {
-        this.#assertCurrentAuthority(authorityEpoch);
+      })
+      .catch((cause: unknown) => {
+        this.#assertCurrentAuthority(authorityEpoch, signal);
         throw cause;
-      }
-    });
+      });
     this.#tail = operation.then(
       () => undefined,
       () => undefined,
@@ -62,9 +62,9 @@ export class BrowserAddonRuntime {
   reset(reason: GenerationStopReason = "disabled"): Promise<readonly BrowserDisposalFailure[]> {
     this.#authorityEpoch += 1;
     this.#client.reset();
-    const operation = Promise.all([this.#tail, this.#manager.dispose(reason)]).then(
-      ([, failures]) => failures,
-    );
+    // A previous graph read can settle late. Only owned generation disposal
+    // must finish before the next authority starts fetching and activating.
+    const operation = this.#manager.dispose(reason);
     this.#tail = operation.then(
       () => undefined,
       () => undefined,
@@ -72,9 +72,10 @@ export class BrowserAddonRuntime {
     return operation;
   }
 
-  #assertCurrentAuthority(authorityEpoch: number): void {
+  #assertCurrentAuthority(authorityEpoch: number, signal: AbortSignal): void {
     if (authorityEpoch !== this.#authorityEpoch) {
       throw new BrowserGraphRefreshInvalidatedError();
     }
+    signal.throwIfAborted();
   }
 }

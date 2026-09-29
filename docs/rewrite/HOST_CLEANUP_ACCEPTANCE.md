@@ -4663,3 +4663,66 @@ T57/T60/T61 startup timeouts, T18-DM canvas timeout or Windows port-pressure
 trigger. Those items remain open. No push, publication, deployment or live-data
 operation is included. The estimate remains **94% overall / 97% implemented**
 and **33/40 original rows closed**; the confirmed subtask is checked separately.
+
+## Cancelled browser requests and fresh authority
+
+September 29, 2026. Controlled browser-client tests found two graph reset defects:
+fresh work waited behind an obsolete response, and a queued refresh captured its
+authority only when it started. That queued read could therefore fetch and cache
+under the next session after reset. The initial regression run failed four cases
+against host `80e161d`, including held headers/body and runtime reset.
+
+Graph reset now aborts and releases old transport work, clears its private ETag
+and captures each refresh's epoch at enqueue time. Late responses and failures
+cannot repopulate the graph. The runtime releases its obsolete fetch queue but
+still awaits owned generation disposal before fresh fetching/activation. Tests
+hold cleanup separately to verify that this ordering remains intact. Ordinary
+refreshes remain serialized, and caller cancellation preserves the last good
+graph and conditional cache.
+
+The shared add-on data, content and service transports also lacked cancellation
+checks after awaiting response headers/body. A controlled 41-case run reproduced
+late results or errors escaping cancellation, including a disposed generation's
+active transaction. The existing isolated-frame abort helper is now shared with
+those transports and graph loading. It releases callers promptly, observes late
+failures and retains the cancellation reason. The expanded matrix covers both
+generation and request cancellation, reads, writes, service connections/calls,
+valid uncancelled responses and disposed queued writes. No automatic retry or
+server-side rollback guarantee is added; an uncertain write still needs explicit
+receipt/state reconciliation.
+
+The focused suite passes **147/147** tests across graph/runtime/session ownership,
+generation disposal, the three SDK clients and isolated-frame behavior. Native
+Chromium startup checks pass **5/5**, including sign-out/fresh sign-in while the
+old graph response remains held, stylesheet/module cancellation and campaign
+projection preservation. Logs under `frontend/test-results/` are
+`browser-authority-before.log`, `browser-authority-sdk-before.log`,
+`browser-authority-units.log` and `browser-authority-startup.log`.
+
+The full host `npm run check` passes **75 tooling tests, 480 frontend unit tests,
+292 browser cases**, all Go tests and the standard selected race scope. Its
+**198 optional installed skips** are not counted as passes. All **33 unchanged
+historical release-readiness gates** pass. The full gate log is
+`browser-authority-host-check.log`.
+
+Targeted installed acceptance passes **23/23, zero skips**, in 62,982 ms:
+DM/player session renewal and renewed cookies, pending input after source-policy
+changes, autosave/rejected input after provider reload, reviewed imports after
+package replacement, uncertain planner creation/saves, held/rejected startup,
+desktop/phone draft replacement, and revision-guarded provider/source settings.
+The result is retained in `browser-authority-installed.log`.
+
+Direct compendium content retry and same-generation reactivation pass **2/2,
+zero skips**, in `browser-authority-compendium.log`. Together these are **25
+targeted installed cases**, not a new full-suite run. All four companion checkouts
+remain clean at the accepted pins and their ZIP hashes match the preceding
+package provenance. Unchanged owner checks are reused; public request/response
+schemas, permissions and package versions are unchanged.
+
+The graph and SDK cancellation defects are confirmed separately from the
+historical T53 provider loss, T57/T60/T61 startup timeouts, T18-DM canvas timeout
+and Windows port-pressure trigger. Those original investigations remain open.
+No Linux CI, publication, deployment or live-site operation is part of this
+local batch. The estimate stays **94% overall / 97% implemented**, with
+**33/40 original rows closed**. T57-REQUESTS-HOST is checked separately in the
+lean backlog.

@@ -24,7 +24,7 @@ after(async () => {
   await server?.close();
 });
 
-for (const asset of ["stylesheet", "module"] as const) {
+for (const asset of ["graph", "stylesheet", "module"] as const) {
   void test(
     `sign-out cancels a stalled add-on ${asset} and allows a fresh sign-in`,
     { timeout: 30_000 },
@@ -41,6 +41,7 @@ for (const asset of ["stylesheet", "module"] as const) {
       page.on("pageerror", (error) => errors.push(error.message));
       const started = Promise.withResolvers<void>();
       const release = Promise.withResolvers<void>();
+      const graphSettled = Promise.withResolvers<void>();
       let authenticated = true,
         hold = true;
       const auth = () =>
@@ -66,17 +67,28 @@ for (const asset of ["stylesheet", "module"] as const) {
         const response = await route.fetch();
         const graph: { addons: { entryUrl: string; styleUrls: string[] }[] } =
           await response.json();
-        await route.fulfill({
-          response,
-          json: {
-            ...graph,
-            addons: graph.addons.map((addon) => ({
-              ...addon,
-              styleUrls:
-                asset === "stylesheet" ? [addon.entryUrl.replace(/index\.js$/, "startup.css")] : [],
-            })),
-          },
-        });
+        const held = asset === "graph" && hold;
+        if (held) {
+          started.resolve();
+          await release.promise;
+        }
+        try {
+          await route.fulfill({
+            response,
+            json: {
+              ...graph,
+              addons: graph.addons.map((addon) => ({
+                ...addon,
+                styleUrls:
+                  asset === "stylesheet"
+                    ? [addon.entryUrl.replace(/index\.js$/, "startup.css")]
+                    : [],
+              })),
+            },
+          });
+        } finally {
+          if (held) graphSettled.resolve();
+        }
       });
       const stalledAsset =
         asset === "stylesheet" ? "**/assets/web/startup.css" : "**/assets/web/index.js";
@@ -99,12 +111,18 @@ for (const asset of ["stylesheet", "module"] as const) {
         assert.equal(await page.locator("link[data-codex-addon]").count(), 0);
         assert.equal(await page.locator("visual-fixture-addon").count(), 0);
         hold = false;
-        release.resolve();
+        if (asset !== "graph") release.resolve();
         await account.locator('input[name="password"]').fill("synthetic-password");
         await account.getByRole("button", { name: "Sign in", exact: true }).click();
         await page.waitForFunction(() => document.querySelector("codex-app")?.busy === false);
         await page.goto("/#/addons/visual-fixture/tools");
         await page.getByText("Synthetic add-on page", { exact: true }).waitFor();
+        if (asset === "graph") {
+          release.resolve();
+          await graphSettled.promise;
+          await page.getByText("Synthetic add-on page", { exact: true }).waitFor();
+        }
+        assert.equal(await page.locator(".application-alert").count(), 0);
         assert.equal(await page.locator("visual-fixture-addon").count(), 1);
         assert.equal(
           await page.locator("link[data-codex-addon]").count(),

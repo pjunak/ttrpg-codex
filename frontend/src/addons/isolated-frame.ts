@@ -1,4 +1,5 @@
 import { sessionFetch } from "../core/player-preview.js";
+import { waitForSignal } from "../core/abort-signal.js";
 import { BoundaryValidationError } from "../core/boundary.js";
 import type { BrowserAddonContext, BrowserContributionRegistry } from "./browser-sdk.js";
 import type {
@@ -11,7 +12,6 @@ import {
   IsolatedFrameBridge,
   IsolatedInvocationError,
   isolatedFrameProtocol,
-  waitForSignal,
   type IsolatedSDKMethod,
 } from "./isolated-bridge.js";
 import { isolatedFrameBootstrap } from "./isolated-frame-bootstrap.js";
