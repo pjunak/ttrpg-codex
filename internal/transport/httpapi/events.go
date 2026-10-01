@@ -105,9 +105,14 @@ func (s *server) eventStream(w http.ResponseWriter, r *http.Request) {
 	if heartbeat == 0 {
 		heartbeat = defaultEventHeartbeat
 	}
-	lastSent, err := s.startEventStream(r.Context(), w, flusher, audience, cursor, supplied)
+	lastSent, err := s.startEventStream(r, w, flusher, audience, cursor, supplied)
 	if err != nil {
-		s.logger.Error("start event stream", "error", err)
+		if !errors.Is(err, errAuthorizationRequired) {
+			s.logger.Error("start event stream", "error", err)
+		}
+		return
+	}
+	if !s.eventSessionCurrent(r) {
 		return
 	}
 	_ = controller.SetWriteDeadline(time.Now().Add(heartbeat + 10*time.Second))
@@ -146,7 +151,7 @@ func (s *server) eventStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) startEventStream(
-	ctx context.Context,
+	r *http.Request,
 	w http.ResponseWriter,
 	flusher http.Flusher,
 	audience events.Audience,
@@ -154,9 +159,12 @@ func (s *server) startEventStream(
 	supplied bool,
 ) (int64, error) {
 	if !supplied {
-		latest, err := s.events.Latest(ctx, audience)
+		latest, err := s.events.Latest(r.Context(), audience)
 		if err != nil {
 			return 0, err
+		}
+		if !s.eventSessionCurrent(r) {
+			return 0, errAuthorizationRequired
 		}
 		if err := writeSSE(w, flusher, "hello", latest, map[string]any{
 			"cursor": latest, "audience": audience,
@@ -165,9 +173,12 @@ func (s *server) startEventStream(
 		}
 		return latest, nil
 	}
-	replay, err := s.events.Replay(ctx, audience, cursor, events.DefaultReplayLimit)
+	replay, err := s.events.Replay(r.Context(), audience, cursor, events.DefaultReplayLimit)
 	if err != nil {
 		return 0, err
+	}
+	if !s.eventSessionCurrent(r) {
+		return 0, errAuthorizationRequired
 	}
 	if cursor > replay.Latest || replay.Truncated || replay.Expired {
 		if err := writeSSE(w, flusher, "reset", replay.Latest, map[string]any{
@@ -179,6 +190,9 @@ func (s *server) startEventStream(
 	}
 	lastSent := cursor
 	for _, event := range replay.Events {
+		if !s.eventSessionCurrent(r) {
+			return 0, errAuthorizationRequired
+		}
 		if err := writeSSE(w, flusher, event.Topic, event.Sequence, event); err != nil {
 			return 0, err
 		}

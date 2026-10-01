@@ -182,8 +182,11 @@ sessions. Both revoke existing player previews, while the reviewing DM keeps
 the same session and CSRF token. Login and changes serialize across the
 credential check and session creation, so a concurrent old-password login
 cannot escape revocation.
-Existing authenticated event streams close before their next live publication
-or heartbeat when their session is revoked.
+Existing authenticated event streams re-check authority after initial reads,
+before replayed/live publications and heartbeats, and immediately after initial
+output. Revocation during initial output closes the stream without waiting for
+its next heartbeat; later revocation closes it before the next live publication
+or heartbeat.
 
 Native backups include password hashes; restoring one restores its saved
 passwords. Older backups without this table bootstrap on the first start.

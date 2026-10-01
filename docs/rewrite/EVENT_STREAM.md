@@ -42,9 +42,12 @@ effective role to the public or DM audience before cursor or query parsing.
 Responses disable proxy buffering, retain authorization variance, and send
 heartbeat comments every 20 seconds. Write deadlines are advanced after
 successful output so a stalled client cannot hold a handler forever.
-Authenticated streams re-check their session before each live publication and
-heartbeat. Password changes, logout, expiry or role rotation close the old
-connection; an ordinary reconnect resolves its current authority again.
+Authenticated streams re-check their session after the initial cursor/replay
+read, before each replayed or live publication, and before each heartbeat.
+They also check immediately after initial output, so revocation during its
+flush closes the stream without waiting for the next notification or heartbeat.
+Password changes, logout, expiry or role rotation close the old connection;
+an ordinary reconnect resolves its current authority again.
 
 The browser accepts publications and connection errors only from its current
 EventSource. Each source also supplies a cancellation signal for work already
@@ -70,8 +73,9 @@ Player-preview tabs open the same shared stream with their bounded preview
 credential in the `playerPreviewToken` query parameter. Authentication validates
 and removes it before the stream's otherwise-closed query check. The preview
 always receives the public audience even when the browser also carries a DM
-cookie. Preview authority is checked before live publications and heartbeats;
-expired or revoked previews close and cannot reconnect using the DM cookie.
+cookie. Preview authority follows the same initial-output, replay, live and
+heartbeat checks; expired or revoked previews close and cannot reconnect using
+the DM cookie.
 
 ## Campaign recovery
 

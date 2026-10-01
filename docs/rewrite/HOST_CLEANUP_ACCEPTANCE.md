@@ -5203,3 +5203,62 @@ backup/maintenance assets. Physical touch, spoken screen-reader and printer
 acceptance also remain separate. The estimate stays **94% overall / 97%
 implemented**, with **33/40 original rows closed**; this checkpoint adds no new
 product-parity gate or launch prerequisite.
+
+## Initial stream revocation and password-work timing
+
+October 1, 2026. The user explicitly approved pushing the nine tested host
+commits and both automatic site deployments. The fast-forward moved `main`
+from `80e161d` to `82c7441` without changing companion pins. In
+[Build and dispatch run 36901119987](https://github.com/pjunak/ttrpg-codex/actions/runs/36901119987),
+host tools, frontend tests and ordinary Go tests passed. The selected race
+scope failed `TestPasswordRotationClosesExistingDMLiveStream` with
+`revoked stream waited for request cancellation`. The separate secret scan
+and deployment configuration passed. Image publication and deployment were
+skipped, so this run did not change either site.
+
+The test started its five-second request deadline before synchronous password
+rotation. Rotation performs the production 600,000-iteration PBKDF2 checks and
+replacement hash; its expensive work is outside the stream shutdown being
+measured. The stream then waited for its next one-second heartbeat before
+checking the revoked session. An isolated Windows race run passed three times;
+that alone did not explain the Linux failure. Seven existing authentication
+cases under `-race -cpu=1 -parallel=8` reproduced the exact failure: rotation
+took **4.225 seconds**, committed with a live context, then the next heartbeat
+crossed the original five-second deadline. Temporary timing instrumentation
+was removed after retaining the evidence. This establishes a reproducible
+timing mechanism, not a measurement of the original Linux runner's hash time.
+
+A separate source review found that initial output bypassed session checks
+after cursor/replay reads and between replay rows. Five controlled tests failed
+against the unchanged server: revocation during the latest-cursor read, replay
+read and reset read still emitted output; revocation in the first replay flush
+still emitted the next private event; revocation in the hello flush waited for
+request cancellation. Each guard begins after authentication fixture setup.
+
+The server now rechecks the request's current session after each initial read,
+before every replay row, and immediately after initial output. Ordinary
+revocation closes quietly; actual source failures retain their error logs.
+The same checks apply to player-preview authority. Live event and heartbeat
+checks, role filtering, replay deduplication, subscription cleanup, proxy
+headers and write limits remain intact. The password-rotation test starts its
+unchanged five-second shutdown guard after credential commit. No hash work
+factor, heartbeat interval, assertion or CI gate is reduced.
+
+The constrained-CPU run passes all seven existing authentication cases and all
+five new replay cases after repair. The complete `npm run check` passes
+**81 tooling tests, 585 frontend unit tests and 330 browser cases**, with
+198 optional installed skips, strict types/lint/source/format checks, Go vet,
+Staticcheck, ordinary Go tests and the selected race scope. All **33 existing
+release gates** pass. Evidence is retained under `frontend/test-results/` as
+`current-publication-stream-contention-before.log`,
+`current-publication-replay-before.log`, `current-publication-stream-after.log`,
+`current-publication-final-check.log` and `current-publication-release.log`.
+
+The same CI run separately cancelled installed acceptance at its existing
+35-minute job limit. Package checks and inspection passed, but its synchronous
+wrapper buffered all test output until process exit, leaving no individual
+test progress or timeout evidence in the job log. This is a separate delivery
+blocker; the stream repair does not explain it. Linux installed acceptance
+and both rollouts remain unverified at this checkpoint. The original-row
+count remains **33/40**, with **94% overall / 97% implemented**; T57-SSE-HOST
+records this confirmed repair without closing historical startup attribution.

@@ -136,7 +136,8 @@ func TestPasswordRotationClosesExistingDMLiveStream(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
 		request := httptest.NewRequest(http.MethodGet, "/api/events", nil).WithContext(ctx)
 		request.Header.Set("Cookie", "edit_session="+old.Token)
 		response := &credentialFlushRecorder{ResponseRecorder: httptest.NewRecorder()}
@@ -144,6 +145,9 @@ func TestPasswordRotationClosesExistingDMLiveStream(t *testing.T) {
 			if _, err := service.ChangePassword(ctx, dm.Token, dm.CSRFToken, "dragon-master", sessionauth.RoleDM, "rotated-master", 1); err != nil {
 				t.Fatal(err)
 			}
+			// Measure stream shutdown after credential work has committed.
+			deadline := time.AfterFunc(5*time.Second, cancel)
+			t.Cleanup(func() { deadline.Stop() })
 			if publish {
 				if _, err := broker.Publish(ctx, events.Publication{Audience: events.AudienceDM, Topic: "admin-diagnostic", ResourceID: "private-after-rotation", Revision: "1"}); err != nil {
 					t.Fatal(err)
