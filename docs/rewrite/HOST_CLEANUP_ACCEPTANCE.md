@@ -5262,3 +5262,54 @@ blocker; the stream repair does not explain it. Linux installed acceptance
 and both rollouts remain unverified at this checkpoint. The original-row
 count remains **33/40**, with **94% overall / 97% implemented**; T57-SSE-HOST
 records this confirmed repair without closing historical startup attribution.
+
+## Streamed installed acceptance diagnostics
+
+October 1, 2026. The compatibility job in
+[run 36901119987](https://github.com/pjunak/ttrpg-codex/actions/runs/36901119987)
+finished companion checks and package inspection, then began the strict
+installed suite at **17:50:06 UTC**. Its 35-minute job limit cancelled the
+operation at **18:15:50 UTC**, after more than 25 minutes without individual
+test output. The wrapper used `spawnSync` with captured pipes and printed them
+only after the child exited. Cancellation consequently discarded the evidence
+needed to distinguish a slow test, a failed fixture and a shutdown stall.
+No root cause for the underlying installed-suite delay is established.
+
+The wrapper now awaits an asynchronously spawned child while immediately
+forwarding stdout/stderr and appending each stdout chunk to the existing
+`release/companions/installed.tap`. Each stream retains its 32 MiB limit;
+overflow, startup errors and nonzero/signal exits still fail acceptance. Source
+pins, ZIP verification, four-file concurrency, individual test deadlines,
+the 35-minute CI job limit and the full-suite zero-skip check are unchanged.
+Partial output is diagnostic evidence and cannot authorize publication.
+
+Four native-process regressions prove that progress is visible and saved
+before a child can finish, a failed child retains its output and exit status,
+excessive stdout and stderr are both stopped, and startup failures settle
+with an empty diagnostic file. The progress test uses a file acknowledgement:
+the child cannot produce its final TAP result until the parent has already
+observed and saved its initial output. These are real Node processes, not
+mocked successful test reports. Existing package and skip-rejection tests
+remain intact; the focused suite passes **8/8**.
+
+The final local `npm run check` passes **85 tooling tests, 585 frontend unit
+tests and 330 browser cases**, with 198 optional installed skips and the full
+Go/selected-race and strict source/type/lint/format/vet/Staticcheck scopes.
+Its first sweep had one unchanged Overview browser case fail at navigation
+with `ERR_NO_BUFFER_SPACE`; Windows recorded a corresponding Tcpip 4231 at
+**18:26:27 UTC**. The exact case then passed with its original assertions and
+deadline. A monitored complete recheck passed. Its 25 aggregate samples from
+**18:31:32–18:33:58 UTC** peaked at **1,965 ephemeral connections / 1,833
+distinct local ports**, with no Tcpip 4231/4266 in that interval. Sampling
+does not identify the earlier allocation source or exclude shorter spikes.
+No network settings, concurrent file count, test deadline or assertion changed.
+
+Evidence is `frontend/test-results/current-publication-process-regressions.log`,
+`current-publication-streaming-check.log` (retained failure),
+`current-publication-final-recheck.log`, `current-publication-pressure.json`,
+`current-publication-pressure.jsonl` and `current-publication-pressure-summary.json`.
+All 33 release gates remain satisfied. Replacement Linux delivery results are
+recorded in the following delivery checkpoint. T15-DIAGNOSTICS-HOST closes only the
+demonstrated lost-output defect; the cancelled installed run does not pass
+acceptance and its delay is not attributed to the password timer or historical
+browser failures.

@@ -192,6 +192,11 @@ by a build. Public schemas and generated source interfaces remain versioned.
 
 Browser files run four at a time to bound Chromium resource usage without
 changing individual test deadlines or coverage.
+The suite streams test output as it runs and saves partial TAP output to
+`release/companions/installed.tap`. A job cancellation can therefore leave useful
+progress in its log instead of discarding every unfinished test's diagnostics.
+The existing 32 MiB bounds on each output stream and the zero-skip requirement
+still apply; partial output never establishes acceptance.
 
 Focused checks are useful during development:
 

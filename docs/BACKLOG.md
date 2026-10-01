@@ -113,7 +113,8 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T57-SETTINGS-HOST — Retire obsolete add-on Settings requests**~~ — suppress cancelled authority notifications and delayed JSON, reload reconnected configuration/wizards and preserve current inventory/staging feedback; [reproductions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#add-on-settings-cancellation-and-reconnect).
 - [x] ~~**T57-ACCOUNT-HOST — Restore Account navigation after reconnect**~~ — clear retired password saving/draft flags, cancel Account/recovery JSON waits and preserve accepted server writes; [real-server regressions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#account-reconnect-and-recovery-response-cancellation).
 - [x] ~~**T57-CAPTURES-HOST — Preserve original browser failures when evidence capture fails**~~ — `544f3d4`; shared independent page/state, JSON and screenshot capture across Timeline, Settings and saved-spell fixtures; [controlled failures and current suite checkpoint](rewrite/HOST_CLEANUP_ACCEPTANCE.md#current-suite-readiness-and-preserved-browser-failures).
-- [x] ~~**T57-SSE-HOST — Stop revoked sessions during initial event output**~~ — recheck cursor reads, replay rows and the initial flush; measure password-rotation shutdown after credential work commits; [CI failure, controlled reproduction and repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#initial-stream-revocation-and-password-work-timing).
+- [x] ~~**T57-SSE-HOST — Stop revoked sessions during initial event output**~~ — `2465bee`; recheck cursor reads, replay rows and the initial flush; measure password-rotation shutdown after credential work commits; [CI failure, controlled reproduction and repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#initial-stream-revocation-and-password-work-timing).
+- [x] ~~**T15-DIAGNOSTICS-HOST — Retain installed acceptance progress during cancellation**~~ — stream bounded stdout/stderr immediately and persist partial TAP output; failed or skipped tests still block publication; [native-process regressions](rewrite/HOST_CLEANUP_ACCEPTANCE.md#streamed-installed-acceptance-diagnostics).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -139,6 +140,10 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   The October 1 complete installed suite passes 277/277 with no skips and no
   sampled TCP exhaustion; [current checkpoint](rewrite/HOST_CLEANUP_ACCEPTANCE.md#current-suite-readiness-and-preserved-browser-failures)
   strengthens evidence capture without attributing the historical failures.
+  The October 1 Linux installed suite separately reached its 35-minute job
+  limit without reported test progress. The wrapper now streams diagnostics;
+  the underlying stall still needs current Linux evidence. [Delivery failure
+  and diagnostic repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#streamed-installed-acceptance-diagnostics).
 
 ### Lifecycle, maintenance and operations
 

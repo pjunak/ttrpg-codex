@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import {
   appendFileSync,
   copyFileSync,
@@ -153,7 +153,61 @@ export function requireNoSkips(output: string): void {
     throw new Error("Installed publication acceptance must report zero skipped tests");
 }
 
-function runSuite(required: boolean): void {
+export async function runInstalledProcess(
+  command: string,
+  args: string[],
+  options: {
+    cwd: string;
+    env: NodeJS.ProcessEnv;
+    outputFile: string;
+    report?: (chunk: string) => void;
+    reportError?: (chunk: string) => void;
+  },
+): Promise<{ stdout: string; status: number | null; error: Error | undefined }> {
+  writeFileSync(options.outputFile, "");
+  return await new Promise((resolve) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const chunks: string[] = [],
+      sizes = { stdout: 0, stderr: 0 };
+    let failure: Error | undefined;
+    const fail = (error: Error): void => {
+      failure ??= error;
+      child.kill();
+    };
+    for (const name of ["stdout", "stderr"] as const) {
+      child[name].setEncoding("utf8").on("data", (chunk: string) => {
+        if (failure) return;
+        sizes[name] += Buffer.byteLength(chunk);
+        if (sizes[name] > 32 << 20) {
+          fail(new Error("Installed acceptance " + name + " exceeds 32 MiB"));
+          return;
+        }
+        try {
+          if (name === "stdout") {
+            chunks.push(chunk);
+            appendFileSync(options.outputFile, chunk);
+            if (options.report) options.report(chunk);
+            else process.stdout.write(chunk);
+          } else if (options.reportError) options.reportError(chunk);
+          else process.stderr.write(chunk);
+        } catch (cause) {
+          fail(cause instanceof Error ? cause : new Error(String(cause)));
+        }
+      });
+    }
+    child.once("error", fail);
+    child.once("close", (status) => {
+      resolve({ stdout: chunks.join(""), status, error: failure });
+    });
+  });
+}
+
+async function runSuite(required: boolean): Promise<void> {
   const directory = join(root, "release", "companions");
   const evidence = JSON.parse(
     readFileSync(join(directory, "provenance.json"), "utf8"),
@@ -176,7 +230,8 @@ function runSuite(required: boolean): void {
   const env = { ...process.env };
   for (const variable of Object.values(companionInputs)) delete env[variable];
   Object.assign(env, inputs);
-  const result = spawnSync(
+  console.log(`Starting installed acceptance: ${files.length} files, 4 workers.`);
+  const result = await runInstalledProcess(
     process.execPath,
     [
       "--test",
@@ -184,11 +239,8 @@ function runSuite(required: boolean): void {
       "--test-reporter=tap",
       ...files.map((file) => "test/browser/" + file),
     ],
-    { cwd: join(root, "frontend"), env, encoding: "utf8", windowsHide: true, maxBuffer: 32 << 20 },
+    { cwd: join(root, "frontend"), env, outputFile: join(directory, "installed.tap") },
   );
-  writeFileSync(join(directory, "installed.tap"), result.stdout ?? "");
-  process.stdout.write(result.stdout ?? "");
-  process.stderr.write(result.stderr ?? "");
   let failure =
     result.error ??
     (result.status !== 0 ? new Error("Installed companion acceptance failed") : undefined);
@@ -231,7 +283,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const [command, ...args] = process.argv.slice(2);
     if (command === "prepare") prepareSuite(args);
     else if (command === "test" && args.length === 1 && ["full", "public"].includes(args[0]!))
-      runSuite(args[0] === "full");
+      await runSuite(args[0] === "full");
     else throw new Error("Usage: companion-suite.mts prepare <repos...> | test <full|public>");
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
