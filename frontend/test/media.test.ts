@@ -1,5 +1,6 @@
 import { requestBodyText } from "./request-body.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { deferred } from "./deferred.js";
 import { BoundaryValidationError } from "../src/core/boundary.js";
 import {
   MediaClient,
@@ -88,6 +89,90 @@ describe("media boundary parsers", () => {
 });
 
 describe("MediaClient", () => {
+  for (const method of ["upload", "latest", "delete", "map tiles"] as const) {
+    for (const phase of ["headers", "body"] as const) {
+      it.each(["success", "failure"] as const)(
+        `cancels held ${method} ${phase} before its late %s without replay`,
+        async (outcome) => {
+          const started = deferred();
+          const release = deferred();
+          const finished = deferred();
+          const fetchMedia = vi.fn(async () => {
+            const hold = async () => {
+              started.resolve();
+              await release.promise;
+              finished.resolve();
+              if (outcome === "failure") throw new Error("retired upload failure");
+            };
+            const payload =
+              method === "delete"
+                ? {
+                    contractVersion: "media-delete-result.v1",
+                    id: blob.id,
+                    revision: 2,
+                    deleted: true,
+                  }
+                : method === "map tiles"
+                  ? {
+                      contractVersion: "map-tiles.v1",
+                      id: blob.id,
+                      width: 1280,
+                      height: 800,
+                      tileSize: 256,
+                      depth: 3,
+                    }
+                  : blob;
+            const response = jsonResponse(payload, 201);
+            vi.spyOn(response, "text").mockImplementation(async () => {
+              if (phase === "body") await hold();
+              return JSON.stringify(payload);
+            });
+            if (phase === "headers") await hold();
+            return response;
+          });
+          const client = new MediaClient(fetchMedia);
+          const controller = new AbortController();
+          const reason = new Error("application disconnected");
+          let settlement: unknown;
+          const request =
+            method === "upload"
+              ? client.upload(
+                  "character-portrait",
+                  "hero",
+                  new Blob(["image"], { type: "image/png" }),
+                  "portrait.png",
+                  "c".repeat(32),
+                  controller.signal,
+                )
+              : method === "latest"
+                ? client.latest("character-portrait", "hero", controller.signal)
+                : method === "delete"
+                  ? client.delete(blob.id, 1, "c".repeat(32), controller.signal)
+                  : client.mapTiles(blob.url, controller.signal);
+          const operation = request.then(
+            (value) => {
+              settlement = value;
+            },
+            (cause: unknown) => {
+              settlement = cause;
+            },
+          );
+          await started.promise;
+          try {
+            controller.abort(reason);
+            await vi.waitFor(() => expect(settlement).toBe(reason));
+          } finally {
+            release.resolve();
+            await finished.promise;
+            await operation;
+          }
+          expect(settlement).toBe(reason);
+          expect(fetchMedia).toHaveBeenCalledTimes(1);
+        },
+      );
+    }
+  }
+
   it("uploads raw bytes with encoded filename and bound CSRF", async () => {
     const calls: Array<{ input: string; init: RequestInit }> = [];
     const fetchMedia: MediaFetch = async (input, init) => {

@@ -4842,3 +4842,69 @@ Linux CI, publication, deployment, live-site and human/device acceptance remain
 outside its validation. The estimate remains **94% overall / 97% implemented**,
 with **33/40 original rows closed**. T57-APP-HOST is checked separately in the
 lean backlog.
+
+## Core write cancellation and preserved server outcomes
+
+October 1, 2026. Controlled failures against host `3672595` reproduce cancelled
+campaign transactions, twin operations, enum deletion and media uploads that
+keep waiting for obsolete headers. A real-host core save blocks a fresh save
+after reconnect; a disconnected save's readback increments the retired
+completion counter; and an accepted, delayed portrait upload later publishes
+its URL into the reconnected character, changing record revision 1 to 2.
+The valid before evidence is `frontend/test-results/core-write-before-unit.log`,
+the record cases in `core-write-before-browser.log` and the corrected portrait
+case in `core-portrait-before-browser.log`. The portrait fixture initially
+waited for an editor that correctly reopened as an article; that fixture
+selection error is excluded from product findings. Existing twelve-second
+record/portrait browser deadlines are unchanged.
+
+All fourteen core save/delete/upload handlers capture their initiating signal
+and CSRF token. Each asynchronous stage checks ownership before preparing a
+later publication or accepting completion. An obsolete operation cannot clear
+a newer action's busy/dirty state, report a stale success/error, increment edit
+completion or navigate the replacement page. Character and twin callbacks
+settle on cancellation; interrupted character saves distinguish an acknowledged
+write from an unknown outcome and retain the existing draft contract.
+
+The shared campaign write queue releases cancelled active waits and observes
+late failures. Cancelled queued callers can stop waiting immediately, but their
+queue positions still wait for any live predecessor. This preserves live write
+order and prevents cancelled queued work from reaching the server. Media
+uploads, metadata reads, deletion and tile-manifest reads stop awaiting cancelled
+headers/bodies and reject obsolete results. Portrait binding also checks its
+original scope after upload.
+
+Cancellation does not prove rollback. The real-host regressions verify accepted
+save/deletion/twin results remain intact, fresh saves use the refreshed revision,
+no write is replayed, and an interrupted portrait's uploaded bytes stay readable
+without acquiring a record reference. No old images, recovery points, saves or
+backup ZIPs are removed by this change.
+
+The focused suite passes **69/69 unit tests** and **8/8 native Chromium cases**.
+The browser cases cover held headers/body, a late transport failure, pending
+replacement saves on desktop/phone, interrupted readback/deletion, single twin
+callback settlement and both all-fields/direct portrait uploads. Tracing now
+owns verification and cleanup together for the two real-host fixture files.
+The logs are `core-write-focused-unit.log` and `core-write-focused-browser.log`.
+
+The full `npm run check` passes **75 tool tests, 516 frontend unit tests,
+309 browser passes and 198 optional installed skips**, plus all Go checks and
+the standard selected race tests. Source guards, strict types, typed lint and
+formatting pass. The log is `core-write-full-check.log`. All **33 unchanged
+product-parity release gates** pass (`core-write-release.log`).
+
+The targeted installed suite passes **27/27 with zero skips** against the
+changed host: character pending-input/session recovery and concurrent edits,
+same-role cookie renewal, graph/provider/package handoff, planner startup and
+draft recovery, interrupted save/creation reconciliation, reviewed sourcebook
+and provider settings, compendium retry/replacement and player-preview
+isolation/revocation. The log is `core-write-installed.log`. The four companion
+checkouts match their clean recorded source pins, and all four ZIP SHA-256 hashes
+are unchanged. Their owner checks are reused; this targeted consumer rerun does
+not replace the earlier full installed-suite acceptance.
+
+This separately reproduced batch does not explain the historical timeline,
+Settings, planner or rules-availability timeouts. Those rows remain open, along
+with Linux CI, publication, live-site and human/device acceptance. The estimate
+remains **94% overall / 97% implemented**, with **33/40 original rows closed**.
+T57-WRITES-HOST is checked separately in the lean backlog.

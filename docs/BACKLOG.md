@@ -108,6 +108,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T57-REQUESTS-HOST — Release cancelled graph and add-on requests**~~ — discard obsolete queued reads and late responses, allow fresh sign-in after ordered cleanup, and share cancellation across data/content/service clients; [regressions and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancelled-browser-requests-and-fresh-authority).
 - [x] ~~**T57-SESSION-HOST — Cancel obsolete session recovery on sign-out**~~ — invalidate queued starts, share awaited cleanup, retire old authority checks and ignore closed-stream errors; [controlled failures and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#session-recovery-cancellation-and-sign-out).
 - [x] ~~**T57-APP-HOST — Keep startup and account actions within their application lifetime**~~ — run health diagnostics independently, cancel retired account actions and pending previews, and await cleanup across replacement compositions; [reproductions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#independent-health-and-application-lifetime).
+- [x] ~~**T57-WRITES-HOST — Keep core saves and uploads within their application lifetime**~~ — release cancelled writes while preserving live queue order, ignore obsolete save feedback and navigation, settle callbacks and retain accepted writes/media without replay; [reproductions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#core-write-cancellation-and-preserved-server-outcomes).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -124,8 +125,8 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   Subsequent runs passed; no shared cause is established. Retain bounded
   timeline/settings captures and the separate character-fixture failure records.
   Preserve deadlines and assertions; [T61 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
-  Separately reproduced request, session and health-check defects are fixed
-  above; their evidence does not explain these historical timeouts.
+  Separately reproduced request, session, write and health-check defects are
+  fixed above; their evidence does not explain these historical timeouts.
   September 28 also retained Chromium `ERR_NO_BUFFER_SPACE` failures before DM
   panel/schema-review navigation. The first exactly matches Windows TCP port
   exhaustion; focused replays pass, but the source of transient pressure remains

@@ -16,6 +16,19 @@ import { once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 import { chromium, request as playwrightRequest } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
+import { holdCoreWrite } from "./core-write-lifetime-fixture.mts";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
+type LifetimeApp = HTMLElement & {
+  busy: boolean;
+  editCompletion: number;
+  recordSaveState: string;
+};
+
+declare global {
+  interface Window {
+    coreTwinReply: { calls: number; ok?: boolean };
+  }
+}
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const output = resolve(root, "frontend/test-results/record-workflows");
@@ -112,7 +125,8 @@ async function open(t: TestContext, role?: string, mobile = false, fallbackFonts
     reducedMotion: "reduce",
     viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
   });
-  t.after(() => context.close());
+  const errors: string[] = [];
+  await trackBrowserContext(t, context, () => assert.deepEqual(errors, []));
   const auth = role
     ? await jsonResponse(
         await context.request.post("/api/login", {
@@ -123,9 +137,7 @@ async function open(t: TestContext, role?: string, mobile = false, fallbackFonts
   if (fallbackFonts) await context.route("**/*.woff2", (route) => route.abort());
   const page = await context.newPage();
   page.setDefaultTimeout(12_000);
-  const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  t.after(() => assert.deepEqual(errors, []));
   await page.goto("/#/");
   await page.locator(".session-section").waitFor();
   return { page, client: context.request, token: auth?.csrfToken };
@@ -182,6 +194,179 @@ async function record(key: string, name = "locations") {
     .find((collection: FixtureCollection) => collection.name === name)
     .records.find((record: FixtureRecord) => record.key === key);
 }
+
+for (const scenario of [
+  { phase: "headers", outcome: "success", mobile: false },
+  { phase: "headers", outcome: "failure", mobile: false },
+  { phase: "body", outcome: "success", mobile: true },
+] as const) {
+  void test(`cancelled core saves release held ${scenario.phase} ${scenario.outcome} before a fresh ${scenario.mobile ? "phone" : "desktop"} save`, async (t) => {
+    const key = `write-lifetime-${scenario.phase}-${scenario.outcome}`;
+    await put(admin, csrf, key, { name: "Original place", description: "Keep these notes" });
+    const { page } = await open(t, "dm", scenario.mobile);
+    await page.goto(`/#/locations/${key}/edit`);
+    await page.getByLabel("Name", { exact: true }).fill("Interrupted save");
+    const first = await holdCoreWrite(
+      page,
+      "/api/campaign/transactions",
+      scenario.phase,
+      scenario.outcome,
+    );
+    const secondRelease = Promise.withResolvers<void>();
+    try {
+      await page.getByRole("button", { name: "Save entry", exact: true }).last().click();
+      await first.started();
+      assert.equal((await record(key)).value.name, "Interrupted save");
+      assert.equal((await record(key)).revision, 2);
+      const app = await page.$("codex-app");
+      assert.ok(app);
+      const completion = await app.evaluate((node) => (node as LifetimeApp).editCompletion);
+      await app.evaluate((node) => node.remove());
+      const connected = page.waitForRequest((request) => request.url().endsWith("/api/auth"));
+      await app.evaluate((node) => document.body.append(node));
+      await connected;
+      await page.getByLabel("Name", { exact: true }).waitFor();
+      assert.equal(await page.getByLabel("Name", { exact: true }).inputValue(), "Interrupted save");
+      await page.route("**/api/campaign/transactions", async (route) => {
+        await secondRelease.promise;
+        await route.continue();
+      });
+      await page.getByLabel("Name", { exact: true }).fill("Fresh confirmed save");
+      const freshWrite = page.waitForRequest((request) =>
+        request.url().endsWith("/api/campaign/transactions"),
+      );
+      await page.getByRole("button", { name: "Save entry", exact: true }).last().click();
+      await freshWrite;
+      await first.release();
+      assert.equal(await app.evaluate((node) => (node as LifetimeApp).busy), true);
+      assert.equal(await app.evaluate((node) => (node as LifetimeApp).editCompletion), completion);
+      assert.equal(new URL(page.url()).hash, `#/locations/${key}/edit`);
+      assert.equal(await page.locator(".application-alert").count(), 0);
+      assert.equal(await page.locator(".record-save-confirmation").count(), 0);
+      secondRelease.resolve();
+      await page.getByRole("heading", { name: "Fresh confirmed save", exact: true }).waitFor();
+      assert.equal((await record(key)).revision, 3);
+      assert.equal((await record(key)).value.description, "Keep these notes");
+      assert.equal(await page.evaluate(() => window.coreWriteHold.calls), 2);
+    } finally {
+      secondRelease.resolve();
+      await first.release();
+    }
+  });
+}
+
+void test("detaching during core save readback cannot publish an obsolete completion", async (t) => {
+  const key = "write-lifetime-readback";
+  await put(admin, csrf, key, { name: "Before readback" });
+  const { page } = await open(t, "dm");
+  await page.goto(`/#/locations/${key}/edit`);
+  await page.getByLabel("Name", { exact: true }).fill("Saved before disconnect");
+  const readback = await holdCoreWrite(page, "/api/campaign", "body");
+  const app = await page.$("codex-app");
+  assert.ok(app);
+  const completion = await app.evaluate((node) => (node as LifetimeApp).editCompletion);
+  try {
+    await page.getByRole("button", { name: "Save entry", exact: true }).last().click();
+    await readback.started();
+    assert.equal((await record(key)).value.name, "Saved before disconnect");
+    await app.evaluate((node) => node.remove());
+    await readback.release();
+    assert.equal(await app.evaluate((node) => (node as LifetimeApp).editCompletion), completion);
+    assert.equal(await app.evaluate((node) => (node as LifetimeApp).recordSaveState), "idle");
+    assert.equal(new URL(page.url()).hash, `#/locations/${key}/edit`);
+    await app.evaluate((node) => document.body.append(node));
+    await page.getByLabel("Name", { exact: true }).waitFor();
+    assert.equal(
+      await page.getByLabel("Name", { exact: true }).inputValue(),
+      "Saved before disconnect",
+    );
+    assert.equal((await record(key)).revision, 2);
+  } finally {
+    await readback.release();
+  }
+});
+
+void test("an interrupted core deletion stays deleted without changing a newer route", async (t) => {
+  const key = "write-lifetime-delete";
+  await put(admin, csrf, key, { name: "Delete this place" });
+  const { page } = await open(t, "dm");
+  await page.goto(`/#/locations/${key}`);
+  await page.getByRole("heading", { name: "Delete this place", exact: true }).waitFor();
+  const receipt = await holdCoreWrite(page, "/api/campaign/transactions", "headers");
+  const app = await page.$("codex-app");
+  assert.ok(app);
+  const completion = await app.evaluate((node) => (node as LifetimeApp).editCompletion);
+  try {
+    await page.locator("codex-record-page").evaluate((node, key) => {
+      node.dispatchEvent(
+        new CustomEvent("campaign-record-delete", {
+          detail: { collection: "locations", key, expectedRevision: 1 },
+        }),
+      );
+    }, key);
+    await receipt.started();
+    assert.equal(await record(key), undefined);
+    await app.evaluate((node) => node.remove());
+    await page.evaluate(() => {
+      window.location.hash = "#/characters";
+    });
+    await app.evaluate((node) => document.body.append(node));
+    await page.locator(".collection-page").waitFor();
+    await receipt.release();
+    assert.equal(new URL(page.url()).hash, "#/characters");
+    assert.equal(await app.evaluate((node) => (node as LifetimeApp).editCompletion), completion);
+    assert.equal(await page.evaluate(() => window.coreWriteHold.calls), 1);
+    assert.equal(await record(key), undefined);
+    assert.equal(await page.locator(".application-alert").count(), 0);
+  } finally {
+    await receipt.release();
+  }
+});
+
+void test("a cancelled twin request settles its callback once before a late receipt", async (t) => {
+  const key = "write-lifetime-twin";
+  await put(admin, csrf, key, { name: "Preserve these twins", visibility: "public" });
+  const { page } = await open(t, "dm");
+  await page.goto(`/#/locations/${key}`);
+  await page.getByRole("heading", { name: "Preserve these twins", exact: true }).waitFor();
+  const receipt = await holdCoreWrite(page, "/api/campaign/twins", "headers");
+  try {
+    await page.locator("codex-record-page").evaluate((node, key) => {
+      window.coreTwinReply = { calls: 0 };
+      node.dispatchEvent(
+        new CustomEvent("campaign-twin", {
+          detail: {
+            mutation: {
+              action: "create",
+              collection: "locations",
+              sourceKey: key,
+              sourceExpectedRevision: 1,
+            },
+            respond: (result: { ok: boolean }) => {
+              window.coreTwinReply.calls++;
+              window.coreTwinReply.ok = result.ok;
+            },
+          },
+        }),
+      );
+    }, key);
+    await receipt.started();
+    assert.equal((await record(key)).revision, 2);
+    const app = await page.$("codex-app");
+    assert.ok(app);
+    await app.evaluate((node) => node.remove());
+    await page.waitForFunction(() => window.coreTwinReply.calls === 1);
+    await app.evaluate((node) => document.body.append(node));
+    await page.getByRole("heading", { name: "Preserve these twins", exact: true }).waitFor();
+    await receipt.release();
+    assert.deepEqual(await page.evaluate(() => window.coreTwinReply), { calls: 1, ok: false });
+    assert.equal(await page.evaluate(() => window.coreWriteHold.calls), 1);
+    assert.equal((await record(key)).revision, 2);
+    assert.equal(await page.locator(".application-alert").count(), 0);
+  } finally {
+    await receipt.release();
+  }
+});
 
 for (const scenario of [
   { role: "dm", mobile: false, stale: false },

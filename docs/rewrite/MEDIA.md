@@ -37,6 +37,13 @@ immutable media remain available to recovery points. An upload whose record
 write fails can remain unreferenced; it is never automatically deleted after an
 ambiguous response that might have committed successfully.
 
+Media requests stop awaiting cancelled headers or bodies and reject late
+results. Portrait, local-map and branding saves retain their original signal and
+CSRF token across upload and record publication. Disconnect prevents a late
+upload from attaching its URL in a new application lifetime; it does not delete
+accepted bytes, previous images or recovery data. The reconnect reads current
+server records before another explicit save.
+
 Save visibility changes separately before replacing a portrait: media visibility
 is fixed at upload, independently of the character's later visibility. The UI
 supports English and Czech and uses the normal authenticated record authority.

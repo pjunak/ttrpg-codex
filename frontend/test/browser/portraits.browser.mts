@@ -17,6 +17,14 @@ import { once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 import { chromium, request as playwrightRequest } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
+import { holdCoreWrite } from "./core-write-lifetime-fixture.mts";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
+
+declare global {
+  interface Window {
+    corePortraitReply: { calls: number; ok?: boolean };
+  }
+}
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const output = resolve(root, "frontend/test-results/portraits");
@@ -136,16 +144,15 @@ async function open(t: TestContext, key: string, mobile = false, role: string | 
     reducedMotion: "reduce",
     viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
   });
-  t.after(() => context.close());
+  const errors: string[] = [];
+  await trackBrowserContext(t, context, () => assert.deepEqual(errors, []));
   if (role)
     await jsonResponse(
       await context.request.post("/api/login", { data: { password: `local-portrait-${role}` } }),
     );
   const page = await context.newPage();
   page.setDefaultTimeout(12000);
-  const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  t.after(() => assert.deepEqual(errors, []));
   await page.goto(`/#/characters/${key}`);
   await page.locator("#record-title").waitFor();
   return { page, context };
@@ -172,6 +179,88 @@ async function save(page: Page) {
   await page.getByRole("button", { name: "Save entry", exact: true }).click();
   await page.locator("#record-title").waitFor();
 }
+
+for (const mode of ["all fields", "direct portrait"] as const) {
+  void test(`an interrupted ${mode} upload cannot publish into a reconnected character`, async (t) => {
+    const key = mode === "all fields" ? "retired-portrait-record" : "retired-portrait-patch";
+    await put(key, {
+      name: "Keep this character",
+      visibility: "public",
+      extension: { keep: true },
+    });
+    const { page } = await open(t, key);
+    let writes = 0;
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/campaign/transactions")) writes++;
+    });
+    if (mode === "all fields") await edit(page);
+    else {
+      await page.locator("codex-record-page").evaluate((node) => {
+        window.corePortraitReply = { calls: 0 };
+        node.addEventListener(
+          "campaign-character-save",
+          (event) => {
+            const detail = (event as CustomEvent<{ respond: (result: { ok: boolean }) => void }>)
+              .detail;
+            const respond = detail.respond;
+            Object.defineProperty(detail, "respond", {
+              value: (result: { ok: boolean }) => {
+                window.corePortraitReply.calls++;
+                window.corePortraitReply.ok = result.ok;
+                respond(result);
+              },
+            });
+          },
+          { capture: true },
+        );
+      });
+      await page.getByLabel("More actions", { exact: true }).click();
+      await page.getByRole("button", { name: "Portrait", exact: true }).click();
+    }
+    await page.getByLabel("Choose portrait", { exact: true }).setInputFiles(await picture(page));
+    const upload = await holdCoreWrite(page, `/api/media/character-portrait/${key}`, "headers");
+    try {
+      await page
+        .getByRole("button", {
+          name: mode === "all fields" ? "Save entry" : "Save changes",
+          exact: true,
+        })
+        .click();
+      await upload.started();
+      const app = await page.$("codex-app");
+      assert.ok(app);
+      await app.evaluate((node) => node.remove());
+      if (mode === "direct portrait")
+        await page.waitForFunction(() => window.corePortraitReply.calls === 1);
+      const connected = page.waitForRequest((request) => request.url().endsWith("/api/auth"));
+      await app.evaluate((node) => document.body.append(node));
+      await connected;
+      await page.locator("#record-title").waitFor();
+      await upload.release();
+      const current = await record(key);
+      assert.equal(current.revision, 1);
+      assert.equal(current.value.portrait, undefined);
+      assert.deepEqual(current.value.extension, { keep: true });
+      assert.equal(writes, 0);
+      assert.equal(await page.evaluate(() => window.coreWriteHold.calls), 1);
+      assert.equal(await page.locator(".application-alert").count(), 0);
+      if (mode === "direct portrait")
+        assert.deepEqual(await page.evaluate(() => window.corePortraitReply), {
+          calls: 1,
+          ok: false,
+        });
+      // The uploaded immutable bytes remain available even though their record
+      // reference was never committed; cancellation does not authorize deletion.
+      const uploaded = await jsonResponse(
+        await admin.get(`/api/media/latest/character-portrait/${key}`),
+      );
+      assert.ok((await admin.get(uploaded.url)).ok());
+    } finally {
+      await upload.release();
+    }
+  });
+}
+
 void test("direct fields and the wiki commit independently through the authenticated host", async (t) => {
   const key = "direct-edit";
   await put(key, {

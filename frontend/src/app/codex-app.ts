@@ -1619,6 +1619,8 @@ export class CodexApp extends LitElement {
     }
     this.busy = true;
     const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
+    let writeConfirmed = false;
     try {
       let prepared = prepareCharacterPatch(
         this.campaignState.campaign,
@@ -1636,15 +1638,15 @@ export class CodexApp extends LitElement {
           ...(patch.portrait !== undefined ? { portrait: patch.portrait } : {}),
           ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),
         },
-        this.authority.auth.csrfToken,
+        csrfToken,
         signal,
       );
-      const receipt = await this.#campaignMutations.commit(
-        prepared.mutations,
-        this.authority.auth.csrfToken,
-        signal,
-      );
+      signal.throwIfAborted();
+      const receipt = await this.#campaignMutations.commit(prepared.mutations, csrfToken, signal);
+      writeConfirmed = true;
+      signal.throwIfAborted();
       await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       const campaign =
         this.campaignState.state === "ready" ? this.campaignState.campaign : undefined;
       const record =
@@ -1689,19 +1691,25 @@ export class CodexApp extends LitElement {
       const conflict =
         (cause instanceof CampaignRecordEditError && cause.kind === "stale") ||
         (cause instanceof CampaignMutationHTTPError && cause.status === 409);
-      if (cause instanceof CampaignMutationHTTPError && cause.status === 409)
+      if (!signal.aborted && cause instanceof CampaignMutationHTTPError && cause.status === 409)
         await this.#loadCampaign(signal, true);
       respond({
         ok: false,
         conflict,
-        message: conflict
+        message: signal.aborted
           ? uiText(
-              "This field changed elsewhere. Your draft is kept. Review the current value before retrying.",
+              writeConfirmed
+                ? "The change was saved, but could not be refreshed. Your draft is kept. Refresh before retrying."
+                : "Saving was interrupted. Your draft is kept. Refresh before retrying.",
             )
-          : uiText("The entry could not be saved: {0}", { "0": errorMessage(cause) }),
+          : conflict
+            ? uiText(
+                "This field changed elsewhere. Your draft is kept. Review the current value before retrying.",
+              )
+            : uiText("The entry could not be saved: {0}", { "0": errorMessage(cause) }),
       });
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -1730,13 +1738,12 @@ export class CodexApp extends LitElement {
     }
     this.busy = true;
     const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     try {
-      const receipt = await this.#campaignMutations.mutateTwin(
-        mutation,
-        this.authority.auth.csrfToken,
-        signal,
-      );
+      const receipt = await this.#campaignMutations.mutateTwin(mutation, csrfToken, signal);
+      signal.throwIfAborted();
       await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       const campaign =
         this.campaignState.state === "ready" ? this.campaignState.campaign : undefined;
       const verified =
@@ -1761,7 +1768,7 @@ export class CodexApp extends LitElement {
         ),
       });
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -1808,21 +1815,16 @@ export class CodexApp extends LitElement {
       this.recordSaveState = "failed";
       return;
     }
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
-      prepared = await attachCharacterPortrait(
-        prepared,
-        event.detail,
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#campaignMutations.commit(
-        prepared.mutations,
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#loadCampaign(this.#request.signal, true);
+      prepared = await attachCharacterPortrait(prepared, event.detail, csrfToken, signal);
+      signal.throwIfAborted();
+      await this.#campaignMutations.commit(prepared.mutations, csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.#editDirty = false;
       this.editCompletion += 1;
       this.recordSaveState = "saved";
@@ -1836,7 +1838,7 @@ export class CodexApp extends LitElement {
       )
         window.location.hash = this.#recordSaveDestination;
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted) {
+      if (!signal.aborted) {
         this.errorMessage =
           cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? uiText("The entry changed while saving. Reload its current version and try again.")
@@ -1844,7 +1846,7 @@ export class CodexApp extends LitElement {
         this.recordSaveState = "failed";
       }
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -1870,28 +1872,27 @@ export class CodexApp extends LitElement {
           : uiText("The delete request is no longer valid.");
       return;
     }
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
-      await this.#campaignMutations.commit(
-        prepared.mutations,
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#loadCampaign(this.#request.signal, true);
+      await this.#campaignMutations.commit(prepared.mutations, csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.#editDirty = false;
       this.editCompletion += 1;
       window.location.hash =
         prepared.page.collection === "events" ? "#/timeline" : collectionHash(prepared.page);
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted) {
+      if (!signal.aborted) {
         this.errorMessage =
           cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? uiText("The entry changed while deleting. Reload its current version and try again.")
             : uiText("The entry could not be deleted: {0}", { "0": errorMessage(cause) });
       }
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -1921,26 +1922,25 @@ export class CodexApp extends LitElement {
           : uiText("The definition could not be prepared: {0}", { "0": errorMessage(cause) });
       return;
     }
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
-      await this.#campaignMutations.commit(
-        [mutation],
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#loadCampaign(this.#request.signal, true);
+      await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.#editDirty = false;
       this.editCompletion += 1;
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted) {
+      if (!signal.aborted) {
         this.errorMessage =
           cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? uiText("Settings changed while saving. Reload the current definition and try again.")
             : uiText("The definition could not be saved: {0}", { "0": errorMessage(cause) });
       }
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -1966,19 +1966,18 @@ export class CodexApp extends LitElement {
           : uiText("The deletion could not be prepared: {0}", { "0": errorMessage(cause) });
       return;
     }
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
-      await this.#campaignMutations.deleteEnumItem(
-        mutation,
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#loadCampaign(this.#request.signal, true);
+      await this.#campaignMutations.deleteEnumItem(mutation, csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.#editDirty = false;
       this.editCompletion += 1;
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted) {
+      if (!signal.aborted) {
         this.errorMessage =
           cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? mutation.mode === "reject-if-used"
@@ -1989,7 +1988,7 @@ export class CodexApp extends LitElement {
             : uiText("The definition could not be deleted: {0}", { "0": errorMessage(cause) });
       }
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -2012,21 +2011,20 @@ export class CodexApp extends LitElement {
       this.#mapError(cause);
       return;
     }
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
-      await this.#campaignMutations.commit(
-        [mutation],
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#loadCampaign(this.#request.signal, true);
+      await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.#editDirty = false;
       this.editCompletion += 1;
     } catch (cause) {
-      if (!this.#request.signal.aborted) this.#mapError(cause);
+      if (!signal.aborted) this.#mapError(cause);
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -2058,26 +2056,25 @@ export class CodexApp extends LitElement {
       this.editCompletion++;
       return;
     }
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
-      await this.#campaignMutations.commit(
-        mutations,
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#loadCampaign(this.#request.signal, true);
+      await this.#campaignMutations.commit(mutations, csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.#editDirty = false;
       this.editCompletion++;
     } catch (cause) {
-      if (!this.#request.signal.aborted)
+      if (!signal.aborted)
         this.errorMessage = this.#ui.t(
           cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? "timeline.stale"
             : "timeline.failed",
         );
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -2100,6 +2097,8 @@ export class CodexApp extends LitElement {
       this.#mapError(new CampaignMapEditError("stale"));
       return;
     }
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
@@ -2108,9 +2107,10 @@ export class CodexApp extends LitElement {
         parentId ?? "main",
         file,
         file.name,
-        this.authority.auth.csrfToken,
-        this.#request.signal,
+        csrfToken,
+        signal,
       );
+      signal.throwIfAborted();
       if (parentId !== null) {
         const mutation = prepareLocalMapImage(
           this.campaignState.campaign,
@@ -2118,18 +2118,15 @@ export class CodexApp extends LitElement {
           expectedRevision,
           media.url,
         );
-        await this.#campaignMutations.commit(
-          [mutation],
-          this.authority.auth.csrfToken,
-          this.#request.signal,
-        );
+        await this.#campaignMutations.commit([mutation], csrfToken, signal);
       }
-      await this.#loadCampaign(this.#request.signal, true);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.editCompletion += 1;
     } catch (cause) {
-      if (!this.#request.signal.aborted) this.#mapError(cause);
+      if (!signal.aborted) this.#mapError(cause);
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -2186,19 +2183,18 @@ export class CodexApp extends LitElement {
       );
       return;
     }
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
-      await this.#campaignMutations.commit(
-        [mutation],
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#loadCampaign(this.#request.signal, true);
+      await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.#editDirty = false;
       this.editCompletion += 1;
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted) {
+      if (!signal.aborted) {
         this.errorMessage = this.#ui.t(
           cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? "dashboard.identityStale"
@@ -2206,7 +2202,7 @@ export class CodexApp extends LitElement {
         );
       }
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -2220,6 +2216,8 @@ export class CodexApp extends LitElement {
       this.campaignState.state !== "ready"
     )
       return;
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
@@ -2229,16 +2227,13 @@ export class CodexApp extends LitElement {
         mutations.push(
           prepareAddonSidebarSave(this.campaignState.campaign, event.detail.addonVisibility),
         );
-      await this.#campaignMutations.commit(
-        mutations,
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#loadCampaign(this.#request.signal, true);
+      await this.#campaignMutations.commit(mutations, csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.#editDirty = false;
       this.editCompletion += 1;
     } catch (cause) {
-      if (!this.#request.signal.aborted)
+      if (!signal.aborted)
         this.errorMessage = this.#ui.t(
           (cause instanceof SidebarEditError && cause.kind === "stale") ||
             (cause instanceof CampaignMutationHTTPError && cause.status === 409)
@@ -2248,7 +2243,7 @@ export class CodexApp extends LitElement {
               : "sidebar.failed",
         );
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -2262,6 +2257,8 @@ export class CodexApp extends LitElement {
       this.campaignState.state !== "ready"
     )
       return;
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
@@ -2273,24 +2270,22 @@ export class CodexApp extends LitElement {
           "main",
           file,
           file.name,
-          this.authority.auth.csrfToken,
-          this.#request.signal,
+          csrfToken,
+          signal,
         );
+        signal.throwIfAborted();
         mutation = prepareBrandingSave(this.campaignState.campaign, {
           ...event.detail,
           logoUrl: media.url,
         });
       }
-      await this.#campaignMutations.commit(
-        [mutation],
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#loadCampaign(this.#request.signal, true);
+      await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.#editDirty = false;
       this.editCompletion += 1;
     } catch (cause) {
-      if (!this.#request.signal.aborted)
+      if (!signal.aborted)
         this.errorMessage = this.#ui.t(
           (cause instanceof BrandingEditError && cause.kind === "stale") ||
             (cause instanceof CampaignMutationHTTPError && cause.status === 409)
@@ -2300,7 +2295,7 @@ export class CodexApp extends LitElement {
               : "branding.failed",
         );
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -2327,26 +2322,25 @@ export class CodexApp extends LitElement {
       );
       return;
     }
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
-      await this.#campaignMutations.commit(
-        [mutation],
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#loadCampaign(this.#request.signal, true);
+      await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.#editDirty = false;
       this.editCompletion += 1;
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted)
+      if (!signal.aborted)
         this.errorMessage = this.#ui.t(
           cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? "settings.partyStale"
             : "settings.partyFailed",
         );
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 
@@ -2378,26 +2372,25 @@ export class CodexApp extends LitElement {
             });
       return;
     }
+    const signal = this.#request.signal;
+    const csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
-      await this.#campaignMutations.commit(
-        [mutation],
-        this.authority.auth.csrfToken,
-        this.#request.signal,
-      );
-      await this.#loadCampaign(this.#request.signal, true);
+      await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      await this.#loadCampaign(signal, true);
+      signal.throwIfAborted();
       this.#editDirty = false;
       this.editCompletion += 1;
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted) {
+      if (!signal.aborted) {
         this.errorMessage =
           cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? uiText("Appearance changed while saving. Review the current theme and try again.")
             : uiText("Appearance could not be saved: {0}", { "0": errorMessage(cause) });
       }
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   };
 

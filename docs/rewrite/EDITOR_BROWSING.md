@@ -167,6 +167,15 @@ message. Local Markdown recovery continues to describe a device copy separately.
 Cancelling a failed field, panel or wiki edit clears its abandoned error state;
 a cancelled wiki conflict no longer prevents a fresh edit from saving.
 
+Core record, field, twin, enum, map, timeline and campaign-settings writes capture
+the initiating application's signal and CSRF token. Disconnect cancels their
+waits; old saves cannot complete a replacement editor, clear its dirty/busy
+state, display feedback or navigate it. Character and twin response callbacks
+still settle once on interruption. A cancelled active write releases the shared
+queue, while a cancelled queued write retains the ordering of any live
+predecessor. Cancellation does not prove a server rollback: reconnect reads the
+current records, and writes are never automatically replayed.
+
 Real-host tests compare sparse/rich articles and collection cards at 390px and
 desktop in Classic/Moonlit and English/Czech, with valid uploaded artwork,
 keyboard disclosures, retained views, focus, and reflow at 720 and 320 CSS pixels

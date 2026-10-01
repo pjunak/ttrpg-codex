@@ -21,6 +21,7 @@ export async function attachCharacterPortrait(
   signal: AbortSignal,
   media = new MediaClient(),
 ): Promise<PreparedCampaignRecordTransaction> {
+  signal.throwIfAborted();
   if (detail.portrait === undefined) return prepared;
   const mutation = prepared.mutations[0];
   if (
@@ -45,6 +46,7 @@ export async function attachCharacterPortrait(
       csrfToken,
       signal,
     );
+    signal.throwIfAborted();
     if (uploaded.kind !== "character-portrait" || uploaded.target !== detail.key)
       throw new Error("Portrait target differs");
     value["portrait"] = uploaded.url;

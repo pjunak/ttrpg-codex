@@ -1,5 +1,7 @@
 // Source messages are closed interface text. Campaign and provider text never passes through this catalog.
 export const sourceCs = {
+  "Saving was interrupted. Your draft is kept. Refresh before retrying.":
+    "Ukládání bylo přerušeno. Rozpracované změny zůstávají zachovány. Před dalším pokusem obnovte zobrazení.",
   "The change was saved, but could not be refreshed. Your draft is kept. Refresh before retrying.":
     "Změna byla uložena, ale nepodařilo se ji znovu načíst. Rozpracované změny zůstávají zachovány. Před dalším pokusem obnovte zobrazení.",
   "The entry cannot be saved right now. Your draft is kept.":

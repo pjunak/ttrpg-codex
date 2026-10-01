@@ -1,4 +1,5 @@
 import { sessionFetch } from "./player-preview.js";
+import { waitForSignal } from "./abort-signal.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { isCampaignCollectionName, type CampaignCollectionName } from "./campaign-data.js";
 
@@ -124,7 +125,7 @@ export class CampaignMutationHTTPError extends Error {
   }
 }
 
-/** Serializes writes so the browser never sends two edits from one stale base. */
+/** Orders live writes; cancelling a sent request does not roll back its write. */
 export class CampaignMutationClient {
   readonly #fetchMutation: CampaignMutationFetch;
   #tail: Promise<void> = Promise.resolve();
@@ -138,12 +139,7 @@ export class CampaignMutationClient {
     csrfToken: string,
     signal: AbortSignal,
   ): Promise<CampaignCommitReceipt> {
-    const operation = this.#tail.then(() => this.#commit(mutations, csrfToken, signal));
-    this.#tail = operation.then(
-      () => undefined,
-      () => undefined,
-    );
-    return operation;
+    return this.#enqueue(signal, () => this.#commit(mutations, csrfToken, signal));
   }
 
   mutateTwin(
@@ -151,12 +147,7 @@ export class CampaignMutationClient {
     csrfToken: string,
     signal: AbortSignal,
   ): Promise<CampaignTwinResult> {
-    const operation = this.#tail.then(() => this.#mutateTwin(mutation, csrfToken, signal));
-    this.#tail = operation.then(
-      () => undefined,
-      () => undefined,
-    );
-    return operation;
+    return this.#enqueue(signal, () => this.#mutateTwin(mutation, csrfToken, signal));
   }
 
   deleteEnumItem(
@@ -164,12 +155,22 @@ export class CampaignMutationClient {
     csrfToken: string,
     signal: AbortSignal,
   ): Promise<CampaignEnumDeleteResult> {
-    const operation = this.#tail.then(() => this.#deleteEnumItem(mutation, csrfToken, signal));
-    this.#tail = operation.then(
+    return this.#enqueue(signal, () => this.#deleteEnumItem(mutation, csrfToken, signal));
+  }
+
+  #enqueue<T>(signal: AbortSignal, action: () => Promise<T>): Promise<T> {
+    const execution = this.#tail.then(() => {
+      signal.throwIfAborted();
+      return waitForSignal(action(), signal);
+    });
+    // A cancelled queued caller can stop waiting immediately, but its queue
+    // position must still await any live predecessor. Only the active cancelled
+    // request releases that predecessor without waiting for its transport.
+    this.#tail = execution.then(
       () => undefined,
       () => undefined,
     );
-    return operation;
+    return waitForSignal(execution, signal);
   }
 
   async #commit(
@@ -193,6 +194,7 @@ export class CampaignMutationClient {
       body: JSON.stringify({ contractVersion: "campaign-mutation.v1", mutations }),
       signal,
     });
+    signal.throwIfAborted();
     if (!response.ok) {
       throw new CampaignMutationHTTPError(response.status);
     }
@@ -205,6 +207,7 @@ export class CampaignMutationClient {
       throw new BoundaryValidationError(boundary, "response must be application/json");
     }
     const body = await response.text();
+    signal.throwIfAborted();
     if (new TextEncoder().encode(body).byteLength > maximumReceiptBytes) {
       throw new BoundaryValidationError(boundary, "response exceeds 1 MiB");
     }
@@ -244,6 +247,7 @@ export class CampaignMutationClient {
       body: JSON.stringify({ contractVersion: "campaign-twin.v1", ...mutation }),
       signal,
     });
+    signal.throwIfAborted();
     if (!response.ok) {
       throw new CampaignMutationHTTPError(response.status, twinBoundary);
     }
@@ -256,6 +260,7 @@ export class CampaignMutationClient {
       throw new BoundaryValidationError(twinBoundary, "response must be application/json");
     }
     const body = await response.text();
+    signal.throwIfAborted();
     if (new TextEncoder().encode(body).byteLength > maximumReceiptBytes) {
       throw new BoundaryValidationError(twinBoundary, "response exceeds 1 MiB");
     }
@@ -295,6 +300,7 @@ export class CampaignMutationClient {
       body: JSON.stringify({ contractVersion: "campaign-enum-delete.v1", ...mutation }),
       signal,
     });
+    signal.throwIfAborted();
     if (!response.ok) {
       throw new CampaignMutationHTTPError(response.status, enumBoundary);
     }
@@ -307,6 +313,7 @@ export class CampaignMutationClient {
       throw new BoundaryValidationError(enumBoundary, "response must be application/json");
     }
     const body = await response.text();
+    signal.throwIfAborted();
     if (new TextEncoder().encode(body).byteLength > maximumReceiptBytes) {
       throw new BoundaryValidationError(enumBoundary, "response exceeds 1 MiB");
     }

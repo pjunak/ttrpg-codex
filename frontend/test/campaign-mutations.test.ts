@@ -1,5 +1,6 @@
 import { requestBodyText } from "./request-body.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { deferred } from "./deferred.js";
 import { BoundaryValidationError } from "../src/core/boundary.js";
 import {
   CampaignMutationClient,
@@ -66,6 +67,133 @@ describe("parseCampaignEnumDeleteResult", () => {
 });
 
 describe("CampaignMutationClient", () => {
+  for (const method of ["commit", "twin", "enum"] as const) {
+    for (const phase of ["headers", "body"] as const) {
+      it.each(["success", "failure"] as const)(
+        `releases a cancelled ${method} at held ${phase} before a late %s`,
+        async (outcome) => {
+          const started = deferred();
+          const release = deferred();
+          const finished = deferred();
+          const reads = vi.fn();
+          const calls: string[] = [];
+          const client = new CampaignMutationClient(async (input) => {
+            calls.push(input);
+            if (calls.length > 1) return jsonResponse(receipt);
+            const payload = {
+              ...receipt,
+              ...(method === "twin"
+                ? { contractVersion: "campaign-twin-result.v1", twinKey: "secret-town" }
+                : method === "enum"
+                  ? { contractVersion: "campaign-enum-delete-result.v1", usageCount: 0 }
+                  : {}),
+            };
+            const response = jsonResponse(payload);
+            const hold = async () => {
+              started.resolve();
+              await release.promise;
+              finished.resolve();
+              if (outcome === "failure") throw new Error("retired transport failure");
+            };
+            vi.spyOn(response, "text").mockImplementation(async () => {
+              reads();
+              if (phase === "body") await hold();
+              return JSON.stringify(payload);
+            });
+            if (phase === "headers") await hold();
+            return response;
+          });
+          const old = new AbortController();
+          const reason = new Error("application disconnected");
+          const settlements: unknown[] = [];
+          const observe = (operation: Promise<unknown>) =>
+            operation.then(
+              (value) => settlements.push(value),
+              (cause: unknown) => settlements.push(cause),
+            );
+          const active = observe(
+            method === "commit"
+              ? client.commit(testMutations, "c".repeat(32), old.signal)
+              : method === "twin"
+                ? client.mutateTwin(
+                    {
+                      action: "create",
+                      collection: "locations",
+                      sourceKey: "town",
+                      sourceExpectedRevision: 2,
+                    },
+                    "c".repeat(32),
+                    old.signal,
+                  )
+                : client.deleteEnumItem(
+                    {
+                      category: "genders",
+                      itemId: "old",
+                      expectedRevision: 2,
+                      mode: "clear",
+                    },
+                    "c".repeat(32),
+                    old.signal,
+                  ),
+          );
+          await started.promise;
+          const queued = observe(client.commit(testMutations, "c".repeat(32), old.signal));
+          try {
+            old.abort(reason);
+            await vi.waitFor(() => expect(settlements).toEqual([reason, reason]));
+            await expect(
+              client.commit(testMutations, "n".repeat(32), new AbortController().signal),
+            ).resolves.toEqual(receipt);
+            expect(calls).toHaveLength(2);
+          } finally {
+            release.resolve();
+            await finished.promise;
+            await Promise.all([active, queued]);
+          }
+          expect(settlements).toEqual([reason, reason]);
+          expect(reads).toHaveBeenCalledTimes(phase === "body" ? 1 : 0);
+          expect(calls).toHaveLength(2);
+        },
+      );
+    }
+  }
+
+  it("keeps live writes ordered when an intermediate queued write is cancelled", async () => {
+    const started = deferred();
+    const release = deferred();
+    const calls: string[] = [];
+    const client = new CampaignMutationClient(async (_input, init) => {
+      calls.push(new Headers(init.headers).get("X-Codex-CSRF") ?? "");
+      if (calls.length === 1) {
+        started.resolve();
+        await release.promise;
+      }
+      return jsonResponse(receipt);
+    });
+    const live = new AbortController().signal;
+    const first = client.commit(testMutations, "a".repeat(32), live);
+    await started.promise;
+    const cancelled = new AbortController();
+    let skippedReason: unknown;
+    const skipped = client
+      .commit(testMutations, "b".repeat(32), cancelled.signal)
+      .catch((cause: unknown) => {
+        skippedReason = cause;
+      });
+    const last = client.commit(testMutations, "c".repeat(32), live);
+    try {
+      cancelled.abort("queued write cancelled");
+      await vi.waitFor(() => expect(skippedReason).toBe("queued write cancelled"));
+      expect(calls).toEqual(["a".repeat(32)]);
+    } finally {
+      release.resolve();
+    }
+    await expect(first).resolves.toEqual(receipt);
+    await expect(last).resolves.toEqual(receipt);
+    await skipped;
+    expect(calls).toEqual(["a".repeat(32), "c".repeat(32)]);
+  });
+
   it("serializes the versioned request with session-bound CSRF", async () => {
     const calls: Array<{ input: string; init: RequestInit }> = [];
     const fetchMutation: CampaignMutationFetch = async (input, init) => {
@@ -232,3 +360,13 @@ function jsonResponse(value: unknown): Response {
     headers: { "Content-Type": "application/json; charset=utf-8" },
   });
 }
+
+const testMutations = [
+  {
+    operation: "put",
+    collection: "campaign",
+    key: "main",
+    expectedRevision: 2,
+    value: { name: "Changed" },
+  },
+] as const;

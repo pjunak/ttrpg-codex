@@ -1,4 +1,5 @@
 import { sessionFetch } from "./player-preview.js";
+import { waitForSignal } from "./abort-signal.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 
 const uploadBoundary = "POST /api/media/{kind}/{target}";
@@ -122,14 +123,22 @@ export class MediaClient {
     const match = /^\/api\/media\/(b_[0-9a-f]{32})$/u.exec(url);
     if (match === null)
       throw new BoundaryValidationError(mapTileBoundary, "map must use an opaque media URL");
-    const response = await this.#fetchMedia(`${url}/tiles/v1/manifest`, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      credentials: "same-origin",
-      cache: "no-store",
+    const response = await waitForSignal(
+      this.#fetchMedia(`${url}/tiles/v1/manifest`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+        signal,
+      }),
       signal,
-    });
-    const manifest = await parseJSONResponse(response, mapTileBoundary, parseMapTileManifest);
+    );
+    const manifest = await parseJSONResponse(
+      response,
+      mapTileBoundary,
+      parseMapTileManifest,
+      signal,
+    );
     if (manifest.id !== match[1])
       throw new BoundaryValidationError(mapTileBoundary, "map pyramid belongs to another image");
     return manifest;
@@ -156,34 +165,40 @@ export class MediaClient {
       throw new BoundaryValidationError(uploadBoundary, "media upload is invalid");
     }
     const endpoint = `/api/media/${encodeURIComponent(kind)}/${encodeURIComponent(target)}`;
-    const response = await this.#fetchMedia(endpoint, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": content.type,
-        "X-Codex-CSRF": csrfToken,
-        "X-Codex-Filename": encodeURIComponent(filename),
-      },
-      credentials: "same-origin",
-      cache: "no-store",
-      body: content,
+    const response = await waitForSignal(
+      this.#fetchMedia(endpoint, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": content.type,
+          "X-Codex-CSRF": csrfToken,
+          "X-Codex-Filename": encodeURIComponent(filename),
+        },
+        credentials: "same-origin",
+        cache: "no-store",
+        body: content,
+        signal,
+      }),
       signal,
-    });
-    return parseJSONResponse(response, uploadBoundary, parseMediaBlob);
+    );
+    return parseJSONResponse(response, uploadBoundary, parseMediaBlob, signal);
   }
 
   async latest(kind: MediaKind, target: string, signal: AbortSignal): Promise<MediaBlob> {
     signal.throwIfAborted();
     validateTarget(kind, target, latestBoundary);
     const endpoint = `/api/media/latest/${encodeURIComponent(kind)}/${encodeURIComponent(target)}`;
-    const response = await this.#fetchMedia(endpoint, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      credentials: "same-origin",
-      cache: "no-store",
+    const response = await waitForSignal(
+      this.#fetchMedia(endpoint, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+        signal,
+      }),
       signal,
-    });
-    return parseJSONResponse(response, latestBoundary, parseMediaBlob);
+    );
+    return parseJSONResponse(response, latestBoundary, parseMediaBlob, signal);
   }
 
   async delete(
@@ -197,22 +212,25 @@ export class MediaClient {
       throw new BoundaryValidationError(deleteBoundary, "media deletion is invalid");
     }
     const endpoint = `/api/media/${encodeURIComponent(id)}`;
-    const response = await this.#fetchMedia(endpoint, {
-      method: "DELETE",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-Codex-CSRF": csrfToken,
-      },
-      credentials: "same-origin",
-      cache: "no-store",
-      body: JSON.stringify({
-        contractVersion: "media-delete.v1",
-        expectedRevision,
+    const response = await waitForSignal(
+      this.#fetchMedia(endpoint, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Codex-CSRF": csrfToken,
+        },
+        credentials: "same-origin",
+        cache: "no-store",
+        body: JSON.stringify({
+          contractVersion: "media-delete.v1",
+          expectedRevision,
+        }),
+        signal,
       }),
       signal,
-    });
-    return parseJSONResponse(response, deleteBoundary, parseMediaDeleteResult);
+    );
+    return parseJSONResponse(response, deleteBoundary, parseMediaDeleteResult, signal);
   }
 }
 
@@ -274,7 +292,9 @@ async function parseJSONResponse<T>(
   response: Response,
   boundary: string,
   parse: (value: unknown) => T,
+  signal: AbortSignal,
 ): Promise<T> {
+  signal.throwIfAborted();
   if (!response.ok) {
     throw new MediaHTTPError(response.status, boundary);
   }
@@ -282,7 +302,8 @@ async function parseJSONResponse<T>(
   if (contentType !== "application/json") {
     throw new BoundaryValidationError(boundary, "response must be application/json");
   }
-  const body = await response.text();
+  const body = await waitForSignal(response.text(), signal);
+  signal.throwIfAborted();
   if (new TextEncoder().encode(body).byteLength > maximumResponseBytes) {
     throw new BoundaryValidationError(boundary, "response exceeds 64 KiB");
   }
