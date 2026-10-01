@@ -6,10 +6,10 @@ Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
-**Progress estimate, October 1:** about **97% implemented**, or **94%**
+**Progress estimate, October 1:** about **97% implemented**, or **95%**
 including remaining workflow, release and site acceptance. These are approximate
-effort estimates, with plausible ranges of 93–98% and 90–96%, respectively.
-[Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-equipment-source-review).
+effort estimates, with plausible ranges of 93–98% and 91–97%, respectively.
+[Current delivery, estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-1-cleanup-publication-and-both-site-rollouts).
 **Original rows closed:** 33 of 40 (83%); open workflow tasks contain completed
 slices. Compact character and large planning sessions are accepted; smaller UI
 refinements, unexplained failures and human/device checks remain visible below.
@@ -116,7 +116,8 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T57-SSE-HOST — Stop revoked sessions during initial event output**~~ — `2465bee`; recheck cursor reads, replay rows and the initial flush; measure password-rotation shutdown after credential work commits; [CI failure, controlled reproduction and repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#initial-stream-revocation-and-password-work-timing).
 - [x] ~~**T15-DIAGNOSTICS-HOST — Retain installed acceptance progress during cancellation**~~ — `bda9a2a`; stream bounded stdout/stderr immediately and persist partial TAP output; failed or skipped tests still block publication; [native-process regressions](rewrite/HOST_CLEANUP_ACCEPTANCE.md#streamed-installed-acceptance-diagnostics).
 - [x] ~~**T57-RECORD-CONFLICT-HOST — Give stale record drafts consistent guidance**~~ — `54589dd`; share translated conflict text across local checks and server rejection, preserve exact remote records through delayed refreshes and retain failed host browser traces in CI; [controlled ordering and delivery failure](rewrite/HOST_CLEANUP_ACCEPTANCE.md#record-conflicts-before-campaign-refresh).
-- [x] ~~**T15-SESSION-PERF-HOST — Reuse real UI save acknowledgements in multiclass acceptance**~~ — remove 13 repeated evaluations per session while retaining independent persistence checks, all assertions and deadlines; [measured acceptance and Linux boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-acceptance-without-repeated-evaluations).
+- [x] ~~**T15-SESSION-PERF-HOST — Reuse real UI save acknowledgements in multiclass acceptance**~~ — `aa7ab3c`; remove 13 repeated evaluations per session while retaining independent persistence checks, all assertions and deadlines; [measured acceptance and Linux boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-acceptance-without-repeated-evaluations).
+- [x] ~~**T15-DELIVERY-OCT01 — Publish the accepted cleanup and verify both site rollouts**~~ — `aa7ab3c`; 277/277 Linux installed cases with zero skips, verified image, successful Asurai/Tiamat infrastructure runs and matching served frontend assets; [release identity and site checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-1-cleanup-publication-and-both-site-rollouts).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -142,14 +143,11 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   The October 1 complete installed suite passes 277/277 with no skips and no
   sampled TCP exhaustion; [current checkpoint](rewrite/HOST_CLEANUP_ACCEPTANCE.md#current-suite-readiness-and-preserved-browser-failures)
   strengthens evidence capture without attributing the historical failures.
-  The October 1 Linux installed suite separately reached its 35-minute job
-  limit without reported test progress. The wrapper now streams diagnostics;
-  the underlying stall still needs current Linux evidence. [Delivery failure
-  and diagnostic repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#streamed-installed-acceptance-diagnostics).
-  The streamed replacement run completed with 275 passes, one multiclass timeout
-  and one dependent provider-free failure. Repeated intermediate evaluations are
-  now removed; [measured repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-acceptance-without-repeated-evaluations).
-  This does not establish a cause for the earlier startup failures.
+  October 1's interrupted Linux delivery is now followed by 277/277 Linux
+  installed passes and both verified site rollouts. Lost progress, record-conflict
+  wording and repeated multiclass evaluations are repaired above; [current delivery](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-1-cleanup-publication-and-both-site-rollouts).
+  The first cancelled run had no per-test output, so its exact stopping point
+  cannot be reconstructed. This does not attribute the earlier startup failures.
 
 ### Lifecycle, maintenance and operations
 
@@ -159,7 +157,7 @@ migrations need a concrete preservation case; site operations need separate auth
 | ID | Priority | Remaining work and completion condition |
 | --- | --- | --- |
 | T08 | P2, partial | Guided healing, explicit current-save reset and automatic update recovery are complete. Remaining: reviewed value-transforming operations when a concrete preservation case requires converting incompatible JSON. Keep exact plans, atomic commits, stale rejection and recovery; no guessed values or startup converter. [Boundary](rewrite/ADDON_DATA.md#remaining-public-surface). |
-| T15 | P1, operational | Publish the latest cleanup candidate in pinned companion/host order, then verify both site rollouts, served frontend identity, manager and full backup with the matching maintenance binary; review intended add-on activation per site. T15-DELIVERY records an earlier successful release. [Current readiness and delivery boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#current-suite-readiness-and-preserved-browser-failures); [runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
+| T15 | P1, operational, partial | Host publication, both rollouts and public frontend/health checks are verified for `aa7ab3c`. Remaining: authenticated manager and full backup with the matching maintenance binary, intended add-on activation review per site, and fully loaded portrait/media fallback checks. [Current delivery and boundaries](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-1-cleanup-publication-and-both-site-rollouts); [runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
 | T16 | P2, operational | After deployment, verify Asurai retains only its selected add-on builds and campaign recovery remains available after obsolete add-on contexts are retired. Implementation is complete; the browser helper failure prevented live inspection/cleanup. Existing ZIP backups stay intact. [Evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#asurai-saved-packages-and-recovery-retention). |
 | T17 | P2, operational | Recheck Tiamat's intended add-on state, stored data and wanted packages before activation/retirement. Asurai's reset authorization does not apply to Tiamat. |
 

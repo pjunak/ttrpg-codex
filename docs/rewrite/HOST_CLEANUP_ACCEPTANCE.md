@@ -5429,3 +5429,128 @@ The suite retains all **277 installed cases**, four-file concurrency, strict ZIP
 verification, zero-skip acceptance and the 35-minute compatibility-job limit.
 This slice addresses demonstrated duplicate work; live manager, backup and
 add-on retention acceptance still remain outside its validation.
+
+## October 1 cleanup publication and both site rollouts
+
+October 1, 2026. The user explicitly approved pushing the nine tested host
+commits and allowing successful CI to deploy both Asurai and Tiamat. The
+authorized delivery also includes the four necessary repairs documented above:
+`2465bee` (initial stream revocation and password-test timing), `bda9a2a` (live
+installed diagnostics), `54589dd` (shared stale-record guidance) and `aa7ab3c`
+(real UI save acknowledgements). All thirteen commits are published on main,
+ending at **`aa7ab3c4a7ad61ae05b83653aab08a49d88da76e`**. No companion source
+or pin changed in this delivery.
+
+The exact-source [host run 36915165132](https://github.com/pjunak/ttrpg-codex/actions/runs/36915165132)
+completed successfully at **20:06:21 UTC**. Its separate
+[secret scan 36915164432](https://github.com/pjunak/ttrpg-codex/actions/runs/36915164432)
+also passed. The complete Linux host gate passes **85 tooling tests, 585
+frontend unit tests and 332 browser cases**, with 198 optional installed skips;
+Go tests, selected race checks, strict source/type/lint/format/vet/Staticcheck,
+actionlint/ShellCheck and reachable Go/npm vulnerability checks pass. All
+**33 product-parity release gates** remain satisfied.
+
+| Host job | Job ID | Result | Completion UTC |
+| --- | --- | --- | --- |
+| Complete host checks | 110547239514 | Success | 19:42:13 |
+| Deployment configuration and both targets | 110547239652 | Success | 19:33:46 |
+| Build, inspect and exercise pinned companions | 110547239907 | Success | 20:02:24 |
+| Verify and publish image | 110558906120 | Success | 20:04:46 |
+| Deploy and verify Asurai | 110559874627 | Success | 20:06:20 |
+| Deploy and verify Tiamat | 110559875032 | Success | 20:05:50 |
+
+Strict Linux installed acceptance passes **277/277 cases, zero failures,
+cancellations or skips**, in **1,526,870 ms** (25 minutes 26.9 seconds).
+The compatibility job, including source checks and packaging, finishes in
+28 minutes 50 seconds within its unchanged 35-minute limit. English/Czech
+whole multiclass tests pass in **96.5/84.2 seconds**, with their existing
+120-second budgets. The independent provider-free scope also passes, including
+both accepted sessions, in **64.9 seconds**. This closes the demonstrated
+current deadline failure; it does not identify the exact stopping point of the
+first cancelled run or attribute historical startup/Windows port-pressure faults.
+
+A complete Windows installed run independently passes **277/277, zero skips**,
+in **935,314 ms**, using freshly inspected ZIPs and clean published-host
+provenance. Its whole-session bodies reach acceptance in **58.1/52.6 seconds**;
+all frozen-output checks pass. The same pinned sources are used on both
+platforms. Windows and Linux ZIP byte hashes differ and are recorded separately;
+the Windows result is not substituted for the Linux publication gate.
+
+The successful Linux provenance identifies clean source trees and these
+inspected packages:
+
+| Package | Source commit | Linux ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools 3.0.0 | `117487b86307c8e7ee2f7d69327a13f55bf5bdfe` | `f863ecb7c4e49d6a31805a0e14f647cb7e5b7a127116a3073dddc205e0380c55` |
+| Rules Engine 4.0.0 | `c4063b55ddbded24f4ce6af77a8e924f0dc6a7f7` | `d9fddd9a02fbea3dde7f01a81225af2ce1c7ff962f5607fb44f6d6661f39a505` |
+| Character Sheets 4.0.0 | `885395941f2df8e52e3a65e85034961c9f7a0d30` | `7e22f55c113d3a11ceb15ab52f8ca353e899db927deac4ff11d3ea10185cdd5f` |
+| Compendium 3.1.0 | `3463daf25808514c73e624553a8541c644d0ac7c` | `06cfdaf85904a49f7c5331eab854cab0f8c77723f50eb8f766205ed9b6ed2bdb` |
+
+The DM Tools, Engine and Sheets hashes also match their already-published
+durable commit-release ZIP assets. Compendium's private source checkout,
+inspection and strict installed behavior are verified; its private release
+asset was not independently fetched through the public connector. Downloaded
+CI artifact **11191610805**, `companion-provenance`, matches its recorded ZIP
+digest `e76c730ec97d588a6fa50d79f88c223cfe80d0de72732d71e994722daf99d6f9`;
+its JSON confirms the exact clean host and companion identities above.
+
+The image passes startup verification as its production user and trusted
+GitHub HTTPS before publication. Release metadata artifact **11191361442** was
+downloaded, its ZIP digest verified as
+`97cbc69c813727ef95c7301864029dcc5e17c8738b1fba22da3bea2fbf2aa36e`, and its
+JSON checked against this repository, source SHA and workflow run. The
+published immutable image is:
+
+```text
+ghcr.io/pjunak/ttrpg-codex@sha256:c051fa2515bc888bdc54adaad133a31974be416f2b056e2354ba5e343d4cf68f
+```
+
+Both host deployment jobs pass with that exact source and image. They wait for
+the exact main-only infrastructure run identity, title and successful result:
+[Asurai 36918981172](https://github.com/pjunak/infra/actions/runs/36918981172) and
+[Tiamat 36918981131](https://github.com/pjunak/infra/actions/runs/36918981131).
+This is completed rollout verification, not only successful dispatch. The
+private infrastructure run contents were not separately retrieved by the
+public connector; its authorized host-side waiter performs those checks.
+
+Post-rollout public checks at **20:08 UTC** confirm HTTP 200 for both roots,
+health endpoints, entry scripts, stylesheets and referenced application/preload
+chunks. Health reports `ok`, version `2.0.0-dev`; that version alone does not
+identify a source revision. Both sites changed from
+`/assets/index-BA7OE14f.js` to **`/assets/index-CQkKxxec.js`**, whose filename
+matches the actual Docker build. The served entry has SHA-256
+`e864e8ad704385645987e28b07c11f4beac977fa6391d6d3a380f83dc1763136` on both sites.
+Their `codex-app-2DDjHcND.js`, `preload-helper-B3iC_-L9.js` and
+`index-C_5Q93uL.css` also match the build filenames and have identical served
+byte hashes across the two sites. Roots remain `no-cache`; hashed assets are
+immutable. CI image metadata and the verified infrastructure results establish
+release identity; these public checks additionally establish the served frontend.
+
+Four disposable public Chromium contexts pass: Asurai/Tiamat at desktop width
+1360 and phone width 390. Campaign content is visible, live connections attach,
+and there are no page errors, failed requests or horizontal overflow. Before
+and after screenshots were retained and sampled visually. These Overview
+checks do not prove authenticated manager, full-backup, recovery-point or
+add-on installation state. Blank portrait rings appear in both sets of public
+captures; fully loaded media/fallback behavior still needs live acceptance,
+and is not attributed to this deployment. No add-on activation/reset or
+manual production data cleanup was performed in this delivery.
+
+Local evidence is `frontend/test-results/current-publication-final-prepare.log`,
+`current-publication-final-installed.log`, `current-publication-linux-provenance.json`,
+`current-publication-release.json`, `current-publication-sites-before.json`,
+`current-publication-sites-after.json`, `current-publication-browser-before.json`,
+`current-publication-browser-after.json` and their four before/after screenshots.
+The immutable CI job and artifact references above supply the delivery evidence;
+runtime data, screenshots and downloaded ZIPs remain outside source control.
+
+T15-DELIVERY-OCT01 closes publication, both infrastructure rollouts and public
+served-frontend acceptance. T15 remains partial for authenticated manager,
+matching-binary full-backup, intended add-on activation and live-media checks;
+T16/T17 retain their site-specific data/recovery boundaries. Historical startup
+attribution and physical touch, spoken screen-reader and printer acceptance
+remain open. The effort estimate increases to **95% overall (91–97%)**, with
+implementation at **97% (93–98%)**, because current delivery is now demonstrated.
+The original-row count remains **33/40 (83%)**: partially completed operational
+rows stay open. These are effort estimates across uneven tasks, not a pass ratio
+or a claim that the remaining manual work is finished.
