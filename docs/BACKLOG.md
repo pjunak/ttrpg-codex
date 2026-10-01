@@ -112,6 +112,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T57-RESTORE-HOST — Preserve current drafts during live campaign recovery**~~ — recheck dirty/saving state after refresh, let the latest restore own recovery and cancel retired stream work; [controlled failures and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#live-campaign-recovery-and-event-ownership).
 - [x] ~~**T57-SETTINGS-HOST — Retire obsolete add-on Settings requests**~~ — suppress cancelled authority notifications and delayed JSON, reload reconnected configuration/wizards and preserve current inventory/staging feedback; [reproductions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#add-on-settings-cancellation-and-reconnect).
 - [x] ~~**T57-ACCOUNT-HOST — Restore Account navigation after reconnect**~~ — clear retired password saving/draft flags, cancel Account/recovery JSON waits and preserve accepted server writes; [real-server regressions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#account-reconnect-and-recovery-response-cancellation).
+- [x] ~~**T57-CAPTURES-HOST — Preserve original browser failures when evidence capture fails**~~ — `544f3d4`; shared independent page/state, JSON and screenshot capture across Timeline, Settings and saved-spell fixtures; [controlled failures and current suite checkpoint](rewrite/HOST_CLEANUP_ACCEPTANCE.md#current-suite-readiness-and-preserved-browser-failures).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -134,6 +135,9 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   panel/schema-review navigation. The first exactly matches Windows TCP port
   exhaustion; focused replays pass, but the source of transient pressure remains
   unknown. [Current failure evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#failed-recovery-starts-and-retained-fixture-evidence).
+  The October 1 complete installed suite passes 277/277 with no skips and no
+  sampled TCP exhaustion; [current checkpoint](rewrite/HOST_CLEANUP_ACCEPTANCE.md#current-suite-readiness-and-preserved-browser-failures)
+  strengthens evidence capture without attributing the historical failures.
 
 ### Lifecycle, maintenance and operations
 
@@ -143,7 +147,7 @@ migrations need a concrete preservation case; site operations need separate auth
 | ID | Priority | Remaining work and completion condition |
 | --- | --- | --- |
 | T08 | P2, partial | Guided healing, explicit current-save reset and automatic update recovery are complete. Remaining: reviewed value-transforming operations when a concrete preservation case requires converting incompatible JSON. Keep exact plans, atomic commits, stale rejection and recovery; no guessed values or startup converter. [Boundary](rewrite/ADDON_DATA.md#remaining-public-surface). |
-| T15 | P1, operational | Publish the latest cleanup candidate in pinned companion/host order, then verify both site rollouts, served frontend identity, manager and full backup with the matching maintenance binary; review intended add-on activation per site. T15-DELIVERY records an earlier successful release. [Current delivery boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#repeated-compatibility-failures-and-pinned-source-revisions); [runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
+| T15 | P1, operational | Publish the latest cleanup candidate in pinned companion/host order, then verify both site rollouts, served frontend identity, manager and full backup with the matching maintenance binary; review intended add-on activation per site. T15-DELIVERY records an earlier successful release. [Current readiness and delivery boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#current-suite-readiness-and-preserved-browser-failures); [runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
 | T16 | P2, operational | After deployment, verify Asurai retains only its selected add-on builds and campaign recovery remains available after obsolete add-on contexts are retired. Implementation is complete; the browser helper failure prevented live inspection/cleanup. Existing ZIP backups stay intact. [Evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#asurai-saved-packages-and-recovery-retention). |
 | T17 | P2, operational | Recheck Tiamat's intended add-on state, stored data and wanted packages before activation/retirement. Asurai's reset authorization does not apply to Tiamat. |
 

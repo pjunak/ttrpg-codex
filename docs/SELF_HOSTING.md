@@ -386,8 +386,9 @@ prerequisites under the owner's accepted downtime and rollback policy:
 - Portraits, maps, logos, and other migrated media load through opaque URLs.
 - All four v3 packages stage, review, activate, reload, and recover after a
   restart.
-- Compendium browsing, rules-engine v4 calls, sheet Build/Play/History and DM
-  Tools routes work together.
+- Compendium browsing, rules-engine v4 calls, character building/combat with
+  automatic saving and DM Tools routes work together. Saved sheets remain
+  readable and printable without the rules provider.
 - Two browsers observe live edits and stale edits receive conflicts.
 - A fresh v2 backup verifies and can be restored into a disposable directory.
 

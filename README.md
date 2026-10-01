@@ -60,7 +60,7 @@ These are independent repositories. Install only the capabilities your group use
 | [DM Tools](../addon-dm-tools/README.md) | Private story planning and reviewed planning imports |
 | [D&D 2024 Compendium](../addon-dnd-2024-compendium/README.md) | Searchable books and the complete D&D 2024 rules profile |
 | [D&D Rules Engine](../addon-dnd-engine/README.md) | Rules calculations for compatible consumers |
-| [D&D Character Sheets](../addon-dnd-character-sheets/README.md) | Reversible builds, bounded play, DM grants and retained character history |
+| [D&D Character Sheets](../addon-dnd-character-sheets/README.md) | Progressive builds, automatic saving, bounded play and DM grants |
 
 An instance uses one ruleset. Additional source packages must declare support
 for it; their books share the host's source-selection policy. Saved character

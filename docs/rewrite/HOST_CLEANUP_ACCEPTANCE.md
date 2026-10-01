@@ -5110,3 +5110,96 @@ timeline, Settings, planner or rules-availability timeouts. Linux CI,
 publication, deployment, site and human/device acceptance remain separate.
 The estimate remains **94% overall / 97% implemented**, with **33/40 original
 rows closed**. T57-ACCOUNT-HOST is checked separately in the lean backlog.
+
+## Current suite readiness and preserved browser failures
+
+October 1, 2026. The complete installed companion suite passes **277/277 with
+zero skipped tests** against clean host `0b454104c90d472ddcee2b34675e9c1be096bb10`.
+This includes all preceding host cancellation/reconnect fixes together with
+current character, planning, compendium, provider, import and recovery workflows.
+The four clean companion checkouts match `companion-revisions.json`; their
+existing exact ZIPs are freshly inspected through the host before the run.
+Evidence is `frontend/test-results/completion-installed.log`,
+`release/companions/installed.tap` and `release/companions/provenance.json`.
+The run takes about 13 minutes 33 seconds. These generated files remain local.
+
+| Companion | Clean source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `117487b86307c8e7ee2f7d69327a13f55bf5bdfe` | `ad4ed59d0847acab73e5ba6648309db71d7a618b285a6b017181d94a6266ee42` |
+| Rules Engine | `c4063b55ddbded24f4ce6af77a8e924f0dc6a7f7` | `0eb007249e2eb2493596c87fd99f73d639ef9d0c2eae603d5974186ac96e095c` |
+| Character Sheets | `885395941f2df8e52e3a65e85034961c9f7a0d30` | `d34bcc4c1d6a121217eab4e6910c045bb405b1d815bdc779ca173b160584b5bb` |
+| Compendium | `3463daf25808514c73e624553a8541c644d0ac7c` | `1ab7306f44b73a0146c89b8b48b875e2c96a4f452a22fb58d53f59985a3cc828` |
+
+Read-only remote checks confirm all four source pins are already on their
+repositories' `main`. Host remote `main` is
+`80e161d42925eb9d930c7b6a1cf1f74c91e95708`, seven commits behind the clean host
+used for this run. This confirms source availability, not release assets,
+Linux CI results or deployed frontend/package identities. No push, publication,
+deployment or live-data change occurs in this batch.
+
+Windows monitoring spans the run and its surrounding investigation from
+14:27:29 to 14:51:49 UTC: **96 samples**, approximately 15 seconds apart.
+The configured IPv4 and IPv6 dynamic TCP ranges each have 16,384 ports,
+49152–65535. The peak sample contains 846 connections using local ports at or
+above 49152 and 710 distinct such local ports; minimum sampled free physical
+memory is 5,102 MiB. No Windows System `Tcpip` event 4231 or 4266 exists in that
+interval. Only aggregate counts are retained in
+`frontend/test-results/completion-pressure.jsonl`; endpoints and request bodies
+are not recorded. Sampling cannot exclude shorter unsampled pressure spikes
+or explain earlier failures. Networking settings are unchanged. Docker is
+unavailable and WSL is not installed, so this is Windows acceptance; Linux
+verification remains a CI boundary.
+
+The failure-path review finds a separate confirmed diagnostic defect. Six
+controlled probes execute the exact Timeline and Settings catch bodies from
+`0b45410`: body-read, JSON-write and screenshot failures each replace the
+original startup timeout. Body-read failure prevents both artifacts; JSON-write
+failure prevents the screenshot. Contributed Settings draft-guard and saved
+class-spell fixtures contain the same failure-masking pattern.
+
+All four now use one shared browser failure helper. URL, custom fixture state,
+body, screenshot and JSON captures are independent; JSON records unavailable
+captures when the page closes. Diagnostic text identifies saved artifacts
+without copying captured page/state text into the test output. Page/error/request
+text retains explicit bounds, and body/screenshot captures have a two-second
+best-effort limit. Reporting failures cannot replace the original error object.
+Application behavior, existing startup/service deadlines, assertions, optional
+providers, shared UI and public contracts are unchanged.
+
+Focused helper/trace checks pass **10/10**: six new regressions verify capture
+failures, closed pages, reporting failures, custom-state reads and bounded text;
+four existing trace/cleanup cases remain preservation controls. The new helper
+tests use structural page doubles and real temporary filesystem failures;
+their synthetic image bytes are not native screenshot evidence.
+A separate native Chromium probe retains an actual locator timeout after
+closing the page. Body and screenshot reads fail independently, JSON still
+records the pending request, and the exact original timeout is rethrown.
+Evidence is `frontend/test-results/completion-native-capture.log` and
+`completion-closed-page.json`. This tests capture during teardown, not the cause
+of a historical application startup timeout.
+The final `npm run check` passes **81 tool tests, 585 frontend unit tests,
+330 browser cases and 198 optional installed skips**, together with strict
+types, typed lint, source/format guards, Go vet, Staticcheck, the full Go test
+scope and the standard selected race tests. Evidence is
+`frontend/test-results/completion-final-check.log`. All **33 unchanged
+product-parity release gates** pass (`completion-release.log`). The 277-case
+installed run above precedes the test-helper edits; its runtime and all four
+packages are unchanged. It is not presented as a post-edit clean-commit run.
+
+README, contributor coverage and first-start guidance now describe progressive
+character builds, automatic saving, pending-edit recovery and provider-free
+reading/printing. They no longer suggest the retired character History tab,
+manual draft/save workflow or retained character snapshots. Historical records
+and the host's generic recovery/history contracts remain intact.
+Local document checks verify 341 linked targets and anchors across the five
+changed guides, including the new backlog checkpoint.
+
+T57-CAPTURES-HOST (`544f3d4`) is checked separately. Historical Timeline/Settings/planner
+startup and T53 rules-availability attribution remain open; passing complete
+acceptance and better diagnostics do not establish their cause. The next
+operational step is authorized publication and both site checks under T15–T17,
+including intended add-on state, independent campaign recovery and matching
+backup/maintenance assets. Physical touch, spoken screen-reader and printer
+acceptance also remain separate. The estimate stays **94% overall / 97%
+implemented**, with **33/40 original rows closed**; this checkpoint adds no new
+product-parity gate or launch prerequisite.

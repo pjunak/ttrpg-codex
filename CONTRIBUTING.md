@@ -265,10 +265,10 @@ npm run check
 ```
 
 The installed rules suite covers provider discovery, source changes and provider
-loss. Character tests exercise reviewed changes, drafts, history, transfer and
-print. Planner tests exercise the packaged UI, imports and lifecycle. Browser
-automation does not establish physical-device, human screen-reader or printer
-acceptance.
+loss. Character tests exercise automatic saving, pending-edit recovery, provider
+transitions, transfer and print. Planner tests exercise the packaged UI, imports
+and lifecycle. Browser automation does not establish physical-device, human
+screen-reader or printer acceptance.
 
 ## Keep ownership clear
 
