@@ -114,8 +114,9 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T57-ACCOUNT-HOST — Restore Account navigation after reconnect**~~ — clear retired password saving/draft flags, cancel Account/recovery JSON waits and preserve accepted server writes; [real-server regressions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#account-reconnect-and-recovery-response-cancellation).
 - [x] ~~**T57-CAPTURES-HOST — Preserve original browser failures when evidence capture fails**~~ — `544f3d4`; shared independent page/state, JSON and screenshot capture across Timeline, Settings and saved-spell fixtures; [controlled failures and current suite checkpoint](rewrite/HOST_CLEANUP_ACCEPTANCE.md#current-suite-readiness-and-preserved-browser-failures).
 - [x] ~~**T57-SSE-HOST — Stop revoked sessions during initial event output**~~ — `2465bee`; recheck cursor reads, replay rows and the initial flush; measure password-rotation shutdown after credential work commits; [CI failure, controlled reproduction and repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#initial-stream-revocation-and-password-work-timing).
-- [x] ~~**T15-DIAGNOSTICS-HOST — Retain installed acceptance progress during cancellation**~~ — stream bounded stdout/stderr immediately and persist partial TAP output; failed or skipped tests still block publication; [native-process regressions](rewrite/HOST_CLEANUP_ACCEPTANCE.md#streamed-installed-acceptance-diagnostics).
-- [x] ~~**T57-RECORD-CONFLICT-HOST — Give stale record drafts consistent guidance**~~ — share translated conflict text across local checks and server rejection, preserve exact remote records through delayed refreshes and retain failed host browser traces in CI; [controlled ordering and delivery failure](rewrite/HOST_CLEANUP_ACCEPTANCE.md#record-conflicts-before-campaign-refresh).
+- [x] ~~**T15-DIAGNOSTICS-HOST — Retain installed acceptance progress during cancellation**~~ — `bda9a2a`; stream bounded stdout/stderr immediately and persist partial TAP output; failed or skipped tests still block publication; [native-process regressions](rewrite/HOST_CLEANUP_ACCEPTANCE.md#streamed-installed-acceptance-diagnostics).
+- [x] ~~**T57-RECORD-CONFLICT-HOST — Give stale record drafts consistent guidance**~~ — `54589dd`; share translated conflict text across local checks and server rejection, preserve exact remote records through delayed refreshes and retain failed host browser traces in CI; [controlled ordering and delivery failure](rewrite/HOST_CLEANUP_ACCEPTANCE.md#record-conflicts-before-campaign-refresh).
+- [x] ~~**T15-SESSION-PERF-HOST — Reuse real UI save acknowledgements in multiclass acceptance**~~ — remove 13 repeated evaluations per session while retaining independent persistence checks, all assertions and deadlines; [measured acceptance and Linux boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-acceptance-without-repeated-evaluations).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -145,6 +146,10 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   limit without reported test progress. The wrapper now streams diagnostics;
   the underlying stall still needs current Linux evidence. [Delivery failure
   and diagnostic repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#streamed-installed-acceptance-diagnostics).
+  The streamed replacement run completed with 275 passes, one multiclass timeout
+  and one dependent provider-free failure. Repeated intermediate evaluations are
+  now removed; [measured repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-acceptance-without-repeated-evaluations).
+  This does not establish a cause for the earlier startup failures.
 
 ### Lifecycle, maintenance and operations
 

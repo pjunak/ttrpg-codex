@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { resolve } from "node:path";
-import type { APIRequestContext, Browser, Locator } from "playwright";
+import type { APIRequestContext, Browser, Locator, Request } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
 import { trackBrowserContext } from "./browser-diagnostics.mts";
 
@@ -105,12 +105,48 @@ export async function openSheet(
   await page.waitForFunction(
     () => !document.querySelector(".addon-dnd-character")?.hasAttribute("aria-busy"),
   );
+  const status = sheet.locator("[data-character-status]");
   return {
     close,
     page,
     sheet,
-    status: sheet.locator("[data-character-status]"),
+    status,
     read: () => f.call("load", { key }),
+    saveChange: async (change: () => Promise<unknown>) => {
+      const requests = new Set<Request>();
+      const started = (request: Request) => {
+        if (!request.url().endsWith("/services/call") || request.method() !== "POST") return;
+        const body = request.postDataJSON();
+        if (
+          body?.contract === "dnd5e.character" &&
+          body.method === "save" &&
+          body.params?.key === key
+        )
+          requests.add(request);
+      };
+      page.on("request", started);
+      try {
+        // Only a write started by this action can acknowledge it. Reuse its
+        // persisted result instead of requesting another full rules evaluation.
+        const [response] = await Promise.all([
+          page.waitForResponse((response) => requests.has(response.request())),
+          change(),
+        ]);
+        assert.equal(response.ok(), true, await response.text());
+        const result = (await response.json()).result;
+        assert.equal(result?.status, "ready", JSON.stringify(result));
+        assert.equal(result.key, key, "The acknowledgement must belong to this character");
+        assert.equal(
+          result.revision,
+          response.request().postDataJSON().params.expectedRevision + 1,
+          "A new UI action must commit its next revision",
+        );
+        await status.filter({ hasText: locale === "cs" ? /^Uloženo$/ : /^Saved$/ }).waitFor();
+        return result as Record<string, any>;
+      } finally {
+        page.off("request", started);
+      }
+    },
   };
 }
 async function focused(control: Locator) {

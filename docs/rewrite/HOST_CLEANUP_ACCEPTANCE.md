@@ -5370,3 +5370,62 @@ gates** remain satisfied. Evidence is
 This is local validation. The replacement Linux installed result and both site
 rollouts still need delivery evidence; the original-row count and estimated
 completion are unchanged at this checkpoint.
+
+## Multiclass acceptance without repeated evaluations
+
+October 1, 2026. Streaming the installed acceptance output in
+[run 36908097302](https://github.com/pjunak/ttrpg-codex/actions/runs/36908097302)
+preserved the first complete Linux result for this delivery attempt:
+**277 cases, 275 passes, one timeout and one dependent failure, zero skips**.
+The English whole multiclass session exceeded its unchanged 120-second budget;
+the Czech session passed in **115.7 seconds**. The later provider-free test
+correctly rejected an acceptance map containing only one completed session.
+It is a consequence of the English timeout, not separate evidence that frozen
+character saves failed. The installed scope took approximately **28 minutes**.
+The host job also failed the record-conflict wording assertion documented above;
+image publication and both site deployments remained skipped.
+
+The whole-session fixture requested another service `load` after most UI saves,
+although each successful real `save` response already contains the committed
+character state and its evaluation. These reads ran the entire rules calculation
+again. Workspace edits, casts, short/long rests and level-up choices now verify
+the actual browser save acknowledgements. The observer starts before the action,
+accepts only newly started saves for the selected character contract/key, checks
+HTTP success and `ready`, requires the matching key and the exact next revision,
+then waits for the localized Saved state. Background loads and earlier or
+different-character responses cannot acknowledge the action.
+
+This removes **13 repeated full evaluations per whole-session scenario**,
+including the duplicate pre-advancement read. Every existing saved-state,
+resource, level-up, keyboard-focus, provider/source-loss, frozen print/export,
+phone reflow and cancelled-import assertion remains. Independent loads still
+verify rejected writes, frozen saves, a full browser reload and cancelled import;
+the final provider-free scope independently reads both accepted sessions.
+No result cache, fabricated response, input simplification, deadline increase,
+reduced concurrency, skipped case or weakened provider-free prerequisite is used.
+
+Focused before/after runs use the same pinned Engine, Sheets and Compendium
+inspected Windows ZIPs. English/Czech test durations changed from
+**73.0/58.8 seconds** to **63.2/44.6 seconds**; aggregate duration changed from
+**132.4 seconds** to **108.3 seconds**. The English body reached final acceptance
+at **61.8 seconds before / 52.3 seconds after**; context/trace cleanup accounts
+for the difference from its reported test duration. Czech body checkpoints are
+**58.8/44.6 seconds**. Both focused runs pass **2/2** with zero skips and the
+same 120-second limits. These are local timings; they do not predict a Linux
+runner's exact duration or explain historical startup/port-allocation failures.
+
+Evidence is `frontend/test-results/current-publication-multiclass-before.log`,
+`current-publication-multiclass-after.log` and
+`current-publication-multiclass-fast.log`. A final focused run including the
+matching-character acknowledgement assertion also passes **2/2**; its evidence
+is `current-publication-multiclass-final-focused.log`. The full host gate passes
+**85 tooling tests, 585 frontend unit tests and 332 browser cases**, with 198
+optional installed skips, strict source/type/lint/format/vet/Staticcheck scopes,
+Go tests and the selected race checks. All **33 product-parity release gates**
+remain satisfied. Evidence is `current-publication-multiclass-check.log` and
+`current-publication-multiclass-release.log`. The replacement Linux publication
+result is recorded in the delivery checkpoint that follows.
+The suite retains all **277 installed cases**, four-file concurrency, strict ZIP
+verification, zero-skip acceptance and the 35-minute compatibility-job limit.
+This slice addresses demonstrated duplicate work; live manager, backup and
+add-on retention acceptance still remain outside its validation.

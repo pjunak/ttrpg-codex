@@ -143,8 +143,7 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
           "Saved multiclass state bytes: " + Buffer.byteLength(JSON.stringify(stored.state)),
         );
         const session = await openBuilder(t, f, key, locale);
-        const { page, sheet, status, read } = session;
-        const saved = cs ? /^Uloženo$/ : /^Saved$/;
+        const { page, sheet, read, saveChange } = session;
         const selectTab = async (tab: string) => {
           await sheet.locator("#dnd-tab-" + tab).click();
           await page.waitForFunction(
@@ -216,8 +215,7 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
             .getByLabel(cs ? "Použít pozici" : "Spend slot", { exact: true })
             .selectOption(slot!);
           await row.getByRole("button", { name: cs ? "Seslat" : "Cast", exact: true }).focus();
-          await page.keyboard.press("Enter");
-          await status.filter({ hasText: saved }).waitFor();
+          stored = await saveChange(() => page.keyboard.press("Enter"));
         }
         const grantKeys: string[] = [];
         for (const spell of stored.evaluation.spellOptions.granted.filter(
@@ -229,15 +227,15 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
           await row
             .getByLabel(cs ? "Zdroj získaného seslání" : "Granted cast resource", { exact: true })
             .selectOption(slot);
-          await row
-            .getByRole("button", {
-              name: cs ? "Seslat získané kouzlo" : "Cast granted spell",
-              exact: true,
-            })
-            .click();
-          await status.filter({ hasText: saved }).waitFor();
+          stored = await saveChange(() =>
+            row
+              .getByRole("button", {
+                name: cs ? "Seslat získané kouzlo" : "Cast granted spell",
+                exact: true,
+              })
+              .click(),
+          );
         }
-        stored = await read();
         for (const key of ["pact-slot", "slot-1", "slot-3", ...grantKeys])
           assert.equal(stored.state.inputs.play.resourceUses[key], 1);
         checkpoint("Casts saved");
@@ -442,12 +440,12 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
         assert.equal(restored.revision, stored.revision);
         await selectTab("combat");
         await expandCharacterDetails(sheet);
-        await sheet
-          .getByRole("button", { name: cs ? "Krátký odpočinek" : "Short rest", exact: true })
-          .click();
-        await status.filter({ hasText: saved }).waitFor();
         const beforeRest = stored;
-        stored = await read();
+        stored = await saveChange(() =>
+          sheet
+            .getByRole("button", { name: cs ? "Krátký odpočinek" : "Short rest", exact: true })
+            .click(),
+        );
         assertWorkspacePreserved(stored.state.inputs, beforeRest.state.inputs);
         assert.equal(stored.state.inputs.play.resourceUses["pact-slot"], 0);
         for (const key of ["slot-1", "slot-3", ...grantKeys])
@@ -458,7 +456,7 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
         assert.equal(stored.state.inputs.play.resourceUses[spentSource.key], 1);
         checkpoint("Short rest saved");
         const beforeLevel = structuredClone(stored);
-        stored = await advanceWorkspace(session, locale, checkpoint);
+        stored = await advanceWorkspace(session, locale, checkpoint, beforeLevel);
         assert.equal(stored.state.inputs.play.hp, beforeLevel.state.inputs.play.hp);
         assert.deepEqual(
           stored.state.inputs.play.resourceUses,
@@ -503,11 +501,11 @@ export function registerMulticlassProviderTests(enabled: boolean, fixture: () =>
         // including the spent class allowance and owned hand identities.
         await selectTab("combat");
         await expandCharacterDetails(sheet);
-        await sheet
-          .getByRole("button", { name: cs ? "Dlouhý odpočinek" : "Long rest", exact: true })
-          .click();
-        await status.filter({ hasText: saved }).waitFor();
-        const rested = await read();
+        const rested = await saveChange(() =>
+          sheet
+            .getByRole("button", { name: cs ? "Dlouhý odpočinek" : "Long rest", exact: true })
+            .click(),
+        );
         assertWorkspacePreserved(rested.state.inputs, stored.state.inputs);
         assert.equal(rested.state.inputs.play.hp, rested.state.projection.sheet.derived.maxHp);
         for (const pool of ["pact-slot", "slot-1", "slot-3", survivingKey])

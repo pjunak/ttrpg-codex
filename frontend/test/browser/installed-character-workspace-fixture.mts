@@ -6,8 +6,7 @@ type Row = Record<string, any>;
 type Session = {
   page: Page;
   sheet: Locator;
-  status: Locator;
-  read: () => Promise<Row>;
+  saveChange: (change: () => Promise<unknown>) => Promise<Row>;
 };
 const choice = (sheet: Locator, id: string) =>
   sheet.locator("[id=" + JSON.stringify("character-choice-" + encodeURIComponent(id)) + "]");
@@ -66,12 +65,8 @@ export function assertWorkspacePreserved(actual: Row, previous: Row): void {
 }
 
 export async function exerciseWorkspace(session: Session, locale: string): Promise<Row> {
-  const { sheet, status, read } = session,
+  const { sheet, saveChange } = session,
     cs = locale === "cs";
-  const saved = async () => {
-    await status.filter({ hasText: cs ? /^Uloženo$/ : /^Saved$/ }).waitFor();
-    return read();
-  };
   assert.equal(await sheet.getAttribute("data-layout"), "compact");
   await characterTab(sheet, "combat");
   assert.equal(
@@ -86,8 +81,7 @@ export async function exerciseWorkspace(session: Session, locale: string): Promi
   });
   await condition.fill(cs ? "Vyčerpání" : "Exhaustion");
   await condition.press("ArrowDown");
-  await condition.press("Enter");
-  let stored = await saved();
+  let stored = await saveChange(() => condition.press("Enter"));
 
   await characterTab(sheet, "builder");
   await sheet.locator("#dnd-builder-tab-fighter").click();
@@ -115,13 +109,14 @@ export async function exerciseWorkspace(session: Session, locale: string): Promi
     await picker.press("ArrowDown");
     await picker.press("Enter");
   }
-  await panel
-    .getByRole("button", {
-      name: cs ? "Vyměnit volbu povolání" : "Replace class choice",
-      exact: true,
-    })
-    .press("Enter");
-  stored = await saved();
+  stored = await saveChange(() =>
+    panel
+      .getByRole("button", {
+        name: cs ? "Vyměnit volbu povolání" : "Replace class choice",
+        exact: true,
+      })
+      .press("Enter"),
+  );
   assert.equal(stored.state.inputs.build.replacements.length, 1);
   assert.equal(
     stored.evaluation.guidance.classReplacements.find((row: Row) => row.classId === "fighter")
@@ -148,20 +143,15 @@ export async function advanceWorkspace(
   session: Session,
   locale: string,
   checkpoint: (phase: string) => void,
+  before: Row,
 ): Promise<Row> {
-  const { sheet, status, read } = session,
+  const { sheet, saveChange } = session,
     cs = locale === "cs";
-  const saved = async () => {
-    await status.filter({ hasText: cs ? /^Uloženo$/ : /^Saved$/ }).waitFor();
-    return read();
-  };
-  const before = await read();
   await characterTab(sheet, "builder");
   await sheet.locator("#dnd-builder-tab-wizard").click();
-  await sheet
-    .getByRole("button", { name: cs ? "Přidat úroveň" : "Add level", exact: true })
-    .click();
-  let stored = await saved();
+  let stored = await saveChange(() =>
+    sheet.getByRole("button", { name: cs ? "Přidat úroveň" : "Add level", exact: true }).click(),
+  );
   checkpoint(
     "Incomplete Wizard level saved: " +
       JSON.stringify(stored.evaluation.issues.map((issue: Row) => issue.id)),
@@ -186,16 +176,18 @@ export async function advanceWorkspace(
         !stored.state.inputs.build.choices.some((value: Row) => value.id === row.id),
     );
     if (advancement) {
-      await choice(sheet, advancement.id)
-        .getByLabel(cs ? "Postup" : "Advancement", { exact: true })
-        .selectOption("asi");
-      stored = await saved();
+      stored = await saveChange(() =>
+        choice(sheet, advancement.id)
+          .getByLabel(cs ? "Postup" : "Advancement", { exact: true })
+          .selectOption("asi"),
+      );
       checkpoint("Advancement mode selected");
       for (const ability of ["INT", "CON"]) {
-        await choice(sheet, advancement.ability.id)
-          .getByLabel(ability, { exact: true })
-          .press("ArrowUp");
-        stored = await saved();
+        stored = await saveChange(() =>
+          choice(sheet, advancement.ability.id)
+            .getByLabel(ability, { exact: true })
+            .press("ArrowUp"),
+        );
         checkpoint("Advancement ability " + ability + " selected");
       }
     } else {
@@ -207,8 +199,7 @@ export async function advanceWorkspace(
         : ["See Invisibility", "Web"]) {
         await group.getByRole("searchbox").fill(name);
         const spell = group.getByRole("checkbox", { name, exact: true });
-        await spell.check();
-        stored = await saved();
+        stored = await saveChange(() => spell.check());
         checkpoint("Wizard spell " + name + " selected");
         assert.equal(await spell.evaluate((node) => node === document.activeElement), true);
       }
