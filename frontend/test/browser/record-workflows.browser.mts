@@ -27,6 +27,7 @@ type LifetimeApp = HTMLElement & {
 declare global {
   interface Window {
     coreTwinReply: { calls: number; ok?: boolean };
+    recordConflictReads: { holding: boolean; started: boolean; release: () => void };
   }
 }
 
@@ -118,7 +119,13 @@ after(async () => {
   }
 });
 
-async function open(t: TestContext, role?: string, mobile = false, fallbackFonts = false) {
+async function open(
+  t: TestContext,
+  role?: string,
+  mobile = false,
+  fallbackFonts = false,
+  preparePage?: (page: Page) => Promise<void>,
+) {
   const context = await browser.newContext({
     baseURL: origin,
     locale: "en-US",
@@ -136,6 +143,7 @@ async function open(t: TestContext, role?: string, mobile = false, fallbackFonts
     : undefined;
   if (fallbackFonts) await context.route("**/*.woff2", (route) => route.abort());
   const page = await context.newPage();
+  await preparePage?.(page);
   page.setDefaultTimeout(12_000);
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/#/");
@@ -1129,6 +1137,94 @@ void test("contextual creation retains its source through sign-in", async (t) =>
   await visitor.page.getByRole("heading", { name: "Add character", exact: true }).waitFor();
   assert.equal(await visitor.page.locator("form.record-editor").count(), 0);
 });
+
+for (const scenario of [
+  { language: "en", mobile: false, collection: "locations" },
+  { language: "cs", mobile: true, collection: "characters" },
+] as const) {
+  void test(`remote save conflicts keep drafts before a campaign refresh (${scenario.language}, ${scenario.collection})`, async (t) => {
+    const key = "held-record-conflict-" + scenario.language;
+    await put(
+      admin,
+      csrf,
+      key,
+      { name: "Original record", description: "Original notes" },
+      0,
+      scenario.collection,
+    );
+    const dm = await open(t, "dm", scenario.mobile, false, async (page) => {
+      await page.addInitScript((language) => {
+        localStorage.setItem("codex_lang", language);
+        const nativeFetch = window.fetch.bind(window),
+          gate = Promise.withResolvers<void>();
+        const state: Window["recordConflictReads"] = (window.recordConflictReads = {
+          holding: false,
+          started: false,
+          release: () => gate.resolve(),
+        });
+        window.fetch = async (input, init) => {
+          const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+          const response = await nativeFetch(input, init);
+          if (url.pathname === "/api/campaign" && state.holding) {
+            state.started = true;
+            await gate.promise;
+          }
+          return response;
+        };
+      }, scenario.language);
+    });
+    await dm.page.goto(`/#/${scenario.collection}/${key}/edit`);
+    const name = dm.page.locator('form.record-editor input[name="name"]');
+    await name.fill("Preserve this draft");
+    const opening = await record(key, scenario.collection);
+    await dm.page.evaluate(() => {
+      window.recordConflictReads.holding = true;
+    });
+    try {
+      await put(
+        admin,
+        csrf,
+        key,
+        { ...opening.value, description: "Changed elsewhere" },
+        opening.revision,
+        scenario.collection,
+      );
+      const remote = await record(key, scenario.collection);
+      await dm.page.waitForFunction(() => window.recordConflictReads.started);
+      const reply = dm.page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === "/api/campaign/transactions" &&
+          response.request().method() === "POST",
+      );
+      await dm.page
+        .locator("form.record-editor")
+        .getByRole("button", {
+          name: scenario.language === "cs" ? "Uložit záznam" : "Save entry",
+          exact: true,
+        })
+        .click();
+      assert.equal((await reply).status(), 409);
+      t.diagnostic(
+        "Real server rejected the opening revision while campaign refresh remained pending.",
+      );
+      await dm.page
+        .getByText(
+          scenario.language === "cs"
+            ? "Záznam nebo jeho vztahy se změnily."
+            : "The entry or its relationships changed.",
+          { exact: false },
+        )
+        .waitFor();
+      assert.equal(await name.inputValue(), "Preserve this draft");
+      assert.equal(new URL(dm.page.url()).hash, `#/${scenario.collection}/${key}/edit`);
+      const saved = await record(key, scenario.collection);
+      assert.equal(saved.revision, opening.revision + 1);
+      assert.deepEqual(saved, remote);
+    } finally {
+      await dm.page.evaluate(() => window.recordConflictReads.release());
+    }
+  });
+}
 
 void test("direct card editing keeps collection views, party return paths and stale drafts", async (t) => {
   await put(admin, csrf, "direct-edit", { name: "Direct editing town" });

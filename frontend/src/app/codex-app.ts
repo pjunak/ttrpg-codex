@@ -165,6 +165,9 @@ type AddonState =
 
 type LiveState = "connecting" | "connected" | "reconnecting";
 
+const recordSaveConflictMessage =
+  "The entry or its relationships changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version.";
+
 export class CodexApp extends LitElement {
   static override properties = {
     readiness: { state: true },
@@ -1828,9 +1831,7 @@ export class CodexApp extends LitElement {
     } catch (cause: unknown) {
       this.errorMessage =
         cause instanceof CampaignRecordEditError && cause.kind === "stale"
-          ? uiText(
-              "The entry or its relationships changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version.",
-            )
+          ? uiText(recordSaveConflictMessage)
           : cause instanceof CampaignRecordEditError && cause.kind === "portrait-visibility"
             ? uiText(
                 "Save visibility changes first, then replace the portrait. Your draft is kept.",
@@ -1865,7 +1866,7 @@ export class CodexApp extends LitElement {
       if (!signal.aborted) {
         this.errorMessage =
           cause instanceof CampaignMutationHTTPError && cause.status === 409
-            ? uiText("The entry changed while saving. Reload its current version and try again.")
+            ? uiText(recordSaveConflictMessage)
             : uiText("The entry could not be saved: {0}", { "0": errorMessage(cause) });
         this.recordSaveState = "failed";
       }

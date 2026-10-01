@@ -197,6 +197,10 @@ The suite streams test output as it runs and saves partial TAP output to
 progress in its log instead of discarding every unfinished test's diagnostics.
 The existing 32 MiB bounds on each output stream and the zero-skip requirement
 still apply; partial output never establishes acceptance.
+Failed or cancelled host test jobs retain browser trace ZIPs as
+`host-browser-traces` for 14 days. That upload excludes package archives and
+runtime directories; private companion-job contents remain outside public
+artifacts. Inspect the trace against its exact host source and original error.
 
 Focused checks are useful during development:
 

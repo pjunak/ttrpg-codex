@@ -399,7 +399,7 @@ void test("failed uploads and rejected record saves keep the portrait draft and 
     r.fulfill({ status: 409, body: "conflict" }),
   );
   await page.getByRole("button", { name: "Save entry", exact: true }).click();
-  await page.getByText("The entry changed while saving.", { exact: false }).waitFor();
+  await page.getByText("The entry or its relationships changed.", { exact: false }).waitFor();
   assert.equal((await record(key)).value.portrait, undefined);
   assert.match(
     await page.getByRole("img", { name: "Portrait preview" }).getAttribute("src").then(required),

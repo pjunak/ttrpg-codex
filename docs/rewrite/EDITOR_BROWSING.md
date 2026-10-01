@@ -100,6 +100,11 @@ the top-right corner through the [shared card-action pattern](UI_FOUNDATIONS.md#
 The shared record form supports all record collections, keeps the starting
 collection's filter/sort URL or party/overview destination, and returns there
 after Save or Cancel. Cancelling also clears the abandoned form’s save warning.
+An opening-revision conflict keeps the form and its draft. The same localized
+guidance applies whether live refresh detects the change before Save or the
+server rejects the transaction afterward: copy any needed notes, cancel and
+reopen to review the current record. A delayed campaign refresh never permits
+overwriting the remotely saved record or silently rebasing the draft.
 Direct edit links select the host profile even when an
 add-on article was previously selected. Anonymous edit bookmarks retain their
 destination through sign-in. Return destinations are a finite set of internal

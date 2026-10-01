@@ -76,6 +76,15 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run check
 
+      - name: Preserve failed host browser traces
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: host-browser-traces
+          path: frontend/test-results/traces/*.zip
+          if-no-files-found: ignore
+          retention-days: 14
+
   build:
     name: Build image
     needs: [test, compatibility, resolve-targets]

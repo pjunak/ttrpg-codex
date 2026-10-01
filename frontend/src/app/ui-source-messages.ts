@@ -401,8 +401,6 @@ export const sourceCs = {
     "Záznam nebo jeho vztahy se změnily. Rozepsané úpravy zůstaly zachovány; zkopírujte si potřebné poznámky, poté úpravy zrušte a záznam znovu otevřete.",
   "The entry contains a value that cannot be saved.":
     "Záznam obsahuje hodnotu, kterou nelze uložit.",
-  "The entry changed while saving. Reload its current version and try again.":
-    "Záznam se během ukládání změnil. Načtěte aktuální verzi a zkuste to znovu.",
   "The entry changed before it could be deleted. Refresh and try again.":
     "Záznam se před odstraněním změnil. Obnovte jej a zkuste to znovu.",
   "The delete request is no longer valid.": "Požadavek na odstranění již není platný.",

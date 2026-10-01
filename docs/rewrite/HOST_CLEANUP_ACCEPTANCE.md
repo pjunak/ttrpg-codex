@@ -5313,3 +5313,60 @@ recorded in the following delivery checkpoint. T15-DIAGNOSTICS-HOST closes only 
 demonstrated lost-output defect; the cancelled installed run does not pass
 acceptance and its delay is not attributed to the password timer or historical
 browser failures.
+
+## Record conflicts before campaign refresh
+
+October 1, 2026. The two validated delivery repairs, `2465bee` and `bda9a2a`,
+were pushed under the user's existing main/both-sites approval. In
+[run 36908097302](https://github.com/pjunak/ttrpg-codex/actions/runs/36908097302),
+the secret scan, deployment configuration, 85 tooling tests and 585 frontend
+unit tests passed. The browser scope passed 329 cases but failed one:
+`direct card editing keeps collection views, party return paths and stale drafts`
+waited 12 seconds for its expected conflict message. The gate stopped before
+Go tests or image publication. Neither site deployed this candidate.
+
+The workflow has two valid event orderings. If a campaign refresh arrives before
+Save, local opening-revision validation rejects the stale form. If that refresh
+is delayed, the unchanged optimistic transaction reaches the server, which
+rejects it with HTTP 409. The UI used different text for those paths and the
+test assumed the local path. This failure is not evidence of a successful
+stale overwrite; it is an ordering-dependent copy/assertion defect.
+
+Two controlled real-host tests hold every subsequent campaign response while
+letting the actual server accept a remote edit and reject the opening revision.
+Both prove HTTP 409 and fail the expected-message check against the unchanged
+UI: English desktop location editing and Czech phone character editing. After
+repair, both display the same existing translated guidance, retain the draft
+and edit route, and leave the exact accepted remote record unchanged, including
+server-generated activity metadata. The original direct-card workflow passes
+in the same focused run, **3/3**, with its unchanged timeout and assertion.
+Evidence is `current-publication-record-conflict-before.log` and
+`current-publication-record-conflict-after.log` under `frontend/test-results/`.
+
+The shared generic record-save handler now uses one localized conflict source
+for local stale validation and HTTP 409. It supports all generic record
+collections; no per-entity UI branch, revision rebase, automatic retry or
+server mutation contract is added. The existing draft-preservation and explicit
+cancel/reopen workflow remains. The obsolete server-only translation is removed.
+
+The failed CI case recorded a Playwright trace path but the host job did not
+upload it. The job now retains its failed/cancelled synthetic-browser trace
+ZIPs for 14 days. Only the host trace directory is uploaded; package archives,
+runtime directories and private companion-job content remain excluded. The
+repository actionlint/ShellCheck workflow gate passes. Local ShellCheck was
+absent, so this validation uses the official v0.11.0 Windows archive in the
+ignored test-output folder, verified against its upstream SHA-256; no global
+installation or network configuration changed.
+
+The final local `npm run check` passes **85 tooling tests, 585 frontend unit
+tests and 332 browser cases**, with 198 optional installed skips, all strict
+source/type/lint/format checks, Go vet/Staticcheck, ordinary Go tests and the
+selected race scope. The existing portrait rejection test now expects the
+intentional common conflict wording; its uploaded-preview, original-record
+and successful-retry assertions are unchanged. All **33 product-parity release
+gates** remain satisfied. Evidence is
+`frontend/test-results/current-publication-conflict-final-recheck.log`,
+`current-publication-workflows.log` and `current-publication-conflict-release.log`.
+This is local validation. The replacement Linux installed result and both site
+rollouts still need delivery evidence; the original-row count and estimated
+completion are unchanged at this checkpoint.
