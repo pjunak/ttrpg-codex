@@ -1,3 +1,5 @@
+import { waitForSignal } from "./abort-signal.js";
+
 const storageKey = "codex_player_preview";
 const marker = "playerPreview";
 const header = "X-Codex-Player-Preview";
@@ -61,13 +63,20 @@ function sameOriginAPI(input: RequestInfo | URL): URL | undefined {
 /** Shared default transport for core clients and host-issued add-on facades. */
 export const authorityRejectedEvent = "codex-authority-rejected";
 export const sessionFetch: typeof fetch = async (input, init) => {
+  const signal =
+    init?.signal === undefined
+      ? input instanceof Request
+        ? input.signal
+        : undefined
+      : init.signal;
+  signal?.throwIfAborted();
   const api = sameOriginAPI(input);
   const headers = new Headers(
     init?.headers ?? (input instanceof Request ? input.headers : undefined),
   );
   if (token !== undefined && api !== undefined) {
     headers.set(header, token);
-    return fetch(input, {
+    const request = fetch(input, {
       ...init,
       headers,
       credentials: "omit",
@@ -75,8 +84,11 @@ export const sessionFetch: typeof fetch = async (input, init) => {
       cache: "no-store",
       referrerPolicy: "no-referrer",
     });
+    return signal == null ? request : waitForSignal(request, signal);
   }
-  const response = await fetch(input, init);
+  const request = fetch(input, init);
+  const response = await (signal == null ? request : waitForSignal(request, signal));
+  signal?.throwIfAborted();
   // A rejected authorized operation prompts a fresh authority check, never an
   // automatic write retry. Preview tabs must never acquire the cookie session.
   if (

@@ -1,5 +1,6 @@
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
+import { waitForSignal } from "./abort-signal.js";
 import { parseInstalledGeneration, type InstalledGeneration } from "./addon-admin.js";
 import { HostRequestError } from "./api.js";
 
@@ -106,10 +107,15 @@ export class AddonStorageClient {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       },
     );
-    const value: unknown = await response.json().catch((error: unknown) => {
-      if (response.ok) throw error;
-      return undefined;
-    });
+    this.signal.throwIfAborted();
+    const value: unknown = await waitForSignal(
+      response.json().catch((error: unknown) => {
+        if (response.ok) throw error;
+        return undefined;
+      }),
+      this.signal,
+    );
+    this.signal.throwIfAborted();
     if (!response.ok)
       throw new PackageStorageError(
         response.status,

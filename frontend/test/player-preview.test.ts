@@ -34,6 +34,42 @@ afterEach(() => {
 });
 
 describe("tab-scoped player preview", () => {
+  it("cancels a preview's held transport without acquiring cookie authority", async () => {
+    vi.stubGlobal("location", new URL("https://codex.test/"));
+    const events = new EventTarget();
+    const rejected = vi.fn();
+    events.addEventListener(authorityRejectedEvent, rejected);
+    vi.stubGlobal("window", events);
+    initializePlayerPreview(scope(playerPreviewURL(credential, location.href)));
+    let release!: (response: Response) => void;
+    const response = new Promise<Response>((complete) => {
+      release = complete;
+    });
+    const fetch = vi.fn<typeof globalThis.fetch>(() => response);
+    vi.stubGlobal("fetch", fetch);
+    const controller = new AbortController();
+    let settlement: unknown;
+    const operation = sessionFetch("/api/admin/addons", {
+      signal: controller.signal,
+      headers: { "X-Codex-CSRF": "c".repeat(32) },
+    }).catch((error: unknown) => {
+      settlement = error;
+    });
+    try {
+      controller.abort("preview disconnected");
+      await vi.waitFor(() => expect(settlement).toBe("preview disconnected"));
+    } finally {
+      release(new Response("obsolete preview", { status: 403 }));
+      await operation;
+    }
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({ credentials: "omit", redirect: "error" });
+    expect(new Headers(fetch.mock.calls[0]?.[1]?.headers).get("X-Codex-Player-Preview")).toBe(
+      credential,
+    );
+    expect(rejected).not.toHaveBeenCalled();
+  });
+
   it("announces rejected same-origin authorized calls without replaying or escalating preview tabs", async () => {
     vi.stubGlobal("location", new URL("https://codex.test/"));
     const events = new EventTarget(),

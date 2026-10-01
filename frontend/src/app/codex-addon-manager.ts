@@ -344,9 +344,11 @@ export class CodexAddonManager extends LitElement {
           }}
           @addon-configuration-applied=${async () => {
             this.review = undefined;
-            this.snapshots = await new AddonAdminClient(this.csrfToken, this.#request.signal)
+            const request = this.#request;
+            const snapshots = await new AddonAdminClient(this.csrfToken, request.signal)
               .inventory()
-              .catch(() => this.snapshots);
+              .catch(() => undefined);
+            if (!request.signal.aborted && snapshots) this.snapshots = snapshots;
           }}></codex-addon-configuration>`
             : nothing
         }
@@ -775,7 +777,7 @@ export class CodexAddonManager extends LitElement {
     mutating = true,
     operationKind?: "uninstall" | "disable",
   ): Promise<void> {
-    if (this.#busy || !this.canManage) return;
+    if (this.#busy || !this.canManage || !this.isConnected || this.#request.signal.aborted) return;
     const request = this.#request;
     this.pending = true;
     this.error = "";

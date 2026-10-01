@@ -17,6 +17,18 @@ snapshot, then reviews an exact generation before granting permissions and
 activating that review. Required grants are explicit checkboxes. Stale reviews
 or uncertain responses discard the browser's review; refresh reads current
 state before a new review. The server remains authoritative for every action.
+
+Administrative, GitHub and package-storage clients stop awaiting cancelled
+headers and JSON bodies, reject retired scopes before sending follow-up calls,
+and keep late results out of the current Settings view. Configuration and
+installation actions capture their component request and CSRF token; replacing
+that scope retires its completion, errors and busy-state updates. Reconnected
+configuration panels obtain current rules/providers, and reconnected source
+wizards retain entered source fields with enabled controls and a fresh request
+scope. Returning to Settings reads server state; cancelled activation, staging
+or configuration commands are never automatically replayed or assumed rolled
+back.
+
 Installed desktop/phone browser checks cover the complete workflow, invalid
 ZIPs, concurrent state changes, lost responses, persistence and player denial.
 

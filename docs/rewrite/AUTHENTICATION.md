@@ -194,6 +194,14 @@ replacing data, so an expired DM session cannot replace a private record's open
 editor with a public snapshot. Concurrent checks are coalesced and transport
 listeners end with the application component.
 
+The shared transport honors the initiating request's cancellation scope before
+sending and while awaiting headers, including inherited `Request` signals and
+explicit signal overrides. A late 401/403 from a cancelled request cannot
+announce an authority rejection in a replacement panel or session. Preview
+requests retain their separate credentials and never acquire cookie authority
+through cancellation. Late transport failures remain observed; cancellation
+does not establish whether a submitted server command committed.
+
 Each shared authority check has its own abort scope. Explicit logout or role
 switch, accepted replacement authority and component disposal cancel it and
 release the shared promise. A new sign-in checks its own authority without

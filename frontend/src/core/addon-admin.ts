@@ -9,6 +9,7 @@ import {
 } from "./addon-cleanup.js";
 import { BoundaryValidationError, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
+import { waitForSignal } from "./abort-signal.js";
 import { HostRequestError } from "./api.js";
 import {
   parseRulesPolicy,
@@ -391,7 +392,9 @@ export class AddonAdminClient {
       },
       ...(archive ? { body: archive } : body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
-    const value: unknown = await response.json();
+    this.signal.throwIfAborted();
+    const value: unknown = await waitForSignal(response.json(), this.signal);
+    this.signal.throwIfAborted();
     if (!response.ok) {
       const error = isRecord(value) && isRecord(value["error"]) ? value["error"] : undefined;
       throw new AddonAdminRequestError(

@@ -60,8 +60,16 @@ export class CodexAddonInstall extends LitElement {
   protected override createRenderRoot() {
     return this;
   }
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.#request = new AbortController();
+    this.pending = false;
+  }
   override disconnectedCallback(): void {
     this.#request.abort();
+    this.pending = false;
+    this.#staged = undefined;
+    this.#sourceSaved = false;
     super.disconnectedCallback();
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
@@ -176,8 +184,9 @@ export class CodexAddonInstall extends LitElement {
       this.error = this.#ui.t("addons.fileRequired");
       return;
     }
-    void this.#run(async () => {
-      this.#staged = await new AddonAdminClient(this.csrfToken, this.#request.signal).stage(file);
+    void this.#run(async (client) => {
+      const staged = await new AddonAdminClient(client.csrfToken, client.signal).stage(file);
+      if (!client.signal.aborted) this.#staged = staged;
     });
   };
   readonly #discover = (event: SubmitEvent): void => {
@@ -192,19 +201,24 @@ export class CodexAddonInstall extends LitElement {
       artifact: formText(data, "artifact"),
     };
     const token = formText(data, "token").trim();
+    const target = this.target;
+    const revision = this.link?.revision ?? 0;
     const input = form.querySelector<HTMLInputElement>('input[name="token"]');
     if (input) input.value = "";
     this.discovery = undefined;
     void this.#run(async (client) => {
-      if (token) this.accessStatus = await client.token(source.repo, token);
-      else this.accessStatus = await client.status();
-      const discovery = await client.discover(source, this.target);
-      if (this.target) {
+      const status = token ? await client.token(source.repo, token) : await client.status();
+      if (client.signal.aborted) return;
+      this.accessStatus = status;
+      const discovery = await client.discover(source, target);
+      if (client.signal.aborted) return;
+      if (target) {
         await client.source({
-          addonId: this.target,
+          addonId: target,
           source: discovery.source,
-          revision: this.link?.revision ?? 0,
+          revision,
         });
+        if (client.signal.aborted) return;
         this.#sourceSaved = true;
       } else this.discovery = discovery;
     });
@@ -213,26 +227,27 @@ export class CodexAddonInstall extends LitElement {
     const discovery = this.discovery;
     if (!discovery) return;
     void this.#run(async (client) => {
-      this.#staged = await client.stage(discovery.source, candidateId);
+      const staged = await client.stage(discovery.source, candidateId);
+      if (!client.signal.aborted) this.#staged = staged;
     });
   }
   async #run(operation: (client: AddonGitHubClient) => Promise<void>): Promise<void> {
-    if (this.#busy) return;
+    if (this.#busy || !this.isConnected || this.#request.signal.aborted) return;
     const request = this.#request;
+    const client = new AddonGitHubClient(this.csrfToken, request.signal);
     this.pending = true;
     this.error = "";
     this.dispatchEvent(
       new CustomEvent("addon-install-busy", { detail: true, bubbles: true, composed: true }),
     );
     try {
-      await operation(new AddonGitHubClient(this.csrfToken, request.signal));
+      await operation(client);
     } catch (error) {
       if (!request.signal.aborted) {
         this.error = githubError(error, this.#ui.t.bind(this.#ui));
         // A token save may have succeeded even if its response was lost.
-        this.accessStatus = await new AddonGitHubClient(this.csrfToken, request.signal)
-          .status()
-          .catch(() => this.accessStatus);
+        const status = await client.status().catch(() => undefined);
+        if (!request.signal.aborted && status) this.accessStatus = status;
       }
     } finally {
       if (!request.signal.aborted) {

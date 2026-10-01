@@ -76,6 +76,8 @@ export class CodexAddonConfiguration extends LitElement {
   }
   override disconnectedCallback(): void {
     this.#request.abort();
+    this.pending = false;
+    this.review = undefined;
     this.#dirty(false);
     super.disconnectedCallback();
   }
@@ -283,11 +285,13 @@ export class CodexAddonConfiguration extends LitElement {
     this.#dirty();
   };
   async #load(): Promise<void> {
+    const request = this.#request;
     await this.#run(async (client) => {
       const [policy, services] = await Promise.all([
         client.rulesPolicy(),
         client.serviceSelections(),
       ]);
+      if (client.signal.aborted) return;
       if (policy.revision !== services.revision || policy.graphRevision !== services.graphRevision)
         throw new HostRequestError(409, "Add-on configuration");
       if (this.#selected && this.policy) {
@@ -323,7 +327,7 @@ export class CodexAddonConfiguration extends LitElement {
         }),
       );
     });
-    if (!this.#request.signal.aborted)
+    if (!request.signal.aborted && request === this.#request)
       this.dispatchEvent(
         new CustomEvent("addon-configuration-error", {
           detail: this.error,
@@ -333,6 +337,7 @@ export class CodexAddonConfiguration extends LitElement {
       );
   }
   async #apply(review: Review): Promise<void> {
+    const request = this.#request;
     if (
       !this.dispatchEvent(
         new CustomEvent("addon-lifecycle-request", {
@@ -354,6 +359,7 @@ export class CodexAddonConfiguration extends LitElement {
               review.choice.automatic,
               review.choice.ids,
             );
+      if (client.signal.aborted) return;
       if (!result.applied) throw new Error(this.#ui.t("addons.failed"));
       applied = true;
       if (review.kind === "sources") this.#selected = undefined;
@@ -376,17 +382,19 @@ export class CodexAddonConfiguration extends LitElement {
         new CustomEvent("addon-configuration-applied", { bubbles: true, composed: true }),
       );
     }, true);
-    if (applied) {
+    if (applied && !request.signal.aborted && request === this.#request) {
       const recoveryFailure = this.error;
       await this.#load();
-      if (recoveryFailure) this.error = [recoveryFailure, this.error].filter(Boolean).join(" ");
+      if (recoveryFailure && !request.signal.aborted && request === this.#request)
+        this.error = [recoveryFailure, this.error].filter(Boolean).join(" ");
     }
   }
   async #run(
     operation: (client: AddonAdminClient) => Promise<void>,
     mutating = false,
   ): Promise<void> {
-    if (this.#blocked) return;
+    if (this.#blocked || !this.isConnected || this.#request.signal.aborted) return;
+    const request = this.#request;
     this.pending = true;
     this.error = "";
     if (mutating) this.message = "";
@@ -395,9 +403,9 @@ export class CodexAddonConfiguration extends LitElement {
         new CustomEvent("addon-admin-busy", { detail: true, bubbles: true, composed: true }),
       );
     try {
-      await operation(new AddonAdminClient(this.csrfToken, this.#request.signal));
+      await operation(new AddonAdminClient(this.csrfToken, request.signal));
     } catch (error) {
-      if (!this.#request.signal.aborted) {
+      if (!request.signal.aborted && request === this.#request) {
         this.review = undefined;
         this.error =
           error instanceof HostRequestError && error.status === 409
@@ -406,7 +414,7 @@ export class CodexAddonConfiguration extends LitElement {
         this.#dirty();
       }
     } finally {
-      if (!this.#request.signal.aborted) {
+      if (!request.signal.aborted && request === this.#request) {
         this.pending = false;
         if (mutating)
           this.dispatchEvent(

@@ -4976,3 +4976,76 @@ remain unattributed and open. Linux CI, publication, deployment, live-site and
 human/device acceptance remain outside this local Windows batch. The estimate
 remains **94% overall / 97% implemented**, with **33/40 original rows closed**.
 T57-RESTORE-HOST is checked separately in the lean backlog.
+
+## Add-on Settings cancellation and reconnect
+
+October 1, 2026. Seventeen controlled unit regressions fail against host
+`8de4db3`: cancelled administrative, GitHub staging and package-housekeeping
+requests keep waiting for obsolete headers/JSON bodies, and already-retired
+scopes still send requests. Separate probes of that immutable commit's actual
+shared transport reproduce both late 401 and 403 responses publishing an
+authority rejection after cancellation. Each observes one notification where
+zero is required. Evidence is `frontend/test-results/settings-lifetime-before-unit.log`
+and `settings-authority-before.log`.
+
+Five native browser failures establish the Settings effects: a late successful
+inventory snapshot replaces the reconnected manager's current card; both late
+success/failure configuration cases block the fresh load behind old pending
+state; a pending reconnected wizard leaves its fields disabled; and an idle
+reconnected wizard cannot obtain GitHub results using its aborted request scope.
+The late inventory transport failure already preserves the replacement view
+and remains a control. Evidence is `settings-lifetime-before-browser.log` and
+the corrected leaf-snapshot probe in `settings-inventory-before-browser.log`.
+The initial inventory-list probe passed because its subsequent native request
+correctly rejected the aborted signal; it is not counted as a product failure.
+Failed Playwright traces remain under the existing local traces directory.
+
+The shared session transport checks cancellation before sending and stops
+awaiting cancelled headers while observing late failures. Obsolete authorized
+responses cannot dispatch authority-rejection notifications. Native `Request`
+signal inheritance, explicit replacement/null overrides and preview credential
+isolation are preserved. Administrative, GitHub and package-storage JSON waits
+also stop on cancellation, including error-body handling; retired results cannot
+continue inventory, discovery or staging workflows.
+
+Configuration callbacks capture their originating request for publication,
+error, dirty/busy state and post-apply reloads. Disconnect clears pending state
+and reviews; reconnect loads current policy/providers without waiting for the
+old read. Installation reconnect renews its scope and enables controls while
+keeping entered source fields. Discovery captures its target/link revision and
+uses the initiating client's CSRF token/signal through token, discovery, source
+and ZIP staging steps. Cancelled work cannot publish staged packages or replace
+current access feedback. Manager configuration readback also checks its original
+request before replacing inventory.
+
+Focused acceptance passes **37/37 unit tests** and **23/23 native browser cases**
+(`settings-lifetime-focused-unit.log`, `settings-lifetime-focused-browser.log`).
+The seven new browser cases exercise the built host components, native forms and
+desktop/phone viewports with synthetic HTTP responses that deliberately ignore
+abort. The ZIP case retains two separately submitted synthetic staging receipts
+but publishes only the current result, exactly once; it does not replay the
+cancelled action. This is browser ownership coverage, not a new real-server ZIP
+inspection or rollback claim. Cancellation cannot establish whether a submitted
+server command committed; returning to Settings reads current state before an
+explicit new action. Existing real-package lifecycle tests remain in the full gate.
+
+The complete `npm run check` passes **75 tool tests, 548 frontend unit tests,
+324 browser passes and 198 optional installed skips**, plus all Go checks and
+the standard selected race tests. Strict types, source guards, typed lint and
+formatting pass. The log is `settings-lifetime-full-check.log`. All **33 unchanged
+product-parity release gates** pass (`settings-lifetime-release.log`).
+
+Targeted installed acceptance passes **27/27 with zero skips** against the
+changed shared transport: character pending edits and session/token renewal,
+graph/provider/package handoff, planner startup/draft/uncertain-save recovery,
+reviewed sourcebook/provider settings, compendium retry/replacement and
+player-preview isolation/revocation. The log is `settings-lifetime-installed.log`.
+All four companion checkouts match their clean recorded source pins and unchanged
+ZIP SHA-256 hashes. Their owner checks are reused; this targeted rerun does not
+replace earlier complete installed acceptance.
+
+These controlled defects do not attribute the historical timeline, Settings,
+planner or rules-availability timeouts. Those follow-ups remain open, along
+with Linux CI, publication, deployment, site and human/device acceptance. The
+estimate remains **94% overall / 97% implemented**, with **33/40 original rows
+closed**. T57-SETTINGS-HOST is checked separately in the lean backlog.
