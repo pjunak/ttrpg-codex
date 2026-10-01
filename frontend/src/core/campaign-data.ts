@@ -1,4 +1,5 @@
 import { sessionFetch } from "./player-preview.js";
+import { waitForSignal } from "./abort-signal.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 
 const boundary = "GET /api/campaign";
@@ -94,7 +95,9 @@ export class CampaignDataClient {
       () => undefined,
       () => undefined,
     );
-    return operation;
+    // The caller may stop waiting while queued, but that queue position still
+    // awaits any live predecessor. A cancelled active read releases the queue.
+    return waitForSignal(operation, requestSignal);
   }
 
   reset(): void {
@@ -114,13 +117,16 @@ export class CampaignDataClient {
 
   async #refresh(signal: AbortSignal, epoch: number): Promise<CampaignDataset> {
     this.#assertCurrent(signal, epoch);
-    const response = await this.#fetchData("/api/campaign", {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      credentials: "same-origin",
-      cache: "no-store",
+    const response = await waitForSignal(
+      this.#fetchData("/api/campaign", {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+        signal,
+      }),
       signal,
-    });
+    );
     this.#assertCurrent(signal, epoch);
     if (!response.ok) {
       throw new CampaignDataHTTPError(response.status);
@@ -140,7 +146,7 @@ export class CampaignDataClient {
     ) {
       throw new BoundaryValidationError(boundary, "response exceeds 64 MiB");
     }
-    const body = await response.text();
+    const body = await waitForSignal(response.text(), signal);
     this.#assertCurrent(signal, epoch);
     if (new TextEncoder().encode(body).byteLength > maximumDatasetBytes) {
       throw new BoundaryValidationError(boundary, "response exceeds 64 MiB");

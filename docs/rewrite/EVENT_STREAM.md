@@ -47,9 +47,19 @@ heartbeat. Password changes, logout, expiry or role rotation close the old
 connection; an ordinary reconnect resolves its current authority again.
 
 The browser accepts publications and connection errors only from its current
-EventSource. Closing or replacing the stream retires those callbacks, so a late
-error from the previous connection cannot change the new connection's status.
-Native EventSource still owns reconnect and replay; no extra retry loop is added.
+EventSource. Each source also supplies a cancellation signal for work already
+delivered to its callbacks. Closing or replacing the stream cancels that work;
+its late responses and errors cannot affect a replacement connection,
+application or add-on composition. Authority changes close the previous source
+before loading their new projection. Same-role token renewal preserves the
+source and mounted views. A transient connection error keeps the source's
+signal live: native EventSource still owns reconnect and replay, and its next
+`hello` reconciles the campaign as usual.
+
+Campaign reads stop awaiting cancelled headers and bodies even when the
+transport does not cooperate. A cancelled queued caller settles immediately,
+but its queue position still waits for a live predecessor; current reads remain
+ordered. Retired transport failures remain observed without publishing them.
 
 The broker bounds total subscriptions and each subscriber queue. A slow
 subscriber is disconnected rather than blocking publication or accumulating
@@ -69,9 +79,14 @@ Campaign recovery publishes `campaign-restored` in the same transaction as its
 data and audit changes. This public invalidation contains only a monotonically
 increasing recovery revision and empty metadata, never point IDs, record keys
 or private content. The browser validates it, reloads core campaign state, and
-restarts clean add-on views to discard cached documents. Open core/add-on drafts
-remain visible with a reload notice; their old revisions cannot overwrite the
-restored state. Durable replay covers missed notifications as usual.
+restarts clean add-on views to discard cached documents. After the refresh, it
+checks the current core and add-on dirty/saving state, including edits started
+during that read. Open drafts and pending saves remain visible with a reload
+notice; their old revisions cannot overwrite the restored state. Only the
+latest overlapping restore can decide to restart views, and that decision
+belongs to the originating stream, application and add-on composition. An old
+restore cannot restart a newly signed-in or reconnected composition. Durable
+replay covers missed notifications as usual.
 
 ## Add-on data
 

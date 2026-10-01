@@ -24,13 +24,16 @@ it("delivers validated add-on invalidations through the shared stream without da
   }));
   stream.open({ onRefresh, onBoundaryError });
   source.dispatchEvent(message());
-  expect(onRefresh).toHaveBeenLastCalledWith({
-    cause: "addon-data-changed",
-    cursor: 9,
-    addonId: "dm-tools",
-    kind: "collection",
-    dataId: "planning_items",
-  });
+  expect(onRefresh).toHaveBeenLastCalledWith(
+    {
+      cause: "addon-data-changed",
+      cursor: 9,
+      addonId: "dm-tools",
+      kind: "collection",
+      dataId: "planning_items",
+    },
+    expect.any(AbortSignal),
+  );
   source.dispatchEvent(message({ ...publication, metadata: { records: ["private"] } }));
   expect(onBoundaryError).toHaveBeenCalledOnce();
   expect(onRefresh).toHaveBeenCalledOnce();

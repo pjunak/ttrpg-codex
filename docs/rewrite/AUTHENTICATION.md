@@ -64,6 +64,10 @@ Anonymous callers receive only public invalidations. Player and DM-as-player
 sessions also receive the public audience, while an effective DM additionally
 receives DM invalidations. The browser closes and reopens its single stream
 after an authority change so an older audience is never reused.
+Closing the source also cancels work already delivered by it. Live refresh and
+restore continuations cannot restart views or report failures in a replacement
+session; [the event-stream contract](EVENT_STREAM.md#connection-behavior)
+owns that lifetime and reconnect behavior.
 
 Campaign reads serialize within the current authority. Changing authority clears
 the accepted projection, cancels its pending request and releases the new read

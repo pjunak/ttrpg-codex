@@ -222,6 +222,7 @@ export class CodexApp extends LitElement {
   readonly #campaignData = new CampaignDataClient();
   readonly #campaignMutations = new CampaignMutationClient();
   readonly #events = new SharedEventStream();
+  #restoreRequest = 0;
   readonly #ui = new UiLocalizationController(this);
   #addons: BrowserAddonComposition | undefined;
   readonly #links = new AddonLinksController(this, () => ({
@@ -600,11 +601,15 @@ export class CodexApp extends LitElement {
   }
 
   #startEventStream(): void {
+    const application = this.#request?.signal;
+    if (application === undefined || application.aborted) return;
     this.liveState = "connecting";
     this.#events.open({
-      onRefresh: (event) => {
+      onRefresh: (event, source) => {
+        const signal = AbortSignal.any([application, source]);
+        if (signal.aborted) return;
         this.liveState = "connected";
-        void this.#handleEvent(event);
+        void this.#handleEvent(event, signal);
       },
       onBoundaryError: (cause) => {
         this.errorMessage = uiText("Live update was rejected: {0}", { "0": errorMessage(cause) });
@@ -615,31 +620,43 @@ export class CodexApp extends LitElement {
     });
   }
 
-  async #handleEvent(event: EventRefresh): Promise<void> {
-    this.#addons?.dataChanges.handleEvent(event);
-    if (event.cause === "addon-data-changed") return;
-    if (event.cause === "campaign-restored" && this.#request !== undefined) {
-      const edits = this.#addons?.contributions.edits.state();
-      this.#campaignData.reset();
-      await this.#loadCampaign(this.#request.signal, true);
-      if (this.#editDirty || edits?.dirty || edits?.saving) {
-        this.errorMessage = this.#ui.t("recovery.openEdits");
-      } else {
-        await this.#recoverAddons();
+  async #handleEvent(event: EventRefresh, signal: AbortSignal): Promise<void> {
+    const addons = this.#addons;
+    const owner = this.#addonOwner;
+    const isCurrent = () =>
+      !signal.aborted && owner === this.#addonOwner && addons === this.#addons;
+    if (!isCurrent()) return;
+    try {
+      addons?.dataChanges.handleEvent(event);
+      if (event.cause === "addon-data-changed") return;
+      if (event.cause === "campaign-restored") {
+        const restore = ++this.#restoreRequest;
+        this.#campaignData.reset();
+        await waitForSignal(this.#loadCampaign(signal, true), signal);
+        // A newer restore owns the recovery decision, even when its read has
+        // invalidated this request without replacing the add-on composition.
+        if (!isCurrent() || restore !== this.#restoreRequest) return;
+        const edits = addons?.contributions.edits.state();
+        if (this.#editDirty || this.#editSaving || edits?.dirty || edits?.saving) {
+          this.errorMessage = this.#ui.t("recovery.openEdits");
+        } else {
+          await this.#recoverAddons(signal);
+        }
+        return;
       }
-      return;
-    }
-    // A hello cursor can include writes made after our HTTP snapshot but before
-    // subscription. Reconcile on every connection, including reconnects.
-    if (
-      (event.cause === "hello" ||
+      // A hello cursor can include writes made after our HTTP snapshot but before
+      // subscription. Reconcile on every connection, including reconnects.
+      if (
+        event.cause === "hello" ||
         event.cause === "campaign-data-changed" ||
-        event.cause === "reset") &&
-      this.#request !== undefined
-    ) {
-      await this.#loadCampaign(this.#request.signal, true);
+        event.cause === "reset"
+      )
+        await waitForSignal(this.#loadCampaign(signal, true), signal);
+      if (isCurrent()) await addons?.session.handleEvent(event);
+    } catch (cause: unknown) {
+      if (isCurrent())
+        this.errorMessage = uiText("Live update was rejected: {0}", { "0": errorMessage(cause) });
     }
-    await this.#addons?.session.handleEvent(event);
   }
 
   readonly #onAuthorityRejected = (): void => {
@@ -706,6 +723,11 @@ export class CodexApp extends LitElement {
   }
 
   #acceptAuthority(auth: AuthState): void {
+    if (
+      this.authority.state === "known" &&
+      (this.authority.auth.role !== auth.role || this.authority.auth.realRole !== auth.realRole)
+    )
+      this.#events.close();
     this.#cancelSessionCheck();
     this.authority = { state: "known", auth };
   }
@@ -881,6 +903,7 @@ export class CodexApp extends LitElement {
 
   async #reloadForAuthority(signal: AbortSignal): Promise<void> {
     if (signal.aborted) return;
+    this.#events.close();
     this.sessionRestored = false;
     browserDiagnostics.enable(false);
     this.#campaignData.reset();
@@ -965,7 +988,8 @@ export class CodexApp extends LitElement {
         if (!isPlayerPreview() && (this.#editDirty || this.#editSaving)) {
           this.addonState = { state: "idle" };
           void this.#checkSession().then((available) => {
-            if (available) void this.#recoverAddons();
+            if (available && !signal.aborted && owner === this.#addonOwner)
+              void this.#recoverAddons(signal);
           });
           return;
         }

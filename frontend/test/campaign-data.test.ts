@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   CampaignDataClient,
   CampaignDataHTTPError,
@@ -84,6 +84,95 @@ describe("parseCampaignDataset", () => {
 });
 
 describe("CampaignDataClient", () => {
+  for (const stage of ["headers", "body"] as const) {
+    it.each(["success", "failure"] as const)(
+      `cancelling caller ${stage} releases same-authority reads before late %s`,
+      async (outcome) => {
+        const started = deferred<void>();
+        const release = deferred<void>();
+        const finished = deferred<void>();
+        const fresh = {
+          ...dataset,
+          collections: dataset.collections.map((collection) => ({ ...collection, records: [] })),
+        };
+        let calls = 0;
+        const client = new CampaignDataClient(async () => {
+          if (++calls > 1) return jsonResponse(fresh);
+          const hold = async () => {
+            started.resolve();
+            await release.promise;
+            finished.resolve();
+            if (outcome === "failure") throw new Error("obsolete read failed");
+          };
+          const response = jsonResponse(dataset);
+          response.text = async () => {
+            if (stage === "body") await hold();
+            return JSON.stringify(dataset);
+          };
+          if (stage === "headers") await hold();
+          return response;
+        });
+        const previous = new AbortController();
+        const reason = new Error("stream closed");
+        const settlements: unknown[] = [];
+        const observe = (operation: Promise<CampaignDataset>) =>
+          operation.then(
+            (value) => settlements.push(value),
+            (cause: unknown) => settlements.push(cause),
+          );
+        const active = observe(client.refresh(previous.signal));
+        await started.promise;
+        const queued = observe(client.refresh(previous.signal));
+        try {
+          previous.abort(reason);
+          await vi.waitFor(() => expect(settlements).toEqual([reason, reason]));
+          await expect(client.refresh(new AbortController().signal)).resolves.toEqual(fresh);
+          expect(client.current()).toEqual(fresh);
+          expect(calls).toBe(2);
+        } finally {
+          release.resolve();
+          await finished.promise;
+          await Promise.all([active, queued]);
+        }
+        expect(settlements).toEqual([reason, reason]);
+        expect(client.current()).toEqual(fresh);
+        expect(calls).toBe(2);
+      },
+    );
+  }
+
+  it("cancels a queued caller without overtaking an independent live read", async () => {
+    const started = deferred<void>();
+    const release = deferred<void>();
+    let calls = 0;
+    const client = new CampaignDataClient(async () => {
+      if (++calls === 1) {
+        started.resolve();
+        await release.promise;
+      }
+      return jsonResponse(dataset);
+    });
+    const live = new AbortController().signal;
+    const first = client.refresh(live);
+    await started.promise;
+    const cancelled = new AbortController();
+    let cause: unknown;
+    const skipped = client.refresh(cancelled.signal).catch((error: unknown) => {
+      cause = error;
+    });
+    const last = client.refresh(live);
+    try {
+      cancelled.abort("cancelled queued read");
+      await vi.waitFor(() => expect(cause).toBe("cancelled queued read"));
+      expect(calls).toBe(1);
+    } finally {
+      release.resolve();
+    }
+    await Promise.all([first, skipped, last]);
+    expect(calls).toBe(2);
+    expect(client.current()).toEqual(dataset);
+  });
+
   it("uses a bounded same-origin request and retains the accepted dataset", async () => {
     const calls: Array<{ input: string; init: RequestInit }> = [];
     const fetchData: CampaignDataFetch = async (input, init) => {

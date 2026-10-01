@@ -43,7 +43,7 @@ export type EventRefresh =
     };
 
 export interface EventStreamCallbacks {
-  readonly onRefresh: (refresh: EventRefresh) => void;
+  readonly onRefresh: (refresh: EventRefresh, signal: AbortSignal) => void;
   readonly onBoundaryError?: (error: BoundaryValidationError) => void;
   readonly onConnectionError?: () => void;
 }
@@ -58,6 +58,7 @@ export type EventSourceFactory = (url: string, init: EventSourceInit) => EventSo
 export class SharedEventStream {
   readonly #factory: EventSourceFactory;
   #source: EventSourceLike | undefined;
+  #controller: AbortController | undefined;
 
   constructor(factory: EventSourceFactory = (url, init) => new EventSource(url, init)) {
     this.#factory = factory;
@@ -66,25 +67,43 @@ export class SharedEventStream {
   open(callbacks: EventStreamCallbacks): void {
     this.close();
     const source = this.#factory(previewResourceURL("/api/events"), { withCredentials: true });
+    const controller = new AbortController();
     this.#source = source;
-    this.#listen(source, "hello", callbacks, parseHello);
-    this.#listen(source, "reset", callbacks, parseReset);
-    this.#listen(source, "campaign-restored", callbacks, parseCampaignRestored);
-    this.#listen(source, "addon-data-changed", callbacks, parseAddonDataChange);
-    this.#listen(source, "browser-addons-changed", callbacks, parseBrowserAddonChange);
-    this.#listen(source, "campaign-data-changed", callbacks, parseCampaignDataChange);
+    this.#controller = controller;
+    this.#listen(source, controller.signal, "hello", callbacks, parseHello);
+    this.#listen(source, controller.signal, "reset", callbacks, parseReset);
+    this.#listen(source, controller.signal, "campaign-restored", callbacks, parseCampaignRestored);
+    this.#listen(source, controller.signal, "addon-data-changed", callbacks, parseAddonDataChange);
+    this.#listen(
+      source,
+      controller.signal,
+      "browser-addons-changed",
+      callbacks,
+      parseBrowserAddonChange,
+    );
+    this.#listen(
+      source,
+      controller.signal,
+      "campaign-data-changed",
+      callbacks,
+      parseCampaignDataChange,
+    );
     source.addEventListener("error", () => {
       if (source === this.#source) callbacks.onConnectionError?.();
     });
   }
 
   close(): void {
-    this.#source?.close();
+    const source = this.#source;
     this.#source = undefined;
+    this.#controller?.abort("event-stream-closed");
+    this.#controller = undefined;
+    source?.close();
   }
 
   #listen(
     source: EventSourceLike,
+    signal: AbortSignal,
     name: EventRefreshCause,
     callbacks: EventStreamCallbacks,
     parse: (event: Event) => EventRefresh,
@@ -94,8 +113,9 @@ export class SharedEventStream {
         return;
       }
       try {
-        callbacks.onRefresh(parse(event));
+        callbacks.onRefresh(parse(event), signal);
       } catch (error: unknown) {
+        if (signal.aborted || source !== this.#source) return;
         callbacks.onBoundaryError?.(
           error instanceof BoundaryValidationError
             ? error

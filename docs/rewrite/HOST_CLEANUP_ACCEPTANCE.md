@@ -4908,3 +4908,71 @@ Settings, planner or rules-availability timeouts. Those rows remain open, along
 with Linux CI, publication, live-site and human/device acceptance. The estimate
 remains **94% overall / 97% implemented**, with **33/40 original rows closed**.
 T57-WRITES-HOST is checked separately in the lean backlog.
+
+## Live campaign recovery and event ownership
+
+October 1, 2026. Controlled regressions against host `b488c6a` reproduce five
+campaign-client failures and seven native Chromium failures. Cancelling an
+active or queued read keeps its caller waiting for obsolete headers/body;
+fresh same-authority reads cannot proceed. During a live campaign restore,
+starting an add-on draft or save while the campaign read is held loses that
+input to a restarted view. A pending core saving flag also fails to prevent
+the restart. An old restore replaces a reconnected or newly signed-in add-on's
+draft, and the first of two overlapping restores restarts views before the
+latest read completes. The clean restore with same-role token renewal already
+passes and remains a preservation control.
+
+Before evidence is `frontend/test-results/live-restore-before-unit.log`,
+`live-restore-before-browser.log` and `live-restore-core-before-browser.log`.
+The first browser log retains six failures and the passing control; the last
+log separately retains the core saving-flag failure. Failed Playwright traces
+remain in the existing local traces directory. Browser waits retain their
+seven-second deadline; the overlapping-read request wait is bounded too.
+
+Each event source now owns a cancellation signal for work already delivered
+to its callbacks. Stream replacement, authority changes and component
+disconnection retire that work. Live continuations capture their add-on owner
+and composition rather than recovering whichever composition happens to be
+current later. Same-role token renewal and transient connection errors keep
+the source live; native EventSource still owns reconnect and its next `hello`
+still reconciles the campaign. The existing add-on invalidation test now also
+expects the lifetime signal, preserving its exact payload and privacy checks.
+
+Restore recovery checks current core/add-on dirty and saving state after the
+campaign refresh. Drafts started during that wait remain mounted with the
+existing reload notice. Only the latest overlapping restore can decide to
+restart clean views. Campaign-client cancellation releases header/body waits
+and queued callers while retaining live predecessor order and observing late
+transport errors. No public wire contract, package schema or server recovery
+policy changes.
+
+The focused suite passes **56/56 unit tests** and **22/22 native browser cases**.
+The eight new browser cases cover dirty/saving state during refresh, the core
+saving flag, late success/failure after reconnect, fresh sign-in, overlapping
+restores and clean same-role renewal. They use the built host application,
+normal integrated add-on binding, synthetic HTTP responses and a controlled
+EventSource in Chromium. The saving cases publish the documented edit-state
+flags; they do not perform server writes. This is client-lifetime coverage,
+not a new real-server campaign-restore acceptance claim. Logs are
+`live-restore-focused-unit.log` and `live-restore-focused-browser.log`.
+
+The full `npm run check` passes **75 tool tests, 524 frontend unit tests,
+317 browser passes and 198 optional installed skips**, plus all Go checks
+and the standard selected race tests. Source guards, strict types, typed lint
+and formatting pass. The log is `live-restore-full-check.log`. All **33 unchanged
+product-parity release gates** pass (`live-restore-release.log`).
+
+The targeted installed suite passes **27/27 with zero skips** against the
+changed host: character pending edits and session/token renewal,
+graph/provider/package handoff, planner startup/draft/uncertain-save recovery,
+reviewed sourcebook/provider settings, compendium retry/replacement and
+player-preview isolation/revocation. The log is `live-restore-installed.log`.
+All four companion checkouts remain clean at their recorded source pins,
+and their ZIP SHA-256 hashes are unchanged. Their owner checks are reused;
+this targeted rerun does not replace earlier complete installed acceptance.
+
+The historical timeline, Settings, planner and rules-availability timeouts
+remain unattributed and open. Linux CI, publication, deployment, live-site and
+human/device acceptance remain outside this local Windows batch. The estimate
+remains **94% overall / 97% implemented**, with **33/40 original rows closed**.
+T57-RESTORE-HOST is checked separately in the lean backlog.

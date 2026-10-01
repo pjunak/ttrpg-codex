@@ -80,6 +80,63 @@ describe("shared event boundary", () => {
 });
 
 describe("SharedEventStream", () => {
+  it("cancels a replaced stream's delivered work while keeping its replacement live", () => {
+    const sources: FakeEventSource[] = [];
+    const stream = new SharedEventStream(() => {
+      const source = new FakeEventSource();
+      sources.push(source);
+      return source;
+    });
+    const signals: AbortSignal[] = [];
+    const onRefresh = (_event: unknown, signal: AbortSignal) => signals.push(signal);
+    stream.open({ onRefresh });
+    sources[0]!.dispatch("hello", message("0", { cursor: 0, audience: "public" }));
+    expect(signals[0]?.aborted).toBe(false);
+    stream.open({ onRefresh });
+    expect(signals[0]?.aborted).toBe(true);
+    sources[1]!.dispatch("hello", message("1", { cursor: 1, audience: "dm" }));
+    expect(signals[1]?.aborted).toBe(false);
+    expect(signals[1]).not.toBe(signals[0]);
+    sources[0]!.dispatch("hello", message("2", { cursor: 2, audience: "public" }));
+    expect(signals).toHaveLength(2);
+    stream.close();
+    expect(signals[1]?.aborted).toBe(true);
+  });
+
+  it("keeps delivered work live through a transient connection error and reconnect hello", () => {
+    const source = new FakeEventSource();
+    const stream = new SharedEventStream(() => source);
+    const signals: AbortSignal[] = [];
+    const onConnectionError = vi.fn();
+    stream.open({
+      onRefresh: (_event, signal) => signals.push(signal),
+      onConnectionError,
+    });
+    source.dispatch("hello", message("0", { cursor: 0, audience: "public" }));
+    source.dispatch("error", new Event("error"));
+    expect(onConnectionError).toHaveBeenCalledOnce();
+    expect(signals[0]?.aborted).toBe(false);
+    source.dispatch("hello", message("2", { cursor: 2, audience: "public" }));
+    expect(signals[1]).toBe(signals[0]);
+    stream.close();
+    expect(signals[0]?.aborted).toBe(true);
+  });
+
+  it("ignores a callback failure after that callback retires its stream", () => {
+    const source = new FakeEventSource();
+    const stream = new SharedEventStream(() => source);
+    const onBoundaryError = vi.fn();
+    stream.open({
+      onRefresh: () => {
+        stream.close();
+        throw new Error("retired callback failure");
+      },
+      onBoundaryError,
+    });
+    source.dispatch("hello", message("0", { cursor: 0, audience: "public" }));
+    expect(onBoundaryError).not.toHaveBeenCalled();
+  });
+
   it("ignores connection errors from replaced and closed sources", () => {
     const sources: FakeEventSource[] = [];
     const stream = new SharedEventStream(() => {
