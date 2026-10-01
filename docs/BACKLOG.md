@@ -1,12 +1,12 @@
 # Project backlog
 
-Work for the five repositories, reviewed September 29, 2026. This remains
+Work for the five repositories, updated October 1, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
 Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
 [feature-parity audit](rewrite/FEATURE_PARITY_AUDIT.md).
 
-**Progress estimate, September 29:** about **97% implemented**, or **94%**
+**Progress estimate, October 1:** about **97% implemented**, or **94%**
 including remaining workflow, release and site acceptance. These are approximate
 effort estimates, with plausible ranges of 93–98% and 90–96%, respectively.
 [Estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cleanup-progress-after-equipment-source-review).
@@ -107,6 +107,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T57-HEALTH-LOCK — Keep browser access responsive during worker health checks**~~ — wait outside the package-manager lock, reject obsolete results after lifecycle changes and share pending probes; [controlled reproduction and validation](rewrite/HOST_CLEANUP_ACCEPTANCE.md#worker-health-without-blocking-browser-access).
 - [x] ~~**T57-REQUESTS-HOST — Release cancelled graph and add-on requests**~~ — discard obsolete queued reads and late responses, allow fresh sign-in after ordered cleanup, and share cancellation across data/content/service clients; [regressions and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancelled-browser-requests-and-fresh-authority).
 - [x] ~~**T57-SESSION-HOST — Cancel obsolete session recovery on sign-out**~~ — invalidate queued starts, share awaited cleanup, retire old authority checks and ignore closed-stream errors; [controlled failures and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#session-recovery-cancellation-and-sign-out).
+- [x] ~~**T57-APP-HOST — Keep startup and account actions within their application lifetime**~~ — run health diagnostics independently, cancel retired account actions and pending previews, and await cleanup across replacement compositions; [reproductions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#independent-health-and-application-lifetime).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),

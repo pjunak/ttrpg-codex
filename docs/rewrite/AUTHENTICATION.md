@@ -73,6 +73,18 @@ error state. Initial startup also checks its captured authority before starting
 events or add-ons. Sign-out therefore does not wait for an obsolete campaign
 request to finish; normal same-authority refresh ordering remains unchanged.
 
+The browser starts its health/version diagnostic independently of session and
+campaign reads. A delayed or failed health request updates the existing host
+status without blocking the archive or account controls.
+
+Startup, sign-in, sign-out, role switching, same-role recovery and pending
+player-preview creation capture the connected application's request scope.
+Disconnect cancels their waits and clears the campaign cache; a reconnect checks
+current cookie authority before accepting another projection. Cancelled results
+cannot change authority, open streams, start add-ons, move focus or clear a newer
+action's busy state. A pending blank preview closes on cancellation, while a
+successfully opened preview keeps its independent lifetime.
+
 Campaign transactions accept either authenticated role and always require the
 exact CSRF value bound to the current cookie. The effective role selects DM or
 player mutation policy; a DM using view-as-player deliberately receives player

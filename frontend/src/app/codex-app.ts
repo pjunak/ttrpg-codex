@@ -218,6 +218,7 @@ export class CodexApp extends LitElement {
   #searchReturnFocus: HTMLElement | undefined;
   readonly #mobileMedia = window.matchMedia("(max-width: 768px)");
   #request: AbortController | undefined;
+  #addonCleanup: Promise<void> = Promise.resolve();
   readonly #campaignData = new CampaignDataClient();
   readonly #campaignMutations = new CampaignMutationClient();
   readonly #events = new SharedEventStream();
@@ -280,6 +281,11 @@ export class CodexApp extends LitElement {
     window.addEventListener("keydown", this.#onKeyDown);
     this.#mobileMedia.addEventListener("change", this.#onViewportChange);
     this.#request = new AbortController();
+    this.authority = { state: "checking" };
+    this.campaignState = { state: "loading" };
+    this.sessionRecovery = false;
+    this.sessionRecoveryError = "";
+    this.sessionRestored = false;
     window.addEventListener(authorityRejectedEvent, this.#onAuthorityRejected, {
       signal: this.#request.signal,
     });
@@ -292,6 +298,8 @@ export class CodexApp extends LitElement {
     this.#request?.abort("component-disconnected");
     this.#cancelSessionCheck();
     this.#request = undefined;
+    this.busy = false;
+    this.#campaignData.reset();
     this.#events.close();
     window.removeEventListener("hashchange", this.#onHashChange);
     window.removeEventListener("beforeunload", this.#onBeforeUnload);
@@ -514,16 +522,23 @@ export class CodexApp extends LitElement {
     );
   };
 
-  async #bootstrap(signal: AbortSignal): Promise<void> {
+  async #checkHealth(signal: AbortSignal): Promise<void> {
+    this.readiness = { state: "checking" };
     try {
-      this.readiness = { state: "ready", health: await getHealth(signal) };
+      const health = await waitForSignal(getHealth(signal), signal);
+      if (!signal.aborted) this.readiness = { state: "ready", health };
     } catch (cause: unknown) {
       if (signal.aborted) return;
       this.readiness = { state: "unavailable", message: errorMessage(cause) };
     }
+  }
 
+  async #bootstrap(signal: AbortSignal): Promise<void> {
+    void this.#checkHealth(signal);
     try {
-      this.#acceptAuthority(await getAuth(signal));
+      const auth = await waitForSignal(getAuth(signal), signal);
+      if (signal.aborted) return;
+      this.#acceptAuthority(auth);
     } catch (cause: unknown) {
       if (signal.aborted) return;
       this.#acceptAuthority(anonymousAuth());
@@ -537,7 +552,7 @@ export class CodexApp extends LitElement {
     this.#startEventStream();
     if (this.#authenticated()) {
       try {
-        await this.#startAddons();
+        await this.#startAddons(signal);
       } catch (cause: unknown) {
         if (!signal.aborted)
           this.errorMessage = uiText("Add-ons could not start: {0}", { "0": errorMessage(cause) });
@@ -546,6 +561,7 @@ export class CodexApp extends LitElement {
   }
 
   async #loadCampaign(signal: AbortSignal, retainCurrent = false): Promise<void> {
+    if (signal.aborted) return;
     if (
       this.sessionRecovery ||
       (retainCurrent &&
@@ -554,6 +570,7 @@ export class CodexApp extends LitElement {
         !(await this.#checkSession()))
     )
       return;
+    if (signal.aborted) return;
     if (!retainCurrent || this.campaignState.state !== "ready") {
       this.campaignState = { state: "loading" };
     }
@@ -564,6 +581,7 @@ export class CodexApp extends LitElement {
         applyBrandingFavicon(campaignBranding(campaign));
         this.campaignState = { state: "ready", campaign };
         await this.updateComplete;
+        if (signal.aborted || this.#campaignData.current() !== campaign) return;
         this.#articleOutlet?.refresh();
         this.#navigationOutlet?.refresh();
         this.#routeOutlet?.refresh();
@@ -727,13 +745,20 @@ export class CodexApp extends LitElement {
     this.busy = true;
     this.sessionRecoveryError = "";
     try {
-      let current = await loginSession(formText(new FormData(form), "password"), signal);
+      let current = await waitForSignal(
+        loginSession(formText(new FormData(form), "password"), signal),
+        signal,
+      );
+      if (signal.aborted) return;
       if (!current.authenticated || current.realRole !== previous.realRole) {
         this.sessionRecoveryError = this.#ui.t("session.sameRole");
         return;
       }
       if (current.role !== previous.role)
-        current = await switchSessionRole(previous.role, current.csrfToken, signal);
+        current = await waitForSignal(
+          switchSessionRole(previous.role, current.csrfToken, signal),
+          signal,
+        );
       if (signal.aborted) return;
       if (
         !current.authenticated ||
@@ -750,19 +775,19 @@ export class CodexApp extends LitElement {
       this.errorMessage = "";
       form.reset();
       await this.#loadCampaign(signal, true);
-      if (!this.sessionRecovery) {
+      if (!signal.aborted && !this.sessionRecovery) {
         this.#startEventStream();
         if (this.#addons) await this.#addons.session.start();
-        else await this.#recoverAddons();
+        else await this.#recoverAddons(signal);
       }
     } catch {
       if (!signal.aborted) this.sessionRecoveryError = this.#ui.t("session.resumeFailed");
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
-    if (!this.sessionRecovery) {
+    if (!signal.aborted && !this.sessionRecovery) {
       await this.updateComplete;
-      this.querySelector<HTMLElement>("#campaign-content")?.focus();
+      if (!signal.aborted) this.querySelector<HTMLElement>("#campaign-content")?.focus();
     }
   };
 
@@ -771,46 +796,52 @@ export class CodexApp extends LitElement {
     if (this.busy || this.#request === undefined) return;
     const form = event.currentTarget as HTMLFormElement;
     const password = formText(new FormData(form), "password");
+    const signal = this.#request.signal;
     this.busy = true;
     this.errorMessage = "";
     try {
-      const auth = await loginSession(password, this.#request.signal);
+      const auth = await waitForSignal(loginSession(password, signal), signal);
+      if (signal.aborted) return;
       if (!auth.authenticated) throw new Error("sign-in did not create a session");
       this.#acceptAuthority(auth);
       form.reset();
-      await this.#reloadForAuthority();
+      await this.#reloadForAuthority(signal);
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted)
+      if (!signal.aborted)
         this.errorMessage = uiText("Sign-in failed: {0}", { "0": errorMessage(cause) });
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   }
 
   async #logout(): Promise<void> {
     if (this.busy || this.#request === undefined || !this.#confirmDiscardEdit()) return;
+    const signal = this.#request.signal;
     this.#cancelSessionCheck();
     this.busy = true;
     this.errorMessage = "";
     try {
       await this.#stopAddons();
-      await logoutSession(this.#request.signal);
+      if (signal.aborted) return;
+      await waitForSignal(logoutSession(signal), signal);
+      if (signal.aborted) return;
       this.#acceptAuthority(anonymousAuth());
       this.sessionRecovery = false;
       this.sessionRecoveryError = "";
       this.sessionRestored = false;
       browserDiagnostics.enable(false);
       this.#campaignData.reset();
-      await this.#loadCampaign(this.#request.signal);
+      await this.#loadCampaign(signal);
+      if (signal.aborted) return;
       this.#startEventStream();
       if (this.route.kind === "addon") window.location.hash = "#/";
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted) {
+      if (!signal.aborted) {
         this.errorMessage = uiText("Sign-out failed: {0}", { "0": errorMessage(cause) });
-        await this.#recoverAddons();
+        await this.#recoverAddons(signal);
       }
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   }
 
@@ -825,57 +856,64 @@ export class CodexApp extends LitElement {
     )
       return;
     const auth = this.authority.auth;
+    const signal = this.#request.signal;
     const role = auth.role === "dm" ? "player" : "dm";
     this.#cancelSessionCheck();
     this.busy = true;
     this.errorMessage = "";
     try {
       await this.#stopAddons();
-      const next = await switchSessionRole(role, auth.csrfToken, this.#request.signal);
+      if (signal.aborted) return;
+      const next = await waitForSignal(switchSessionRole(role, auth.csrfToken, signal), signal);
+      if (signal.aborted) return;
       if (!next.authenticated) throw new Error("role switch ended the session");
       this.#acceptAuthority(next);
-      await this.#reloadForAuthority();
+      await this.#reloadForAuthority(signal);
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted) {
+      if (!signal.aborted) {
         this.errorMessage = uiText("View switch failed: {0}", { "0": errorMessage(cause) });
-        await this.#recoverAddons();
+        await this.#recoverAddons(signal);
       }
     } finally {
-      this.busy = false;
+      if (!signal.aborted) this.busy = false;
     }
   }
 
-  async #reloadForAuthority(): Promise<void> {
+  async #reloadForAuthority(signal: AbortSignal): Promise<void> {
+    if (signal.aborted) return;
     this.sessionRestored = false;
     browserDiagnostics.enable(false);
-    if (this.#request === undefined) return;
     this.#campaignData.reset();
-    await this.#loadCampaign(this.#request.signal);
+    await this.#loadCampaign(signal);
+    if (signal.aborted) return;
     this.#startEventStream();
     try {
-      await this.#startAddons();
+      await this.#startAddons(signal);
     } catch (cause: unknown) {
-      if (!this.#request.signal.aborted) {
+      if (!signal.aborted) {
         this.errorMessage = uiText("Add-ons could not start: {0}", { "0": errorMessage(cause) });
       }
     }
   }
 
-  async #recoverAddons(): Promise<void> {
-    if (!this.#authenticated() || this.#request === undefined || this.#request.signal.aborted)
-      return;
+  async #recoverAddons(signal = this.#request?.signal): Promise<void> {
+    if (!this.#authenticated() || signal === undefined || signal.aborted) return;
     try {
-      await this.#startAddons();
+      await this.#startAddons(signal);
     } catch (cause: unknown) {
+      if (signal.aborted) return;
       this.errorMessage += uiText(" Add-on recovery also failed: {0}", {
         "0": errorMessage(cause),
       });
     }
   }
 
-  async #startAddons(): Promise<void> {
-    await this.#stopAddons();
-    const owner = ++this.#addonOwner;
+  async #startAddons(signal: AbortSignal): Promise<void> {
+    if (signal.aborted) return;
+    const stopping = this.#stopAddons();
+    const owner = this.#addonOwner;
+    await stopping;
+    if (signal.aborted || owner !== this.#addonOwner) return;
     const auth = this.authority.state === "known" ? this.authority.auth : anonymousAuth();
     browserDiagnostics.enable(auth.authenticated && auth.role === "dm" && auth.realRole === "dm");
     if (!auth.authenticated) return;
@@ -942,6 +980,7 @@ export class CodexApp extends LitElement {
     this.#addons = composition;
     try {
       await this.updateComplete;
+      if (signal.aborted || owner !== this.#addonOwner) return;
       const navigationRoot = this.querySelector<HTMLElement>("[data-addon-navigation]");
       const dashboardRoot = this.querySelector<HTMLElement>("[data-addon-slot]");
       const articleRoot = this.querySelector<HTMLElement>("[data-addon-article]");
@@ -1049,22 +1088,25 @@ export class CodexApp extends LitElement {
     }
   }
 
-  async #stopAddons(): Promise<void> {
-    this.#addonOwner += 1;
+  #stopAddons(): Promise<void> {
+    const owner = ++this.#addonOwner;
     this.#disposeOutlets();
     const addons = this.#addons;
     this.#addons = undefined;
     this.#dmAddonHealth = [];
     this.addonState = { state: "idle" };
-    if (addons !== undefined) {
-      const failures = await addons.session.stop();
+    if (addons === undefined) return this.#addonCleanup;
+    const stopping = addons.session.stop();
+    this.#addonCleanup = (async () => {
+      const failures = await stopping;
       for (const failure of failures) browserDiagnostics.record("disposal", failure);
-      if (failures.length > 0) {
+      if (owner === this.#addonOwner && failures.length > 0) {
         this.errorMessage = uiText("Failed to clean up {0} browser add-on resource(s).", {
           "0": failures.length,
         });
       }
-    }
+    })();
+    return this.#addonCleanup;
   }
 
   #disposeOutlets(): void {
@@ -1162,16 +1204,24 @@ export class CodexApp extends LitElement {
       return;
     }
     popup.opener = null;
+    const signal = this.#request.signal;
+    const closePendingPreview = () => popup.close();
+    signal.addEventListener("abort", closePendingPreview, { once: true });
     this.busy = true;
     this.errorMessage = "";
     try {
-      const token = await createPlayerPreview(this.authority.auth.csrfToken, this.#request.signal);
+      const token = await waitForSignal(
+        createPlayerPreview(this.authority.auth.csrfToken, signal),
+        signal,
+      );
+      if (signal.aborted) return;
       if (!popup.closed) popup.location.replace(playerPreviewURL(token));
     } catch {
       popup.close();
-      if (!this.#request?.signal.aborted) this.errorMessage = this.#ui.t("preview.failed");
+      if (!signal.aborted) this.errorMessage = this.#ui.t("preview.failed");
     } finally {
-      this.busy = false;
+      signal.removeEventListener("abort", closePendingPreview);
+      if (!signal.aborted) this.busy = false;
     }
   }
 
@@ -2094,10 +2144,13 @@ export class CodexApp extends LitElement {
 
   readonly #retryDmAddons = async (): Promise<void> => {
     if (!this.#canManageCampaign() || this.busy || this.addonState.state === "loading") return;
+    const signal = this.#request?.signal;
+    if (signal === undefined || signal.aborted) return;
     try {
-      await this.#startAddons();
+      await this.#startAddons(signal);
     } catch {
-      this.addonState = { state: "degraded", message: this.#ui.t("dm.failed") };
+      if (!signal.aborted)
+        this.addonState = { state: "degraded", message: this.#ui.t("dm.failed") };
     }
   };
 

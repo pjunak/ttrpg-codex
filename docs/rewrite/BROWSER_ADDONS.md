@@ -175,6 +175,14 @@ Explicit logout, role and permission changes use the `authority-changed` stop
 reason. This prevents an old credential context from restoring browser authority
 while its resources are being torn down.
 
+The application retains an awaited cleanup barrier after removing its previous
+composition. Reconnecting or restarting add-ons shares that barrier before
+creating a replacement composition. A pending start captures its application
+signal and ownership before waiting; cancellation or a newer start retires it.
+The application also checks ownership after rendering, before mounting outlets.
+This extends ordered cleanup across composition replacements, rather than only
+restarts of the same `BrowserAddonSession`.
+
 `BrowserAddonSession` owns graph refresh behind the authenticated application
 shell, which owns the shared stream. Graph signals pass through the serialized
 runtime; transient transport failures preserve mounted generations. On a graph

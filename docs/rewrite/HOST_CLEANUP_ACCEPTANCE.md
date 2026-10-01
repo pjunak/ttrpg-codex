@@ -4780,3 +4780,65 @@ Validation is local Windows coverage; Linux CI, publication, deployment and
 live-site acceptance are outside this batch. The estimate remains **94% overall
 / 97% implemented**, with **33/40 original rows closed**. T57-SESSION-HOST is
 checked separately in the lean backlog.
+
+## Independent health and application lifetime
+
+October 1, 2026. Seven controlled Chromium regressions reproduce against host
+`9dac547`: held health responses block campaign/account startup in both success
+and failure cases; detaching during sign-in, sign-out or role switch throws
+`Cannot read properties of undefined (reading 'signal')`; cancelled player
+preview creation leaves a stale error; and reconnect activates the replacement
+add-on before its predecessor's owned disposer finishes. The last case observes
+two activations while the first disposal is still held. The corrected role-switch
+fixture uses real DM/effective player authority; the reconnect marker uses the
+host's actual branding setting. Fixture-selection mistakes do not count as
+product failures.
+
+Before evidence is in `frontend/test-results/app-lifecycle-before.log`,
+`app-lifecycle-additional-before.log` and `app-disposal-before.log`, with failed
+Playwright traces retained under the existing local traces directory. All
+assertions use the existing seven-second browser deadline; no timeout is widened.
+
+Health/version diagnostics now run independently of required session/campaign
+startup, retaining the existing checking, ready and unavailable status control.
+Each account action captures its component signal, stops awaiting cancelled
+transport and ignores obsolete continuations. Disposal resets the busy state
+and campaign cache; reconnect obtains current authority before accepting data.
+Cancelled work cannot replace authority, reopen streams, create a composition,
+clear a replacement action's busy state or steal focus. Preview cancellation
+closes its pending blank tab and ends the cancellation listener when creation
+finishes, preserving completed preview tabs.
+
+The application now retains one awaited cleanup barrier across composition
+replacement. Concurrent stops share it; a pending start captures its ownership
+before cleanup and checks that ownership again after rendering. A fresh
+composition cannot activate before its predecessor's disposal finishes, and an
+obsolete pending start cannot overtake a newer one.
+
+The focused startup/cancellation suite passes **14/14**. This includes the seven
+repaired regressions, completed preview independence and the preceding six
+graph/stylesheet/module/session/campaign cancellation cases. The log is
+`frontend/test-results/app-lifecycle-focused.log`; type checks and the normal
+frontend build also pass.
+
+The complete `npm run check` passes: **75 tool tests, 487 frontend unit tests,
+301 browser passes and 198 optional installed skips**, plus all Go checks and
+the standard selected race tests. Source guards, formatting, typed lint and
+strict types pass. The log is `app-lifecycle-host-check.log`. All **33 unchanged
+product-parity release gates** pass.
+
+The targeted installed suite passes **27/27 with zero skips**: character session
+renewal and pending-input/merge-base recovery, graph/provider/package handoff,
+planner startup/draft/uncertain-save recovery, reviewed sourcebook/provider
+configuration, compendium retry/replacement and player-preview isolation,
+revocation and blocked-popup handling. The log is `app-lifecycle-installed.log`.
+All four companion checkouts remain clean at the recorded source pins and their
+package hashes are unchanged. Owner checks for those unchanged inputs are reused;
+this does not claim a new complete 277-case installed-suite run.
+
+The historical timeline, Settings, planner and rules-availability incidents are
+still unattributed and remain open. This batch has local Windows acceptance;
+Linux CI, publication, deployment, live-site and human/device acceptance remain
+outside its validation. The estimate remains **94% overall / 97% implemented**,
+with **33/40 original rows closed**. T57-APP-HOST is checked separately in the
+lean backlog.
