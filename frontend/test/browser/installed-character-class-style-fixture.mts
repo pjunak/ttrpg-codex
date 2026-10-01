@@ -9,6 +9,7 @@ import {
   type Fixture,
 } from "./installed-character-builder-fixture.mts";
 import { exported, printOutput } from "./installed-character-output-fixture.mts";
+import { reportBrowserFailure } from "./failure-diagnostics.mts";
 
 type Row = Record<string, any>;
 const frozen = new Map<string, Row>();
@@ -370,8 +371,13 @@ export async function verifyFrozenClassStyles(t: TestContext, f: Fixture) {
     try {
       await sheet.getByRole("button", { name: "Guidance", exact: true }).first().waitFor();
     } catch (cause) {
-      await page.screenshot({ path: resolve(f.output, key + "-frozen-failed.png") });
-      throw new Error(key + ": " + (await sheet.innerText()), { cause });
+      await reportBrowserFailure(
+        t,
+        page,
+        resolve(f.output, key + "-frozen-failed"),
+        { errors: [] },
+        cause,
+      );
     }
     await sheet.getByRole("button", { name: "Guidance", exact: true }).first().click();
     const details = sheet.getByRole("dialog", { name: "Guidance", exact: true });

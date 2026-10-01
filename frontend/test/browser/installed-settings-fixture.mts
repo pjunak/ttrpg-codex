@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
-import { writeFile } from "node:fs/promises";
 import type { InstalledFixture } from "./fixture-types.mts";
 import { installReviewedPackage, jsonResponse, zip } from "./installed-graph-fixture.mts";
+import { reportBrowserFailure } from "./failure-diagnostics.mts";
 
 export function settingsPackage(
   id: string,
@@ -221,23 +221,30 @@ export async function exerciseSettings({
   try {
     assert.equal(await tab.count(), 1, "category navigation respects drafts in hidden tabs");
   } catch (cause) {
-    const state = await page.evaluate(() => ({
-      hash: location.hash,
-      edits: document.querySelector<SettingsElement>("codex-settings")?.registry?.edits.state(),
-      selectedCategory: document
-        .querySelector("[data-category][aria-current=page]")
-        ?.getAttribute("data-category"),
-      contributions: [...document.querySelectorAll(".addon-contribution")].map((node) => ({
-        id: (node as HTMLElement).dataset.contributionId,
-        text: node.textContent?.slice(0, 500),
-      })),
-    }));
     const artifact = resolve(output, id + "-draft-guard");
-    await writeFile(artifact + ".json", JSON.stringify({ state, errors }, null, 2) + "\n");
-    await page.screenshot({ path: artifact + ".png" });
-    throw new Error(String(cause) + "\nSettings draft diagnostics: " + JSON.stringify(state), {
+    await reportBrowserFailure(
+      t,
+      page,
+      artifact,
+      {
+        errors,
+        state: () =>
+          page.evaluate(() => ({
+            hash: location.hash,
+            edits: document
+              .querySelector<SettingsElement>("codex-settings")
+              ?.registry?.edits.state(),
+            selectedCategory: document
+              .querySelector("[data-category][aria-current=page]")
+              ?.getAttribute("data-category"),
+            contributions: [...document.querySelectorAll(".addon-contribution")].map((node) => ({
+              id: (node as HTMLElement).dataset.contributionId,
+              text: node.textContent?.slice(0, 500),
+            })),
+          })),
+      },
       cause,
-    });
+    );
   }
   page.once("dialog", (dialog) => dialog.dismiss());
   await row.getByRole("button", { name: "Reload", exact: true }).click();

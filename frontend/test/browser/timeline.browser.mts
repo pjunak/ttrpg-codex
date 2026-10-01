@@ -11,11 +11,12 @@ import type {
 } from "./fixture-types.mts";
 import assert from "node:assert/strict";
 import { before, after, test } from "node:test";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { preview } from "vite";
 import { chromium } from "playwright";
 import { visualCampaign, visualFixturePlugin } from "./visual-fixture.mts";
+import { reportBrowserFailure } from "./failure-diagnostics.mts";
 
 let server: PreviewServer,
   browser: Browser,
@@ -170,17 +171,7 @@ async function fixture(t: TestContext, { role = "player", mobile = false, locale
     await page.waitForFunction(() => document.querySelector<HTMLElement>(".live-connected"));
   } catch (cause) {
     const artifact = output + "startup-" + t.name.replace(/[^a-z0-9]+/giu, "-").slice(0, 100);
-    const state = {
-      url: page.url(),
-      errors,
-      requests: Object.fromEntries(startup),
-      body: (await page.locator("body").innerText()).slice(0, 4000),
-    };
-    await writeFile(artifact + ".json", JSON.stringify(state, null, 2) + "\n");
-    await page.screenshot({ path: artifact + ".png" });
-    throw new Error(String(cause) + "\nTimeline startup diagnostics: " + JSON.stringify(state), {
-      cause,
-    });
+    await reportBrowserFailure(t, page, artifact, { errors, requests: startup }, cause);
   }
   return {
     page,
