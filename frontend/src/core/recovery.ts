@@ -1,5 +1,6 @@
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
+import { waitForSignal } from "./abort-signal.js";
 
 export interface AddonRecoveryPoint {
   readonly addonId: string;
@@ -165,8 +166,13 @@ export async function recoveryRequest(
         }
       : { method: "GET" }),
   });
+  signal.throwIfAborted();
   if (!response.ok) {
-    const error: unknown = await response.json().catch(() => null);
+    const error: unknown = await waitForSignal(
+      response.json().catch(() => null),
+      signal,
+    );
+    signal.throwIfAborted();
     const compatibility =
       isRecord(error) &&
       isRecord(error["error"]) &&
@@ -183,5 +189,7 @@ export async function recoveryRequest(
             : "failed",
     );
   }
-  return parseRecoveryListing(await response.json());
+  const value: unknown = await waitForSignal(response.json(), signal);
+  signal.throwIfAborted();
+  return parseRecoveryListing(value);
 }

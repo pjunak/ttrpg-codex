@@ -111,6 +111,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T57-WRITES-HOST — Keep core saves and uploads within their application lifetime**~~ — release cancelled writes while preserving live queue order, ignore obsolete save feedback and navigation, settle callbacks and retain accepted writes/media without replay; [reproductions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#core-write-cancellation-and-preserved-server-outcomes).
 - [x] ~~**T57-RESTORE-HOST — Preserve current drafts during live campaign recovery**~~ — recheck dirty/saving state after refresh, let the latest restore own recovery and cancel retired stream work; [controlled failures and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#live-campaign-recovery-and-event-ownership).
 - [x] ~~**T57-SETTINGS-HOST — Retire obsolete add-on Settings requests**~~ — suppress cancelled authority notifications and delayed JSON, reload reconnected configuration/wizards and preserve current inventory/staging feedback; [reproductions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#add-on-settings-cancellation-and-reconnect).
+- [x] ~~**T57-ACCOUNT-HOST — Restore Account navigation after reconnect**~~ — clear retired password saving/draft flags, cancel Account/recovery JSON waits and preserve accepted server writes; [real-server regressions and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#account-reconnect-and-recovery-response-cancellation).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -127,7 +128,7 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   Subsequent runs passed; no shared cause is established. Retain bounded
   timeline/settings captures and the separate character-fixture failure records.
   Preserve deadlines and assertions; [T61 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
-  Separately reproduced request, session, write, restore, Settings and health-check defects are
+  Separately reproduced request, session, write, restore, Settings, Account and health-check defects are
   fixed above; their evidence does not explain these historical timeouts.
   September 28 also retained Chromium `ERR_NO_BUFFER_SPACE` failures before DM
   panel/schema-review navigation. The first exactly matches Windows TCP port

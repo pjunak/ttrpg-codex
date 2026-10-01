@@ -47,6 +47,7 @@ export class CodexCredentialSettings extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback();
     this.#abort = new AbortController();
+    this.#publish();
     void this.#load();
   }
   override disconnectedCallback(): void {
@@ -55,6 +56,8 @@ export class CodexCredentialSettings extends LitElement {
     this.status = undefined;
     this.loading = false;
     this.saving = false;
+    this.message = "";
+    this.#success = false;
     super.disconnectedCallback();
   }
 

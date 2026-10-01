@@ -5049,3 +5049,64 @@ planner or rules-availability timeouts. Those follow-ups remain open, along
 with Linux CI, publication, deployment, site and human/device acceptance. The
 estimate remains **94% overall / 97% implemented**, with **33/40 original rows
 closed**. T57-SETTINGS-HOST is checked separately in the lean backlog.
+
+## Account reconnect and recovery response cancellation
+
+October 1, 2026. Six real-server browser regressions fail against host
+`df28227`. Disconnect already clears password inputs and the child's saving
+state, but does not publish those changes to its owning Settings/application.
+Reconnection leaves Settings category navigation disabled after a pending
+password change; an idle discarded draft leaves the unload guard active despite
+empty inputs. Both failures reproduce in English desktop and Czech phone
+viewports. The pending cases cover late successful and failed headers after
+the real server has accepted the player-password change. Evidence and failure
+traces are retained in `frontend/test-results/account-recovery-before-browser.log`
+and the existing local traces directory.
+
+Sixteen unit regressions independently reproduce Account/recovery requests
+remaining pending after cancellation during JSON reads. The matrix covers
+password status/change and recovery list/create/restore/delete/revert, with
+late success and failure. Recovery's error-body fallback also keeps awaiting
+and can replace cancellation with a compatibility/conflict error. Header
+cancellation and already-retired scopes already pass through the shared
+transport and remain preservation controls. Evidence is
+`frontend/test-results/account-recovery-before-unit.log` (16 failed, 21 passed).
+
+Account reconnect now publishes its cleared dirty/saving state before loading
+current credential status. Disconnect also clears old feedback. Both clients
+use the existing shared cancellation helper for JSON reads and reject retired
+responses before parsing or publishing them; recovery retains its error-body
+fallback inside that cancellation boundary. Password/recovery wire formats,
+CSRF and revision checks, permissions, campaign/add-on recovery independence
+and server commit behavior are unchanged. No timeout, automatic retry or write
+replay is added.
+
+Focused acceptance passes **64/64 unit tests** and **16/16 real-server browser
+cases** (`account-recovery-focused-unit.log`, `account-recovery-focused-browser.log`).
+The six new browser cases use a disposable Go host and native built Settings
+components. They verify fresh status loading, cleared password inputs, usable
+category navigation and correct unload guards before old responses are released.
+Newly entered drafts survive both late outcomes. Actual sign-in proves the
+accepted password stays usable; exactly one write and one reconnect status read
+occur, with no replay. Existing cases preserve uncertain-result refresh/review,
+credential restart/offline reset, private backup download, stale recovery,
+revert and independent campaign/add-on contexts. Failure traces remain local.
+These are Chromium desktop/phone viewport checks, not physical touch or spoken
+screen-reader acceptance; no layout or shared-control design is changed.
+
+The complete `npm run check` passes **75 tool tests, 585 frontend unit tests,
+330 browser cases and 198 optional installed skips**, plus Go vet, Staticcheck,
+the full Go test scope and the standard selected race tests. Strict types,
+source guards, typed lint and formatting pass. Evidence is
+`frontend/test-results/account-recovery-full-check.log`. All **33 unchanged
+product-parity release gates** pass (`account-recovery-release.log`). Local
+document checks verify 279 targets and the new backlog anchor. All four clean
+companion source checkouts still match their existing pins; no companion,
+package, public SDK or server contract changes are required. Earlier installed
+acceptance is reused; this run is not a new complete four-package session run.
+
+This separately confirmed Settings defect does not attribute the historical
+timeline, Settings, planner or rules-availability timeouts. Linux CI,
+publication, deployment, site and human/device acceptance remain separate.
+The estimate remains **94% overall / 97% implemented**, with **33/40 original
+rows closed**. T57-ACCOUNT-HOST is checked separately in the lean backlog.

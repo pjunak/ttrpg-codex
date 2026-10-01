@@ -1,5 +1,6 @@
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
+import { waitForSignal } from "./abort-signal.js";
 
 export interface CredentialStatus {
   readonly contractVersion: "credential-status.v1";
@@ -36,12 +37,14 @@ export function parseCredentialStatus(value: unknown): CredentialStatus {
   };
 }
 
-async function request(init: RequestInit): Promise<CredentialStatus> {
+async function request(init: RequestInit & { signal: AbortSignal }): Promise<CredentialStatus> {
+  const signal = init.signal;
   const response = await sessionFetch("/api/passwords", {
     ...init,
     credentials: "same-origin",
     cache: "no-store",
   });
+  signal.throwIfAborted();
   if (!response.ok) {
     const codes: Readonly<Record<number, string>> = {
       400: "policy",
@@ -52,7 +55,9 @@ async function request(init: RequestInit): Promise<CredentialStatus> {
     };
     throw new CredentialRequestError(codes[response.status] ?? "failed");
   }
-  return parseCredentialStatus(await response.json());
+  const value: unknown = await waitForSignal(response.json(), signal);
+  signal.throwIfAborted();
+  return parseCredentialStatus(value);
 }
 export function getCredentialStatus(signal: AbortSignal): Promise<CredentialStatus> {
   return request({ signal, method: "GET" });

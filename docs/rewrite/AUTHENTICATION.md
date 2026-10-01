@@ -159,6 +159,13 @@ form saves or is discarded. Navigation is guarded while dirty and blocked
 while a write is pending. Lost responses retain the reviewing DM session and
 require a fresh status read before an explicit retry.
 
+Disconnect clears password inputs and feedback. Reconnect publishes the cleared
+dirty/saving state to Settings and the application before reading current status,
+so retired operations cannot leave category navigation or unload guards stuck.
+Password status/change JSON waits share their initiating cancellation signal;
+late success or failure cannot replace fresh inputs or current feedback. Stopping
+the browser wait does not undo an accepted password change or replay it.
+
 `GET /api/passwords` requires real and effective DM authority and returns only
 `credential-status.v1`, the credential revision and `playerEnabled`.
 `POST /api/passwords` also requires CSRF and takes `role`, `currentPassword`,

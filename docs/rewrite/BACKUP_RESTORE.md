@@ -200,6 +200,11 @@ incompatible add-on packages, definitions or linked records return `RECOVERY_COM
 retained points/groups return 404. After an uncertain network result the UI
 requires a fresh list and review before another restore/delete.
 
+Recovery list/action response bodies, including error JSON, stop awaiting when
+their initiating component is disconnected. Late results remain observed but
+cannot update the replacement view. Reconnect reads the current list; cancellation
+does not undo an accepted create/restore/delete or automatically retry it.
+
 Storage regression tests cover failed writes/restores, concurrent reviews,
 retention, tombstones, unknown fields, empty datasets, extensions and media.
 `scopes_test.go` adds independent values/revisions/media, reused record IDs,

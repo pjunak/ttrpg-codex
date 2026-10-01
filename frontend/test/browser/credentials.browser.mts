@@ -17,6 +17,8 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { chromium, request } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
 import { attemptHash, unloadBlocked } from "./installed-planner-navigation-fixture.mts";
+import { holdCoreWrite } from "./core-write-lifetime-fixture.mts";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const output = resolve(root, "frontend/test-results/credentials");
@@ -134,10 +136,12 @@ async function open(t: TestContext, mobile = false, password: string | null = dm
     isMobile: mobile,
     hasTouch: mobile,
   });
-  t.after(() => context.close());
+  const errors: string[] = [];
+  await trackBrowserContext(t, context, () => assert.deepEqual(errors, []));
   if (password)
     await jsonResponse(await context.request.post("/api/login", { data: { password } }));
   const page = await context.newPage();
+  page.on("pageerror", (error) => errors.push(error.message));
   page.setDefaultTimeout(12_000);
   await page.goto("/#/settings");
   await page.locator(".settings-page").waitFor();
@@ -290,3 +294,85 @@ void test("password settings stay private and saved credentials survive restart 
     "Retain this campaign.",
   );
 });
+
+async function reconnectSettings(page: Page) {
+  await page.locator("codex-settings").evaluate((node) => {
+    const parent = node.parentNode!;
+    node.remove();
+    parent.appendChild(node);
+  });
+  await page.waitForFunction(() => {
+    const fields = document.querySelector(
+      "codex-credential-settings .settings-password-card fieldset",
+    );
+    return fields !== null && !fields.matches(":disabled");
+  });
+}
+
+for (const mobile of [false, true]) {
+  for (const outcome of ["success", "failure"] as const)
+    void test(`Account reconnect clears retired saving state before late ${outcome} (${mobile ? "Czech phone" : "English desktop"})`, async (t) => {
+      const { page } = await open(t, mobile);
+      await page.locator("[data-category=account]").click();
+      await form(page, "player").waitFor();
+      const next = `reconnected-player-${outcome}-${mobile}`;
+      const held = await holdCoreWrite(page, "/api/passwords", "headers", outcome);
+      await fill(page, "player", dmPassword, next);
+      await form(page, "player").getByRole("button").click();
+      await held.started();
+      try {
+        assert.equal(await page.locator("[data-category=language]").isDisabled(), true);
+        const player = await request.newContext({ baseURL: origin });
+        t.after(() => player.dispose());
+        await jsonResponse(await player.post("/api/login", { data: { password: next } }));
+        await reconnectSettings(page);
+        assert.equal(await page.locator("[data-category=language]").isDisabled(), false);
+        assert.equal(await unloadBlocked(page), false);
+        assert.deepEqual(
+          await form(page, "player")
+            .locator("input[type=password]")
+            .evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value)),
+          ["", "", ""],
+        );
+        await form(page, "player").locator("input[type=password]").nth(1).fill("Fresh local draft");
+        await held.release();
+        assert.equal(
+          await form(page, "player").locator("input[type=password]").nth(1).inputValue(),
+          "Fresh local draft",
+        );
+        assert.equal(await page.locator("codex-credential-settings [role=alert]").count(), 0);
+        assert.equal(await page.locator("[data-category=language]").isDisabled(), false);
+        assert.equal(await unloadBlocked(page), true);
+        assert.equal(
+          await page.evaluate(() => window.coreWriteHold.calls),
+          2,
+          "one accepted write and one fresh status read; no replay",
+        );
+        assert.equal((await jsonResponse(await player.get("/api/auth"))).role, "player");
+        assert.equal(
+          await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+          true,
+        );
+      } finally {
+        await held.release();
+      }
+    });
+
+  void test(`Account reconnect clears discarded password draft flags (${mobile ? "Czech phone" : "English desktop"})`, async (t) => {
+    const { page } = await open(t, mobile);
+    await page.locator("[data-category=account]").click();
+    await form(page, "player").waitFor();
+    await fill(page, "player", dmPassword, "Discarded local draft");
+    assert.equal(await unloadBlocked(page), true);
+    await reconnectSettings(page);
+    assert.deepEqual(
+      await form(page, "player")
+        .locator("input[type=password]")
+        .evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value)),
+      ["", "", ""],
+    );
+    assert.equal(await unloadBlocked(page), false);
+    await page.locator("[data-category=language]").click();
+    await page.locator(".settings-personal-panel").waitFor();
+  });
+}
