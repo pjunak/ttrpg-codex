@@ -146,6 +146,15 @@ CI artifacts. `release/companions/provenance.json` records exact host/sibling
 commits and ZIP hashes and is retained as the job artifact. Failed installed
 acceptance also records the source/hash table in the job summary.
 
+Standalone native add-on CI freezes its host SDK with the add-on's
+`host-sdk-revision.txt`; Sheets also freezes its public engine model with
+`engine-model-revision.txt`. Those pins identify the dependencies for an
+immutable published add-on build. Host compatibility intentionally uses the
+candidate host and the engine commit in `companion-revisions.json` instead,
+so a proposed change is tested before its SDK pin is adopted. Local package
+commands use the adjacent checkouts; compare the recorded source commits and
+ZIP hashes when distinguishing candidate acceptance from a published build.
+
 The host and DM Tools each install Chromium using their own pinned Playwright
 version. Updating the host browser dependency must not leave the companion's
 rendering test without its required browser executable.

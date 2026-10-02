@@ -173,6 +173,19 @@ a draft, verifies GitHub's uploaded SHA-256 digest, then publishes it. Reruns
 never overwrite different package bytes. Older tested commits remain downloadable
 without replacing the newest release. Keep main publication serialized.
 
+Native first-party builds fetch the immutable host SDK commit declared in each
+add-on's `host-sdk-revision.txt`. Sheets also declares the engine's public model
+commit in `engine-model-revision.txt`; this compile dependency does not select
+runtime providers. The standard-library-only
+`go run ./tools/check.go dependency-ref <revision-file>` command validates these
+full commit hashes before sibling modules exist. Standalone checks and Go
+vulnerability jobs use the same pins. To publish an SDK or model change, update
+the relevant pin in a new consumer commit and make the dependency commit
+available first. Local builds use adjacent checkouts; the host compatibility
+suite deliberately tests candidate dependencies and records actual source
+commits and package hashes. Follow the
+[coordinated delivery procedure](../../docs/SELF_HOSTING.md#coordinate-host-and-companion-commits).
+
 The website defaults to the latest published package. Discovery and download
 never activate it: each installation owner reviews permissions and compatibility
 and chooses when to activate. Public releases download without a token; private

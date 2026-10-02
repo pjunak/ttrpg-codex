@@ -5776,3 +5776,116 @@ The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
 derived from the number of small completed slices. T18-PEER-HOST closes this
 concrete transport defect; historical failure attribution, authenticated site
 maintenance/activation and human/device acceptance remain open.
+
+## October 2 frozen native build dependencies
+
+October 2, 2026. The native add-ons' standalone package and Go vulnerability
+workflows fetched the host's default branch; Sheets also fetched the engine's
+default branch. An unchanged add-on source commit could therefore compile a
+different SDK or character model on a later run. That conflicts with the
+publisher's existing protection against replacing different bytes in an
+immutable `build-<source SHA>` release. This is confirmed from the workflows and
+publisher, not an attribution of a particular failed deployment or startup.
+
+DM Tools `316399a`, Engine `f19f634` and Sheets `89ebe08` now declare their host
+SDK in `host-sdk-revision.txt`, pinned to
+`8463f4aa1e38a1b7e3078fe1408f3a204fb4c902`, including the worker health, writer
+and peer repairs. Sheets additionally pins its public engine model in
+`engine-model-revision.txt` to `c4063b55ddbded24f4ce6af77a8e924f0dc6a7f7`.
+These are build inputs; runtime service discovery, saved schemas, permissions
+and source policies retain their existing contracts.
+
+A standard-library-only `dependency-ref` mode in each owning Go check runner
+validates one full lowercase commit hash before sibling module replacements
+exist. Fast gates validate all declared pins. Package and vulnerability CI
+resolve the same pins and check out those exact revisions. Updating an SDK or
+model pin requires a new consumer commit; an old commit release remains
+immutable. The host compatibility workflow deliberately keeps the candidate
+host and accepted companion engine rather than substituting standalone pins.
+Owner READMEs, [public authoring](../../examples/addons/AUTHORING.md#publishing-tested-commits)
+and the [delivery runbook](../SELF_HOSTING.md#coordinate-host-and-companion-commits)
+explain this distinction and the dependency-first publication order.
+
+The first complete installed run reports **276/277 passes**, zero skips and one
+quick-use lost-response autosave timeout waiting for Saved. An instrumented
+replay shows the retry's Saved acknowledgment being cleared by its same-revision
+guidance read. A controlled read barrier makes the failure deterministic on
+preceding Sheets `89ebe08`: persistence is confirmed once, guidance is restored,
+but the status becomes empty. Sheets `d35a33e` preserves Saved when the refreshed
+revision is unchanged, ready and has no rules warning or message. A newer remote
+revision still clears it; refreshed guidance still owns control availability.
+The older autosave helper now uses the existing shared browser trace/error/close
+owner, so failures on that path retain diagnostics too. The original timeout,
+instrumented replay and controlled pre-fix failure remain recorded. This is a
+newly explained feedback defect, not evidence about historical startup failures.
+
+The second complete run also reports **276/277 passes**, zero skips and one
+rejected-read planner startup timeout on desktop; the repaired quick-use case
+passes. Its retained trace shows the injected 503 being consumed by the opening
+DM overview before navigation. The planner's own six startup reads then succeed
+and it correctly reaches the ready state. The fixture now leaves the overview
+for an empty same-origin document before injecting faults, so only the planner's
+reads receive them. Authentication, session-storage recovery copies and the
+original recovery/no-write assertions remain intact. This explains this test
+failure; it does not attribute the historical pre-canvas startup timeouts.
+
+Validation:
+
+- Each native add-on passes malformed/missing-pin regressions and a real offline
+  bootstrap with absent host/engine module replacements. The bootstrap emits
+  only the exact revision and rejects a mutable branch.
+- All three owning Go analysis/test/race gates pass. Sheets passes **40 module
+  tests**; DM Tools passes **58 tests** and **28 rendering checks at each DPR
+  1/2**. All six changed workflows pass actionlint with ShellCheck 0.11.0 on
+  PATH. Reachable Go vulnerability checks report no vulnerabilities.
+- Complete host `npm run check` passes **85 tool tests, 585 unit tests and 342
+  browser tests**, all Go tests and its selected race scope. Its **198 optional
+  installed skips** remain separate from complete installed acceptance. All
+  **33 unchanged historical product-parity gates** pass.
+- Three native ZIPs are rebuilt and all four packages pass inspection from the
+  clean companion commits recorded in `companion-revisions.json`. The candidate
+  host SDK and module files match pinned `8463f4a`; the public engine model and
+  module files match Sheets' `c4063b5` model pin. Compendium has no native worker
+  and retains its unchanged inspected ZIP.
+- **6/6 focused installed cases** pass with zero skips after the feedback fix:
+  lost-response/disjoint/conflicting/removed-item quick-use autosaves and both
+  failed/lost play-command deliveries. The held-read regression verifies the
+  exact retry, one committed revision, disabled stale guidance, restored controls,
+  persistent acknowledgment and its removal after a newer remote edit.
+- **6/6 focused planner recovery cases** pass with zero skips after the fault
+  targeting repair: held/rejected startup reads on desktop and phone, plus both
+  draft-replacement recovery cases. Browser errors still fail acceptance.
+- The third complete installed run passes **277/277**, with zero failures,
+  cancellations or skips, in **918,131 ms**. Both previously failing cases pass
+  with their unchanged deadlines and strengthened assertions. This verifies the
+  complete source/package set locally on Windows; Linux publication acceptance
+  and live-site activation remain separate.
+- All **390 local links and heading anchors** in the changed host/public/owner
+  documents resolve; the final diff passes whitespace checks.
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `316399a` | `fe6b47ad85a68179087dd583cfa94a75d848d8828ba1c1861ad7d89bea5a9329` |
+| Engine | `f19f634` | `8a73e218e98c466108d110ffb53fa05f10d4370db3fe888162c67f06b72dfadb` |
+| Sheets | `d35a33e` | `624639a83da145bddda1ab6d820b7f24a73461c653c36e174de2898d0ce93f30` |
+| Compendium | `3463daf` | `1ab7306f44b73a0146c89b8b48b875e2c96a4f452a22fb58d53f59985a3cc828` |
+
+Tested provenance records host `314754c` with the source-pin, documentation and
+autosave/planner-fixture changes and four clean companion sources. The first run
+used Sheets `89ebe08`; the final candidate uses `d35a33e` and the table above.
+Logs, source/hash records, all three complete TAP outputs and the failed runs'
+retained diagnostics remain under
+`frontend/test-results/current-native-pins-*`. Local packages record candidate
+dependency commits; they do not claim to be Linux CI publication artifacts.
+
+No push, release, deployment, live data change or add-on activation occurred.
+Remote availability of the new SDK and companion commits has not been checked.
+An authorized release must first make the SDK available on a nondeploying host
+ref, then publish and verify the dependent add-on builds before the dependent
+host main rollout. Installing reviewed native ZIPs remains a per-site step.
+
+The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
+**33/40 original rows closed (83%)**. This closes the native build-input slice;
+saved-feedback and planner fault-targeting slices are also complete. Historical
+failure attribution, authenticated site maintenance/activation and human/device
+acceptance remain open.

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import type { APIRequestContext, Browser, Page, Locator } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
 import { unloadBlocked } from "./installed-planner-navigation-fixture.mts";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
 
 interface Fixture {
   admin: APIRequestContext;
@@ -76,17 +77,16 @@ export async function openCharacter(
     ...(role ? {} : { storageState: await admin.storageState() }),
     viewport: { width: 1440, height: 1000 },
   });
-  t.after(() => context.close());
+  const errors: string[] = [];
+  await trackBrowserContext(t, context, () => assert.deepEqual(errors, []));
   if (role)
     await jsonResponse(
       await context.request.post(origin + "/api/login", {
         data: { password: "local-character-" + role },
       }),
     );
-  const page = await context.newPage(),
-    errors: string[] = [];
+  const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
-  t.after(() => assert.deepEqual(errors, []));
   await page.goto(origin + "/#/characters/" + key);
   await page.locator("#character-view-addons").click();
   const sheet = page.locator(".addon-dnd-character");

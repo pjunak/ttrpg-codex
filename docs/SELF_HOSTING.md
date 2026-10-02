@@ -469,15 +469,26 @@ source set. Previously the companion checkouts omitted `ref`, which
 Add-on package versions can stay unchanged across source commits, so version
 numbers alone do not identify accepted behavior.
 
+Native add-on publication also freezes its host SDK in each add-on's
+`host-sdk-revision.txt`; Sheets freezes the public engine model in
+`engine-model-revision.txt`. Changing one of these pins requires a new add-on
+commit, even if its semantic version stays unchanged. An existing commit
+release is immutable. Host compatibility still compiles the accepted companion
+sources against the candidate host and engine, rather than substituting the
+standalone build pins.
+
 1. Commit companion fixes after their owning gates. From clean adjacent
    checkouts, run `node scripts/companion-revisions.mts record` in the host when
    deliberately changing the source set; otherwise retain the existing pins.
 2. Rebuild the changed packages, inspect all four, and run full installed
    acceptance using the [contributor procedure](../CONTRIBUTING.md#choose-validation-for-the-change).
    Commit the accepted revision file with the dependent host changes.
-3. During an authorized release, publish the pinned companion commits before
-   publishing the host. Pushing `ttrpg-codex` does not push sibling repositories.
-   Keep shared API changes compatible at each delivery boundary.
+3. During an authorized release, make any newly pinned SDK/model commits
+   available before pushing the dependent add-on commits. A new host SDK can
+   first be published on a nondeploying host branch; pushing host `main` deploys
+   both sites. Publish and verify the companion builds before publishing the
+   dependent host revision. Pushing `ttrpg-codex` does not push sibling
+   repositories. Keep shared API changes compatible at each delivery boundary.
 4. Compare the CI `companion-provenance` artifact/summary with local
    `release/companions/provenance.json`. Source SHAs must match the pins;
    platform-specific package hashes remain explicit. The manual **Addon

@@ -1,11 +1,25 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import type { Page } from "playwright";
 import type { InstalledFixture } from "./fixture-types.mts";
 import { jsonResponse } from "./installed-graph-fixture.mts";
 
 const queryPattern = "**/api/addons/dm-tools/generations/*/data/query";
 const recoveryKey = JSON.stringify(["dm-tools-planner-drafts.v1", "dm-tools", "dm"]);
+
+async function leaveOpeningPanel(page: Page): Promise<void> {
+  const path = "/__planner-startup-fixture";
+  await page.route("**" + path, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: "<!doctype html><html lang=en><head><title>Planner startup fixture</title></head><body></body></html>",
+    }),
+  );
+  await page.goto(path);
+  await page.unroute("**" + path);
+}
 
 export async function exercisePlannerStartup({
   t,
@@ -84,6 +98,9 @@ export async function exercisePlannerStartup({
   const ready = page.locator('.dm-planner-shell[aria-busy="false"]');
 
   if (failure === "held") {
+    // The opening DM panel also reads planning data. Leave that document before
+    // routing so a late overview request cannot consume the planner's fault.
+    await leaveOpeningPanel(page);
     const held = [0, 1].map(() => ({
       received: Promise.withResolvers<void>(),
       release: Promise.withResolvers<void>(),
@@ -152,6 +169,7 @@ export async function exercisePlannerStartup({
       key: recoveryKey,
       value: copy,
     });
+    await leaveOpeningPanel(page);
     let reject = true;
     await page.route(queryPattern, (route) => {
       if (route.request().postDataJSON().dataId !== "planning_items" || !reject)

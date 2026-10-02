@@ -220,6 +220,7 @@ export function registerQuickUseTests(enabled: boolean, fixture: () => Fixture):
           key = "quick-use-save-" + outcome;
         const { page, sheet, status, initial, read } = await openCharacter(t, f, key);
         const writes: Record<string, any>[] = [];
+        let refreshCompleted = false;
         let release!: () => void, entered!: () => void;
         const held = new Promise<void>((resolve) => {
             release = resolve;
@@ -230,6 +231,22 @@ export function registerQuickUseTests(enabled: boolean, fixture: () => Fixture):
         t.after(() => release());
         await page.route("**/services/call", async (route) => {
           const body = route.request().postDataJSON();
+          if (
+            outcome === "lost-reply" &&
+            body?.method === "load" &&
+            writes.length === 2 &&
+            !refreshCompleted
+          ) {
+            const response = await route.fetch();
+            assert.equal(response.ok(), true);
+            const result = (await response.json()).result;
+            assert.equal(result.revision, initial.revision + 1);
+            assert.ok(result.evaluation, "The read must restore current rules guidance");
+            entered();
+            await held;
+            await route.fulfill({ response });
+            return;
+          }
           if (body?.method !== "save") {
             await route.continue();
             return;
@@ -249,11 +266,24 @@ export function registerQuickUseTests(enabled: boolean, fixture: () => Fixture):
         const pin = sheet.locator('[data-focus-key="inventory/keepsake/quick-use"]');
         await pin.click();
         if (outcome === "lost-reply") {
-          await status.getByRole("button", { name: "Retry", exact: true }).click();
-          await status.filter({ hasText: /^Saved$/ }).waitFor();
-          assert.deepEqual(writes[1], writes[0]);
-          assert.equal(writes.length, 2);
-          assert.equal((await read()).revision, initial.revision + 1);
+          try {
+            await status.getByRole("button", { name: "Retry", exact: true }).click();
+            await arriving;
+            await status.filter({ hasText: /^Saved$/ }).waitFor();
+            assert.deepEqual(writes[1], writes[0]);
+            assert.equal(writes.length, 2);
+            assert.equal((await read()).revision, initial.revision + 1);
+            assert.equal(await pin.isDisabled(), true, "A receipt cannot reuse stale guidance");
+          } finally {
+            refreshCompleted = true;
+            release();
+          }
+          await pin.and(sheet.locator(":enabled")).waitFor();
+          assert.equal(
+            await status.innerText(),
+            "Saved",
+            "Refreshing the same saved revision must preserve its acknowledgement",
+          );
         } else {
           await arriving;
           const remote = await read();
@@ -295,6 +325,22 @@ export function registerQuickUseTests(enabled: boolean, fixture: () => Fixture):
           assert.deepEqual((await read()).state.inputs.play.quickUse, [
             outcome === "conflict" ? "other" : "keepsake",
           ]);
+        }
+        if (outcome === "lost-reply") {
+          const remote = await read();
+          remote.state.inputs.play.quickUse = [];
+          await save(f, key, remote.state.inputs, remote.revision, "remote-unpin");
+          await page.waitForFunction(
+            () =>
+              document
+                .querySelector('[data-focus-key="inventory/keepsake/quick-use"]')
+                ?.getAttribute("aria-pressed") === "false",
+          );
+          assert.equal(
+            await status.innerText(),
+            "",
+            "A newer remote revision ends the acknowledgement",
+          );
         }
       },
     );
