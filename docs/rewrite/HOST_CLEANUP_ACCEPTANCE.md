@@ -5889,3 +5889,80 @@ The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
 saved-feedback and planner fault-targeting slices are also complete. Historical
 failure attribution, authenticated site maintenance/activation and human/device
 acceptance remain open.
+
+## October 2 worker startup and process pipes
+
+October 2, 2026. Native process checks reproduce three independent ways to hold
+worker lifecycle operations beyond their intended bounds:
+
+- Startup synchronously writes its initialization frame. A worker that reads a
+  prefix and stops can hold that OS write after caller cancellation or the
+  startup deadline, preventing startup from reaching its termination owner.
+- After observing process exit, startup unconditionally drains its final read.
+  A descendant retaining stdout keeps that read open past the startup deadline.
+- Go process waiting also joins the supervisor's stderr copier. A descendant
+  retaining stderr can prevent completion after the worker exits, including
+  after a startup, health or shutdown deadline has already forced termination.
+
+All **nine controlled native cases fail before the fix**, while fixture cleanup
+terminates its test-owned descendants so the failed run itself can complete.
+This establishes these pipe-lifetime defects; it does not attribute the old
+T53 rules loss, T57/T60/T61 startup incidents or T18-DM pre-canvas timeout.
+
+Startup now waits cancellably for its write and bounds final-read draining by
+the same startup context. Its existing failure owner terminates the process and
+closes blocked OS I/O. `exec.Cmd.WaitDelay` bounds stderr-copy cleanup by the
+existing configured shutdown window. Failure detection retains the original
+startup/health deadlines; reaping and stderr cleanup can additionally consume
+that bounded cleanup window. A pipe-copy timeout remains a shutdown/process
+failure. Actual zero/nonzero exit codes are copied from the OS process state
+independently of that copy error and remain detached in snapshots. The existing
+diagnostics parser and shared UI already accept and display zero correctly.
+
+There is no request replay or change to wire schemas, permissions, service
+selection, admission limits or restart accounting. This is host process
+supervision; the public SDK, native add-on sources and package hashes are
+unchanged. Descendant process containment remains conditional C08.
+
+Validation:
+
+- **9/9 native regression cases** pass, plus the ordinary healthy lifecycle:
+  startup timeout/caller cancellation while writing, exit with inherited stdout,
+  inherited stderr during startup/health/shutdown, accepted shutdown followed by
+  pipe-copy timeout, and unexpected zero/nonzero exits. The pipe holder
+  acknowledges a fresh probe after the supervisor settles; fixture teardown
+  owns its termination.
+  Existing clean shutdown still reaches Stopped with a real zero exit code.
+  These regressions and the healthy control also pass uncached under the race
+  detector with the post-completion probe.
+- Complete host `npm run check` passes **85 tool tests, 585 unit tests and 342
+  browser tests**, all Go tests and its selected race packages. Its **198
+  optional installed skips** are separate from the scoped installed acceptance
+  below. Uncached package-manager race checks also pass.
+- All three native add-ons pass their owning Go formatting, vet, Staticcheck,
+  test and race gates. Their unchanged SDK inputs permit cached successful
+  package tests; no TypeScript, schema, workflow or dependency inputs changed.
+- All four existing ZIPs pass inspection and match the clean source commits and
+  hashes in the [preceding source/hash table](#october-2-frozen-native-build-dependencies).
+  No worker rebuild is needed for this host-only implementation change.
+- **14/14 scoped installed cases** pass with zero failures, cancellations or
+  skips: typed character policy, EN/CS whole multiclass sessions, planner group
+  selection, held/rejected startup on desktop/phone, both source/provider
+  Settings cases and all four Engine source/provider cases. The preceding
+  277/277 complete run is retained as earlier evidence, not a post-patch
+  full-suite result.
+- Both whole-session restored-state checkpoints reach **58,632 / 50,161 ms**
+  within their unchanged 120-second deadlines. All **329 local document links
+  and anchors** resolve, and the final diff passes whitespace checks.
+
+Tested provenance records host `b583051` plus the process-supervisor patch and
+four clean companion sources. Before/after native logs, the complete host gate,
+uncached package-manager race check, consumer Go gates, inspection and tested
+provenance remain under `frontend/test-results/current-startup-pipes-*`.
+No push, publication, deployment, site data change or add-on activation occurred;
+Linux process execution and live-site recovery remain delivery acceptance.
+
+The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
+**33/40 original rows closed (83%)**. T57-STARTUP-PIPES-HOST closes these concrete
+deadline/cleanup defects. Historical failure attribution, authenticated site
+operations and human/device acceptance remain open.

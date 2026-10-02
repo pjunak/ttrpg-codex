@@ -56,7 +56,7 @@ func TestSupervisorRunsReviewedLifecycle(t *testing.T) {
 	if err := supervisor.Shutdown(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if snapshot := supervisor.Snapshot(); snapshot.State != StateStopped || snapshot.ExitedAt == nil {
+	if snapshot := supervisor.Snapshot(); snapshot.State != StateStopped || snapshot.ExitedAt == nil || snapshot.ExitCode == nil || *snapshot.ExitCode != 0 {
 		t.Fatalf("stopped snapshot: %+v", snapshot)
 	}
 }

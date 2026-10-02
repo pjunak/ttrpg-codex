@@ -34,6 +34,7 @@ type Supervisor struct {
 	transportClosing bool
 	done             chan struct{}
 	waitError        error
+	exitCode         *int
 	startedAt        *time.Time
 	exitedAt         *time.Time
 	lastError        error
@@ -72,6 +73,9 @@ func (supervisor *Supervisor) Start(ctx context.Context) error {
 	command.Dir = supervisor.config.WorkingDirectory
 	command.Env = append([]string{}, supervisor.environment...)
 	command.Stderr = supervisor.stderr
+	// Cmd.Wait also waits for its stderr copier. A descendant retaining that
+	// pipe must not keep failure cleanup blocked after this process exits.
+	command.WaitDelay = supervisor.config.ShutdownTimeout
 	workerStdin, hostStdin, err := os.Pipe()
 	if err != nil {
 		return supervisor.fail(CodeSpawnFailed, fmt.Errorf("open worker stdin: %w", err))
@@ -402,6 +406,10 @@ func (supervisor *Supervisor) Snapshot() Snapshot {
 			snapshot.ExitCode = &code
 		}
 	}
+	if supervisor.exitCode != nil {
+		code := *supervisor.exitCode
+		snapshot.ExitCode = &code
+	}
 	if supervisor.negotiated != nil {
 		value := *supervisor.negotiated
 		value.Capabilities = append([]string(nil), value.Capabilities...)
@@ -480,8 +488,19 @@ func (supervisor *Supervisor) exchange(ctx context.Context, method string, param
 		"method":  method,
 		"params":  params,
 	}
-	if err := codec.Write(ctx, request); err != nil {
-		return nil, err
+	written := make(chan error, 1)
+	go func() { written <- codec.Write(ctx, request) }()
+	// The codec cannot interrupt an OS write already in progress. Returning the
+	// deadline here lets the startup owner terminate and close the blocked pipe.
+	select {
+	case err := <-written:
+		if err != nil {
+			return nil, err
+		}
+	case <-done:
+		return nil, lifecycleError(CodeProcessExited, supervisor.processError())
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 	type readResult struct {
 		message workerrpc.Message
@@ -500,11 +519,14 @@ func (supervisor *Supervisor) exchange(ctx context.Context, method string, param
 		}
 		return responseResult(value.message, id)
 	case <-done:
-		// Process exit closes stdout. Drain the read result so a final complete
-		// shutdown response wins over the concurrently observed exit.
-		value := <-result
-		if value.err == nil {
-			return responseResult(value.message, id)
+		// Keep a final complete startup reply, but inherited stdout may remain
+		// open after exit. Draining it still belongs to the startup deadline.
+		select {
+		case value := <-result:
+			if value.err == nil {
+				return responseResult(value.message, id)
+			}
+		case <-ctx.Done():
 		}
 		return nil, lifecycleError(CodeProcessExited, supervisor.processError())
 	case <-ctx.Done():
@@ -618,6 +640,10 @@ func (supervisor *Supervisor) watchProcess(command *exec.Cmd) {
 	exited := time.Now().UTC()
 	supervisor.mu.Lock()
 	supervisor.waitError = err
+	if command.ProcessState != nil {
+		code := command.ProcessState.ExitCode()
+		supervisor.exitCode = &code
+	}
 	supervisor.exitedAt = &exited
 	if supervisor.state != StateStopping && supervisor.state != StateStopped && supervisor.state != StateFailed {
 		failure := lifecycleError(CodeProcessExited, processExitCause(err))

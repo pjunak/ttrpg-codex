@@ -43,6 +43,11 @@ permission grants, and exact generation-bound service handles; it does not
 leak host secrets or machine configuration by default.
 
 Stderr is retained only as a bounded newest-byte tail inside the supervisor.
+Process waiting gives the stderr copier at most the configured shutdown window
+to finish after the worker exits. A descendant retaining that pipe cannot hold
+failure cleanup indefinitely. Expiring this window keeps the copy/shutdown
+failure visible; it does not convert it into a clean stop. Descendant process
+containment remains outside the supervisor's current contract.
 Stdout is protocol-only. Administrative snapshots deliberately omit this raw
 tail, negotiated worker text and free-form exception/transition messages.
 Stable failure categories replace raw errors; pattern-based redaction is not
@@ -85,6 +90,13 @@ Startup uses one overall deadline and performs these calls in order:
 3. `codex/start` must return `{ "ready": true }`.
 4. The first `codex/health` must return `{ "status": "ok" }`.
 
+Each startup exchange waits cancellably for its initialization/control frame to
+be written and its response to arrive. Draining a final response after process
+exit still obeys the startup deadline, because inherited stdout can stay open.
+Returning a cancelled write lets startup failure terminate the process and close
+the blocked OS pipe. Failure detection uses the original startup/health deadline;
+process and stderr cleanup can additionally use the bounded shutdown window.
+
 A runtime health call accepts `ok` or `degraded`. A malformed result,
 transport failure, or health deadline failure marks the generation failed and
 terminates the process. Readiness policy above the supervisor may decide how a
@@ -125,6 +137,9 @@ Snapshots contain generation identity, lifecycle state and transitions, PID,
 start and exit timestamps, negotiated features, process exit detail, the last
 lifecycle error, the bounded stderr tail, and RPC activity counters. They copy
 mutable negotiated data so Inspector callers cannot alter live state.
+The actual process exit code, including zero, is retained independently of any
+stderr-copy error. A zero exit without accepted shutdown still fails the running
+generation; a shutdown whose pipe cleanup expires still fails shutdown.
 
 The supervisor exposes stable lifecycle categories:
 
@@ -216,6 +231,10 @@ and preserve a healthy process while its single domain slot remains occupied.
 `transport_cleanup_test.go` drives the real peer reader with an OS pipe to verify
 that intentional cleanup does not race a clean shutdown into failure, while
 unexpected closure and protocol errors retain their failure category.
+`startup_pipe_test.go` uses real native workers and test-owned descendants to
+cover blocked initialization writes, caller cancellation, final-read draining,
+inherited stderr during startup/health/shutdown, and zero/nonzero process exits.
+The existing healthy lifecycle control still proves a clean zero-exit stop.
 The SDK's `peer_lifetime_test.go` covers late-read disposal, queued domain/control
 calls and replies, cancellation notices, original terminal errors and early
 responses without allowing another frame after closure.
