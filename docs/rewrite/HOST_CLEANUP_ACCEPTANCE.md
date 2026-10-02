@@ -5623,3 +5623,80 @@ implemented (93–98%) / 95% overall (91–97%)**, and **33/40 original rows clo
 (83%)**: a small resilience slice and public-image checks do not justify closing
 the larger operational rows. Historical startup attribution and human/device
 checks remain open.
+
+## October 2 worker writer cancellation and blocked input
+
+October 2, 2026. Host `bd9cb98` fixes two independently reproduced RPC defects.
+A call waiting for the codec's writer mutex could remain pending after its
+context or metadata deadline ended. A write cancelled after publishing a header
+or body prefix returned a local context error, leaving the codec and peer usable;
+a subsequent frame then appended to the incomplete frame. Neither finding
+establishes the cause of the historical T53 provider loss or T57/T18-DM startup
+timeouts.
+
+The codec now acquires its single serialized writer with cancellation. A wholly
+unsent cancelled call releases its pending entry and outgoing admission without
+sending a request or cancellation notification. Local envelope validation still
+leaves the stream reusable. Interrupted frame prefixes instead close the codec
+to subsequent writes and stop the peer, retaining the wrapped context cause.
+Pending calls fail, inbound handlers cancel, and the process owner closes the
+transport. No domain call is replayed; wire schemas, authority, concurrency,
+health deadlines, failure categories and restart policy remain unchanged.
+
+Seven controlled scenarios fail on preceding host `1122cd0`: cancellation and
+deadline behind the writer, three interrupted-prefix positions, peer reuse after
+a cancelled header, and a real native worker that stops reading its input. The
+native case fills the pipe with a large domain frame; before the fix, even the
+health probe remains stuck in the mutex beyond its deadline. After the fix the
+queued probe times out normally, terminates and reaps the worker, and releases
+the blocked domain call with an error. Eight final controlled scenarios pass,
+including bidirectional peer acceptance proving an unsent cancellation leaves
+the active call and a fresh call usable. Existing local-envelope validation also
+checks a subsequent valid write.
+
+Validation:
+
+- Complete host `npm run check` passes **85 tool tests, 585 unit tests and 342
+  browser tests**, plus source/type/lint/format checks, Go vet/Staticcheck, all
+  Go tests and the selected race scope. Its **198 optional installed skips**
+  are reported separately.
+- Uncached race checks pass for the RPC SDK, supervisor, package manager and
+  service broker, including the native blocked-input regression.
+- Engine's complete Go analysis/test/race gate passes. Sheets' owning gate
+  passes **40 module tests** and Go/race checks. DM Tools' owning gate passes
+  **58 tests**, **28 rendering checks at each DPR 1/2**, and Go/race checks.
+- The three native packages are rebuilt against the changed host SDK and all
+  four packages pass host inspection. Companion source pins and tracked files
+  stay unchanged; Compendium has no native worker and reuses its unchanged ZIP.
+- **13/13 selected installed cases** pass with zero failures, cancellations or
+  skips: character policy, EN/CS multiclass source/provider replacement sessions,
+  held/rejected planner startup on desktop/phone, source/provider Settings, and
+  all four installed Engine source/provider cases. Session checkpoints reach
+  **55,625 / 49,667 ms** within the unchanged 120-second deadline. This is scoped
+  acceptance, not a new complete 277-case installed-suite result.
+- All **33 unchanged historical product-parity gates** pass. Changed owner,
+  public-contract, backlog and acceptance document links/anchors are verified.
+
+The initial installed provenance explicitly records `1122cd0` plus the tested
+runtime patch with host dirtiness, and four clean companion sources. After
+committing that same implementation, inspection records clean host `bd9cb98`
+and the identical package hashes below. Logs and both provenance records are
+retained under `frontend/test-results/current-worker-writer-*`.
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `117487b` | `0d6eecef8747452b50133c67a1b97edb4b59406a36b093b27eea823ac361823d` |
+| Engine | `c4063b5` | `fda3ef4ec41b63f09ed464600df9817a9da31bbfc4e87fe8928e7a3f67764114` |
+| Sheets | `8853959` | `889f8e56ba0e68d1d087c39e80b7f3728fed4aefe5f8cc2f39dbf8a8ccbcf7db` |
+| Compendium | `3463daf` | `1ab7306f44b73a0146c89b8b48b875e2c96a4f452a22fb58d53f59985a3cc828` |
+
+The code and owning worker contracts are committed locally. Publication,
+deployment and add-on activation have not occurred. An image update changes
+the host peer; installed native workers need rebuilt/reviewed packages to receive
+their side of the SDK repair. Native Windows execution is verified here; native
+Linux execution and live-site recovery remain delivery acceptance.
+
+The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
+**33/40 original rows closed (83%)**. T18-WRITER-HOST closes this concrete
+transport slice; historical failure attribution, authorized live-site
+maintenance/activation, and human/device acceptance remain open.

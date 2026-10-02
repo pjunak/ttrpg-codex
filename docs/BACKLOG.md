@@ -9,7 +9,7 @@ references; their detailed findings and the unchanged accepted release gates liv
 **Progress estimate, October 2:** about **97% implemented**, or **95%**
 including remaining workflow, release and site acceptance. These are approximate
 effort estimates, with plausible ranges of 93–98% and 91–97%, respectively.
-[Current estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-shared-artwork-and-portrait-preview-recovery).
+[Current estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-worker-writer-cancellation-and-blocked-input).
 **Original rows closed:** 33 of 40 (83%); open workflow tasks contain completed
 slices. Compact character and large planning sessions are accepted; smaller UI
 refinements, unexplained failures and human/device checks remain visible below.
@@ -98,6 +98,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T18-SESSIONS-HOST — Accept large planning sessions and separate browser failure traces**~~ — 269/269 installed cases with zero skips, EN/CS nested workflows, enlarged phone controls and owned trace cleanup; [acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#large-planning-sessions-and-shared-target-controls).
 - [x] ~~**T57-STARTUP-HOST — Allow sign-out during stalled add-on activation**~~ — `83647ab`; cancel partial generations immediately, reject stale activation and dispose late resources once; [controlled before/after evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancellable-startup-and-worker-health-admission).
 - [x] ~~**T18-HEALTH-HOST — Keep healthy workers available during domain saturation**~~ — `66f8cbd`; bounded, separate health/shutdown admission in the shared Go SDK, with blocked-output and native-process regressions; [cause, package evidence and delivery boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancellable-startup-and-worker-health-admission).
+- [x] ~~**T18-WRITER-HOST — Honor queued worker deadlines and stop interrupted frames**~~ — `bd9cb98`; cancel unsent writer waits, reject incomplete frame streams and let health deadlines terminate blocked native input; eight controlled cases, race checks and 13 installed provider/startup workflows. [Cause, rebuilt packages and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-worker-writer-cancellation-and-blocked-input).
 - [x] ~~**T57-CAMPAIGN-HOST — Release obsolete campaign reads during sign-out**~~ — `6f6d67a`; cancel old authority requests and queued work, reject late bodies/errors and preserve serialized current reads; [controlled failure and repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#campaign-read-cancellation-and-equipment-source-coverage).
 - [x] ~~**T57-EVIDENCE — Preserve separate character setup and service failures**~~ — bounded host output, stage/status/process records, transport capture and original errors survive artifact-write failure; [regressions and controlled setup failure](rewrite/HOST_CLEANUP_ACCEPTANCE.md#failed-recovery-starts-and-retained-fixture-evidence).
 - [x] ~~**T63-CATALOG-HOST — Accept source folders and seven-book wearable placements**~~ — EN/CS Compact/Classic filtering, keyboard search, cancel, enlarged phone controls and exact saved placement reload; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#campaign-read-cancellation-and-equipment-source-coverage).
@@ -135,7 +136,8 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   Subsequent runs passed; no shared cause is established. Retain bounded
   timeline/settings captures and the separate character-fixture failure records.
   Preserve deadlines and assertions; [T61 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
-  Separately reproduced request, session, write, restore, Settings, Account and health-check defects are
+  Separately reproduced request, session, write, restore, Settings, Account,
+  health-check and worker-writer defects are
   fixed above; their evidence does not explain these historical timeouts.
   September 28 also retained Chromium `ERR_NO_BUFFER_SPACE` failures before DM
   panel/schema-review navigation. The first exactly matches Windows TCP port
@@ -292,8 +294,9 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   Investigate the one unexplained rules-availability loss during T53 validation;
   separate setup/service failure records are now retained. T54's 13-case
   diagnostic replay passed without reproducing it; no cause is established.
-  The host SDK now fixes independently reproduced health failure under domain
-  saturation, but the original T53 run lacks evidence attributing it to that cause.
+  The host SDK fixes independently reproduced health failure under domain
+  saturation and interrupted/blocked writer handling, but the original T53 run
+  lacks evidence attributing it to either cause.
 
 Engine fixes must expose results/guidance through the versioned contract; no
 edition rules in Sheets controls, provider-ID special cases or combat resolver.
