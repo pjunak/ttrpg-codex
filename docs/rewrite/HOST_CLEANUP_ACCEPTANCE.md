@@ -5966,3 +5966,77 @@ The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
 **33/40 original rows closed (83%)**. T57-STARTUP-PIPES-HOST closes these concrete
 deadline/cleanup defects. Historical failure attribution, authenticated site
 operations and human/device acceptance remain open.
+
+## October 2 service and callback completion
+
+October 2, 2026. Controlled regressions establish further host call-lifetime
+defects independently of the historical startup/provider incidents:
+
+- The service broker accepts a successful provider response after its shorter
+  method deadline. Its final catalog queries also use the original caller
+  context, allowing a DB connection wait to carry acceptance beyond that budget.
+  A cancelled response can instead be reported as a schema failure.
+- The worker callback dispatcher continues from completed request validation,
+  context resolution or authorization after cancellation. Encoding/response
+  validation can return late success or misclassify interrupted work as INTERNAL.
+- A bidirectional peer regression receives successful JSON after the shorter
+  host-authorized deadline expires during response validation, while the longer
+  wire deadline remains live. This demonstrates the callback completion gap at
+  the actual RPC boundary.
+
+All **11 controlled cases fail before the fix**: three service completions,
+seven dispatcher stages and one peer exchange. Three older service controls
+also used fixed dates in the past and ignored their expired Go contexts; their
+live clocks now start immediately before calls and their providers check those
+contexts. Healthy lineage, schema, idempotency, content-adapter, recursive-call
+and generation/binding controls remain in the complete broker suites.
+
+The service broker now keeps its effective method/caller context through
+response validation, final catalog queries and result acceptance. The callback
+dispatcher checks cancellation between stages and after encoding/validation,
+returns CANCELLED or DEADLINE_EXCEEDED, and counts those outcomes without a
+successful response or misleading internal-error report. Request leases close
+on every service return. The owner contracts are
+[service calls](SERVICE_BROKER.md#generation-safe-handles-and-calls) and
+[callback dispatch](WORKER_BROKER.md#trust-and-authorization).
+
+These checks cannot forcibly stop synchronous work or undo an already committed
+write. No operation is replayed. Wire formats, the public SDK, permissions,
+provider choices, schemas, current saves and package selection are unchanged.
+All four companion source commits and package hashes match the
+[frozen source set](#october-2-frozen-native-build-dependencies); this host-only
+change requires no native package rebuild.
+
+Validation:
+
+- **11/11 regressions** pass, including the real peer exchange, request-lease
+  release and correct callback counters. Complete service/callback suites and
+  uncached servicebroker, workerbroker and requestcontext race checks pass.
+- Complete host `npm run check` passes **85 tool tests, 585 unit tests and 342
+  browser tests**, all Go tests and its selected race packages. Its **198
+  optional installed skips** are separate from the package acceptance below.
+  An uncached package-manager race suite also passes (54.532 seconds).
+- All four unchanged companion ZIPs pass inspection, with clean source commits
+  and matching SHA-256 provenance.
+- **19/19 scoped installed cases** pass with zero failures, cancellations or
+  skips: typed character policy, EN/CS whole multiclass sessions, planner group
+  selection, held/rejected desktop/phone startup, both source/provider Settings
+  cases, all four Engine source/provider cases, both Import Center cases,
+  atomic planning import and both campaign-bundle receipt workflows.
+- Both whole-session restored-state checkpoints reach **64,736 / 50,795 ms**
+  within their unchanged 120-second deadlines. The earlier full 277/277 run is
+  retained as preceding evidence, not a post-patch full-suite result.
+- All **335 local document links and anchors** resolve; the final diff passes
+  whitespace checks.
+
+Before/after regressions, race suites, the complete host gate, inspection,
+installed results and tested provenance remain under
+`frontend/test-results/current-broker-deadlines-*`. Tested provenance records
+host `e79aac3` plus this broker patch and four clean companion sources.
+No push, publication, deployment, site data change or add-on activation occurred.
+Linux delivery and live-site workflows remain separate acceptance.
+
+The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
+**33/40 original rows closed (83%)**. T57-COMPLETION-HOST closes these concrete
+call-completion defects. Historical failure attribution, authenticated site
+operations and human/device acceptance remain open.

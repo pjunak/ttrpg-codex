@@ -58,9 +58,15 @@ Dispatch order is fixed:
 
 Every method requires request validation, response validation, a permission,
 and a handler at dispatcher construction. Duplicate or malformed method
-registrations prevent construction. Generic handler errors and panics become
-sanitized `INTERNAL` failures while the detailed cause goes only to the
-host-owned diagnostic hook.
+registrations prevent construction. Cancellation is checked at stage completion,
+before continuing to context resolution, authorization or the handler, and after
+response encoding and validation. A cancelled or expired callback returns
+`CANCELLED` or `DEADLINE_EXCEEDED`, produces no successful response, and counts
+that category in dispatcher diagnostics. An interrupted encoding/validation
+error does not produce a misleading `INTERNAL` report. Synchronous stages must
+still cooperate; cancellation cannot undo a write already committed by a handler.
+Generic handler errors and panics become sanitized `INTERNAL` failures while the
+detailed cause goes only to the host-owned diagnostic hook.
 
 ## Concurrency, cancellation, and backpressure
 

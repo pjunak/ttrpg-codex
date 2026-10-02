@@ -276,7 +276,7 @@ func TestBrokerCallValidatesPayloadAndCarriesHostIssuedLineage(t *testing.T) {
 	t.Parallel()
 
 	store, _ := testStore(t)
-	now := time.Date(2026, time.August, 31, 11, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	contexts, err := requestcontext.New(requestcontext.Config{
 		MaxActive: 8, MaxLifetime: time.Minute, Now: func() time.Time { return now },
 		GenerateID: func() (string, error) { return "host-request-1", nil },
@@ -294,7 +294,10 @@ func TestBrokerCallValidatesPayloadAndCarriesHostIssuedLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 	var calledMethod string
-	caller := runtimeCallerFunc(func(_ context.Context, method string, params any, meta *workerrpc.Meta) (json.RawMessage, error) {
+	caller := runtimeCallerFunc(func(ctx context.Context, method string, params any, meta *workerrpc.Meta) (json.RawMessage, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		calledMethod = method
 		forged := *meta
 		forged.Actor = &workerrpc.Actor{Role: "dm", ID: "forged"}
@@ -329,6 +332,7 @@ func TestBrokerCallValidatesPayloadAndCarriesHostIssuedLineage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	now = time.Now().UTC()
 	result, err := broker.Call(ctx, handle, MethodCall{
 		Method: "evaluate-character",
 		Params: map[string]int{"value": 4},
@@ -352,7 +356,7 @@ func TestBrokerCallEnforcesCompiledMethodPolicies(t *testing.T) {
 	t.Parallel()
 
 	store, _ := testStore(t)
-	now := time.Date(2026, time.August, 31, 12, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	contexts, err := requestcontext.New(requestcontext.Config{
 		MaxLifetime: time.Minute, Now: func() time.Time { return now },
 	})
@@ -375,6 +379,9 @@ func TestBrokerCallEnforcesCompiledMethodPolicies(t *testing.T) {
 	)
 	called := 0
 	caller := runtimeCallerFunc(func(ctx context.Context, _ string, _ any, meta *workerrpc.Meta) (json.RawMessage, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		called++
 		wantDeadline := now.Add(500 * time.Millisecond)
 		contextDeadline, ok := ctx.Deadline()
@@ -411,6 +418,8 @@ func TestBrokerCallEnforcesCompiledMethodPolicies(t *testing.T) {
 	}
 	valid := base
 	valid.Context.IdempotencyKey = "evaluation-3"
+	now = time.Now().UTC()
+	valid.Context.Deadline = now.Add(10 * time.Second)
 	if _, err := broker.Call(context.Background(), handle, valid); err == nil {
 		t.Fatal("invalid provider response passed compiled schema")
 	}
@@ -444,7 +453,7 @@ func TestActivateRuntimeRejectsRegistryThatDoesNotMatchCatalog(t *testing.T) {
 func TestBrokerRoutesContentServicesThroughTheirDedicatedAdapter(t *testing.T) {
 	t.Parallel()
 	store, _ := testStore(t)
-	now := time.Date(2026, time.September, 1, 8, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	contexts, err := requestcontext.New(requestcontext.Config{
 		MaxLifetime: time.Minute, Now: func() time.Time { return now },
 	})
@@ -465,7 +474,10 @@ func TestBrokerRoutesContentServicesThroughTheirDedicatedAdapter(t *testing.T) {
 	)
 	called := ""
 	adapter := supportedRuntimeCaller{
-		runtimeCallerFunc: func(_ context.Context, method string, _ any, _ *workerrpc.Meta) (json.RawMessage, error) {
+		runtimeCallerFunc: func(ctx context.Context, method string, _ any, _ *workerrpc.Meta) (json.RawMessage, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			called = method
 			return json.RawMessage(`{"sets":[]}`), nil
 		},
@@ -483,6 +495,7 @@ func TestBrokerRoutesContentServicesThroughTheirDedicatedAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	now = time.Now().UTC()
 	result, err := broker.Call(context.Background(), handle, MethodCall{
 		Method: "catalog", Params: map[string]any{},
 		Context: CallContext{

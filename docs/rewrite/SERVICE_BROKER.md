@@ -102,8 +102,14 @@ bound services without recursively entering a writer-preferring read lock.
 After response validation, the broker takes a final read lease and revalidates
 the exact handle and runtime before accepting the result. A catalog, binding,
 or runtime change can therefore proceed during provider work, but invalidates
-that in-flight result with `ErrStaleBinding`. Request contexts still enforce the
-configured deadline.
+that in-flight result with `ErrStaleBinding`. Response validation and final
+catalog queries retain the effective call context, including the shorter
+method deadline. A provider returning successful JSON after cancellation or
+expiry cannot turn it into an accepted result. Completed validation is checked
+again before acceptance; cancellation takes precedence over its schema error.
+The request lease closes on every return. Synchronous provider/validator work
+must still cooperate with cancellation; this does not forcibly stop it or replay
+an operation whose write outcome is unknown.
 
 `Broker.ActivateRuntime` publishes a generation against an exact snapshot of
 the installed catalog and an immutable compiled service registry. Every

@@ -474,6 +474,9 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 	}
 	defer prepared.lease.Close()
 	defer prepared.cancel()
+	if err := prepared.context.Err(); err != nil {
+		return nil, err
+	}
 	result, err := prepared.caller.Call(
 		prepared.context, "service/"+handle.Contract+"/"+call.Method,
 		json.RawMessage(prepared.body), &prepared.meta,
@@ -481,8 +484,15 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 	if err != nil {
 		return nil, err
 	}
-	if err := prepared.method.ValidateResponse(result); err != nil {
-		return nil, fmt.Errorf("validate service response: %w", err)
+	if err := prepared.context.Err(); err != nil {
+		return nil, err
+	}
+	validationErr := prepared.method.ValidateResponse(result)
+	if err := prepared.context.Err(); err != nil {
+		return nil, err
+	}
+	if validationErr != nil {
+		return nil, fmt.Errorf("validate service response: %w", validationErr)
 	}
 
 	// Provider execution is deliberately outside the broker lock. This permits
@@ -491,7 +501,12 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 	// only if the exact handle and runtime are still current afterwards.
 	broker.mu.RLock()
 	defer broker.mu.RUnlock()
-	provider, err := broker.validateHandle(ctx, handle)
+	// Result acceptance belongs to the shorter method budget, even when the
+	// original HTTP or nested-call context remains live.
+	if err := prepared.context.Err(); err != nil {
+		return nil, err
+	}
+	provider, err := broker.validateHandle(prepared.context, handle)
 	if err != nil {
 		return nil, err
 	}
@@ -499,6 +514,9 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 		return nil, ErrStaleBinding
 	}
 	if _, _, err := broker.runtimes.lookup(provider, call.Method); err != nil {
+		return nil, err
+	}
+	if err := prepared.context.Err(); err != nil {
 		return nil, err
 	}
 	return append(json.RawMessage(nil), result...), nil

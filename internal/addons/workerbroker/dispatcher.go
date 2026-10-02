@@ -148,7 +148,11 @@ func (dispatcher *Dispatcher) HandleRPC(ctx context.Context, request workerrpc.R
 	if err := ctx.Err(); err != nil {
 		return nil, workerrpc.ErrorFromContext(err)
 	}
-	if err := method.ValidateRequest(cloneRaw(invocation.Params)); err != nil {
+	validationErr := method.ValidateRequest(cloneRaw(invocation.Params))
+	if err := ctx.Err(); err != nil {
+		return nil, workerrpc.ErrorFromContext(err)
+	}
+	if validationErr != nil {
 		return nil, workerrpc.NewRPCError(workerrpc.JSONRPCInvalidParams, workerrpc.KindValidationFailed, "The host method request did not match its schema.", false, nil)
 	}
 	authority, err := dispatcher.config.ContextResolver.ResolveContext(ctx, ContextRequest{
@@ -157,10 +161,10 @@ func (dispatcher *Dispatcher) HandleRPC(ctx context.Context, request workerrpc.R
 		Method:     invocation.Method,
 		WireMeta:   cloneMeta(invocation.WireMeta),
 	})
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, workerrpc.ErrorFromContext(ctxErr)
+	}
 	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, workerrpc.ErrorFromContext(ctxErr)
-		}
 		return nil, workerrpc.NewRPCError(workerrpc.JSONRPCApplication, workerrpc.KindUnauthorized, "The worker request context is not authorized.", false, nil)
 	}
 	if authority.RequestID == "" || authority.CorrelationID == "" || authority.Deadline.IsZero() ||
@@ -178,10 +182,14 @@ func (dispatcher *Dispatcher) HandleRPC(ctx context.Context, request workerrpc.R
 	authorizedCtx, cancel := context.WithDeadline(ctx, authority.Deadline)
 	defer cancel()
 	ctx = authorizedCtx
-	if err := dispatcher.config.Authorizer.Authorize(ctx, cloneInvocation(invocation)); err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, workerrpc.ErrorFromContext(ctxErr)
-		}
+	if err := ctx.Err(); err != nil {
+		return nil, workerrpc.ErrorFromContext(err)
+	}
+	authorizationErr := dispatcher.config.Authorizer.Authorize(ctx, cloneInvocation(invocation))
+	if err := ctx.Err(); err != nil {
+		return nil, workerrpc.ErrorFromContext(err)
+	}
+	if authorizationErr != nil {
 		return nil, workerrpc.NewRPCError(workerrpc.JSONRPCApplication, workerrpc.KindUnauthorized, "The worker is not authorized for this host operation.", false, nil)
 	}
 	value, err := method.Handle(ctx, cloneInvocation(invocation))
@@ -200,12 +208,19 @@ func (dispatcher *Dispatcher) HandleRPC(ctx context.Context, request workerrpc.R
 		return nil, workerrpc.ErrorFromContext(err)
 	}
 	body, err := json.Marshal(value)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return nil, workerrpc.ErrorFromContext(ctxErr)
+	}
 	if err != nil {
 		dispatcher.reportInternal(invocation, fmt.Errorf("encode host method response: %w", err))
 		return nil, workerrpc.NewRPCError(workerrpc.JSONRPCInternalError, workerrpc.KindInternal, "The host method returned an invalid response.", false, nil)
 	}
-	if err := method.ValidateResponse(body); err != nil {
-		dispatcher.reportInternal(invocation, fmt.Errorf("validate host method response: %w", err))
+	validationErr = method.ValidateResponse(body)
+	if err := ctx.Err(); err != nil {
+		return nil, workerrpc.ErrorFromContext(err)
+	}
+	if validationErr != nil {
+		dispatcher.reportInternal(invocation, fmt.Errorf("validate host method response: %w", validationErr))
 		return nil, workerrpc.NewRPCError(workerrpc.JSONRPCInternalError, workerrpc.KindInternal, "The host method returned an invalid response.", false, nil)
 	}
 	return json.RawMessage(body), nil
