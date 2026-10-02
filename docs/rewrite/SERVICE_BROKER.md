@@ -111,6 +111,15 @@ The request lease closes on every return. Synchronous provider/validator work
 must still cooperate with cancellation; this does not forcibly stop it or replay
 an operation whose write outcome is unknown.
 
+Each runtime publication has a distinct host-private immutable registration,
+even when the package generation, catalog revisions and caller object are
+unchanged. A prepared call retains that registration; accepting its response
+requires the same registration to remain current. Replacing or reactivating the
+runtime therefore rejects the old in-flight result with `ErrStaleBinding`.
+Previously issued consumer handles remain valid for new calls after same-package
+Reload, and resolve to the current runtime. This identity is not a wire field or
+a durable package revision.
+
 `Broker.ActivateRuntime` publishes a generation against an exact snapshot of
 the installed catalog and an immutable compiled service registry. Every
 registry contract must match the catalog's ID, exact version, document path,

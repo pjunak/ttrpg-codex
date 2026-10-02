@@ -41,7 +41,7 @@ func (adapters RuntimeAdapters) caller(transport Transport) RuntimeCaller {
 
 type RuntimeDirectory struct {
 	mu      sync.RWMutex
-	entries map[string]runtimeEntry
+	entries map[string]*runtimeEntry
 }
 
 type runtimeEntry struct {
@@ -75,7 +75,7 @@ type MethodCall struct {
 }
 
 func NewRuntimeDirectory() *RuntimeDirectory {
-	return &RuntimeDirectory{entries: make(map[string]runtimeEntry)}
+	return &RuntimeDirectory{entries: make(map[string]*runtimeEntry)}
 }
 
 func (directory *RuntimeDirectory) activate(
@@ -87,8 +87,13 @@ func (directory *RuntimeDirectory) activate(
 ) string {
 	directory.mu.Lock()
 	defer directory.mu.Unlock()
-	previous := directory.entries[addonID].generation
-	directory.entries[addonID] = runtimeEntry{
+	previous := ""
+	if entry := directory.entries[addonID]; entry != nil {
+		previous = entry.generation
+	}
+	// Each publication owns a distinct immutable registration, including Reload
+	// with the same package, catalog and caller object.
+	directory.entries[addonID] = &runtimeEntry{
 		generation: generation,
 		callers: map[Transport]RuntimeCaller{
 			TransportWorker: adapters.Worker, TransportContent: adapters.Content,
@@ -110,31 +115,31 @@ func (directory *RuntimeDirectory) deactivate(addonID, generation string) bool {
 	return true
 }
 
-func (directory *RuntimeDirectory) lookup(provider Provider, methodName string) (RuntimeCaller, servicecontract.Method, error) {
+func (directory *RuntimeDirectory) lookup(provider Provider, methodName string) (RuntimeCaller, servicecontract.Method, *runtimeEntry, error) {
 	if directory == nil {
-		return nil, servicecontract.Method{}, ErrRuntimeUnavailable
+		return nil, servicecontract.Method{}, nil, ErrRuntimeUnavailable
 	}
 	directory.mu.RLock()
 	entry, exists := directory.entries[provider.AddonID]
 	directory.mu.RUnlock()
 	if !exists {
-		return nil, servicecontract.Method{}, ErrRuntimeUnavailable
+		return nil, servicecontract.Method{}, nil, ErrRuntimeUnavailable
 	}
 	if entry.generation != provider.ActiveGeneration || entry.catalog[provider.Contract] != provider.CatalogRevision {
-		return nil, servicecontract.Method{}, ErrStaleBinding
+		return nil, servicecontract.Method{}, nil, ErrStaleBinding
 	}
 	caller := entry.callers[provider.Transport]
 	if caller == nil {
-		return nil, servicecontract.Method{}, ErrRuntimeUnavailable
+		return nil, servicecontract.Method{}, nil, ErrRuntimeUnavailable
 	}
 	method, err := entry.contracts.Method(provider.Contract, methodName)
 	if err != nil {
 		if errors.Is(err, servicecontract.ErrMethodNotFound) {
-			return nil, servicecontract.Method{}, fmt.Errorf("%w: %s/%s", ErrMethodNotFound, provider.Contract, methodName)
+			return nil, servicecontract.Method{}, nil, fmt.Errorf("%w: %s/%s", ErrMethodNotFound, provider.Contract, methodName)
 		}
-		return nil, servicecontract.Method{}, err
+		return nil, servicecontract.Method{}, nil, err
 	}
-	return caller, method, nil
+	return caller, method, entry, nil
 }
 
 func (directory *RuntimeDirectory) attach(providers []Provider) []Provider {
@@ -513,8 +518,12 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 	if provider.CatalogRevision != prepared.catalogRevision {
 		return nil, ErrStaleBinding
 	}
-	if _, _, err := broker.runtimes.lookup(provider, call.Method); err != nil {
+	_, _, runtime, err := broker.runtimes.lookup(provider, call.Method)
+	if err != nil {
 		return nil, err
+	}
+	if runtime != prepared.runtime {
+		return nil, ErrStaleBinding
 	}
 	if err := prepared.context.Err(); err != nil {
 		return nil, err
@@ -524,6 +533,7 @@ func (broker *Broker) Call(ctx context.Context, handle Handle, call MethodCall) 
 
 type preparedCall struct {
 	catalogRevision int64
+	runtime         *runtimeEntry
 	caller          RuntimeCaller
 	method          servicecontract.Method
 	body            []byte
@@ -544,7 +554,7 @@ func (broker *Broker) prepareCall(
 	if err != nil {
 		return preparedCall{}, err
 	}
-	caller, method, err := broker.runtimes.lookup(provider, call.Method)
+	caller, method, runtime, err := broker.runtimes.lookup(provider, call.Method)
 	if err != nil {
 		return preparedCall{}, err
 	}
@@ -582,6 +592,7 @@ func (broker *Broker) prepareCall(
 	}
 	return preparedCall{
 		catalogRevision: provider.CatalogRevision,
+		runtime:         runtime,
 		caller:          caller, method: method, body: body, context: callContext,
 		cancel: cancel, lease: lease, meta: lease.Meta(),
 	}, nil

@@ -309,6 +309,10 @@ runtime. It swaps only the live caller against the existing provider catalog;
 the add-on generation and catalog revisions do not change, so already-issued
 consumer handles remain valid. The state revision and `reloaded` event still
 advance, invalidating any review prepared against the older operational state.
+An in-flight service result prepared on the previous runtime is rejected with
+`ErrStaleBinding` after the swap, even though its package and catalog still
+match. A later call through an existing consumer handle routes to the replacement.
+This does not replay an operation or undo an already committed write.
 
 Settings → Add-ons uses an explicit **Review disable** panel in English and
 Czech. It lists required dependents that will also be disabled, affected consumers

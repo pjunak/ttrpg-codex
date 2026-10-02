@@ -554,7 +554,7 @@ func TestRuntimeDirectoryExactGenerationPreventsLateTeardown(t *testing.T) {
 	if directory.deactivate("engine-a", "generation-1") {
 		t.Fatal("late old-generation teardown removed replacement runtime")
 	}
-	caller, _, err := directory.lookup(Provider{
+	caller, _, _, err := directory.lookup(Provider{
 		AddonID:          "engine-a",
 		Contract:         "dnd5e.rules-engine",
 		Transport:        TransportWorker,

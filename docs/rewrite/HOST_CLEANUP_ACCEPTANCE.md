@@ -6040,3 +6040,76 @@ The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
 **33/40 original rows closed (83%)**. T57-COMPLETION-HOST closes these concrete
 call-completion defects. Historical failure attribution, authenticated site
 operations and human/device acceptance remain open.
+
+## October 2 same-package runtime handoff
+
+October 2, 2026. The service broker previously accepted an old runtime's result
+after same-package Reload replaced that runtime. Reload deliberately preserves
+the package generation, provider catalog revisions and valid consumer handles;
+rechecking those identities alone could not distinguish the old live caller
+from its replacement. The same gap affects content adapters and reactivation
+of the exact same caller object.
+
+All **five controlled cases fail before the fix**: worker and content replacement,
+same-caller reactivation for both transports, and an in-flight browser service
+call across the real package manager's Reload. The latter runtime returns a
+successful response from its post-swap shutdown; the broker used to deliver it
+to the browser. This is independently reproduced, not an attribution of earlier
+startup or provider failures.
+
+Every runtime publication now owns a distinct immutable host-private
+registration. A prepared call retains that identity; final acceptance rejects
+its result with `ErrStaleBinding` if the registration has been replaced. New
+calls through existing consumer handles resolve to the current runtime. This
+does not replay operations or undo already committed writes. The owner contracts
+are [service calls](SERVICE_BROKER.md#generation-safe-handles-and-calls) and
+[Reload](PACKAGE_LIFECYCLE.md#reload-and-disable).
+
+The public wire/API, SDK, provider selection, permissions, schemas, current saves
+and package revisions are unchanged. All four clean companion source commits
+and package hashes match the [frozen source set](#october-2-frozen-native-build-dependencies).
+No companion source change or native package rebuild is needed for this
+host-only fix.
+
+Validation:
+
+- **5/5 controlled regressions** pass. Each rejects the old result and accepts a
+  later call through the retained handle; broker cases also verify request leases
+  are released. Complete servicebroker and packagemanager suites pass.
+- Uncached servicebroker, packagemanager and requestcontext race suites pass;
+  the package-manager race suite completes in 52.316 seconds.
+- Final complete host `npm run check` passes **85 tool tests, 585 unit tests and
+  342 browser tests**, all Go tests and its selected race packages. Its **199
+  optional installed skips** are separate from the package acceptance below.
+- All four unchanged companion ZIPs pass inspection with matching SHA-256
+  provenance and clean source commits.
+- **21/21 scoped installed cases** pass with zero failures, cancellations or
+  skips: typed character policy, EN/CS whole multiclass sessions, planner group
+  selection, held/rejected desktop/phone startup, both source/provider Settings
+  cases, all four Engine source/provider cases, both Import Center cases,
+  atomic planning import, both campaign-bundle receipt workflows and both
+  Settings add-on manager cases including Reload.
+- The final **5/5 installed Engine cases** pass with zero skips. Four repeat
+  the above rules coverage; the additional native Reload check observes a new
+  worker PID, unchanged package identity, the advanced state revision and
+  identical rules context/character evaluation through the previously issued
+  handle. Together these runs cover **22 distinct installed workflows**. Its
+  first run found only a test assertion spelling `Ready` instead of the defined
+  `ready` state; correcting that fixture preserves the production check.
+- Whole-session restored-state checkpoints reach **61,434 / 49,351 ms** within
+  their unchanged 120-second deadlines. The preceding full 277/277 acceptance
+  is not represented as a post-patch full installed-suite result.
+- All **343 local document links and anchors** resolve; the final diff passes
+  whitespace checks.
+
+Before/after regressions, race suites, the complete host gate, package inspection,
+installed results and tested provenance remain under
+`frontend/test-results/current-runtime-handoff-*`. Tested provenance records
+host `45a9dc9` plus this host patch and the four clean companion sources.
+No push, publication, deployment, site data change or add-on activation occurred.
+Linux delivery and live-site workflows remain separate acceptance.
+
+The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
+**33/40 original rows closed (83%)**. T57-HANDOFF-HOST closes this concrete
+runtime-replacement defect. Historical failure attribution, authenticated site
+operations and human/device acceptance remain open.

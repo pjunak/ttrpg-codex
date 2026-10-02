@@ -137,10 +137,18 @@ async function call(method: string, params: unknown) {
   );
   assert.equal(connection.providers.length, 1, JSON.stringify(connection));
   const target = connection.providers[0];
+  return callProvider(method, params, target);
+}
+
+async function callProvider(
+  method: string,
+  params: unknown,
+  target: { addonId: string; contractVersion: string; generation: string; bindingRevision: number },
+) {
   return (
     await jsonResponse(
       await admin.post(`${base}/call`, {
-        headers,
+        headers: { "X-Codex-CSRF": csrf },
         data: {
           contractVersion: "addon-service-call.v1",
           contract: "dnd5e.rules-engine",
@@ -454,6 +462,59 @@ void test(
         kind: "spell",
         id: "extra-spell-one",
       }),
+    );
+  },
+);
+
+void test(
+  "installed engine reload retains service handles and evaluated rules",
+  { skip: !enabled },
+  async () => {
+    await installReviewedPackage(admin, csrf, "dnd-2024-compendium", compendium, []);
+    await enableAllRuleSources(admin, csrf);
+    const connection = await jsonResponse(
+      await admin.post(`${base}/connect`, {
+        headers: { "X-Codex-CSRF": csrf },
+        data: {
+          contractVersion: "addon-service-connect.v1",
+          contract: "dnd5e.rules-engine",
+          range: "^4.0.0",
+          cardinality: "one",
+        },
+      }),
+    );
+    assert.equal(connection.providers.length, 1);
+    const target = connection.providers[0];
+    const providerPath = `/api/admin/addons/${target.addonId}`;
+    const before = await jsonResponse(await admin.get(providerPath));
+    assert.ok(before.runtime.pid > 0);
+    const context = await callProvider("context", {}, target);
+    assert.equal(context.available, true);
+    const evaluation = await callProvider(
+      "evaluate-character",
+      { contractVersion: "rules-character.v1", inputs: inputs() },
+      target,
+    );
+    await jsonResponse(
+      await admin.post(`${providerPath}/reload`, {
+        headers: { "X-Codex-CSRF": csrf },
+        data: { expectedStateRevision: before.state.revision },
+      }),
+    );
+    const after = await jsonResponse(await admin.get(providerPath));
+    assert.ok(after.runtime.pid > 0);
+    assert.notEqual(after.runtime.pid, before.runtime.pid);
+    assert.equal(after.state.activeGenerationId, before.state.activeGenerationId);
+    assert.equal(after.state.revision, before.state.revision + 1);
+    assert.equal(after.runtime.state, "ready");
+    assert.deepEqual(await callProvider("context", {}, target), context);
+    assert.deepEqual(
+      await callProvider(
+        "evaluate-character",
+        { contractVersion: "rules-character.v1", inputs: inputs() },
+        target,
+      ),
+      evaluation,
     );
   },
 );

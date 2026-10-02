@@ -9,7 +9,7 @@ references; their detailed findings and the unchanged accepted release gates liv
 **Progress estimate, October 2:** about **97% implemented**, or **95%**
 including remaining workflow, release and site acceptance. These are approximate
 effort estimates, with plausible ranges of 93–98% and 91–97%, respectively.
-[Current estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-service-and-callback-completion).
+[Current estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-same-package-runtime-handoff).
 **Original rows closed:** 33 of 40 (83%); open workflow tasks contain completed
 slices. Compact character and large planning sessions are accepted; smaller UI
 refinements, unexplained failures and human/device checks remain visible below.
@@ -126,6 +126,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T18-PLANNER-FAULT-HOST — Target startup faults at the planner's own reads**~~ — depart the opening overview before fault injection, preserve same-origin drafts and retain all desktop/phone recovery assertions; [trace diagnosis and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-frozen-native-build-dependencies).
 - [x] ~~**T57-STARTUP-PIPES-HOST — Bound worker startup and process pipe cleanup**~~ — cancelled initialization writes, deadline-bounded final reads, inherited stderr cleanup and actual zero/nonzero exit codes; [nine native failures and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-worker-startup-and-process-pipes).
 - [x] ~~**T57-COMPLETION-HOST — Reject expired service and callback completion**~~ — retain method deadlines through catalog revalidation, stop cancelled callback stages and classify interrupted response work correctly; [eleven controlled failures and installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-service-and-callback-completion).
+- [x] ~~**T57-HANDOFF-HOST — Reject replies from replaced add-on runtimes**~~ — distinguish each runtime publication during same-package Reload, reject old in-flight results and retain handles for new calls; [five controlled failures and native Reload acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-same-package-runtime-handoff).
 
 Contracts and regression evidence: [editor and browsing workflows](rewrite/EDITOR_BROWSING.md),
 [GitHub package updates](rewrite/PACKAGE_LIFECYCLE.md#github-package-sources),
@@ -143,8 +144,9 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   timeline/settings captures and the separate character-fixture failure records.
   Preserve deadlines and assertions; [T61 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
   Separately reproduced request, session, write, restore, Settings, Account,
-  health-check, worker writer, peer closure, startup pipe and call completion defects are
-  fixed above; their evidence does not explain these historical timeouts.
+  health-check, worker writer, peer closure, startup pipe, call completion and
+  runtime handoff defects are fixed above; their evidence does not explain these
+  historical timeouts.
   September 28 also retained Chromium `ERR_NO_BUFFER_SPACE` failures before DM
   panel/schema-review navigation. The first exactly matches Windows TCP port
   exhaustion; focused replays pass, but the source of transient pressure remains
