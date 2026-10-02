@@ -82,8 +82,12 @@ held while its response waits for the serialized writer, then returns immediatel
 before the frame is written. This bounds blocked-output work while allowing
 health-to-shutdown handoff as soon as the health response becomes observable.
 
-When an outgoing caller's context or metadata deadline ends, its pending entry
-is removed and the peer sends `$/cancelRequest` with the JSON-RPC message ID.
+Waiting for the serialized writer obeys the caller's context and metadata
+deadline. Cancellation before any frame bytes are published releases the
+outgoing slot and pending entry; no request or cancellation notification reaches
+the other peer. Invalid local envelopes likewise leave the stream reusable.
+Once a complete request is published, cancellation removes its pending entry
+and the peer sends `$/cancelRequest` with the JSON-RPC message ID.
 The receiving peer cancels the matching handler context. A handler must still
 cooperate; Go cannot safely terminate an arbitrary goroutine. Any later
 response is discarded and counted. Supervisor shutdown cancels every active
@@ -96,6 +100,15 @@ reported kind remains available for diagnostics. Protocol or transport
 failure stops the peer, fails all pending calls, cancels inbound handlers, and
 causes the supervisor to terminate the generation. A clean EOF remains process
 lifecycle evidence and is classified by the supervisor.
+
+Cancellation after a header or body prefix has been written is a terminal
+transport failure, even though its cause remains a context error. The codec
+rejects later frames rather than appending them to an incomplete frame; the
+peer fails pending calls and cancels inbound handlers. No request is replayed.
+An already-blocked `io.Reader` or `io.Writer` still needs its owner to close the
+underlying stream. The supervisor closes its pipes and terminates a failed
+process; the cancellable writer wait lets a health deadline trigger that cleanup
+even when a domain frame is blocked in the worker's input pipe.
 
 Peer snapshots expose active and pending calls, total calls in each direction,
 cancellations, rejected work, ignored notifications, late responses, and the

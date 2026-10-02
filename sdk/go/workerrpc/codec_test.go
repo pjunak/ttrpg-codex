@@ -154,6 +154,9 @@ func TestCodecValidatesBeforeWriting(t *testing.T) {
 	if transport.Len() != 0 {
 		t.Fatalf("invalid envelope wrote %d bytes", transport.Len())
 	}
+	if err := codec.Write(context.Background(), map[string]any{"jsonrpc": "2.0", "method": "test"}); err != nil {
+		t.Fatal("invalid local frame poisoned the writer", err)
+	}
 }
 
 func TestCodecSerializesConcurrentWriters(t *testing.T) {

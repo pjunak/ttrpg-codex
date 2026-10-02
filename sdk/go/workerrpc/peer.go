@@ -612,6 +612,10 @@ func rpcIDKey(raw json.RawMessage) (string, error) {
 }
 
 func isLocalWriteFailure(err error) bool {
+	var frame *frameWriteError
+	if errors.As(err, &frame) {
+		return false
+	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}

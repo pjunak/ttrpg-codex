@@ -98,6 +98,13 @@ failure and recovery behavior. The reservation is compiled into the host and
 native workers; existing worker ZIPs need rebuilding against the updated SDK to
 isolate their incoming admission as well.
 
+The shared codec also cancels a health probe's wait for its serialized writer.
+A worker that stops reading during a large domain frame cannot hold the probe
+past its health deadline: failure terminates the process and closes the blocked
+pipe. A cancellation before any frame bytes are sent stays local; an interrupted
+frame prefix instead stops the peer as a transport failure. These changes retain
+the configured deadlines, failure categories and restart policy.
+
 Graceful shutdown sends `codex/shutdown` and waits for a zero exit within the
 shutdown deadline. A remote error, non-zero exit, or timeout marks the
 generation failed; timeout also forces termination. Shutdown before launch is

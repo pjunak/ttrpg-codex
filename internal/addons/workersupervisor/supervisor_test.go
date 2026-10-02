@@ -500,6 +500,13 @@ func TestNativeWorkerHelperProcess(t *testing.T) {
 		status = "degraded"
 	}
 	helperSuccess(codec, health, map[string]any{"status": status})
+	if mode == "blocked-input" {
+		if _, err := io.ReadFull(os.Stdin, make([]byte, 4)); err != nil {
+			helperExit(err.Error(), 12)
+		}
+		fmt.Fprint(os.Stderr, "blocked-input-prefix")
+		time.Sleep(10 * time.Minute)
+	}
 	if mode == "exit-after-ready" {
 		time.Sleep(100 * time.Millisecond)
 		os.Exit(17)

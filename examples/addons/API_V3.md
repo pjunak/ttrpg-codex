@@ -1189,11 +1189,20 @@ worker-to-host call only echoes claimed lineage; the host resolves that lineage
 to its own authoritative actor, deadline, and correlation context before
 authorization. Writing `actor.role = "dm"` never grants DM authority.
 
-Workers MUST check cancellation and deadlines during long operations. Either
-peer sends the standard `$/cancelRequest` notification with the JSON-RPC
+Workers MUST check cancellation and deadlines during long operations. Waiting
+for the shared Go codec's serialized writer observes the call deadline. A
+cancelled, wholly unsent request stays local and leaves the stream reusable.
+After a complete request is sent, either peer sends the standard
+`$/cancelRequest` notification with the JSON-RPC
 message ID in `params.id`; this is distinct from `meta.requestId`. A late
 response is discarded and recorded; it cannot resurrect a cancelled
 transaction.
+
+A write interrupted after publishing a frame prefix makes the transport
+unusable. The codec MUST NOT append another frame to that prefix; the peer stops
+and its owner closes the streams. A context error during a partial write is
+therefore terminal, unlike cancellation before publication. The Go supervisor
+terminates the failed worker without replaying its domain calls.
 
 ### Required protocol methods
 

@@ -10,7 +10,6 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"sync"
 	"unicode/utf8"
 
 	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
@@ -43,11 +42,12 @@ type Message struct {
 }
 
 type Codec struct {
-	reader *bufio.Reader
-	writer io.Writer
-	limits Limits
-	schema *jsonschema.Schema
-	write  sync.Mutex
+	reader   *bufio.Reader
+	writer   io.Writer
+	limits   Limits
+	schema   *jsonschema.Schema
+	write    chan struct{}
+	writeErr error
 }
 
 func NewCodec(reader io.Reader, writer io.Writer, limits Limits) (*Codec, error) {
@@ -79,6 +79,7 @@ func NewCodec(reader io.Reader, writer io.Writer, limits Limits) (*Codec, error)
 		writer: writer,
 		limits: limits,
 		schema: schema,
+		write:  make(chan struct{}, 1),
 	}, nil
 }
 
@@ -131,18 +132,55 @@ func (c *Codec) writeFrame(ctx context.Context, value any, beforeWrite func()) e
 	}
 	header := []byte(fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body)))
 
-	c.write.Lock()
-	defer c.write.Unlock()
+	select {
+	case c.write <- struct{}{}:
+		defer func() { <-c.write }()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if c.writeErr != nil {
+		return c.writeErr
+	}
 	if beforeWrite != nil {
 		beforeWrite()
 	}
-	if err := writeAll(ctx, c.writer, header); err != nil {
-		return fmt.Errorf("write worker frame header: %w", err)
+	progress := &frameWriter{writer: c.writer}
+	if err := writeAll(ctx, progress, header); err != nil {
+		return c.frameWriteFailure(fmt.Errorf("write worker frame header: %w", err), progress.written)
 	}
-	if err := writeAll(ctx, c.writer, body); err != nil {
-		return fmt.Errorf("write worker frame body: %w", err)
+	if err := writeAll(ctx, progress, body); err != nil {
+		return c.frameWriteFailure(fmt.Errorf("write worker frame body: %w", err), progress.written)
 	}
 	return nil
+}
+
+func (c *Codec) frameWriteFailure(cause error, written int) error {
+	if written == 0 && (errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded)) {
+		return cause
+	}
+	// A later frame cannot repair a published prefix. Keep the writer closed to
+	// further frames even while its owner is processing terminal peer failure.
+	c.writeErr = &frameWriteError{cause: cause}
+	return c.writeErr
+}
+
+type frameWriteError struct{ cause error }
+
+func (err *frameWriteError) Error() string { return err.cause.Error() }
+func (err *frameWriteError) Unwrap() error { return err.cause }
+
+type frameWriter struct {
+	writer  io.Writer
+	written int
+}
+
+func (writer *frameWriter) Write(body []byte) (int, error) {
+	written, err := writer.writer.Write(body)
+	writer.written += written
+	return written, err
 }
 
 func (c *Codec) readHeader(ctx context.Context) (int, error) {
