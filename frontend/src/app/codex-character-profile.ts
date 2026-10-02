@@ -43,6 +43,7 @@ import { uiText, UiLocalizationController } from "./ui-localization.js";
 import { CodexMarkdownEditor } from "./codex-markdown-editor.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { CodexPortraitEditor } from "./codex-portrait-editor.js";
+import { artwork } from "../ui/artwork.js";
 
 interface FieldDraft {
   readonly key: string;
@@ -177,11 +178,12 @@ export class CodexCharacterProfile extends LitElement {
       }
       <div class="record-reading-layout">
         <aside class="record-side"><header class="record-masthead">
-          ${
-            entity.portrait
-              ? html`<img class="record-portrait" src=${previewResourceURL(entity.portrait)} alt="" style=${entity.attitudeRing ? `--attitude-ring: ${entity.attitudeRing}` : nothing} />`
-              : html`<span class="record-portrait record-portrait-placeholder" aria-hidden="true" style=${entity.attitudeRing ? `--attitude-ring: ${entity.attitudeRing}` : nothing}><span class="record-visual-glyph">${entity.icon || "♟"}</span></span>`
-          }
+          ${artwork({
+            source: previewResourceURL(entity.portrait),
+            className: `record-portrait${entity.portrait ? "" : " record-portrait-placeholder"}`,
+            style: entity.attitudeRing ? `--attitude-ring: ${entity.attitudeRing}` : undefined,
+            fallback: html`<span class="record-visual-glyph">${entity.icon || "♟"}</span>`,
+          })}
           <div><span class="record-kind">${uiText("Character")}</span><h1 id="record-title" aria-label=${text(value["name"])}>${this.#inline("name")}</h1>
             ${revealed && this.#hasValue("title") ? html`<div class="character-subtitle">${this.#inline("title")}</div>` : nothing}
             <div class="record-badges">${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}

@@ -3,6 +3,7 @@ import { previewResourceURL } from "../core/player-preview.js";
 import { safeMediaURL } from "./campaign-projection.js";
 import { portraitAccept, validPortraitFile } from "./character-portrait.js";
 import { UiLocalizationController, uiText } from "./ui-localization.js";
+import { artwork } from "../ui/artwork.js";
 
 export class CodexPortraitEditor extends LitElement {
   static override properties = {
@@ -29,6 +30,11 @@ export class CodexPortraitEditor extends LitElement {
   protected override createRenderRoot() {
     return this;
   }
+  override connectedCallback(): void {
+    super.connectedCallback();
+    if (this.#draft instanceof File && this.preview === undefined)
+      this.preview = URL.createObjectURL(this.#draft);
+  }
   override disconnectedCallback(): void {
     this.#releasePreview();
     super.disconnectedCallback();
@@ -40,11 +46,13 @@ export class CodexPortraitEditor extends LitElement {
     void this.#ui;
     const image = this.#draft === null ? undefined : (this.preview ?? safeMediaURL(this.portrait));
     return html`<section class="portrait-editor" aria-label=${uiText("Character portrait")}>
-      ${
-        image === undefined
-          ? html`<div class="portrait-editor-preview portrait-editor-empty" aria-hidden="true">👤</div>`
-          : html`<img class="portrait-editor-preview" src=${this.preview ?? previewResourceURL(image)} alt=${uiText("Portrait preview")} />`
-      }
+      ${artwork({
+        source: this.preview ?? previewResourceURL(image),
+        className: "portrait-editor-preview portrait-editor-empty",
+        fallback: "👤",
+        label: image === undefined ? undefined : uiText("Portrait preview"),
+        unavailableLabel: uiText("Portrait preview unavailable"),
+      })}
       <div class="portrait-editor-controls">
         ${
           this.creating

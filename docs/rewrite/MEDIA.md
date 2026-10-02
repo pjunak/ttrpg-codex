@@ -53,6 +53,27 @@ portrait mutation preparation and media binding; `frontend/test/browser/portrait
 exercises desktop/mobile save, replacement, removal, cancellation, retry,
 localization and anonymous access against a disposable Go host.
 
+### Displayed portraits
+
+All entity cards, record articles, party/companion avatars and portrait previews
+use the [shared artwork renderer](UI_FOUNDATIONS.md#entity-artwork). Missing,
+unreadable and undecodable images keep an emblem in the reserved media slot.
+Loading/replacement does not resize the slot, and late events from retired images
+cannot hide a current image. This is presentation only: failed reads never clear
+authored URLs, change visibility, delete handles or upload a replacement.
+
+The editor releases its object URL on disconnect. When the same editor reconnects
+with its local File draft, it creates a fresh preview URL for that file; Undo,
+removal and subsequent disconnect release the current preview. Reconnect never
+uploads or commits the file. A whole application replacement retains its existing
+authority/draft policy.
+
+`frontend/test/browser/artwork.browser.mts` covers all nine entity kinds, both
+themes and desktop/phone layouts, loading/failure geometry, retired events,
+reconnect and preview URL ownership. Real-host portrait tests additionally prove
+that deleted media stays unreadable, DM-uploaded media remains private after a
+record is published, and fallback leaves the authored record unchanged.
+
 ### Endpoints
 
 `POST /api/media/{kind}/{target}` sends the image bytes directly. It requires

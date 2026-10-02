@@ -10,6 +10,7 @@ import { renderArticleContext, renderArticleReferences } from "./article-context
 import { editorValue, recordFieldControl } from "./record-field-controls.js";
 import { uiText, uiSourceLabel } from "./ui-localization.js";
 import "./codex-portrait-editor.js";
+import { artwork } from "../ui/artwork.js";
 import "./codex-record-twins.js";
 import { CodexCharacterProfile } from "./codex-character-profile.js";
 import { CodexMarkdownEditor } from "./codex-markdown-editor.js";
@@ -391,22 +392,7 @@ export class CodexRecordPage extends LitElement {
         <div class="record-reading-layout">
           <aside class="record-side">
             <header class="record-masthead">
-              ${
-                entity.portrait === undefined
-                  ? recordPlaceholder(
-                      entity,
-                      route.page.icon,
-                      "record-portrait record-portrait-placeholder",
-                    )
-                  : html`
-                <img
-                  class="record-portrait"
-                  src=${previewResourceURL(entity.portrait)}
-                  alt=""
-                  style=${entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`}
-                />
-              `
-              }
+              ${recordArtwork(entity, route.page.icon, `record-portrait${entity.portrait ? "" : " record-portrait-placeholder"}`)}
               <div>
                 <span class="record-kind">${route.page.singular}</span>
                 <h1 id="record-title">${entity.name}</h1>
@@ -1066,17 +1052,7 @@ export class CodexRecordPage extends LitElement {
 function recordRow(entity: EntitySummary, fallback: string, editHref?: string) {
   return html`<div class="record-row-shell ui-card">
     <a class=${`record-row${entity.portrait ? "" : " no-artwork"}`} href=${entity.route}>
-      ${
-        entity.portrait === undefined
-          ? recordPlaceholder(entity, fallback, "record-row-mark")
-          : html`<img
-            class="record-row-mark"
-            style=${entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`}
-            src=${previewResourceURL(entity.portrait)}
-            alt=""
-            loading="lazy"
-          />`
-      }
+      ${recordArtwork(entity, fallback, "record-row-mark", "lazy")}
       <span class="record-row-copy">
         <strong>${entity.name}</strong>
         ${entity.title === "" ? nothing : html`<span>${entity.title}</span>`}
@@ -1090,13 +1066,25 @@ function recordRow(entity: EntitySummary, fallback: string, editHref?: string) {
   </div>`;
 }
 
-function recordPlaceholder(entity: EntitySummary, fallback: string, className: string) {
+function recordArtwork(
+  entity: EntitySummary,
+  fallback: string,
+  className: string,
+  loading: "lazy" | "eager" = "eager",
+) {
   const portrait = entity.route.startsWith("#/characters/");
-  return html`<span class=${className} aria-hidden="true"
-    style=${portrait && entity.attitudeRing !== undefined ? `--attitude-ring: ${entity.attitudeRing}` : nothing}>
-    <span class="record-visual-glyph"
+  return artwork({
+    source: previewResourceURL(entity.portrait),
+    className,
+    loading,
+    style:
+      (portrait || entity.portrait !== undefined) && entity.attitudeRing !== undefined
+        ? `--attitude-ring: ${entity.attitudeRing}`
+        : undefined,
+    fallback: html`<span class="record-visual-glyph"
       style=${!portrait && entity.attitudeFilter !== undefined ? `--attitude-filter: ${entity.attitudeFilter}` : nothing}>${entity.icon ?? fallback}</span>
-  </span>`;
+    `,
+  });
 }
 
 interface ArticleSection {

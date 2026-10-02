@@ -214,6 +214,7 @@
   object-position: top;
   border-radius: 8px;
   box-shadow: var(--attitude-ring, 0 0 0 transparent);
+  font-size: 4rem;
 }
 
 .record-portrait-placeholder {

@@ -50,6 +50,36 @@ Visibility badges occupy the opposite corner. Artwork and fallback marks reserve
 the same media area (3:4 for character collection cards); artwork presence never
 selects a smaller card layout.
 
+## Entity artwork
+
+The host's [`ui/artwork.ts`](../../frontend/src/ui/artwork.ts) owns portrait and
+emblem loading for all nine entity collections, record articles, the party roster,
+companions and the portrait editor. Each view supplies its validated source,
+fallback, geometry, attitude treatment and optional accessible label. The native
+image uses a fixed wrapper rather than its intrinsic dimensions to size the slot.
+Both skins use the same [`artwork.css`](../../frontend/src/ui/artwork.css);
+`--ui-artwork-position` selects the crop position, with companions centered.
+
+Empty, loading and unavailable images keep the emblem visible. Loaded images
+replace it within the same bounds. A 404, denied read or browser decoding failure
+does not change the record, remove media, retry writes or collapse a card.
+Replacing the source creates a new native image; an earlier image's completion
+cannot change the current result, including when a URL is selected again.
+Disconnected completions are retained for the same Lit owner's reconnect. The
+editor owns its file and object URLs and renews a revoked preview on reconnect.
+
+This is the host's application of [native image load/error behavior](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/img),
+[Lit async directive lifetimes](https://lit.dev/docs/templates/custom-directives/#async-directives)
+and [`keyed` element replacement](https://lit.dev/docs/templates/directives/#keyed),
+reviewed October 2, 2026. Card/article artwork is decorative because nearby text
+names the entity; it follows [WAI decorative-image guidance](https://www.w3.org/WAI/tutorials/images/decorative/).
+Editor previews have an explicit localized image name, including the unavailable
+state. Fallbacks do not take focus or announce routine loads.
+
+The host renderer is internal. Integrated add-ons continue to own their media
+authorization, validated sources and DOM; this does not add an SDK method or
+change `ui.controls.v1`. Common image presentation remains in the shared skin.
+
 ## Public integration
 
 Declare required capability `ui.controls.v1`. The capability adds no data or

@@ -954,7 +954,7 @@ void test("card and article glows surround portraits and follow icon silhouettes
   ryn.value.portrait = imageURL;
   ryn.revision++;
   await changed(page, "characters");
-  await page.locator("img.record-portrait").waitFor();
+  await page.locator(".record-portrait img").waitFor();
   assert.equal(
     await page.locator(".record-portrait").evaluate((node) => getComputedStyle(node).boxShadow),
     ring,

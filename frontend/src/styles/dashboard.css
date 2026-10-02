@@ -201,13 +201,6 @@ codex-dashboard {
     0 0 0 2px rgba(var(--gold-muted), 0.25);
 }
 
-.party-portrait img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: top;
-}
-
 .party-member-copy {
   width: 100%;
   text-align: center;
@@ -267,6 +260,7 @@ codex-dashboard {
 }
 
 .companion-mark {
+  --ui-artwork-position: center;
   display: grid;
   width: 56px;
   height: 56px;
@@ -276,12 +270,6 @@ codex-dashboard {
   background: var(--bg-surface);
   font-size: 1.6rem;
   box-shadow: 0 0 0 2px rgba(var(--gold-muted), 0.2);
-}
-
-.companion-mark img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .companion strong {

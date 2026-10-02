@@ -1,0 +1,40 @@
+.ui-artwork {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  object-fit: cover;
+  object-position: var(--ui-artwork-position, top);
+}
+
+.ui-artwork:is([data-ui-artwork-state="loading"], [data-ui-artwork-state="unavailable"]) {
+  background: var(--bg-surface);
+}
+
+.ui-artwork > img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border-radius: inherit;
+  object-fit: inherit;
+  object-position: inherit;
+  opacity: 0;
+}
+
+.ui-artwork[data-ui-artwork-state="ready"] > img {
+  opacity: 1;
+}
+
+.ui-artwork[data-ui-artwork-state="unavailable"] > img,
+.ui-artwork[data-ui-artwork-state="ready"] > .ui-artwork-fallback {
+  visibility: hidden;
+}
+
+.ui-artwork-fallback {
+  grid-area: 1 / 1;
+  line-height: 1;
+}

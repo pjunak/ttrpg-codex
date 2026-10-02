@@ -303,7 +303,7 @@ void test("direct fields and the wiki commit independently through the authentic
   await page.getByLabel("Choose portrait", { exact: true }).setInputFiles(await picture(page));
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await page.waitForFunction(
-    () => document.querySelector<HTMLImageElement>(".record-portrait")?.naturalWidth === 96,
+    () => document.querySelector<HTMLImageElement>(".record-portrait img")?.naturalWidth === 96,
   );
   assert.equal((await record(key)).value.name, "After");
 });
@@ -340,7 +340,7 @@ for (const mobile of [false, true])
     await page.reload();
     await page.locator(".record-portrait").waitFor();
     await page.waitForFunction(
-      () => document.querySelector<HTMLImageElement>(".record-portrait")?.naturalWidth === 96,
+      () => document.querySelector<HTMLImageElement>(".record-portrait img")?.naturalWidth === 96,
     );
     await edit(page);
     await page
@@ -358,7 +358,7 @@ for (const mobile of [false, true])
     await page.getByRole("button", { name: "Remove portrait", exact: true }).click();
     await page.getByRole("button", { name: "Undo portrait change", exact: true }).click();
     assert.equal(
-      await page.getByRole("img", { name: "Portrait preview" }).getAttribute("src"),
+      await page.getByRole("img", { name: "Portrait preview" }).locator("img").getAttribute("src"),
       second.value.portrait,
     );
     await page.getByRole("button", { name: "Remove portrait", exact: true }).click();
@@ -367,7 +367,7 @@ for (const mobile of [false, true])
     assert.equal((await context.request.get(second.value.portrait)).status(), 200);
     await page.reload();
     await page.locator("#record-title").waitFor();
-    assert.equal(await page.locator("img.record-portrait").count(), 0);
+    assert.equal(await page.locator(".record-portrait img").count(), 0);
   });
 
 void test("failed uploads and rejected record saves keep the portrait draft and original record", async (t) => {
@@ -391,7 +391,11 @@ void test("failed uploads and rejected record saves keep the portrait draft and 
   assert.equal((await record(key)).value.name, "Original");
   assert.equal(await page.getByLabel("Name", { exact: true }).inputValue(), "Draft name");
   assert.match(
-    await page.getByRole("img", { name: "Portrait preview" }).getAttribute("src").then(required),
+    await page
+      .getByRole("img", { name: "Portrait preview" })
+      .locator("img")
+      .getAttribute("src")
+      .then(required),
     /^blob:/,
   );
   await page.unroute("**/api/media/character-portrait/*");
@@ -402,7 +406,11 @@ void test("failed uploads and rejected record saves keep the portrait draft and 
   await page.getByText("The entry or its relationships changed.", { exact: false }).waitFor();
   assert.equal((await record(key)).value.portrait, undefined);
   assert.match(
-    await page.getByRole("img", { name: "Portrait preview" }).getAttribute("src").then(required),
+    await page
+      .getByRole("img", { name: "Portrait preview" })
+      .locator("img")
+      .getAttribute("src")
+      .then(required),
     /^blob:/,
   );
   await page.unroute("**/api/campaign/transactions");
@@ -440,3 +448,65 @@ void test("portrait controls localize, explain creation and obey signed-in visib
     .waitFor();
   assert.equal(await page.locator('codex-portrait-editor input[type="file"]').count(), 0);
 });
+
+for (const unavailable of ["deleted", "private"] as const)
+  void test(`a ${unavailable} portrait retains its record and public fallback without changing media authority`, async (t) => {
+    const key = "unavailable-" + unavailable;
+    await put(key, {
+      name: "Retain this portrait reference",
+      knowledge: 4,
+      visibility: unavailable === "private" ? "dm" : "public",
+      extension: { keep: true },
+    });
+    const media = await jsonResponse(
+      await admin.post(`/api/media/character-portrait/${key}`, {
+        headers: {
+          "X-Codex-CSRF": csrf,
+          "Content-Type": "image/svg+xml",
+          "X-Codex-Filename": "portrait.svg",
+        },
+        data: '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="green"/></svg>',
+      }),
+    );
+    await put(
+      key,
+      {
+        name: "Retain this portrait reference",
+        knowledge: 4,
+        visibility: "public",
+        portrait: media.url,
+        extension: { keep: true },
+      },
+      1,
+    );
+    if (unavailable === "deleted") {
+      const response = await admin.delete(media.url, {
+        headers: { "X-Codex-CSRF": csrf },
+        data: { contractVersion: "media-delete.v1", expectedRevision: media.revision },
+      });
+      assert.ok(response.ok());
+    }
+    const before = await record(key);
+    const { page, context } = await open(t, key, true, null);
+    assert.equal((await context.request.get(media.url)).status(), 404);
+    await page.waitForFunction(
+      () =>
+        document.querySelector(".record-portrait")?.getAttribute("data-ui-artwork-state") ===
+        "unavailable",
+    );
+    assert.ok(await page.locator(".record-portrait .ui-artwork-fallback").isVisible());
+    assert.equal(await page.locator(".record-portrait img").isVisible(), false);
+    assert.equal(await page.locator("codex-portrait-editor").count(), 0);
+    assert.deepEqual(await record(key), before, "fallback never changes authored records");
+    assert.equal((await admin.get(media.url)).status(), unavailable === "private" ? 200 : 404);
+    if (unavailable === "private") {
+      const dm = await open(t, key, false, "dm");
+      await dm.page.waitForFunction(
+        () => document.querySelector<HTMLImageElement>(".record-portrait img")?.naturalWidth === 96,
+      );
+      assert.equal(
+        await dm.page.locator(".record-portrait").getAttribute("data-ui-artwork-state"),
+        "ready",
+      );
+    }
+  });

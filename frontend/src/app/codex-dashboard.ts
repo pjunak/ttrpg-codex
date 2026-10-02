@@ -1,5 +1,6 @@
 import { previewResourceURL } from "../core/player-preview.js";
 import { cardEditLink } from "../ui/card-actions.js";
+import { artwork } from "../ui/artwork.js";
 import { LitElement, html, nothing } from "lit";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import {
@@ -283,7 +284,7 @@ export class CodexDashboard extends LitElement {
   #companion(companion: EntitySummary) {
     return html`<div class="party-record-card ui-card">
       <a class="companion" href=${companion.route}>
-        <span class="companion-mark" aria-hidden="true">${companion.portrait === undefined ? (companion.icon ?? "🐾") : html`<img src=${previewResourceURL(companion.portrait)} alt="" loading="lazy" />`}</span>
+        ${artwork({ source: previewResourceURL(companion.portrait), className: "companion-mark", fallback: companion.icon ?? "🐾", loading: "lazy" })}
         <strong>${companion.name}</strong>
         ${companion.title === "" ? nothing : html`<span>${companion.title}</span>`}
       </a>${this.#cardEdit(companion)}
@@ -350,12 +351,14 @@ export class CodexDashboard extends LitElement {
 }
 
 function portrait(entity: EntitySummary) {
-  const style =
-    entity.attitudeRing === undefined ? nothing : `--attitude-ring: ${entity.attitudeRing}`;
-  if (entity.portrait !== undefined) {
-    return html`<span class="party-portrait" style=${style}><img src=${previewResourceURL(entity.portrait)} alt="" loading="lazy" /></span>`;
-  }
-  return html`<span class="party-portrait portrait-fallback" style=${style} aria-hidden="true">${entity.icon ?? "🛡"}</span>`;
+  return artwork({
+    source: previewResourceURL(entity.portrait),
+    className: `party-portrait${entity.portrait === undefined ? " portrait-fallback" : ""}`,
+    fallback: entity.icon ?? "🛡",
+    style:
+      entity.attitudeRing === undefined ? undefined : `--attitude-ring: ${entity.attitudeRing}`,
+    loading: "lazy",
+  });
 }
 
 function safeToken(value: string): string {

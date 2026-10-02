@@ -346,6 +346,7 @@ export const sourceCs = {
   "Upload portrait": "Nahrát portrét",
   "Replace portrait": "Nahradit portrét",
   "Choose portrait": "Vybrat portrét",
+  "Portrait preview unavailable": "Náhled portrétu není dostupný",
   "Remove portrait": "Odstranit portrét",
   "Undo portrait change": "Vrátit změnu portrétu",
   "PNG, JPEG, WebP, GIF or SVG, up to 20 MiB. Changes apply when you save the entry.":

@@ -564,8 +564,8 @@ for (const scenario of [
       await page.goto(origin + "/#/" + route);
       const cards = page.locator(".record-row-shell");
       await cards.nth(1).waitFor();
-      const image = page.locator("img.record-row-mark"),
-        fallback = page.locator("span.record-row-mark");
+      const image = page.locator('.record-row-mark[data-ui-artwork-state="ready"] img'),
+        fallback = page.locator('.record-row-mark[data-ui-artwork-state="empty"]');
       await image.evaluate((node: HTMLImageElement) => node.decode());
       const art = required(await image.boundingBox()),
         mark = required(await fallback.boundingBox());

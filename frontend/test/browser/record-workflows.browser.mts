@@ -1558,8 +1558,8 @@ for (const mobile of [false, true])
               path: resolve(output, "compact-profile-" + suffix + ".png"),
             });
           await dm.page.goto("/#/characters/" + key + "-rich");
-          await dm.page.locator("img.record-portrait").waitFor();
-          const art = await dm.page.locator("img.record-portrait").boundingBox();
+          await dm.page.locator(".record-portrait img").waitFor();
+          const art = await dm.page.locator(".record-portrait img").boundingBox();
           assert.ok(art && Math.abs(art.width / art.height - 0.75) < 0.02);
           await dm.page.goto("/#/factions/" + key + "-faction");
           await dm.page.locator("#record-title").waitFor();
@@ -1588,8 +1588,8 @@ for (const mobile of [false, true])
               exact: true,
             })
             .click();
-          await list.locator("img.record-row-mark").waitFor();
-          const cardArt = await list.locator("img.record-row-mark").boundingBox();
+          await list.locator(".record-row-mark img").waitFor();
+          const cardArt = await list.locator(".record-row-mark img").boundingBox();
           assert.ok(cardArt && Math.abs(cardArt.width / cardArt.height - 0.75) < 0.02);
           if (process.env["CODEX_UI_SCREENSHOTS"] === "1")
             await dm.page.screenshot({
