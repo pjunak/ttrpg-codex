@@ -5700,3 +5700,79 @@ The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
 **33/40 original rows closed (83%)**. T18-WRITER-HOST closes this concrete
 transport slice; historical failure attribution, authorized live-site
 maintenance/activation, and human/device acceptance remain open.
+
+## October 2 worker peer closure and queued routing
+
+October 2, 2026. Host `8463f4a` fixes a separately reproduced peer lifetime gap.
+A frame completing an already pending read after `Close` could still invoke a
+new handler. Wholly unsent calls, replies and cancellation notices could remain
+behind the writer after the peer stopped, retaining admission and eventually
+publishing work after closure. Eleven controlled cases fail on preceding host
+`a634218`, covering domain/control requests, success/failure replies, explicit
+closure and a distinct transport error. This is independent evidence; it does
+not establish the cause of the historical T53 or T57/T18-DM failures.
+
+The peer now owns cancellation for reads, incoming contexts, replies and
+cancellation notices, rejects closed incoming admission, and discards frames
+that complete a pending read after closure. Each outgoing call retains its
+cancellation ownership until `Call` returns, including when an early response
+has already removed its pending entry. Closure releases queued writes with the
+original terminal cause. Caller contexts remain intact, preserving immediate
+cancellation, shorter deadlines and interrupted-frame detection. No request is
+replayed; wire schemas, permissions, domain/control capacity, health deadlines,
+failure categories and restart policy remain unchanged. Stream owners still
+close I/O already blocked in the operating system; handlers must cooperate.
+
+Validation:
+
+- **13 controlled closure cases** pass, including two added early-response cases
+  proving an unsent request cannot escape cancellation after its pending entry
+  is resolved. Queued-write cases retain the held writer until cancelled work releases;
+  no additional peer frame is published. Full RPC/supervisor tests pass, including
+  the existing immediate partial-frame cancellation regression.
+- Uncached race checks pass for the RPC SDK, supervisor, package manager and
+  service broker. Complete host `npm run check` passes source/type/lint/format,
+  Go vet/Staticcheck, **85 tool tests, 585 unit tests and 342 browser tests**, all
+  Go tests and its selected race packages. Its **198 optional installed skips**
+  are reported separately.
+- Engine's complete Go analysis/test/race gate passes. Sheets passes **40 module
+  tests** and Go/race checks. DM Tools passes **58 tests**, **28 rendering checks
+  at each DPR 1/2**, and Go/race checks. Companion tracked files and source pins
+  remain unchanged.
+- All three native ZIPs are rebuilt against the fixed SDK; all four packages
+  pass host inspection. Compendium has no native worker and retains its existing
+  inspected ZIP.
+- **14/14 selected installed cases** pass with zero failures, cancellations or
+  skips: character policy, EN/CS multiclass source/provider replacement sessions,
+  planner group selection, held/rejected planner startup on desktop/phone,
+  source/provider Settings and all four installed Engine source/provider cases.
+  EN/CS session checkpoints reach **56,596 / 50,538 ms** within the unchanged
+  120-second deadline. Group selection passes in 4,458 ms; that pass does not
+  explain its historical pre-action canvas timeout. This is scoped acceptance,
+  not a new complete 277-case installed-suite run.
+- All **33 unchanged historical product-parity gates** pass. Changed owner,
+  public-contract, backlog and acceptance document links/anchors are verified.
+
+Tested provenance records `a634218` plus the runtime patch with host dirtiness
+and four clean companion sources. Reinspection after committing the same source
+records clean host `8463f4a` and identical package hashes. Logs and both provenance
+records are retained under `frontend/test-results/current-peer-lifetime-*`.
+
+| Package | Source commit | Inspected ZIP SHA-256 |
+| --- | --- | --- |
+| DM Tools | `117487b` | `b1210d6c4a5667a293315eab7f9603d9dc829304572a4016aad622c9359fc73a` |
+| Engine | `c4063b5` | `7716db233ac95a1019b83fa46c6764b2d91685d94425af50301845afc69198bf` |
+| Sheets | `8853959` | `287d7a6fba1103debd77e02169b6bad117905e9e3c5b4bb4083a343f238b06e9` |
+| Compendium | `3463daf` | `1ab7306f44b73a0146c89b8b48b875e2c96a4f452a22fb58d53f59985a3cc828` |
+
+Implementation and owning/public worker contracts are committed locally;
+publication, deployment and add-on activation have not occurred. The host image
+changes only the host peer; installed native workers need rebuilt/reviewed ZIPs
+to receive their side of the SDK repair. Native Windows execution is verified
+here; native Linux execution and live-site recovery remain delivery acceptance.
+
+The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
+**33/40 original rows closed (83%)**. These are effort estimates, not percentages
+derived from the number of small completed slices. T18-PEER-HOST closes this
+concrete transport defect; historical failure attribution, authenticated site
+maintenance/activation and human/device acceptance remain open.

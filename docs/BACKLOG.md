@@ -9,7 +9,7 @@ references; their detailed findings and the unchanged accepted release gates liv
 **Progress estimate, October 2:** about **97% implemented**, or **95%**
 including remaining workflow, release and site acceptance. These are approximate
 effort estimates, with plausible ranges of 93–98% and 91–97%, respectively.
-[Current estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-worker-writer-cancellation-and-blocked-input).
+[Current estimate and counting method](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-worker-peer-closure-and-queued-routing).
 **Original rows closed:** 33 of 40 (83%); open workflow tasks contain completed
 slices. Compact character and large planning sessions are accepted; smaller UI
 refinements, unexplained failures and human/device checks remain visible below.
@@ -99,6 +99,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T57-STARTUP-HOST — Allow sign-out during stalled add-on activation**~~ — `83647ab`; cancel partial generations immediately, reject stale activation and dispose late resources once; [controlled before/after evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancellable-startup-and-worker-health-admission).
 - [x] ~~**T18-HEALTH-HOST — Keep healthy workers available during domain saturation**~~ — `66f8cbd`; bounded, separate health/shutdown admission in the shared Go SDK, with blocked-output and native-process regressions; [cause, package evidence and delivery boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#cancellable-startup-and-worker-health-admission).
 - [x] ~~**T18-WRITER-HOST — Honor queued worker deadlines and stop interrupted frames**~~ — `bd9cb98`; cancel unsent writer waits, reject incomplete frame streams and let health deadlines terminate blocked native input; eight controlled cases, race checks and 13 installed provider/startup workflows. [Cause, rebuilt packages and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-worker-writer-cancellation-and-blocked-input).
+- [x] ~~**T18-PEER-HOST — Stop late worker routing and queued writes on closure**~~ — `8463f4a`; discard pending-read frames, cancel queued calls/replies/notices and preserve terminal errors; 13 controlled cases, race checks and 14 installed workflows. [Cause, rebuilt packages and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-worker-peer-closure-and-queued-routing).
 - [x] ~~**T57-CAMPAIGN-HOST — Release obsolete campaign reads during sign-out**~~ — `6f6d67a`; cancel old authority requests and queued work, reject late bodies/errors and preserve serialized current reads; [controlled failure and repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#campaign-read-cancellation-and-equipment-source-coverage).
 - [x] ~~**T57-EVIDENCE — Preserve separate character setup and service failures**~~ — bounded host output, stage/status/process records, transport capture and original errors survive artifact-write failure; [regressions and controlled setup failure](rewrite/HOST_CLEANUP_ACCEPTANCE.md#failed-recovery-starts-and-retained-fixture-evidence).
 - [x] ~~**T63-CATALOG-HOST — Accept source folders and seven-book wearable placements**~~ — EN/CS Compact/Classic filtering, keyboard search, cancel, enlarged phone controls and exact saved placement reload; [installed acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#campaign-read-cancellation-and-equipment-source-coverage).
@@ -137,7 +138,7 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   timeline/settings captures and the separate character-fixture failure records.
   Preserve deadlines and assertions; [T61 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
   Separately reproduced request, session, write, restore, Settings, Account,
-  health-check and worker-writer defects are
+  health-check, worker writer and peer closure defects are
   fixed above; their evidence does not explain these historical timeouts.
   September 28 also retained Chromium `ERR_NO_BUFFER_SPACE` failures before DM
   panel/schema-review navigation. The first exactly matches Windows TCP port
@@ -160,7 +161,7 @@ migrations need a concrete preservation case; site operations need separate auth
 | ID | Priority | Remaining work and completion condition |
 | --- | --- | --- |
 | T08 | P2, partial | Guided healing, explicit current-save reset and automatic update recovery are complete. Remaining: reviewed value-transforming operations when a concrete preservation case requires converting incompatible JSON. Keep exact plans, atomic commits, stale rejection and recovery; no guessed values or startup converter. [Boundary](rewrite/ADDON_DATA.md#remaining-public-surface). |
-| T15 | P1, operational, partial | Host publication, both rollouts and public frontend/health checks are verified for `aa7ab3c`; fully loaded public portraits pass on both sites. Remaining: authenticated manager and full backup with the matching maintenance binary, intended add-on activation review per site, and authorized publication/live verification of the repaired fallback and preview behavior. [Current media acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-shared-artwork-and-portrait-preview-recovery); [delivery](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-1-cleanup-publication-and-both-site-rollouts); [runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
+| T15 | P1, operational, partial | Host publication, both rollouts and public frontend/health checks are verified for `aa7ab3c`; fully loaded public portraits pass on both sites. Remaining: authenticated manager and full backup with the matching maintenance binary, intended add-on activation review per site, and authorized publication/live verification of the shared media and worker repairs. Native workers need rebuilt/reviewed ZIPs as well as the host image. [Media acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-shared-artwork-and-portrait-preview-recovery); [worker acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-worker-peer-closure-and-queued-routing); [delivery](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-1-cleanup-publication-and-both-site-rollouts); [runbook](SELF_HOSTING.md#publishing-and-deploying-updates). |
 | T16 | P2, operational | After deployment, verify Asurai retains only its selected add-on builds and campaign recovery remains available after obsolete add-on contexts are retired. Implementation is complete; the browser helper failure prevented live inspection/cleanup. Existing ZIP backups stay intact. [Evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#asurai-saved-packages-and-recovery-retention). |
 | T17 | P2, operational | Recheck Tiamat's intended add-on state, stored data and wanted packages before activation/retirement. Asurai's reset authorization does not apply to Tiamat. |
 
@@ -295,8 +296,8 @@ Consumes optional `dnd5e.rules-data` v3 and provides `dnd5e.rules-engine` v4.
   separate setup/service failure records are now retained. T54's 13-case
   diagnostic replay passed without reproducing it; no cause is established.
   The host SDK fixes independently reproduced health failure under domain
-  saturation and interrupted/blocked writer handling, but the original T53 run
-  lacks evidence attributing it to either cause.
+  saturation, interrupted/blocked writer handling and peer closure, but the
+  original T53 run lacks evidence attributing it to these defects.
 
 Engine fixes must expose results/guidance through the versioned contract; no
 edition rules in Sheets controls, provider-ID special cases or combat resolver.
