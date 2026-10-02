@@ -1,6 +1,6 @@
 # Project backlog
 
-Work for the five repositories, updated October 2, 2026. This remains
+Work for the five repositories, updated October 3, 2026. This remains
 one suite backlog; each task belongs to the repository that owns its change.
 Completed fix batches stay in compact checked, struck-through lists with commit
 references; their detailed findings and the unchanged accepted release gates live in the
@@ -158,6 +158,11 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
   wording and repeated multiclass evaluations are repaired above; [current delivery](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-1-cleanup-publication-and-both-site-rollouts).
   The first cancelled run had no per-test output, so its exact stopping point
   cannot be reconstructed. This does not attribute the earlier startup failures.
+  Latest published main `91579cc` failed the phone rejected-read fixture in
+  [run 36961179226](https://github.com/pjunak/ttrpg-codex/actions/runs/36961179226):
+  276/277 installed passes, zero skips; image and deployment jobs were skipped.
+  The pending fixture repair passes all four startup cases locally; Linux
+  acceptance remains required. [October 3 delivery review](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-3-delivery-readiness-and-latest-ci).
 
 ### Lifecycle, maintenance and operations
 

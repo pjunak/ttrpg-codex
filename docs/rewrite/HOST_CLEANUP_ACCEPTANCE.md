@@ -6188,3 +6188,61 @@ The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
 **33/40 original rows closed (83%)**. T57-HEALTH-COMPLETION-HOST closes these
 concrete monitor defects. Passing installed suites do not attribute the historical
 failures; authenticated site operations and human/device acceptance remain open.
+
+## October 3 delivery readiness and latest CI
+
+October 3, 2026. A fresh fetch confirms clean host `18a4ac2`, eleven commits
+ahead of published main `91579cc`; DM Tools `316399a` and Engine `f19f634`
+are each one commit ahead, and Sheets `d35a33e` is two ahead. Compendium
+`3463daf` remains aligned. This is fifteen pending commits across four repos,
+before this documentation checkpoint; no publication or deployment occurred.
+
+The latest main [Build and dispatch run 36961179226](https://github.com/pjunak/ttrpg-codex/actions/runs/36961179226)
+passed the host test and deployment-configuration jobs. Installed compatibility
+reported **276/277 passes**, one failure and zero cancellations or skips:
+`installed planner recovers rejected startup reads on phone` waited 30 seconds
+for `.dm-tools-planner [role=alert]`. Image build and both deployment jobs were
+skipped. This run produced no new image; **Deploy published release** cannot
+recover it. Its only uploaded artifact is `companion-provenance`; the trace path
+printed in the log is not a retrievable CI artifact.
+
+Pending host `b583051` repairs fault targeting in this same fixture. The
+[separate retained local failure](#october-2-frozen-native-build-dependencies)
+proves an opening overview read could consume the injected rejection before
+the planner mounted. Without the original CI trace, that exact sequence is not
+claimed for run 36961179226. A fresh focused run on `18a4ac2` passes **4/4**
+held/rejected startup cases on desktop/phone, with zero failures, cancellations
+or skips. The phone trace retains the injected 503 and all recovery/no-write
+assertions still pass. The inspected DM Tools ZIP remains
+`fe6b47ad85a68179087dd583cfa94a75d848d8828ba1c1861ad7d89bea5a9329`.
+This complements the previous complete **278/278** local acceptance; it does
+not establish Linux acceptance of the pending source set.
+
+GitHub's actual latest-release endpoint and successful publisher jobs confirm
+existing releases for [DM Tools `117487b`](https://github.com/pjunak/addon-dm-tools/releases/tag/build-117487b86307c8e7ee2f7d69327a13f55bf5bdfe),
+[Engine `c4063b5`](https://github.com/pjunak/addon-dnd-engine/releases/tag/build-c4063b55ddbded24f4ce6af77a8e924f0dc6a7f7)
+and [Sheets `8853959`](https://github.com/pjunak/addon-dnd-character-sheets/releases/tag/build-885395941f2df8e52e3a65e85034961c9f7a0d30).
+The first item in the release-list endpoint was older for DM Tools and Sheets;
+that list alone does not identify the selected latest release. The host's
+package source already uses the correct latest-release endpoint.
+
+The newly pinned SDK `8463f4aa1e38a1b7e3078fe1408f3a204fb4c902` is not yet
+available through GitHub's commit endpoint. Authorized delivery must publish
+that dependency on a nondeploying host branch, publish and verify the dependent
+companion releases, then publish the tested host revision and verify both site
+rollouts. Explicit approval for that sequence is pending; the earlier approval
+covered the already delivered nine-commit batch.
+
+Read-only browser inventory was attempted twice and once after a session reset.
+Each helper exited before exposing a session with `apply deny-read ACLs`.
+No authenticated live state was inspected or changed. Matching-binary full
+backup, intended package review, independent recovery acceptance, existing
+consequence-target checks and human touch/spoken-screen-reader/paper-print
+results remain unverified. No concrete new preservation case requires the
+conditional T08 value-transforming migration surface.
+
+External metadata, the four-case log and traces remain ignored under
+`frontend/test-results/current-finalization-*` and `frontend/test-results/traces/`.
+The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
+**33/40 original rows closed (83%)**. This checkpoint updates delivery evidence;
+it does not close the remaining operational or historical-attribution rows.
