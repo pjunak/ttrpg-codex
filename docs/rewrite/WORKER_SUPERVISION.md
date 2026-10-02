@@ -170,7 +170,14 @@ service access. One pending observation per worker prevents overlapping polls
 from duplicating probes. Results apply only to the same active state and runtime
 observation; disable, replacement, reload and same-package recovery invalidate
 obsolete results. Monitor cancellation releases its pending observations without
-consuming a retry. Lifecycle transitions remain serialized through the package
+consuming a retry. Probe completion must still fit its own health deadline:
+an `ok` or `degraded` reply returned after that deadline is a failed observation.
+The coordinator checks the probe context before releasing it, so its own cleanup
+cancellation cannot turn a timely reply into failure. Supported lifecycle
+categories returned by the probe, including `TRANSPORT_FAILED`, remain specific
+in the retained diagnostic and recovery event; untyped or unsupported probe
+errors use `HEALTH_FAILED`. This does not forcibly stop synchronous probe code.
+Lifecycle transitions remain serialized through the package
 manager. A valid `degraded` result keeps the runtime available but does not count
 toward stability. A crash, invalid health
 result or timeout withdraws the failed runtime and its affected live consumers.
@@ -228,6 +235,9 @@ hangs, backoff/exhaustion, stable/degraded periods, corrupt saved packages,
 generation replacement, explicit recovery and shutdown cancellation. Native
 subprocess tests prove crash/health-timeout termination and fresh-process restart,
 and preserve a healthy process while its single domain slot remains occupied.
+`monitor_completion_test.go` rejects expired `ok`/`degraded` completions, retains
+timely controls and verifies that a malformed native health frame keeps its
+transport category, redaction, bounded backoff and fresh-process recovery.
 `transport_cleanup_test.go` drives the real peer reader with an OS pipe to verify
 that intentional cleanup does not race a clean shutdown into failure, while
 unexpected closure and protocol errors retain their failure category.

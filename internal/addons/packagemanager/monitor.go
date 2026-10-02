@@ -170,15 +170,7 @@ func (manager *Manager) workerFailureLocked(ctx context.Context, state State, ca
 	watch.failures++
 	watch.blocked, watch.readySince, watch.retryAt = true, time.Time{}, time.Time{}
 	decision := manager.monitoring.config.RestartPolicy.Decide(watch.failures)
-	code := workersupervisor.CodeProcessExited
-	var lifecycle *workersupervisor.LifecycleError
-	if errors.As(cause, &lifecycle) {
-		switch lifecycle.Code {
-		case workersupervisor.CodeSpawnFailed, workersupervisor.CodeStartupFailed, workersupervisor.CodeStartupTimed,
-			workersupervisor.CodeHealthFailed, workersupervisor.CodeProcessExited, workersupervisor.CodeTransportFailed:
-			code = lifecycle.Code
-		}
-	}
+	code := workerFailureCode(cause, workersupervisor.CodeProcessExited)
 	// Health details and raw worker output are not an administrative diagnostic API.
 	watch.message = code + ": worker unavailable; automatic recovery paused. Use Reload to retry."
 	if decision.Allowed {
@@ -188,6 +180,18 @@ func (manager *Manager) workerFailureLocked(ctx context.Context, state State, ca
 	if err := manager.store.recordFailure(ctx, state.AddonID, state.ActiveGenerationID, "worker-unavailable", errors.New(watch.message)); err != nil {
 		manager.logger.Error("record worker availability", "addonId", state.AddonID, "error", err)
 	}
+}
+
+func workerFailureCode(cause error, fallback string) string {
+	var lifecycle *workersupervisor.LifecycleError
+	if errors.As(cause, &lifecycle) {
+		switch lifecycle.Code {
+		case workersupervisor.CodeSpawnFailed, workersupervisor.CodeStartupFailed, workersupervisor.CodeStartupTimed,
+			workersupervisor.CodeHealthFailed, workersupervisor.CodeProcessExited, workersupervisor.CodeTransportFailed:
+			return lifecycle.Code
+		}
+	}
+	return fallback
 }
 func (manager *Manager) workerDeferredLocked(state State) bool {
 	watch := manager.watchForStateLocked(state)
@@ -254,9 +258,15 @@ func (manager *Manager) checkWorkers(ctx context.Context) error {
 		if observation.probe != nil {
 			healthCtx, cancel := context.WithTimeout(ctx, manager.monitoring.config.HealthTimeout)
 			observation.health, observation.failure = observation.probe.Health(healthCtx)
+			// Observe the deadline before cleanup cancels a timely probe.
+			if observation.failure == nil {
+				observation.failure = healthCtx.Err()
+			}
 			cancel()
 			if observation.failure != nil || (observation.health.Status != "ok" && observation.health.Status != "degraded") {
-				observation.failure = &workersupervisor.LifecycleError{Code: workersupervisor.CodeHealthFailed, Cause: observation.failure}
+				observation.failure = &workersupervisor.LifecycleError{
+					Code: workerFailureCode(observation.failure, workersupervisor.CodeHealthFailed), Cause: observation.failure,
+				}
 			}
 		}
 	}

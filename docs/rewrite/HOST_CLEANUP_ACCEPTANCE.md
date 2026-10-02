@@ -6113,3 +6113,78 @@ The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
 **33/40 original rows closed (83%)**. T57-HANDOFF-HOST closes this concrete
 runtime-replacement defect. Historical failure attribution, authenticated site
 operations and human/device acceptance remain open.
+
+## October 2 health probe completion and native causes
+
+October 2, 2026. The host coordinator has two independently reproduced health
+result-handling gaps. A probe that returns `ok` or `degraded` after its own
+deadline remains available without consuming recovery backoff. A real native
+worker that emits a malformed frame during its post-start health exchange fails
+with `TRANSPORT_FAILED`, but the coordinator replaces that diagnostic category
+with `HEALTH_FAILED`.
+
+All **three controlled failure cases fail before the fix**. Both timely health
+controls pass. The native case observes a failed, reaped process with a transport
+category before checking the coordinator's retained administrative snapshot;
+it also exercises bounded backoff and a fresh recovered worker. This establishes
+these defects independently of the historical T53 provider loss and T57/T18-DM
+startup failures.
+
+The coordinator now checks its effective probe context immediately after health
+returns and before its cleanup cancellation. Expired successful replies enter
+the existing failure/cohort/backoff path; timely `ok` and `degraded` remain valid.
+The existing supported lifecycle-category projection is shared between probe
+completion and failure retention, preserving native transport causes without
+accepting arbitrary error text. Untyped or unsupported probe errors retain the
+health-failure fallback. The [coordinator contract](WORKER_SUPERVISION.md#restart-policy)
+defines deadlines, cancellation, redaction and recovery.
+
+The configured deadlines, retry budget, dependency order, public SDK/wire,
+permissions, provider selection, package versions, durable activation and current
+saves are unchanged. Synchronous probe code must still cooperate with cancellation;
+this does not forcibly stop custom code or replay domain operations. No companion
+source change or native package rebuild is needed: all four clean companion source
+commits and ZIP hashes match the [frozen source set](#october-2-frozen-native-build-dependencies).
+
+Validation:
+
+- **3/3 failure regressions and both timely controls** pass in the complete,
+  uncached package-manager and supervisor suites. Tests verify withdrawal,
+  service availability, unchanged durable selection, observation release,
+  redacted native diagnostics, the one-second initial backoff and a fresh PID.
+- Uncached packagemanager, workersupervisor, servicebroker and requestcontext
+  race suites pass; the package-manager race suite completes in 63.947 seconds.
+  Existing cancellation, duplicate-probe, stale-observation, degraded/stable,
+  transitive/optional recovery and native health-admission controls stay covered.
+- Final host `npm run check` passes **85 tool tests, 585 unit tests and 342 browser
+  tests**, all Go tests and its selected race packages. Its **199 optional installed
+  skips** are separate from package acceptance.
+- All four ZIPs pass inspection and SHA-256/source-pin verification. The production
+  frontend builds, and all **33 unchanged product-parity release gates** pass.
+- Before this monitor correction, the complete installed suite against clean host
+  `e6156dc` passes **278/278**, with zero failures, cancellations or skips, accepting
+  the accumulated artwork, worker, deadline and runtime-handoff fixes. Its EN/CS
+  whole-session restored-state checkpoints reach **60,232 / 57,599 ms** within
+  their unchanged 120-second deadlines.
+- After the monitor correction, final complete installed acceptance passes
+  **278/278** with zero failures, cancellations or skips. All eight suite files
+  use the same four inspected packages. The EN/CS restored-state checkpoints
+  reach **58,168 / 51,557 ms** within their unchanged limits; Settings/lifecycle,
+  native Reload, compendium, rules, planning, imports and both browser integration
+  modes remain accepted. No source/hash pin or test deadline was relaxed.
+- All **340 local document links and anchors** resolve; the final diff passes
+  whitespace checks.
+
+Baseline full-suite/build evidence remains under
+`frontend/test-results/current-installed-readiness-*`. Monitor before/after
+regressions, races, the final host gate, release gates, inspection and final
+installed acceptance remain under `frontend/test-results/current-health-completion-*`.
+Tested provenance records host `e6156dc` plus this monitor patch and the same four
+clean companion sources. No push, publication, deployment, site data change or
+add-on activation occurred. Linux delivery and live-site workflows remain separate
+acceptance.
+
+The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
+**33/40 original rows closed (83%)**. T57-HEALTH-COMPLETION-HOST closes these
+concrete monitor defects. Passing installed suites do not attribute the historical
+failures; authenticated site operations and human/device acceptance remain open.

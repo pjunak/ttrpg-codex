@@ -386,6 +386,11 @@ func TestMonitoredNativeWorkerProcess(t *testing.T) {
 		}),
 		Health: func(ctx context.Context) (workerrpc.NativeWorkerHealth, error) {
 			checks++
+			if checks > 1 && mode == "health-transport" {
+				_, _ = fmt.Fprint(os.Stdout, "Content-Length: not-a-number\r\n\r\n")
+				<-ctx.Done()
+				return workerrpc.NativeWorkerHealth{}, ctx.Err()
+			}
 			if checks > 1 && mode == "held-health" {
 				if err := os.WriteFile(os.Getenv("CODEX_MONITOR_WORKER_STARTED"), []byte("started"), 0o600); err != nil {
 					return workerrpc.NativeWorkerHealth{}, err
