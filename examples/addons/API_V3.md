@@ -1204,6 +1204,14 @@ and its owner closes the streams. A context error during a partial write is
 therefore terminal, unlike cancellation before publication. The Go supervisor
 terminates the failed worker without replaying its domain calls.
 
+The Go peer scopes routing and writes to its lifetime. Closing it cancels queued
+calls, replies and cancellation notices, and discards frames completing an
+earlier read; these frames cannot start new handlers. Calls retain the original
+terminal error even when they have not acquired the writer. The stream owner
+still closes I/O already blocked in the operating system, and handlers must
+cooperate with cancellation. Rebuild native worker ZIPs against the updated SDK
+to receive this behavior; wire schemas and service versions are unchanged.
+
 ### Required protocol methods
 
 Lifecycle methods are required for native workers. Service and data callbacks

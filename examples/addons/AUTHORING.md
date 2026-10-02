@@ -98,9 +98,11 @@ make health meaningful. Package Linux amd64/arm64 and Windows amd64 targets when
 those deployments are supported. Production never invokes `go build`.
 The shared Go peer keeps health/shutdown admission separate from bounded domain
 work. Writer waits honor cancellation; an interrupted frame prefix stops the
-transport instead of corrupting a later frame. Rebuild workers against the current
-SDK to receive these behaviors; an image
-update alone does not replace an already installed worker ZIP. See the
+transport instead of corrupting a later frame. Closing the peer also cancels
+queued calls and replies and prevents late reads from starting new handlers.
+Stream owners still close already blocked I/O. Rebuild workers against the current
+SDK to receive these behaviors; an image update alone does not replace an already
+installed worker ZIP. See the
 [native-worker initialization](API_V3.md#initialization) for the protocol.
 
 ## Data and services

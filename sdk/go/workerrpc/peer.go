@@ -77,16 +77,19 @@ type pendingResponse struct {
 type Peer struct {
 	codec  *Codec
 	config PeerConfig
+	ctx    context.Context
+	cancel context.CancelFunc
 
-	mu       sync.Mutex
-	started  bool
-	closed   bool
-	lastErr  error
-	nextID   uint64
-	pending  map[string]chan pendingResponse
-	incoming map[string]context.CancelFunc
-	done     chan struct{}
-	stopOnce sync.Once
+	mu                sync.Mutex
+	started           bool
+	closed            bool
+	lastErr           error
+	nextID            uint64
+	pending           map[string]chan pendingResponse
+	callCancellations map[string]context.CancelFunc
+	incoming          map[string]context.CancelFunc
+	done              chan struct{}
+	stopOnce          sync.Once
 
 	outgoing chan struct{}
 	inbound  chan struct{}
@@ -113,16 +116,20 @@ func NewPeer(codec *Codec, config PeerConfig) (*Peer, error) {
 	if config.MaxIncomingRequests <= 0 {
 		config.MaxIncomingRequests = 16
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Peer{
-		codec:           codec,
-		config:          config,
-		pending:         make(map[string]chan pendingResponse),
-		incoming:        make(map[string]context.CancelFunc),
-		done:            make(chan struct{}),
-		outgoing:        make(chan struct{}, config.MaxOutgoingRequests),
-		inbound:         make(chan struct{}, config.MaxIncomingRequests),
-		controlOutgoing: make(chan struct{}, 1),
-		controlInbound:  make(chan struct{}, 1),
+		codec:             codec,
+		config:            config,
+		ctx:               ctx,
+		cancel:            cancel,
+		pending:           make(map[string]chan pendingResponse),
+		callCancellations: make(map[string]context.CancelFunc),
+		incoming:          make(map[string]context.CancelFunc),
+		done:              make(chan struct{}),
+		outgoing:          make(chan struct{}, config.MaxOutgoingRequests),
+		inbound:           make(chan struct{}, config.MaxIncomingRequests),
+		controlOutgoing:   make(chan struct{}, 1),
+		controlInbound:    make(chan struct{}, 1),
 	}, nil
 }
 
@@ -163,10 +170,11 @@ func (peer *Peer) Call(ctx context.Context, method string, params any, meta *Met
 		return nil, NewRPCError(JSONRPCApplication, KindRateLimited, "The peer outgoing request limit was reached.", true, nil)
 	}
 
-	id, key, response, err := peer.registerCall()
+	id, key, response, err := peer.registerCall(cancel)
 	if err != nil {
 		return nil, err
 	}
+	defer peer.releaseCallContext(key)
 	request := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      id,
@@ -183,6 +191,9 @@ func (peer *Peer) Call(ctx context.Context, method string, params any, meta *Met
 		if !isLocalWriteFailure(err) {
 			peer.stop(err)
 		}
+		if peer.ctx.Err() != nil {
+			return nil, peer.Err()
+		}
 		return nil, err
 	}
 
@@ -198,6 +209,9 @@ func (peer *Peer) Call(ctx context.Context, method string, params any, meta *Met
 		if peer.removePending(key) {
 			peer.increment(func(stats *PeerSnapshot) { stats.CancelledOutgoing++ })
 			go peer.sendCancellation(id)
+			if peer.ctx.Err() != nil {
+				return nil, peer.Err()
+			}
 			return nil, callCtx.Err()
 		}
 		value := <-response
@@ -215,9 +229,9 @@ func (peer *Peer) Err() error {
 	return peer.lastErr
 }
 
-// Close stops logical routing. The owner of the underlying streams must close
-// them separately when it needs to unblock the reader at the operating-system
-// boundary.
+// Close stops logical routing and cancels work waiting for the writer. The
+// stream owner must separately close reads and writes already blocked at the
+// operating-system boundary.
 func (peer *Peer) Close() {
 	peer.stop(ErrPeerClosed)
 }
@@ -266,7 +280,7 @@ func (peer *Peer) callContext(ctx context.Context, meta *Meta) (context.Context,
 	return callCtx, cancel, nil
 }
 
-func (peer *Peer) registerCall() (string, string, chan pendingResponse, error) {
+func (peer *Peer) registerCall(cancel context.CancelFunc) (string, string, chan pendingResponse, error) {
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 	if !peer.started {
@@ -280,8 +294,18 @@ func (peer *Peer) registerCall() (string, string, chan pendingResponse, error) {
 	key := "s:" + id
 	response := make(chan pendingResponse, 1)
 	peer.pending[key] = response
+	// Keep cancellation until Call returns, even if a response is routed while
+	// its frame is still in the writer. Both caller and peer closure cancel it
+	// synchronously, without weakening partial-frame cancellation detection.
+	peer.callCancellations[key] = cancel
 	peer.stats.OutgoingCalls++
 	return id, key, response, nil
+}
+
+func (peer *Peer) releaseCallContext(key string) {
+	peer.mu.Lock()
+	defer peer.mu.Unlock()
+	delete(peer.callCancellations, key)
 }
 
 func (peer *Peer) removePending(key string) bool {
@@ -295,8 +319,11 @@ func (peer *Peer) removePending(key string) bool {
 }
 
 func (peer *Peer) readLoop() {
-	for {
-		message, err := peer.codec.Read(context.Background())
+	for peer.ctx.Err() == nil {
+		message, err := peer.codec.Read(peer.ctx)
+		if peer.ctx.Err() != nil {
+			return
+		}
 		if err != nil {
 			peer.stop(err)
 			return
@@ -329,6 +356,10 @@ func (peer *Peer) routeResponse(message Message) error {
 		return err
 	}
 	peer.mu.Lock()
+	if peer.closed {
+		peer.mu.Unlock()
+		return nil
+	}
 	response := peer.pending[key]
 	if response != nil {
 		delete(peer.pending, key)
@@ -348,6 +379,9 @@ func (peer *Peer) routeResponse(message Message) error {
 }
 
 func (peer *Peer) routeRequest(message Message) {
+	if peer.ctx.Err() != nil {
+		return
+	}
 	var envelope struct {
 		ID     json.RawMessage `json:"id"`
 		Method string          `json:"method"`
@@ -382,6 +416,12 @@ func (peer *Peer) routeRequest(message Message) {
 		return
 	}
 	peer.mu.Lock()
+	if peer.closed {
+		peer.mu.Unlock()
+		cancel()
+		<-admission
+		return
+	}
 	if _, duplicate := peer.incoming[key]; duplicate {
 		peer.mu.Unlock()
 		cancel()
@@ -406,7 +446,7 @@ func (peer *Peer) incomingContext(meta *Meta) (context.Context, context.CancelFu
 		if peer.config.RequireIncomingMeta {
 			return nil, nil, NewRPCError(JSONRPCInvalidRequest, KindInvalidRequest, "Worker host calls require request metadata.", false, nil)
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(peer.ctx)
 		return ctx, cancel, nil
 	}
 	if meta.RequestID == "" || meta.CorrelationID == "" || meta.Generation == "" || meta.Deadline.IsZero() {
@@ -418,7 +458,7 @@ func (peer *Peer) incomingContext(meta *Meta) (context.Context, context.CancelFu
 	if !meta.Deadline.After(time.Now()) {
 		return nil, nil, ErrorFromContext(context.DeadlineExceeded)
 	}
-	ctx, cancel := context.WithDeadline(context.Background(), meta.Deadline)
+	ctx, cancel := context.WithDeadline(peer.ctx, meta.Deadline)
 	return ctx, cancel, nil
 }
 
@@ -445,7 +485,9 @@ func (peer *Peer) handleRequest(
 
 	var result any
 	var err error
-	if peer.config.Handler == nil {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		err = ErrorFromContext(ctxErr)
+	} else if peer.config.Handler == nil {
 		err = NewRPCError(JSONRPCMethodNotFound, KindNotFound, "The host method is not available.", false, nil)
 	} else {
 		result, err = peer.config.Handler.HandleRPC(ctx, request)
@@ -473,7 +515,7 @@ func (peer *Peer) handleRequest(
 	if isLifecycleControl(request.Method, request.Meta) {
 		beforeWrite = finish
 	}
-	writeErr := peer.codec.writeFrame(context.Background(), map[string]any{
+	writeErr := peer.codec.writeFrame(peer.ctx, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      json.RawMessage(request.ID),
 		"result":  result,
@@ -495,6 +537,9 @@ func (peer *Peer) notifyResponseWritten(request Request, err error) {
 }
 
 func (peer *Peer) routeNotification(message Message) {
+	if peer.ctx.Err() != nil {
+		return
+	}
 	method, _ := message.Value["method"].(string)
 	if method != "$/cancelRequest" {
 		peer.increment(func(stats *PeerSnapshot) { stats.IgnoredNotifications++ })
@@ -526,7 +571,7 @@ func (peer *Peer) routeNotification(message Message) {
 }
 
 func (peer *Peer) sendCancellation(id string) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(peer.ctx, time.Second)
 	defer cancel()
 	if err := peer.codec.Write(ctx, map[string]any{
 		"jsonrpc": "2.0",
@@ -545,7 +590,7 @@ func (peer *Peer) writeFailureBeforeWrite(id json.RawMessage, failure *RPCError,
 	if failure == nil {
 		failure = NewRPCError(JSONRPCInternalError, KindInternal, "The worker RPC operation failed.", false, nil)
 	}
-	if err := peer.codec.writeFrame(context.Background(), map[string]any{
+	if err := peer.codec.writeFrame(peer.ctx, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      json.RawMessage(id),
 		"error":   failure,
@@ -568,15 +613,13 @@ func (peer *Peer) stop(cause error) {
 			pending = append(pending, response)
 		}
 		peer.pending = make(map[string]chan pendingResponse)
-		cancellations := make([]context.CancelFunc, 0, len(peer.incoming))
-		for _, cancel := range peer.incoming {
-			cancellations = append(cancellations, cancel)
-		}
-		close(peer.done)
-		peer.mu.Unlock()
-		for _, cancel := range cancellations {
+		peer.cancel()
+		for _, cancel := range peer.callCancellations {
 			cancel()
 		}
+		peer.callCancellations = make(map[string]context.CancelFunc)
+		close(peer.done)
+		peer.mu.Unlock()
 		for _, response := range pending {
 			response <- pendingResponse{err: cause}
 		}

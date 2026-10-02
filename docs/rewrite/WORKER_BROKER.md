@@ -93,6 +93,14 @@ cooperate; Go cannot safely terminate an arbitrary goroutine. Any later
 response is discarded and counted. Supervisor shutdown cancels every active
 worker-to-host handler before asking the worker to exit.
 
+All routing and writes belong to the peer lifetime. Closing the peer discards a
+frame that completes an already pending read, cancels inbound contexts, and
+releases wholly unsent calls, replies and cancellation notices waiting for the
+writer. Outgoing calls retain their cancellation ownership until `Call` returns,
+even if a response arrives before the request finishes writing; they fail with
+the original terminal cause. Closure does not interrupt I/O already blocked in
+the operating system; the stream owner must close it separately.
+
 ## Failures and diagnostics
 
 Unknown application error kinds normalize to `INTERNAL` for logic while the

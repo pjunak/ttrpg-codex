@@ -113,6 +113,12 @@ The supervisor records ownership of transport closure before closing its pipes,
 so a delayed reader's closed-file error cannot mark a graceful exit failed.
 Unexpected pipe closure and protocol failures still fail the generation.
 
+Peer closure stops further request admission and cancels queued outgoing calls,
+replies and cancellation notices without waiting for the writer. A frame that
+finishes an earlier read after closure cannot invoke a new handler. The supervisor
+still owns closing pipes to release I/O already blocked at the process boundary;
+cooperative handlers retain their request deadlines and cancellation.
+
 ## Diagnostics and stable failures
 
 Snapshots contain generation identity, lifecycle state and transitions, PID,
@@ -210,6 +216,9 @@ and preserve a healthy process while its single domain slot remains occupied.
 `transport_cleanup_test.go` drives the real peer reader with an OS pipe to verify
 that intentional cleanup does not race a clean shutdown into failure, while
 unexpected closure and protocol errors retain their failure category.
+The SDK's `peer_lifetime_test.go` covers late-read disposal, queued domain/control
+calls and replies, cancellation notices, original terminal errors and early
+responses without allowing another frame after closure.
 
 Go workers use `workerrpc.RunNativeWorker` rather than reimplementing this
 lifecycle. The helper keeps startup reads serialized, switches the same codec
