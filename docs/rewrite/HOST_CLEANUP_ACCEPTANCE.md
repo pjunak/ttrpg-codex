@@ -5554,3 +5554,72 @@ implementation at **97% (93–98%)**, because current delivery is now demonstrat
 The original-row count remains **33/40 (83%)**: partially completed operational
 rows stay open. These are effort estimates across uneven tasks, not a pass ratio
 or a claim that the remaining manual work is finished.
+
+## October 2 shared artwork and portrait preview recovery
+
+T15-MEDIA-HOST is implemented in **`438b5f1`**. Read-only public Chromium checks
+on Asurai and Tiamat use fresh desktop (1360 px) and phone (390 px) contexts.
+After scrolling lazy images into view and awaiting native completion, all
+**20 displayed image instances** have positive natural dimensions and HTTP 200:
+four Asurai portraits and six Tiamat portraits/companion images in each width.
+The fully loaded screenshots show the portraits. Earlier blank Overview rings
+were premature captures, not demonstrated lost media or a deployment regression.
+Tall Tiamat image elements do exceed their 88 px avatar bounds in the deployed
+UI; the controlled fixture confirms that independent sizing defect.
+
+Before repair, four focused tests fail: missing-image emblems and tall-avatar
+geometry each fail in classic desktop and moonlit phone layouts. A separate
+disconnect reproduction retains `draft.svg` in the editor but loses its preview
+and reports an empty image state. These are concrete presentation/lifetime
+defects, independent of the unexplained historical startup timeouts.
+
+The shared native-image renderer now supplies loading, ready, empty and
+unavailable presentation to all nine entity collections, record articles,
+party/companion avatars and portrait previews. It preserves reserved bounds and
+attitude styling, keeps emblems for 404/denied/undecodable sources, and rejects
+retired image events even when the same URL is selected again. Source completion
+while the Lit owner is disconnected is reconciled on reconnect. A retained File
+draft receives a fresh object URL when its editor reconnects; disconnect and Undo
+release their URLs without uploading or committing the file. Existing pencil
+actions, party identity readers and compact no-portrait articles remain covered.
+Preview names are localized in English and Czech. Media authority, persisted
+URLs, recovery data and the public add-on API remain unchanged.
+
+Validation on the committed implementation:
+
+- `npm run check` passes source, TypeScript, typed Oxlint, formatting, Go vet,
+  Staticcheck, **85 tool tests, 585 unit tests and 342 browser tests**, plus Go
+  tests and the selected race packages. **198 optional installed cases are
+  skipped** by the ordinary gate; no new strict installed-suite or release run
+  is claimed for this revision.
+- Eight new artwork cases cover all nine entity cards/articles, both skins,
+  desktop/phone widths, HTTP/decode failure, loading/replacement geometry,
+  repeated sources, disconnected completion and retained preview URL ownership.
+  The existing four card-action locale/theme/width matrices still pass.
+- Two new disposable real-host cases prove deleted media stays unreadable and
+  DM-uploaded media stays private after its record is published. Public readers
+  receive a fallback and cannot edit; DM readers can still load private media.
+  The exact authored record remains unchanged after fallback. All nine real-host
+  portrait workflows pass, including save/replacement/removal, failed writes,
+  cancellation, localization and preserved recovery media.
+- Generated collection/profile/party screenshots were inspected for classic
+  desktop and moonlit phone. The new renderer uses the existing theme colors;
+  this is browser evidence, not physical-device or spoken-reader acceptance.
+
+Local evidence is `frontend/test-results/current-portrait-media-public.json`,
+its four fully loaded public screenshots, `artwork/collection-*`, `artwork/profile-*`
+and `artwork/fallback-*` screenshots, the retained before-repair traces,
+`current-portrait-media-reconnect.mts`, and
+`current-portrait-media-check-final.log`. The reusable renderer's owning
+contracts and primary-source design references are in
+[UI foundations](UI_FOUNDATIONS.md#entity-artwork) and
+[media](MEDIA.md#displayed-portraits).
+
+This batch is committed locally and has not been pushed or deployed. T15 remains
+partial for authorized delivery/live fallback verification, authenticated manager,
+matching-binary full backup and intended add-on activations. T16/T17 retain their
+site-specific retention/recovery boundaries. The estimate remains **97%
+implemented (93–98%) / 95% overall (91–97%)**, and **33/40 original rows closed
+(83%)**: a small resilience slice and public-image checks do not justify closing
+the larger operational rows. Historical startup attribution and human/device
+checks remain open.
