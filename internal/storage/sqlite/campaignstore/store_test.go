@@ -300,19 +300,13 @@ func TestSnapshotRetainsMaterializedEmptyDistinction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := campaign.EncodeLegacyDataset(empty.LegacyDataset(nil))
-	if err != nil {
-		t.Fatal(err)
+	if len(empty.Records) != 0 || materializedCount(empty.States) != 1 {
+		t.Fatalf("deleting the last record dropped its collection: %+v", empty)
 	}
-	var root map[string]json.RawMessage
-	if err := json.Unmarshal(encoded, &root); err != nil {
-		t.Fatal(err)
-	}
-	if string(root["characters"]) != "[]" {
-		t.Fatalf("materialized empty characters = %s", root["characters"])
-	}
-	if _, exists := root["relationships"]; exists {
-		t.Fatal("absent relationships collection was synthesized")
+	for _, state := range empty.States {
+		if state.Materialized && state.Collection != campaign.Characters {
+			t.Fatalf("absent collection was synthesized: %s", state.Collection)
+		}
 	}
 }
 

@@ -87,14 +87,6 @@ func Describe(collection Collection) (Descriptor, bool) {
 	return Descriptor{}, false
 }
 
-func ParseCollection(value string) (Collection, error) {
-	collection := Collection(value)
-	if _, ok := Describe(collection); !ok {
-		return "", fmt.Errorf("%w: %q", ErrInvalidCollection, value)
-	}
-	return collection, nil
-}
-
 func ValidateKey(descriptor Descriptor, key string) error {
 	if len(key) == 0 || len(key) > 1024 || !utf8.ValidString(key) {
 		return fmt.Errorf("%w: record key must contain 1-1024 UTF-8 bytes", ErrInvalidRecord)

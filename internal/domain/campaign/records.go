@@ -78,33 +78,6 @@ type Snapshot struct {
 	Records []Record
 }
 
-func (snapshot Snapshot) LegacyDataset(
-	passthrough map[string]json.RawMessage,
-) LegacyDataset {
-	dataset := LegacyDataset{
-		Present:     make([]Collection, 0),
-		Records:     make([]LegacyRecord, 0, len(snapshot.Records)),
-		Passthrough: make(map[string]json.RawMessage, len(passthrough)),
-	}
-	for name, value := range passthrough {
-		dataset.Passthrough[name] = append(json.RawMessage(nil), value...)
-	}
-	for _, state := range snapshot.States {
-		if state.Materialized {
-			dataset.Present = append(dataset.Present, state.Collection)
-		}
-	}
-	for _, record := range snapshot.Records {
-		dataset.Records = append(dataset.Records, LegacyRecord{
-			Collection: record.Collection,
-			Key:        record.Key,
-			Value:      append(json.RawMessage(nil), record.Value...),
-			Position:   record.Position,
-		})
-	}
-	return dataset
-}
-
 type ConflictError struct {
 	Collection Collection
 	Key        string
