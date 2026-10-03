@@ -29,7 +29,7 @@ func main() {
 
 func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) error {
 	if len(arguments) == 0 {
-		return errors.New("usage: codex-maintenance <backup|verify|restore|retire-sheets|delete-addon-data|collect-blobs|prune-logs> [options]")
+		return errors.New("usage: codex-maintenance <backup|verify|restore|delete-addon-data|collect-blobs|prune-logs> [options]")
 	}
 	switch arguments[0] {
 	case "backup":
@@ -38,8 +38,6 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) erro
 		return runVerify(ctx, arguments[1:], stdout, stderr)
 	case "restore":
 		return runRestore(ctx, arguments[1:], stdout, stderr)
-	case "retire-sheets":
-		return runRetireSheets(ctx, arguments[1:], stdout, stderr)
 	case "delete-addon-data", "collect-blobs", "prune-logs":
 		return runCleanup(ctx, arguments[0], arguments[1:], stdout, stderr)
 	default:
