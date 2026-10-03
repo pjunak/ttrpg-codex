@@ -6578,3 +6578,76 @@ acceptance identifies published base `2bf0cc8` plus the documented fixture
 changes; a clean committed provenance check follows the commit. This follow-up
 remains local for the next batch. It does not attribute the historical missing
 startup/provider captures or close authenticated-site and human acceptance.
+
+## October 3 repaired CI and verified diagnostic rollout
+
+October 3, 2026. The approved continuation publishes `dd4e92b` and
+`2bf0cc8617938200633e8e433d5d8c1eb67322fa`, repairing the
+[reproduced native race fixture](#october-3-race-fixture-startup-coordination)
+and [real Node timeout cleanup](#october-3-browser-context-ownership-during-test-timeouts).
+[Build and dispatch 37122077339](https://github.com/pjunak/ttrpg-codex/actions/runs/37122077339)
+and [secret scan 37122077192](https://github.com/pjunak/ttrpg-codex/actions/runs/37122077192)
+finish successfully. The Linux host gate passes **101 tool tests, 585 unit
+tests, 343 browser cases and Go/race checks**, including the previously failing
+startup-pipe race fixture. Its 199 optional installed skips remain separate.
+Workflow lint and fresh npm/Go vulnerability checks pass with no findings.
+
+Strict installed acceptance passes **278/278**, with zero failures,
+cancellations or skips, in **1,670,684 ms** (27 minutes 51 seconds). Downloaded
+`companion-provenance` identifies the exact clean `2bf0cc8` host, all four clean
+approved sources and unchanged Linux ZIP hashes. Packaged production-user
+startup and HTTPS trust pass before image publication. Actual downloaded
+`release-metadata` identifies:
+
+```text
+repository: pjunak/ttrpg-codex
+sha: 2bf0cc8617938200633e8e433d5d8c1eb67322fa
+run_id: 37122077339
+image_ref: ghcr.io/pjunak/ttrpg-codex@sha256:d93e0460ae33a00a4deeb16482eeb86f5aa56079623ddca4bf27ea92ae76fd48
+```
+
+| Verified job | Host job ID | Actual infrastructure run | Infrastructure deployment job |
+| --- | --- | --- | --- |
+| Host tests | 111200019223 | — | — |
+| Installed compatibility | 111200019362 | — | — |
+| Verified image publication | 111204690078 | — | — |
+| Asurai deployment and health | 111204990797 | [37123819516](https://github.com/pjunak/infra/actions/runs/37123819516) | 111205048276 |
+| Tiamat deployment and health | 111204990844 | [37123819564](https://github.com/pjunak/infra/actions/runs/37123819564) | 111205045959 |
+
+Both actual infrastructure runs succeed on
+`d4f056bb947b1c631c0f5b4c491a51d21b6634ae` with the correct site and request
+identity. Their deployment logs confirm the exact `d93e0460...` digest is
+pulled, runs as the dispatched image and is healthy. Image build or host
+dispatch success is not substituted for these independent rollout results.
+
+Both public roots and health endpoints return HTTP 200 with health `ok`.
+The root remains `no-cache`; immutable frontend assets match the actual Docker
+build filenames and have identical SHA-256 values across both sites. Entry
+`/assets/index-CUhpgqE4.js`, app `codex-app-DfMBwdJ7.js`, preload helper and CSS
+are unchanged from the previous image because this batch changes test/CI
+diagnostics. Those filenames alone do not identify the new source; downloaded
+release identity and actual running-image logs provide that evidence.
+
+Chromium at 1360×900 and 390×844 confirms visible campaign content, attached live
+connections, no page errors, no failed requests and no horizontal overflow on
+both sites. Fully loaded artwork checks confirm four Asurai portraits and six
+Tiamat images at both widths, with positive natural dimensions and bounded
+88-pixel or 56-pixel geometry. No live campaign record or add-on generation is
+changed by these acceptance checks.
+
+The owner explicitly confirms **Tiamat uses no add-ons and must stay that way;
+Asurai uses add-ons and targets their newest versions**. Host delivery remains
+valid for both sites; add-on installation/activation and provider/save checks
+target Asurai. Authenticated inventory, matching-binary full backups, Asurai's
+latest-build activation, selected-build retention and independent campaign
+recovery still need their actual acceptance. No add-on ZIP is installed or
+activated by this image rollout. Tiamat receives no new add-on packages.
+
+Delivery records, private infrastructure logs, downloaded artifacts, public
+checks and screenshots remain ignored under
+`frontend/test-results/current-diagnostics-release-*`. The subsequent
+[installed diagnostic follow-up](#october-3-installed-companion-capture-coverage)
+is committed locally as `2b549f0` and remains unpublished. Historical failure
+attribution and physical touch/spoken assistive-technology/paper-print results
+remain open. Estimates stay **97% implemented (93–98%) / 96% overall
+(92–98%)**, with **33/40 original rows closed (83%)**.
