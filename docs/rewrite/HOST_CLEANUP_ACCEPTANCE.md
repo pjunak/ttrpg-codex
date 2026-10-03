@@ -6437,3 +6437,48 @@ four companion sources are clean. The progress estimate remains 97% implemented
 and 96% overall. This batch stays local; the next push/deployment is paused for
 the user's next approval. Authenticated site, historical attribution and human
 acceptance requirements remain open.
+
+## October 3 race fixture startup coordination
+
+October 3, 2026. The owner approves the next push and deployment. Host
+`2dbcb27d56d66dcac24b4b4be748d4220e3666cd` is published, but
+[run 37119456088](https://github.com/pjunak/ttrpg-codex/actions/runs/37119456088)
+stops in the native worker race tests. The browser tests pass; no image is
+built and both deployments are skipped. The previous `fb7020f` image remains
+healthy on both public sites.
+
+`TestSupervisorStartupWritesHonorCancellation/startup_deadline` requires the
+helper process to reach a four-byte initialization-input marker before testing
+its blocked pipe. Its 250ms startup budget can expire during race-instrumented
+process setup instead. The parent correctly times out and reaps the process;
+the test then incorrectly waits for a marker from that already retired process.
+A controlled 350ms helper boot reproduces this exact ordering on Windows:
+`state=failed`, `failure=STARTUP_TIMEOUT`, `exited=true`, with no input marker.
+This is a fixture coordination defect, not evidence of a production startup
+failure or an explanation of the historical missing-capture failures.
+
+The repaired fixture waits for the actual OS pipe to block before expiring its
+inherited deadline or cancelling its caller. The intentionally delayed helper
+remains in the test. Both paths must return within one second, preserve the
+exact deadline/cancellation cause, retain the correct lifecycle failure code
+and reap the child. Setup allows five seconds; no production timeout changes.
+`TestSupervisorBoundsStartupAndShutdown` retains actual configured-timer
+coverage, and the startup-drain cases still test real pipe deadline handling.
+Missing-marker diagnostics expose only fixed lifecycle state, failure code and
+the process-exit flag, not stderr content or saved data.
+
+The deadline-only before check fails as expected. After the repair, the startup
+write and configured-timer tests pass five consecutive race runs, and the
+complete worker-supervisor package passes three consecutive race runs in
+19.018 seconds. Controlled logs remain ignored under
+`frontend/test-results/current-startup-pipe-*`.
+
+The failed release's separate strict Linux installed gate passes **278/278**,
+with zero failures, cancellations or skips, in **1,118,699 ms**. Its downloaded
+`companion-provenance` artifact identifies clean host `2dbcb27`, all four clean
+[approved companion sources](#october-3-approved-delivery-and-packaging-dependency-repair)
+and their unchanged Linux ZIP hashes. The public metadata upload step runs
+successfully, but there are no eligible failed browser records; no metadata
+artifact exists. That run therefore does not verify retrieval of an actual
+failure-metadata artifact. A fresh exact-source release must pass the repaired
+host gate, verified image publication and both actual infrastructure rollouts.

@@ -18,33 +18,38 @@ import (
 
 func TestSupervisorStartupWritesHonorCancellation(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
-		name := "startup deadline"
+		name := "inherited deadline"
 		if explicit {
 			name = "caller cancellation"
 		}
 		t.Run(name, func(t *testing.T) {
 			supervisor := newPipeSupervisor(t, "blocked-initialize-input", func(config *Config) {
 				config.Grants = []any{map[string]any{"fixture": strings.Repeat("x", 2<<20)}}
-				if explicit {
-					config.StartupTimeout = 5 * time.Second
-				}
+				config.Environment["CODEX_TEST_PIPE_BOOT_DELAY"] = "350ms"
+				config.StartupTimeout = 5 * time.Second
 			})
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			parent, cancel := context.WithCancelCause(context.Background())
+			defer cancel(context.Canceled)
+			var ctx context.Context = parent
+			if !explicit {
+				ctx = pipeDeadlineContext{Context: context.Background(), done: parent.Done()}
+			}
 			result := make(chan error, 1)
 			go func() { result <- supervisor.Start(ctx) }()
 			waitPipeMarker(t, supervisor, "initialize-input-prefix")
+			wantCause := context.DeadlineExceeded
 			if explicit {
-				cancel()
+				wantCause = context.Canceled
 			}
+			cancel(wantCause)
 			select {
 			case err := <-result:
 				want := CodeStartupTimed
 				if explicit {
 					want = CodeStartupFailed
-					if !errors.Is(err, context.Canceled) {
-						t.Fatalf("caller cancellation lost its cause: %v", err)
-					}
+				}
+				if !errors.Is(err, wantCause) {
+					t.Fatalf("startup cancellation lost %v: %v", wantCause, err)
 				}
 				assertLifecycleCode(t, err, want)
 			case <-time.After(time.Second):
@@ -54,6 +59,25 @@ func TestSupervisorStartupWritesHonorCancellation(t *testing.T) {
 				t.Fatalf("cancelled startup did not reap its process: %+v", snapshot)
 			}
 		})
+	}
+}
+
+// Expire the inherited deadline only after the worker confirms blocked OS-pipe
+// input. Race-instrumented process startup is setup, not the cancellation trigger.
+// TestSupervisorBoundsStartupAndShutdown separately checks the configured timer.
+type pipeDeadlineContext struct {
+	context.Context
+	done <-chan struct{}
+}
+
+func (ctx pipeDeadlineContext) Done() <-chan struct{} { return ctx.done }
+
+func (ctx pipeDeadlineContext) Err() error {
+	select {
+	case <-ctx.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
 	}
 }
 
@@ -196,7 +220,8 @@ func waitPipeMarker(t *testing.T, supervisor *Supervisor, marker string) {
 	deadline := time.Now().Add(3 * time.Second)
 	for !strings.Contains(supervisor.Snapshot().StderrTail, marker) {
 		if time.Now().After(deadline) {
-			t.Fatal("native worker did not reach the controlled pipe state")
+			snapshot := supervisor.Snapshot()
+			t.Fatalf("native worker did not reach %q: state=%s failure=%s exited=%t", marker, snapshot.State, SafeFailureCode(snapshot.LastError), snapshot.ExitedAt != nil)
 		}
 		time.Sleep(time.Millisecond)
 	}
@@ -230,6 +255,13 @@ func TestSupervisorPipeHelperProcess(t *testing.T) {
 		os.Exit(0)
 	}
 	if mode == "blocked-initialize-input" {
+		if delay := os.Getenv("CODEX_TEST_PIPE_BOOT_DELAY"); delay != "" {
+			bootDelay, err := time.ParseDuration(delay)
+			if err != nil {
+				helperExit(err.Error(), 2)
+			}
+			time.Sleep(bootDelay)
+		}
 		if _, err := io.ReadFull(os.Stdin, make([]byte, 4)); err != nil {
 			helperExit(err.Error(), 2)
 		}
