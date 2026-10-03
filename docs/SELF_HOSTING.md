@@ -16,7 +16,8 @@ a new installation needs neither.
 
 - Docker Engine with Compose for production.
 - A reverse proxy providing HTTPS for internet-facing instances.
-- Go 1.27.1 and Node.js 24+ only when building or converting outside Docker.
+- Go 1.27.1 when building the native host or maintenance/conversion tools.
+- Node.js 26+ for frontend builds and repository checks; `.nvmrc` selects Node 26.
 
 ## Configuration
 
@@ -255,11 +256,57 @@ See the [recovery contract](rewrite/BACKUP_RESTORE.md#campaign-recovery-points).
 The guide linked from Settings → Backup & recovery covers the whole installation.
 A full restore includes saved passwords and installed add-on packages. GitHub
 access tokens are excluded; configure them again on a new server. Use the
-maintenance binary from the matching host release (or the source commands below),
-and the actual data directory used by that installation.
+maintenance binary from the same image or source revision as the host, and the
+actual data directory used by that installation.
 
 The DM endpoint `GET /api/backup` downloads the same verified archive contract
-as the maintenance CLI. For command-line operation:
+as the maintenance CLI. Download a full ZIP from Settings → Backup & recovery,
+then verify it independently.
+
+#### Verify with the running host image
+
+The image includes `/app/codex-maintenance`. Run these commands on the Docker
+host that owns the installation, with the downloaded ZIP in its backup
+directory. This Linux example uses the supplied Compose service name;
+adjust the service name and archive path for your installation:
+
+```bash
+task_container_id="$(docker compose ps --no-trunc -q ttrpg-codex)" || exit 1
+if [[ ! "$task_container_id" =~ ^[a-f0-9]{64}$ ]]; then
+  echo 'Select exactly one running Codex container.' >&2
+  exit 1
+fi
+task_image_id="$(docker inspect --type container --format '{{.Image}}' "$task_container_id")" || exit 1
+if [[ ! "$task_image_id" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+  echo 'Could not resolve the running host image.' >&2
+  exit 1
+fi
+task_backup_directory=/srv/codex-backups
+docker run --rm --pull never --network none \
+  --user "$(id -u):$(id -g)" \
+  --entrypoint /app/codex-maintenance \
+  --mount "type=bind,source=$task_backup_directory,target=/backups,readonly" \
+  "$task_image_id" verify -in /backups/codex-2026-10-03.zip || exit 1
+sha256sum "$task_backup_directory/codex-2026-10-03.zip"
+```
+
+The container's immutable image ID selects the matching tool even if an image
+tag has since changed. The verifier mounts only the backup directory, read-only,
+and extracts into its disposable container as the current user. Leave enough
+temporary disk space for the expanded archive. A successful command prints
+`Verified codex-backup.v2 (...)` and exits with status zero. Retain the archive,
+its SHA-256, the selected image ID and that result together.
+Docker's [Compose ps](https://docs.docker.com/reference/cli/docker/compose/ps/),
+[inspect](https://docs.docker.com/reference/cli/docker/inspect/),
+[run](https://docs.docker.com/reference/cli/docker/container/run/) and
+[bind-mount](https://docs.docker.com/engine/storage/bind-mounts/) references
+describe these options. A remote Docker context resolves the bind source on the
+daemon's machine, so the backup must be present there.
+
+#### Native command-line backup and restore
+
+For a native installation, use a checkout or compiled utility from the same
+revision as that host:
 
 ```powershell
 go run ./cmd/codex-maintenance backup `

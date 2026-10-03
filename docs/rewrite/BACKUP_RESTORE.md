@@ -88,6 +88,11 @@ stage after success, failure, or cancellation.
 
 Verify an archive without touching live data:
 
+Docker installations can use the maintenance utility from their exact running
+image with a read-only archive mount; see the
+[operator procedure](../SELF_HOSTING.md#verify-with-the-running-host-image).
+The native source command below requires the matching host revision:
+
 ```powershell
 go run ./cmd/codex-maintenance verify `
   -in C:/backups/codex-2026-09-01.zip
