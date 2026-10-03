@@ -92,6 +92,20 @@ that declaration for another reverse-proxy topology. Forward the original
 scheme and client address normally, terminate TLS at the proxy, and keep
 `CODEX_SECURE_COOKIES=true`.
 
+### Data directory
+
+```text
+data/
+├── codex.db, codex.db-wal, codex.db-shm   SQLite: records, passwords, recovery points, add-on data
+├── blobs/sha256/                          uploaded images and maps, named by content hash
+├── addons/<id>/generations/<hash>/        installed add-on packages
+├── credentials/github.db                  saved GitHub tokens (never in backups)
+└── cache/map-tiles-v1/                    generated map tiles (safe to delete while stopped)
+```
+
+Never edit these files by hand or copy the database while the host runs; use
+the [backup tools](#backups). `.staging` folders hold uploads in progress.
+
 ## Add-on installation
 
 Open **Settings → Add-ons** while signed in as DM. The toolbar has two actions:

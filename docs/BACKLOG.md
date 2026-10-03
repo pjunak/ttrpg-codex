@@ -5,11 +5,9 @@ and concrete; delete them when done (Git keeps the history).
 
 ## Next
 
-- **Publish the October cleanup.** Push in this order, letting each repository's
-  CI finish: Engine, then DM Tools, Compendium and Sheets, then the host. Then
-  bump Sheets to the new Engine commit
-  (`go get github.com/pjunak/addon-dnd-engine@<commit>`) and drop the temporary
-  `replace github.com/pjunak/ttrpg-codex v0.0.0 => …` line from its `go.mod`.
+- **Check the first nightly smoke test.** The **Installed add-on smoke test**
+  workflow runs at 02:41 UTC; confirm it passes and that the `ADDON_SUITE_TOKEN`
+  secret still grants read access to the compendium repository.
 - **Asurai add-ons.** Take a backup, then update all four add-ons to their
   latest published packages in Settings → Add-ons. If DM Tools reports dangling
   consequence targets, fix those planner entries by hand (it only reports them).
@@ -26,8 +24,10 @@ and concrete; delete them when done (Git keeps the history).
   artifacts next to `rewrite-v2/` on both servers, the September sheet-reset
   backups, and the local copies (`ttrpg-codex/data/`, `data-snapshots/`, the
   archived backups). Optionally spot-check a few records against the current
-  sites first. The converter itself was removed; it is in Git history before
-  the October cleanup if ever needed.
+  sites first. Tiamat's conversion skipped one image (17 KB) that no record
+  referenced; look at it in the v1 data before deleting anything. The
+  converter is in Git history before the October cleanup and the old app is
+  tagged `v1-final` in every repository.
 - **Tag host versions.** Add-ons currently require the host by Go
   pseudo-version. Real tags (for example `v0.1.0`) would read better and let
   the add-ons reference the publish action by tag instead of commit SHA.
@@ -36,6 +36,13 @@ and concrete; delete them when done (Git keeps the history).
   `character-element.ts`.
 
 ## Ideas (only with a concrete need)
+
+- **Restore a full backup from the web UI.** The old app could upload and
+  restore a backup ZIP in Settings; the new host restores only with
+  `codex-maintenance restore` on the server. A web flow could upload and verify
+  the archive, stage it with the existing restore journal and restart.
+- **Update all add-ons at once.** The old app had an "Update all" button; now
+  each add-on is updated through its own review.
 
 - **Cloud backup add-on.** Workers have no network access and cannot read backup
   archives today; it would need both as new, reviewed host capabilities.
