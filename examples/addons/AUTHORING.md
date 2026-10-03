@@ -1,194 +1,162 @@
-# Add-on API v3 authoring
+# Writing a TTRPG Codex add-on
 
-Add-on API v3 packages are reviewed build artifacts, not source folders loaded
-by the host. Read [API_V3.md](API_V3.md) for the complete protocol and
-[`contracts/addons/v3`](../../contracts/addons/v3) for machine-readable host
-schemas. Check [current availability](API_V3.md#current-implementation-status)
-before using a declared surface: the schema includes reserved names whose
-runtime handlers do not yet exist.
+An add-on is an optional, prebuilt package that a DM installs on their site
+through **Settings → Add-ons**: upload or download, review the requested
+permissions, approve, activate. The host never builds add-on source. Add-ons can
+contribute pages, record sections, settings, graph views and services, store
+their own data, and run backend logic in a native Go worker.
 
-## Package shape
+This guide is the starting point. [API_V3.md](API_V3.md) is the full reference
+and [`contracts/addons/v3`](../../contracts/addons/v3) holds the exact schemas.
+If prose and a schema disagree, the schema and the host's inspector win; please
+report the mismatch.
 
-For current-state extensions, `workerOnly: true` restricts mutations to the
-package native worker without retaining snapshots. For worker-authorized
-immutable record snapshots, see
-[retained history](../../docs/rewrite/RETAINED_ADDON_HISTORY.md). For contextual
-source links and saved calculation explanations, declare `ui.rule-details` and
-use the [shared rule-details surface](../../docs/rewrite/RULE_DETAILS.md).
-For integrated fields, comboboxes, search, actions, tabs, states and modal focus,
-declare `ui.controls.v1` and call `context.ui.enhance(ownRoot)`. The
-[shared UI contract](../../docs/rewrite/UI_FOUNDATIONS.md) defines markers, events,
-semantic skin tokens and lifetime cleanup.
-Prefer supported host UI where it fits; private host imports and DOM remain outside
-the add-on contract.
+## Your first package
+
+An add-on lives in its own repository. The first-party add-ons are complete
+examples: [DM Tools](https://github.com/pjunak/addon-dm-tools) (UI, data, Go
+worker), [D&D Engine](https://github.com/pjunak/addon-dnd-engine) (worker-only
+service) and [Character Sheets](https://github.com/pjunak/addon-dnd-character-sheets)
+(record extension, optional service consumer).
+
+A built package is a ZIP with this layout:
 
 ```text
-addon.json
-checksums.json
-contracts/          JSON Schemas referenced by the manifest
-web/                compiled TypeScript output, when the package has UI
-worker/             target-specific executables, when it has backend logic
-locales/            declarative UI catalogs
-data/               immutable content, when declared
+addon.json       manifest (start from contracts/addons/v3/examples/reference-addon.json)
+checksums.json   SHA-256 of every other regular file
+contracts/       closed JSON Schemas referenced by the manifest
+web/             compiled browser code, if the add-on has UI
+worker/          one executable per supported target, if it has a worker
+locales/         UI string catalogs
+data/            immutable content, if declared
 ```
 
-`checksums.json` lists every regular package file except itself. Package paths
-are normalized forward-slash paths. Symbolic links, duplicate/case-colliding
-paths, unlisted files, external schema references, and undeclared entrypoints
-are rejected before extraction.
+Paths are forward-slash and normalized. Symbolic links, duplicate or
+case-colliding paths, unlisted files, external schema references and undeclared
+entrypoints are rejected before anything is extracted.
+
+Check a package with the host's inspector. It runs from any directory; pick the
+host version you target:
+
+```text
+go run github.com/pjunak/ttrpg-codex/cmd/codex-addon-inspect@<host-version> dist/my-addon.zip
+```
+
+To try it, run a local host (see the host [README](../../README.md#run-locally)),
+sign in as DM and upload the ZIP in **Settings → Add-ons → Add add-on**.
 
 ## Manifest essentials
 
-An add-on declares stable identity, compatibility, capabilities, permissions,
-runtime entrypoints, contributions, dependencies, services, data contracts,
-content sets, and locales. Request only authority the package uses. IDs become
-persistent data and integration namespaces; do not rename released IDs.
+The manifest declares a stable identity, host compatibility, capabilities,
+permissions, runtime entrypoints, contributions, dependencies, services, data
+contracts, content sets and locales. Request only what the package uses.
 
-The host currently supports:
+These IDs are permanent once released: add-on, contribution, collection, record
+extension, content set and service contract (per major version). They become
+saved-data and integration namespaces. Display names may change.
 
-- `ui.contributions` for integrated or isolated browser modules;
-- `worker.native` for reviewed target-specific Go workers;
-- package-owned collections and record extensions;
-- schema-validated `ui`, `content`, and `worker` services;
-- immutable content sets and source-group filtering.
+| Capability | Gives you |
+| --- | --- |
+| `ui.contributions` | Browser modules (integrated or sandboxed iframe) |
+| `ui.controls.v1` | The host's shared fields, searchable choices, tabs and dialogs |
+| `ui.markdown`, `ui.rule-details` | Shared Markdown rendering and rule-detail popovers |
+| `worker.native` | A native Go worker per target platform |
+| `data.transactions` | Multi-document transactions on your collections |
 
-The manifest schema is the authority for exact fields. Use the reference
-manifest under `contracts/addons/v3/examples/` as a structural starting point.
+See [what is available](API_V3.md#what-is-available) before relying on a
+surface. Package-owned collections, record extensions, schema-validated
+services and immutable content sets are all supported.
 
 ## Browser code
 
-Author browser code in TypeScript and commit or package only deterministic
-compiled `web/` output. The entry exports `activate(context)`. Register only
-manifest-declared contributions and use the supplied SDK handles. Do not import
-host frontend modules, inspect host DOM, store global credentials, or retain
-resources outside the generation scope.
+Write browser code in strict TypeScript and ship only the compiled `web/`
+output. The entry module exports `activate(context)`. Bind only contributions
+declared in the manifest and use only the SDK handles you receive.
 
-Integrated modules can register custom elements, actions, model providers, and
-navigation contributions. Isolated visual contributions run in an opaque
-iframe and communicate only through the host bridge. Either mode must tolerate
-empty data, missing optional services, abort, reload, and repeated disposal.
-
-Integrated record article sections can use the optional
-[pending edit handoff](API_V3.md#pending-record-edits-during-generation-replacement)
-to transfer detached pending input across a graph restart. Keep all SDK handles
-generation-scoped, validate the current actor and saved state before restoring
-input, and retain original revisions and uncertain command IDs.
-
-Use a `settings` contribution for options belonging to your add-on. The host
-groups these panels inside a Settings disclosure on that add-on's card in
-Settings → Add-ons, filtered by effective role. Label whether your controls
-affect personal preferences or shared campaign data, and publish dirty/saving
-flags through the existing edit handle. See [Add-on settings](API_V3.md#add-on-settings)
-for the host context, navigation, persistence ownership, and lifecycle rules.
-
-Reference libraries use the public `wiki-kind` model provider for campaign wiki
-links, declared old bookmark roots, and optional global search. Return local
-route IDs plus query pairs; the host owns URLs, role filtering, and lifetime.
-See [Wiki references and library search](API_V3.md#wiki-references-and-library-search).
+- **Integrated** modules run in the app page as trusted, reviewed code.
+  **Isolated** modules run in a sandboxed iframe, talk only through the host
+  bridge and must be one self-contained bundle. Neither may import host modules,
+  read host DOM or assume file layout.
+- Treat all data as untrusted. Build DOM with `textContent`; never insert raw
+  HTML from packages, translations, services or records.
+- For forms and controls, declare `ui.controls.v1` and call
+  `context.ui.enhance(ownRoot)`; the [shared UI contract](../../docs/reference/UI_FOUNDATIONS.md)
+  covers markers, skin tokens and cleanup. Keep domain behaviour in your add-on.
+- Render loading, empty, unavailable, retry and error states.
+- Everything you create (listeners, timers, subscriptions, requests, caches)
+  belongs to one activation generation. Dispose it on abort, and make disposal
+  safe to repeat.
+- Put options in a `settings` contribution; it appears on your add-on's card in
+  Settings → Add-ons ([details](API_V3.md#add-on-settings)).
+- Reference libraries can add campaign wiki links and search results through a
+  `wiki-kind` provider ([details](API_V3.md#wiki-references-and-library-search)).
+- Record sections can carry pending input across a host restart with the
+  [pending edit handoff](API_V3.md#pending-record-edits-during-generation-replacement).
 
 ## Worker code
 
-Native workers are Go executables using `sdk/go/workerrpc`. Stdout is reserved
-for framed protocol messages; diagnostics go to stderr. The host supplies exact
-generation identity, grants, service bindings, deadlines, and actor lineage.
-Workers must not trust claimed actor fields or invent service handles.
+A native worker is a Go program using the host's public SDK:
 
-Implement only declared methods, honor cancellation, keep requests bounded, and
-make health meaningful. Package Linux amd64/arm64 and Windows amd64 targets when
-those deployments are supported. Production never invokes `go build`.
-The shared Go peer keeps health/shutdown admission separate from bounded domain
-work. Writer waits honor cancellation; an interrupted frame prefix stops the
-transport instead of corrupting a later frame. Closing the peer also cancels
-queued calls and replies and prevents late reads from starting new handlers.
-Stream owners still close already blocked I/O. Rebuild workers against the current
-SDK to receive these behaviors; an image update alone does not replace an already
-installed worker ZIP. See the
-[native-worker initialization](API_V3.md#initialization) for the protocol.
+```text
+go get github.com/pjunak/ttrpg-codex@<host-commit-or-version>
+```
 
-## Data and services
+```go
+import "github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
+```
 
-Collections and record extensions require closed JSON Schemas and explicit
-visibility. Mutate them only through the host data client so schema validation,
-ownership, revisions, events, and transactions stay intact.
+- Stdout carries only framed protocol messages; write diagnostics to stderr.
+- The host supplies the generation, grants, service bindings, deadlines and the
+  acting user. Never trust actor fields from a request or invent handles.
+- Implement only declared methods; honour cancellation and shutdown; keep
+  requests bounded; make the health check meaningful.
+- Keep `main` as wiring and put domain logic in its own packages.
+- Return serializable, schema-valid values only.
+- Build every target the manifest declares (Linux amd64/arm64 and Windows amd64
+  for the first-party add-ons). A worker is crash isolation, not a security
+  sandbox.
 
-Services are stable namespaced contracts with semantic versions and JSON Schema
-request/response documents. Consumers target a contract and range, never a
-known provider ID. Optional consumers remain useful without a provider.
-Provider identity and generation stay in cache keys and diagnostics.
+The [initialization protocol](API_V3.md#initialization) and
+[required methods](API_V3.md#required-protocol-methods) are in the reference. To
+develop against an unreleased host change, use an uncommitted `go.work`
+(`go work init . ../ttrpg-codex`).
 
-Content sets are immutable package assets. Use stable `(kind, id)` identity,
-explicit provenance, and a revision changed with content. User choices and
-overlays belong in host or add-on data, not rewritten package files.
+## Data, services and content
 
-Rules packages declare `rules.supports`; a complete-profile package additionally
-declares `rules.defines` to establish one ruleset for the website instance.
-Compatible source packages may coexist and contain several selectable books.
-Use `groups.catalogKind` for book labels, tolerate zero effective records, and
-include effective revisions in caches. Follow the shared
-[rules/source contract](../../docs/rewrite/RULES_SOURCES.md); source changes
-never authorize rewriting authored character state. Update the host before
-installing packages that use these manifest fields.
+- **Collections and record extensions** need closed JSON Schemas and explicit
+  visibility. Change them only through the host data client so validation,
+  revisions, events and transactions apply. `workerOnly: true` limits writes to
+  your worker; `retained: true` adds immutable history
+  ([retained history](../../docs/reference/RETAINED_ADDON_HISTORY.md)).
+- **Services** are namespaced contracts with semantic versions and JSON Schema
+  request/response documents. Consumers ask for a contract and version range,
+  never a provider add-on ID, and stay useful when no provider is installed.
+  Include the provider's generation in cache keys.
+- **Content sets** are immutable package files with stable `(kind, id)`
+  identity and provenance. Store user choices in data, not in package files.
+- **Rules packages** declare `rules.supports`; a package that defines a complete
+  ruleset also declares `rules.defines`. See [rules and sources](../../docs/reference/RULES_SOURCES.md).
+- **Imports** are two steps: a stored, read-only preview, then a commit of exactly
+  that preview ([imports](API_V3.md#imports-and-campaign-bundles)).
 
-## Build and verify
+## Before you release
 
-Each add-on owns its compiler, tests, deterministic packager, and package
-archive. A release candidate should pass:
+1. Your repository's build, tests, type checks and `go vet` pass.
+2. Packaging is deterministic (same source, same ZIP).
+3. The host inspector accepts the ZIP.
+4. The add-on works with its optional providers absent.
+5. Install, update, reload and disable work on a local host, including any
+   providers or consumers you integrate with.
 
-1. repository build and tests;
-2. deterministic packaging;
-3. `go run ./cmd/codex-addon-inspect path/to/addon.zip` from the host;
-4. standalone behavior without optional providers;
-5. affected provider/consumer integration during supervised testing.
+## Publishing
 
-Installation is always upload, inspect/stage, review, approve exact grants, and
-activate. A source checkout or GitHub archive is not a production package.
+The first-party add-ons publish each tested `main` commit as a GitHub release
+tagged `build-<commit>` with the ZIP attached, using the host's
+[publish action](../../.github/actions/publish-addon/action.yml) and the job's
+own `GITHUB_TOKEN`. DMs then pick **Latest published package** when adding or
+updating the add-on; publishing never installs anything. Private repositories
+work too: the DM saves a token with Contents read access in the host. See
+[add-on installation](../../docs/SELF_HOSTING.md#add-on-installation).
 
-## First-party references
-
-- DM Tools demonstrates TypeScript UI, package collections, a native Go
-  worker, read-only map context and the public integrated Markdown component.
-- D&D 2024 Compendium demonstrates immutable content and a content service.
-- D&D Engine demonstrates a headless native worker and optional service
-  consumption.
-- Character Sheets demonstrates record extensions and optional engine use.
-
-Those repositories are examples of public-contract use, not additional host
-API. If a first-party package needs an internal import, add the missing public
-contract instead.
-
-
-## Publishing tested commits
-
-First-party add-on CI publishes the exact `reviewed-package` ZIP after its full
-checks and host inspection pass. A separate job with Contents write calls the
-shared [publisher action](../../.github/actions/publish-addon/action.yml), pinned
-to a reviewed host commit. It uses the job's automatic `GITHUB_TOKEN`; no personal
-deployment token or server access is needed. Private repositories keep private
-releases.
-
-Releases use `build-<full source SHA>` tags and retain the package's semantic
-version for compatibility. Updating content or behavior therefore does not
-require a version bump merely to make an update available. The publisher stages
-a draft, verifies GitHub's uploaded SHA-256 digest, then publishes it. Reruns
-never overwrite different package bytes. Older tested commits remain downloadable
-without replacing the newest release. Keep main publication serialized.
-
-Native first-party builds fetch the immutable host SDK commit declared in each
-add-on's `host-sdk-revision.txt`. Sheets also declares the engine's public model
-commit in `engine-model-revision.txt`; this compile dependency does not select
-runtime providers. The standard-library-only
-`go run ./tools/check.go dependency-ref <revision-file>` command validates these
-full commit hashes before sibling modules exist. Standalone checks and Go
-vulnerability jobs use the same pins. To publish an SDK or model change, update
-the relevant pin in a new consumer commit and make the dependency commit
-available first. Local builds use adjacent checkouts; the host compatibility
-suite deliberately tests candidate dependencies and records actual source
-commits and package hashes. Follow the
-[coordinated delivery procedure](../../docs/SELF_HOSTING.md#coordinate-host-and-companion-commits).
-
-The website defaults to the latest published package. Discovery and download
-never activate it: each installation owner reviews permissions and compatibility
-and chooses when to activate. Public releases download without a token; private
-releases require Contents read on that add-on repository. Actions-artifact
-sources remain supported for other branches and publishers, with Actions read
-access and the configured retention limit.
+If something you need is missing from the public API, ask for a public
+contract rather than reaching into host internals.

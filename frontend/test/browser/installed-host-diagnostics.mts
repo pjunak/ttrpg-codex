@@ -1,11 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import {
-  publicFailureRecord,
-  writePublicFailure,
-  type FailureReporter,
-} from "./public-failure-evidence.mts";
 
 type HostProcess = {
   pid?: number;
@@ -13,11 +8,7 @@ type HostProcess = {
   signalCode: NodeJS.Signals | null;
 };
 
-export function installedHostDiagnostics(
-  output: string,
-  host: () => HostProcess | undefined,
-  report: FailureReporter = writePublicFailure,
-) {
+export function installedHostDiagnostics(output: string, host: () => HostProcess | undefined) {
   const runId = randomUUID();
   let tail = "";
   return {
@@ -56,20 +47,6 @@ export function installedHostDiagnostics(
           });
         } catch {
           console.warn(`Could not save installed-host failure evidence for ${stage}.`);
-        }
-        try {
-          await report(
-            publicFailureRecord({
-              source: "host",
-              runId,
-              stage,
-              method,
-              status: evidence.status,
-              host: hostProcess,
-            }),
-          );
-        } catch {
-          console.warn("Could not save public installed-host failure metadata.");
         }
         throw cause;
       }

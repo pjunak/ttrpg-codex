@@ -147,7 +147,7 @@
           "$ref": "#/$defs/uiRuntime"
         },
         "worker": {
-          "$ref": "#/$defs/workerRuntime"
+          "$ref": "#/$defs/nativeWorker"
         }
       }
     },
@@ -330,16 +330,6 @@
         }
       ]
     },
-    "workerRuntime": {
-      "oneOf": [
-        {
-          "$ref": "#/$defs/nativeWorker"
-        },
-        {
-          "$ref": "#/$defs/wasiWorker"
-        }
-      ]
-    },
     "nativeWorker": {
       "type": "object",
       "additionalProperties": false,
@@ -360,22 +350,6 @@
           "additionalProperties": {
             "$ref": "#/$defs/packagePath"
           }
-        }
-      }
-    },
-    "wasiWorker": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "protocol", "entrypoint"],
-      "properties": {
-        "type": {
-          "const": "wasi"
-        },
-        "protocol": {
-          "$ref": "#/$defs/versionRange"
-        },
-        "entrypoint": {
-          "$ref": "#/$defs/packagePath"
         }
       }
     },
@@ -439,13 +413,9 @@
             "article-section",
             "editor-panel",
             "slot",
-            "record-renderer",
             "wiki-kind",
-            "kind",
-            "graph-node-kind",
             "graph-view",
-            "graph-contributor",
-            "http-endpoint"
+            "graph-contributor"
           ]
         },
         "label": {

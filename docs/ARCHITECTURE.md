@@ -3,7 +3,7 @@
 TTRPG Codex v2 is one Go process serving a compiled TypeScript application and
 a versioned add-on platform. Accepted design decisions live under
 [`decisions/`](decisions/); detailed subsystem contracts live under
-[`rewrite/`](rewrite/).
+[`reference/`](reference/).
 
 ## System shape
 
@@ -21,8 +21,7 @@ Go host
 ```
 
 The campaign runtime is rules-neutral: D&D calculations and character UI live
-in add-ons. Offline conversion and sheet retirement are narrowly scoped
-maintenance tools. The optional first-party service graph is:
+in add-ons. The optional first-party service graph is:
 
 ```text
 D&D 2024 Compendium --rules-data v3--> D&D Engine
@@ -88,8 +87,11 @@ upload -> inspect/stage -> review -> approve exact grants -> activate
 
 Generations are named by archive SHA-256. Activation resolves dependencies and
 services, starts and health-checks the candidate, then switches routing without
-mixing generations. Previous generations remain available for reviewed
-rollback. Disable stops routing but preserves files, grants, and user data.
+mixing generations. The default retention policy keeps only the selected build
+after successful updates and at startup, preserving pending review candidates
+until resolved or expired. Removed builds must be uploaded again for rollback.
+Campaign recovery remains independent of removed add-on recovery contexts.
+Disable stops routing while preserving current user data and the selected build.
 
 Add-on data uses package-declared JSON Schemas. Collections and record
 extensions live in host SQLite with revisions, visibility, ownership, and core-
@@ -111,8 +113,9 @@ LIFO, once-only cleanup prevents stale handlers and services after reloads.
 DM Tools supplies the visible format-routed Import Center and a planning adapter
 through `codex.import-adapter` v2. Its worker retains the reviewed plan and
 commits guarded add-on mutations through host transactions. A host-owned
-campaign-bundle provider for combined core and add-on imports is not currently
-implemented; its remaining work is T19 in [the backlog](BACKLOG.md).
+campaign-bundle adapter v3 supplies scoped contributor v1 previews, atomic core
+and add-on publication, and receipt reconciliation. The host lends it to the
+Import Center; it owns authorization, exact retained plans and recovery.
 
 ## Frontend
 
@@ -122,7 +125,7 @@ browser add-on composition. Add-ons own specialized campaign experiences. The
 production Go server serves only `index.html` and fingerprinted `/assets/`
 output from Vite; Node.js is absent from the runtime image.
 
-The [shared UI foundations](rewrite/UI_FOUNDATIONS.md) preserve the goal of
+The [shared UI foundations](reference/UI_FOUNDATIONS.md) preserve the goal of
 reusable, themeable controls serving both the host and add-ons. The versioned
 `ui.controls.v1` capability lends one implementation of fields, search/comboboxes,
 buttons, states, tabs and modal focus to integrated contributions. Semantic tokens
@@ -131,24 +134,17 @@ records, rules, saving and specialized layouts remain with their owners.
 Contribution framing, Markdown and serializable rule details are separate public
 surfaces. Isolated frames retain the documented bridge boundary.
 
-[Markdown recovery and collection browsing](rewrite/EDITOR_BROWSING.md) share
+[Markdown recovery and collection browsing](reference/EDITOR_BROWSING.md) share
 host editor descriptors, current role projections, and existing record saves.
 IndexedDB holds local text recovery snapshots; small per-role collection-view
 preferences live in localStorage and the route. Neither is campaign authority.
 
-## Backups and conversion
+## Backups
 
 `codex-backup.v2` contains an online SQLite backup plus every referenced blob
 and immutable add-on generation, all inventoried by hash. Verification uses an
 isolated database copy. Restore requires the host to be stopped and uses a
 journaled directory swap that startup can recover.
-
-`codex-convert-v1` is separate. It reads one downloaded v1 UI ZIP, validates the
-target DM Tools package, builds a fresh data directory, migrates known
-records/media/planning state, verifies the result, and publishes it once. It
-counts and omits retired sheet values while preserving core character profiles
-and the input archive. The replacement sheet automatically saves schema-4 current state.
-It never merges or mutates its input.
 
 ## Failure model
 

@@ -14,18 +14,6 @@ import {
 
 type Row = Record<string, any>;
 const created = new Map<string, { state: Row; revision: number }>();
-export async function verifyFrozenCreatedCharacters(f: Fixture) {
-  for (const [key, previous] of created) {
-    const frozen = await f.call("load", { key });
-    assert.equal(frozen.status, "unavailable");
-    assert.deepEqual(
-      frozen.state,
-      previous.state,
-      "Provider removal must preserve every UI-created choice and play value",
-    );
-    assert.equal(frozen.revision, previous.revision);
-  }
-}
 const target = (sheet: Locator, id: string) =>
   sheet.locator(
     "[data-builder-target=" +

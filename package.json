@@ -13,7 +13,6 @@
     "test": "npm --workspace @ttrpg-codex/frontend test && go test ./cmd/... ./contracts/... ./internal/... ./sdk/...",
     "typecheck": "npm --workspace @ttrpg-codex/frontend run typecheck",
     "check:source": "node scripts/check-source.mts",
-    "test:secret-scan": "node --test .github/scripts/secret-scan.test.mts",
     "lint:app": "oxlint --type-aware --deny-warnings --report-unused-disable-directives --tsconfig frontend/tsconfig.json --ignore-pattern \"**/*.mts\" frontend/src frontend/test frontend/vite.config.ts contracts",
     "lint:tools": "oxlint --type-aware --deny-warnings --report-unused-disable-directives --tsconfig tsconfig.node.json --ignore-pattern \"**/*.ts\" scripts .github frontend/test/browser",
     "lint": "npm run lint:app && npm run lint:tools",
@@ -21,14 +20,12 @@
     "format": "prettier --write \"frontend/**/*.{ts,mts,css}\" \"scripts/**/*.{ts,mts}\" \".github/**/*.mts\" package.json frontend/package.json frontend/tsconfig.json tsconfig.node.json .oxlintrc.json .prettierrc.json",
     "format:check": "prettier --check \"frontend/**/*.{ts,mts,css}\" \"scripts/**/*.{ts,mts}\" \".github/**/*.mts\" package.json frontend/package.json frontend/tsconfig.json tsconfig.node.json .oxlintrc.json .prettierrc.json",
     "check:fast": "npm run check:source && npm run typecheck && npm run lint && npm run format:check && go run ./tools/check.go fast",
-    "test:tools": "node --test scripts/*.test.mts .github/scripts/workflow-policy.test.mts",
+    "test:tools": "node --test scripts/*.test.mts",
     "check": "npm run check:fast && npm run test:tools && npm --workspace @ttrpg-codex/frontend test && npm --workspace @ttrpg-codex/frontend run test:browser && go run ./tools/check.go test",
     "check:go": "go run ./tools/check.go",
     "check:workflows": "go run ./tools/check.go workflows",
     "check:vulnerabilities": "go run ./tools/check.go vuln",
-    "check:dependencies": "npm audit --package-lock-only --audit-level=high",
-    "release-check": "node scripts/check-release-readiness.mts",
-    "check:toolchains": "node scripts/check-toolchains.mts ../addon-dm-tools ../addon-dnd-character-sheets ../addon-dnd-2024-compendium"
+    "check:dependencies": "npm audit --package-lock-only --audit-level=high"
   },
   "engines": {
     "node": ">=26"

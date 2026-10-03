@@ -1,0 +1,252 @@
+# Rewrite authentication
+
+The rewrite authentication boundary deliberately starts smaller than the v1
+account surface, but it is a real authorization boundary rather than a
+development bypass. The Go host owns credentials, sessions, effective roles,
+and CSRF checks. TypeScript may render the current authority but cannot create
+or upgrade it.
+
+## Credentials and sessions
+
+The first start uses one required `CODEX_DM_PASSWORD` and one optional
+`CODEX_PLAYER_PASSWORD`. It persists a singleton credential record in SQLite
+with an optimistic revision, a DM hash and an optional player hash. Passwords
+use PBKDF2-HMAC-SHA256 with 600,000 iterations, independent random 16-byte salts,
+and 32-byte outputs (`pbkdf2-sha256-600000.v1`). Clear-text passwords are never
+stored. Later starts use the saved record and ignore bootstrap environment
+values, including after player sign-in has been disabled. Malformed saved
+credentials never silently fall back to an environment password.
+
+Successful login creates independent random 256-bit session and CSRF tokens.
+Only digests of the session and CSRF tokens are used for lookup/comparison;
+the CSRF value is retained only so the same-origin client can recover it after
+a page reload. Sessions are process-local, bounded, and expire after 30 days by
+default. A restart intentionally signs everyone out. Password hashes remain
+in SQLite; sessions remain process-local.
+
+The `edit_session` cookie is host-only, HttpOnly, SameSite=Lax, and can be
+marked Secure by executable configuration. Deployment must enable Secure
+cookies behind TLS. There is no default password. Login bodies and credential
+lengths are bounded, failures use one public classification, and repeated
+failures are rate limited per direct peer address with bounded bookkeeping.
+
+## Authority model
+
+Every resolved session carries two roles:
+
+- `realRole` is the authenticated identity class and never increases;
+- `role` is the effective projection used for data and browser UI.
+
+A player session is always player/player. A DM may switch between DM and
+player projections. Every transition replaces both opaque tokens before the
+old session is removed, so a failed rotation preserves the current session and
+a successful rotation immediately revokes its previous authority.
+
+`GET /api/auth` is the authoritative browser probe. Anonymous responses contain
+null roles. Authenticated responses contain the two roles, the current CSRF
+token, and the expiry time. Login, logout, and view-as responses follow the
+same shape.
+
+Protected browser graph and immutable asset reads accept either authenticated
+role. Administrative reads require real and effective DM. Administrative
+mutations additionally require the exact `X-Codex-CSRF` value bound to that
+session. These checks run before request path, query, or body parsing.
+
+Campaign reading deliberately differs from those protected surfaces.
+`GET /api/campaign` is available anonymously because both current websites are
+public campaign references. Anonymous users and players receive the same
+closed public projection. Authentication can only expand that projection when
+the effective session role is DM; a DM using view-as-player receives the
+public result.
+
+The shared `GET /api/events` stream follows the same projection rule.
+Anonymous callers receive only public invalidations. Player and DM-as-player
+sessions also receive the public audience, while an effective DM additionally
+receives DM invalidations. The browser closes and reopens its single stream
+after an authority change so an older audience is never reused.
+Closing the source also cancels work already delivered by it. Live refresh and
+restore continuations cannot restart views or report failures in a replacement
+session; [the event-stream contract](EVENT_STREAM.md#connection-behavior)
+owns that lifetime and reconnect behavior.
+
+Campaign reads serialize within the current authority. Changing authority clears
+the accepted projection, cancels its pending request and releases the new read
+queue immediately. Reads queued before that change cannot run under the new
+session, and late response bodies or failures cannot replace its projection or
+error state. Initial startup also checks its captured authority before starting
+events or add-ons. Sign-out therefore does not wait for an obsolete campaign
+request to finish; normal same-authority refresh ordering remains unchanged.
+
+The browser starts its health/version diagnostic independently of session and
+campaign reads. A delayed or failed health request updates the existing host
+status without blocking the archive or account controls.
+
+Startup, sign-in, sign-out, role switching, same-role recovery and pending
+player-preview creation capture the connected application's request scope.
+Disconnect cancels their waits and clears the campaign cache; a reconnect checks
+current cookie authority before accepting another projection. Cancelled results
+cannot change authority, open streams, start add-ons, move focus or clear a newer
+action's busy state. A pending blank preview closes on cancellation, while a
+successfully opened preview keeps its independent lifetime.
+
+Campaign transactions accept either authenticated role and always require the
+exact CSRF value bound to the current cookie. The effective role selects DM or
+player mutation policy; a DM using view-as-player deliberately receives player
+write limits. Audit identity is derived from the resolved session and cannot
+be supplied or overridden in JSON.
+
+Twin create, link, and unlink are stricter because they can expose the
+existence of a hidden counterpart. They require both the real and effective
+role to be DM, as well as the exact CSRF value. A DM using view-as-player must
+leave that mode before changing twin relationships. Host-owned enum deletion
+uses the same stricter authority because its atomic usage rewrite spans public
+and DM-only records.
+
+`GET /api/backup` also requires both real and effective DM authority because
+the native archive contains the complete unprojected database and installed
+add-on packages. It is a read/download operation and therefore does not use a
+CSRF header; same-origin cookie policy and the strict DM check remain required.
+
+## Separate-tab player preview
+
+The DM account menu's **View as player** action opens a separate tab. It calls
+`POST /api/player-preview` with the current DM CSRF token and an empty body.
+The response is `player-preview.v1` with `token` and `expiresAt`; it never sets
+or rotates a cookie. The existing view-as API remains available for deliberate
+session-wide transitions and for returning an already-switched session to DM.
+
+Preview sessions have independent player/player authority and CSRF tokens.
+They can perform ordinary player actions, including permitted player edits;
+they cannot sign in, become DM, create previews, or use administration APIs.
+There are at most eight active previews per issuing DM session, within the
+ordinary session capacity. They expire after one hour or the parent session's
+expiry, whichever comes first. Revoking or rotating the parent also invalidates
+its previews. Closing a preview through its button revokes only that preview.
+Closing the browser tab directly leaves its credential to expire normally.
+
+The new tab has no opener. Its bootstrap credential travels in the URL fragment
+and is immediately replaced with a non-secret `playerPreview=1` marker before
+the app starts. The token is held in tab-local session storage; same-site
+navigation and reload retain the preview. Missing, blocked, or malformed tab
+storage with an explicit marker keeps invalid preview mode instead of using
+the shared DM cookie.
+
+Core clients and host-issued add-on facades use the preview-aware default
+transport. Preview API requests omit cookies and carry
+`X-Codex-Player-Preview`; it only accepts a preview token, never an ordinary DM
+token. Empty, expired, conflicting, or invalid preview credentials fail before
+public routes can fall back to cookie or anonymous authority. Fetch requests
+do not forward preview credentials to other origins or through redirects.
+Native EventSource and rendered media URLs use the narrowly accepted
+`playerPreviewToken` query parameter on GET event/media routes. The auth
+boundary removes that parameter before ordinary query validation; canonical
+stored media URLs never contain credentials. Preview logout never clears the
+shared cookie. Request diagnostics record paths, not token-bearing queries.
+
+Tests cover independent authority, parent expiry/rotation/revocation, bounded
+capacity, concurrency, invalid-token fallback, protected routes and stream
+revocation. Installed-host browser tests cover desktop/phone popups, reload,
+same-site navigation, public live updates and media, hidden media refusal,
+missing storage, DM logout, and blocked popups.
+
+## Password management
+
+Settings → Server access restores the DM and player password cards in English
+and Czech. Each form requires the current DM password and confirmation of the
+new value. Disabling player sign-in is explicit; public reading remains
+available. Inputs remain local to the mounted form and are cleared after that
+form saves or is discarded. Navigation is guarded while dirty and blocked
+while a write is pending. Lost responses retain the reviewing DM session and
+require a fresh status read before an explicit retry.
+
+Disconnect clears password inputs and feedback. Reconnect publishes the cleared
+dirty/saving state to Settings and the application before reading current status,
+so retired operations cannot leave category navigation or unload guards stuck.
+Password status/change JSON waits share their initiating cancellation signal;
+late success or failure cannot replace fresh inputs or current feedback. Stopping
+the browser wait does not undo an accepted password change or replay it.
+
+`GET /api/passwords` requires real and effective DM authority and returns only
+`credential-status.v1`, the credential revision and `playerEnabled`.
+`POST /api/passwords` also requires CSRF and takes `role`, `currentPassword`,
+`newPassword`, and `expectedRevision`. New passwords contain 4–4096 bytes and
+must differ between roles; an empty player password explicitly disables that
+role. Status responses use `Cache-Control: no-store` and never return hashes,
+passwords, or session identifiers. Invalid current-password attempts share the
+login rate limiter. Stale revisions fail with `CREDENTIAL_CONFLICT`.
+
+The service commits credentials before replacing its in-memory state or
+revoking sessions. A failed commit leaves existing passwords and sessions
+unchanged. DM changes revoke other DM sessions; player changes revoke player
+sessions. Both revoke existing player previews, while the reviewing DM keeps
+the same session and CSRF token. Login and changes serialize across the
+credential check and session creation, so a concurrent old-password login
+cannot escape revocation.
+Existing authenticated event streams re-check authority after initial reads,
+before replayed/live publications and heartbeats, and immediately after initial
+output. Revocation during initial output closes the stream without waiting for
+its next heartbeat; later revocation closes it before the next live publication
+or heartbeat.
+
+Native backups include password hashes; restoring one restores its saved
+passwords. Older backups without this table bootstrap on the first start.
+Legacy v1 conversion still excludes credentials. The offline
+`codex -data-dir <directory> -reset-passwords` command replaces saved passwords
+from the environment under the same exclusive data-directory lock as the host,
+then exits without changing campaign data. See the
+[operator steps](../SELF_HOSTING.md#password-changes-and-access-recovery).
+
+## Recovering a session during editing
+
+A rejected authorized request triggers an authority read, never an automatic
+retry of the write. Retained campaign refreshes also recheck the session before
+replacing data, so an expired DM session cannot replace a private record's open
+editor with a public snapshot. Concurrent checks are coalesced and transport
+listeners end with the application component.
+
+The shared transport honors the initiating request's cancellation scope before
+sending and while awaiting headers, including inherited `Request` signals and
+explicit signal overrides. A late 401/403 from a cancelled request cannot
+announce an authority rejection in a replacement panel or session. Preview
+requests retain their separate credentials and never acquire cookie authority
+through cancellation. Late transport failures remain observed; cancellation
+does not establish whether a submitted server command committed.
+
+Each shared authority check has its own abort scope. Explicit logout or role
+switch, accepted replacement authority and component disposal cancel it and
+release the shared promise. A new sign-in checks its own authority without
+waiting for the previous session's response. An obsolete check cannot replace
+current authority, open a stale recovery prompt or clear a newer pending check.
+
+When the previous role is no longer available, an English/Czech sign-in form
+appears in the current page using the shared field, button and status styles.
+Core editors and unchanged add-on contributions remain mounted with their
+original values, revision bases and pending requests. Reauthentication must
+restore the same real/effective role; wrong credentials or a different role
+leave the draft and recovery form intact. A successful sign-in refreshes campaign
+data and renews the CSRF token used by existing host-issued data/service clients.
+It announces recovery and returns keyboard focus to the campaign content.
+The user reviews and retries explicitly; renewing credentials never replays a
+write. A concurrent record change still fails the original revision check.
+An authenticated same-role cookie change in another tab also refreshes the
+existing clients' token after an authority read, without remounting their views.
+
+A graph authorization failure can pause refresh and retain mounted views while
+the shell requests sign-in. Requests still require server-authorized cookies,
+CSRF and current generation/binding identities. Explicit logout, role changes,
+and declined/unavailable recovery retain ordered disposal. Renewed credentials
+cannot revive a disposed generation. An actual provider/package graph change
+still uses the separate cold-switch contract and may dispose the retained view.
+
+Player-preview tabs keep their separate fail-closed contract and never fall
+back to the browser's DM cookie through this recovery path. This adds no browser
+draft storage or history. Core browser tests cover live expiry before Save and
+private drafts.
+Fixtures revoke real sessions through logout; clock-based expiration is covered
+by Go session tests.
+
+## Authentication follow-ups
+
+- Persistent sessions and individual session-management UI remain optional.
+- Add request/correlation IDs and security-event diagnostics without recording
+  credentials or tokens.

@@ -1,0 +1,60 @@
+name: Installed add-on smoke test
+
+# Installs the latest published release of each first-party add-on into this
+# host and exercises the main workflows. It never gates deployment.
+# Optional secret ADDON_SUITE_TOKEN (read access to the private compendium)
+# enables the compendium, rules and character cases.
+
+on:
+  schedule:
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installed-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Latest published add-ons
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - run: npm ci && npx playwright install --with-deps chromium
+
+      - name: Download the latest published add-on packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRIVATE_TOKEN: ${{ secrets.ADDON_SUITE_TOKEN }}
+        run: |
+          download() {
+            gh release download --repo "pjunak/$1" --pattern '*.zip' --dir "$RUNNER_TEMP/addons/$2"
+            echo "$3=$(ls "$RUNNER_TEMP/addons/$2"/*.zip)" >> "$GITHUB_ENV"
+          }
+          download addon-dm-tools dm-tools CODEX_DM_TOOLS_ZIP
+          download addon-dnd-engine engine CODEX_ENGINE_ZIP
+          download addon-dnd-character-sheets sheets CODEX_SHEETS_ZIP
+          if [[ -n "$PRIVATE_TOKEN" ]]; then
+            GH_TOKEN="$PRIVATE_TOKEN" download addon-dnd-2024-compendium compendium CODEX_COMPENDIUM_ZIP
+          else
+            echo "::warning::ADDON_SUITE_TOKEN is not set; compendium, rules and character cases are skipped."
+          fi
+
+      # Traces are not uploaded: they can contain private compendium text.
+      - run: npm --workspace @ttrpg-codex/frontend run build
+      - run: npm --workspace @ttrpg-codex/frontend run test:installed

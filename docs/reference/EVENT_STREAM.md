@@ -1,0 +1,133 @@
+# Shared event stream
+
+The browser uses one authenticated Server-Sent Events connection for live
+invalidation and progress. Core data, browser add-ons and imports publish named
+topics into the same transport. No subsystem or
+add-on gets a private reconnect loop.
+
+## Durable replay
+
+`events.Broker` commits every publication to the SQLite `change_log` before it
+wakes live subscribers. Sequence IDs are database-assigned and globally
+monotonic. A notification lost between commit and wake-up is recovered by the
+next replay; an in-memory wake-up is never the durable authority.
+
+Browser-visible audiences are `public` and `dm`. A player connection receives
+public events. A DM connection receives public and DM events. System events
+may be retained for diagnostics but are never projected into a browser
+subscription. Topic names, revisions, resource IDs, and JSON object metadata
+are bounded before insertion.
+
+`Last-Event-ID` resumes strictly after a non-negative sequence. Replay is
+bounded to 256 visible events per connection. If the cursor is ahead of the
+current database or the replay window is too large, the server emits a
+`reset` event at the latest visible sequence; clients must refresh their
+authoritative HTTP resources. A new connection receives `hello` at the latest
+visible cursor instead of replaying the complete history. On every `hello`,
+including reconnections, the browser refreshes the authoritative campaign
+snapshot while keeping the current view and drafts. An initial HTTP load may
+precede subscription; writes in that interval are already included in the
+`hello` cursor and would otherwise never invalidate that snapshot. Campaign
+refreshes are serialized so an older response cannot replace a newer one.
+
+The server subscribes before reading the replay window. Live events that race
+with replay therefore enter the bounded subscriber queue, and sequence
+deduplication prevents them from being delivered twice.
+
+## Connection behavior
+
+The HTTP route is registered only with both an event source and an audience
+resolver. Anonymous requests receive the public audience. A session maps its
+effective role to the public or DM audience before cursor or query parsing.
+Responses disable proxy buffering, retain authorization variance, and send
+heartbeat comments every 20 seconds. Write deadlines are advanced after
+successful output so a stalled client cannot hold a handler forever.
+Authenticated streams re-check their session after the initial cursor/replay
+read, before each replayed or live publication, and before each heartbeat.
+They also check immediately after initial output, so revocation during its
+flush closes the stream without waiting for the next notification or heartbeat.
+Password changes, logout, expiry or role rotation close the old connection;
+an ordinary reconnect resolves its current authority again.
+
+The browser accepts publications and connection errors only from its current
+EventSource. Each source also supplies a cancellation signal for work already
+delivered to its callbacks. Closing or replacing the stream cancels that work;
+its late responses and errors cannot affect a replacement connection,
+application or add-on composition. Authority changes close the previous source
+before loading their new projection. Same-role token renewal preserves the
+source and mounted views. A transient connection error keeps the source's
+signal live: native EventSource still owns reconnect and replay, and its next
+`hello` reconciles the campaign as usual.
+
+Campaign reads stop awaiting cancelled headers and bodies even when the
+transport does not cooperate. A cancelled queued caller settles immediately,
+but its queue position still waits for a live predecessor; current reads remain
+ordered. Retired transport failures remain observed without publishing them.
+
+The broker bounds total subscriptions and each subscriber queue. A slow
+subscriber is disconnected rather than blocking publication or accumulating
+unbounded memory. Event payloads never contain credentials, session tokens, or
+private error details.
+
+Player-preview tabs open the same shared stream with their bounded preview
+credential in the `playerPreviewToken` query parameter. Authentication validates
+and removes it before the stream's otherwise-closed query check. The preview
+always receives the public audience even when the browser also carries a DM
+cookie. Preview authority follows the same initial-output, replay, live and
+heartbeat checks; expired or revoked previews close and cannot reconnect using
+the DM cookie.
+
+## Campaign recovery
+
+Campaign recovery publishes `campaign-restored` in the same transaction as its
+data and audit changes. This public invalidation contains only a monotonically
+increasing recovery revision and empty metadata, never point IDs, record keys
+or private content. The browser validates it, reloads core campaign state, and
+restarts clean add-on views to discard cached documents. After the refresh, it
+checks the current core and add-on dirty/saving state, including edits started
+during that read. Open drafts and pending saves remain visible with a reload
+notice; their old revisions cannot overwrite the restored state. Only the
+latest overlapping restore can decide to restart views, and that decision
+belongs to the originating stream, application and add-on composition. An old
+restore cannot restart a newly signed-in or reconnected composition. Durable
+replay covers missed notifications as usual.
+
+## Add-on data
+
+`addon-data-changed` publications are validated in the shared browser stream
+and dispatched only to the owning add-on's `context.data.subscribe` listeners.
+Both integrated modules and isolated frames receive payload-free collection or
+extension invalidations. The browser drops the internal data revision; normal
+role-projected reads remain the only source of documents. `hello`, `reset` and
+`campaign-restored` invalidate each active subscriber's cache. Subscriptions
+end with their generation, contribution signal, or explicit disposer.
+
+## Integration status and retention
+
+Package activation, rollback, reviewed cohort activation, reload, disable and
+startup recovery publish the resulting exact browser graph revision. A
+publication failure is logged without claiming that an already committed
+transition failed; every new or reset connection reloads the graph. Campaign
+and browser graph payloads are runtime-validated in TypeScript.
+
+Stored operational history has an explicit offline retention operation:
+`codex-maintenance prune-logs`. It reports row counts and encoded payload sizes
+separately for SSE, lifecycle and core/add-on commit audits, and retains operator
+selected newest-row limits (10,000 per category by default; SSE per audience).
+Applying requires the exact preview hash, a stopped host and a newly created,
+verified full backup. Normal host activity does not expire records.
+
+Pruning advances a durable checkpoint for each audience in the same transaction
+as deletion. Replay reads checkpoints and events in one SQLite snapshot. A cursor
+older than a visible checkpoint receives `reset`; a cursor exactly at the
+checkpoint can continue. Latest cursors never regress even when all visible rows
+are removed, and private/system checkpoints never enter public cursors.
+AUTOINCREMENT sequences are never reset.
+
+Retained field history, authored records, idempotency receipts, recovery images
+and package archives are outside log retention. SQLite reuses freed pages; the
+encoded row measurements do not claim immediate on-disk file shrinkage. See the
+[maintenance commands](../SELF_HOSTING.md#reviewed-offline-storage-maintenance).
+
+There are no import or background-job progress topics; ordinary import writes
+publish the owning data invalidations.

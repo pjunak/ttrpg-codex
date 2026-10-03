@@ -634,8 +634,6 @@ function expectedBindingKind(
       return "model-provider";
     case "article-section":
     case "editor-panel":
-    case "graph-node-kind":
-    case "record-renderer":
     case "route":
     case "settings":
     case "slot":

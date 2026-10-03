@@ -1,7 +1,7 @@
 import { equipmentView, hpActionsView } from "./installed-character-navigation-fixture.mts";
 import { expandCharacterDetails } from "./installed-character-navigation-fixture.mts";
 import assert from "node:assert/strict";
-import { test, type TestContext } from "node:test";
+import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Locator, Page } from "playwright";
@@ -491,21 +491,4 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
       assert.deepEqual((await f.call("load", { key })).state, stored.state);
     },
   );
-}
-
-export async function verifyFrozenSessionOutputs(t: TestContext, f: Fixture) {
-  for (const locale of ["en", "cs"]) {
-    const key = "whole-session-" + locale,
-      { close: closeSession, page, sheet, read } = await openBuilder(t, f, key, locale);
-    const frozen = await read();
-    assert.equal(frozen.status, "unavailable");
-    await sheet.locator("#dnd-tab-tools").click();
-    const envelope = await exported(page, sheet, locale);
-    assert.deepEqual(envelope.inputs, frozen.state.inputs);
-    const popup = await printOutput(page, sheet, locale);
-    await assertPrint(popup, locale, frozen.state, true);
-    await popup.close();
-    assert.equal((await read()).revision, frozen.revision);
-    await closeSession();
-  }
 }

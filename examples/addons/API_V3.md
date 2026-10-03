@@ -14,25 +14,24 @@ The words MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY describe compatibility
 requirements. Machine-readable definitions live in
 [`contracts/addons/v3`](../../contracts/addons/v3/README.md).
 
-## Current implementation status
+## What is available
 
-Checked against the September 16, 2026 host source. Manifest acceptance and a
-reserved protocol name do not establish a callable runtime surface. The
-[suite backlog](../../docs/BACKLOG.md) owns future work. Sections labeled reserved
-below describe constraints for a possible implementation, not available APIs.
-
-| Surface | Current availability |
+| Area | Available |
 | --- | --- |
-| Package lifecycle | ZIP inspection/staging, exact review/approval, activation/cohort restart, rollback, reload, disable, uninstall and startup recovery are implemented. Inactive archives/data do not expire. |
-| Browser SDK | `addon`, `signal`, `capabilities`, `permissions`, `ui`, `data`, `content` and `services` exist. Navigation/host context/edit guards are supplied to contributions; broader standalone handles are unavailable. |
-| Shared integrated controls | `ui.controls.v1` lends `ui.enhance(ownRoot)` for native fields, search/comboboxes, states, actions, tabs and modal focus. [Markers, tokens and lifetime](../../docs/rewrite/UI_FOUNDATIONS.md); DOM enhancement is unavailable in isolated frames. |
-| Browser own service | Explicit `includeOwn` is supported after activation; it does not establish native-worker self-binding during initialization. |
-| UI/model contributions | Routes, sidebar, settings, article actions/sections, independent editor panels, named slots, wiki providers and host graph models work. `kind` enum injection, `record-renderer`, custom `graph-node-kind` and general `context.graphs` are reserved/unavailable. |
-| Worker transport | Native lifecycle, brokered service calls and package-data/retained-history callbacks are implemented. No WASI runtime or namespaced `http-endpoint` execution is composed. |
-| Imports | DM Tools exposes format-routed import-adapter v2 review/commit. The host lends campaign-bundle adapter v3 with scoped contributor v1, atomic publication and receipt status. No separate `addon/import.*` RPC dispatcher is composed. |
-| Schema upgrades | The host's update confirmation offers validated healing or explicit current-save removal with optional backup. General value-transforming plan/apply orchestration is absent (T08). |
-| Recovery/diagnostics | Initial/periodic health, bounded automatic worker recovery, affected-consumer invalidation, manual reload, host-start recovery and basic manager diagnostics work. Rich redacted worker/browser diagnostics and support bundles remain unfinished (T11). |
-| Optional host calls/trust | Worker blob, event, network and progress methods, package-signature verification and OS resource enforcement are not implemented. Permissions never create these capabilities. |
+| Package lifecycle | ZIP inspection and staging, permission and compatibility review, approval, activation, reload, disable, uninstall and start-up recovery. Only the selected build of each add-on is kept; older builds must be uploaded again to roll back. |
+| Browser SDK | `addon`, `signal`, `capabilities`, `permissions`, `ui`, `data`, `content` and `services`. Contributions also receive host context, navigation and edit guards. |
+| Shared controls | `ui.controls.v1` lends `ui.enhance(ownRoot)` for native fields, searchable choices, states, actions, tabs and modal focus ([shared UI](../../docs/reference/UI_FOUNDATIONS.md)). Integrated UI only. |
+| UI contributions | Routes, sidebar items, settings panels, article actions and sections, editor panels, named slots, wiki providers, graph views and graph contributors. |
+| Workers | Native Go workers with lifecycle, health, cancellation, brokered service calls, package data and retained history. |
+| Imports | Import adapters (`codex.import-adapter` v2) with reviewed preview and commit; the host's campaign-bundle adapter (v3) with contributor v1. |
+| Saved-data updates | On update, the DM keeps compatible values or resets the add-on's data, with an optional backup download. |
+| Diagnostics | Worker health, exit and request timing, redacted correlation references and tab-local browser failures in Settings → Add-ons. |
+
+Not available: WASI workers, worker blob/event/network/progress calls, HTTP
+endpoints, record renderers, custom graph node kinds, enum injection,
+value-transforming data migrations, package signatures and OS resource limits.
+The manifest schema rejects the unavailable surfaces and worker types; others
+are listed as [backlog ideas](../../docs/BACKLOG.md#ideas-only-with-a-concrete-need).
 
 The runtime composition in [cmd/codex](../../cmd/codex/main.go),
 [browser SDK](../../frontend/src/addons/browser-sdk.ts), and
@@ -41,9 +40,9 @@ for available handles and methods. Use the owning references for exact limits.
 
 ## Design principles
 
-The public [retained record-history contract](../../docs/rewrite/RETAINED_ADDON_HISTORY.md)
+The public [retained record-history contract](../../docs/reference/RETAINED_ADDON_HISTORY.md)
 defines `retained: true`, `data.history`, recorded worker transactions and
-historical reads. The public [rule-details contract](../../docs/rewrite/RULE_DETAILS.md)
+historical reads. The public [rule-details contract](../../docs/reference/RULE_DETAILS.md)
 defines `ui.rule-details`, the integrated component and the equivalent
 integrated/isolated `ui.showRuleDetails` operation. These extend API v3 without
 making domain-specific character rules part of the host.
@@ -76,7 +75,7 @@ The archive contains:
 addon.json                    required v3 manifest
 checksums.json                required hashes of packaged files
 web/                          optional prebuilt browser assets
-worker/                       optional native or WASI artifacts
+worker/                       optional native worker binaries
 contracts/                    service and collection JSON Schemas
 content/                      immutable content sets
 locales/                      localization catalogs
@@ -157,7 +156,7 @@ their corresponding browser sandbox token.
 
 This boundary contains DOM and ambient browser authority; it is not a
 general-purpose sandbox for actively malicious computation. Code that needs
-that stronger boundary belongs behind a narrower worker or WASI contract.
+that stronger boundary belongs behind a narrower worker contract.
 
 The bridge supports element-backed visual contributions plus article actions,
 graph views, and graph contributors. It calls `activate(context)` with identity,
@@ -179,14 +178,6 @@ The host currently uses one frame per executable contribution for simple,
 deterministic ownership and cleanup. A pooled generation runtime may be
 considered later only if measured frame startup or memory cost warrants the
 additional multiplexer.
-
-### WASI worker
-
-A WASI worker is preferred for portable deterministic computation, parsers,
-and providers that need only host capabilities. The host runtime exposes no
-ambient directory or network access. CPU, memory, calls, and wall time are
-bounded. The package MUST still be trusted according to the guarantees of the
-chosen WASI runtime and imported capabilities.
 
 ### Native Go worker
 
@@ -215,7 +206,7 @@ proposal; any relevant state change requires another review.
 
 A direct single-package switch preserves the prior runtime when candidate
 startup or commit fails. A reviewed change affecting consumers uses the
-[coordinated cold transition](../../docs/rewrite/PACKAGE_LIFECYCLE.md#coordinated-cold-activation):
+[coordinated cold transition](../../docs/reference/PACKAGE_LIFECYCLE.md#coordinated-cold-activation):
 stop the graph, commit the selected target, then recover in dependency order.
 A recovery failure after commit leaves that selected generation recorded and
 reports failure; it does not guarantee uninterrupted previous workers or
@@ -229,12 +220,13 @@ data; re-enabling uses activation review. The single-package expected-revision
 primitive still refuses live dependents. Reviewed uninstall disables required
 dependents, unregisters the package and preserves
 its data/history and saved generations. Restaging requires ordinary review.
-See [the lifecycle owner](../../docs/rewrite/PACKAGE_LIFECYCLE.md).
+See [the lifecycle owner](../../docs/reference/PACKAGE_LIFECYCLE.md).
 
-Stored schema incompatibility currently blocks activation; there is no automatic
-migration plan/apply step. Reviewed migrations and permanent namespace deletion
-remain T08 and T05 in [the backlog](../../docs/BACKLOG.md). Crash-loop suppression
-is in memory; there is no separate persistent quarantine command.
+Incompatible saved data blocks activation until the DM chooses, in the update
+confirmation, to keep compatible values or reset the add-on's data (with an
+optional backup download). There are no value-transforming migrations.
+Permanently deleting an add-on's data is an offline maintenance command.
+Crash-loop suppression is in memory; there is no persistent quarantine command.
 Saved package archives are cleaned up automatically by the lifecycle owner. Never simulate lifecycle changes by changing package files or database rows.
 
 ## Browser SDK
@@ -450,13 +442,9 @@ Initial surfaces cover existing suite needs:
 | `article-section` | Additive schema-backed section on a record page |
 | `editor-panel` | Structured editor extension |
 | `slot` | Named host composition point |
-| `record-renderer` | Reserved; no runtime renderer-selection outlet |
 | `wiki-kind` | Bounded wiki reference, legacy bookmark, and optional search provider |
-| `kind` | Reserved declaration; add-on enum injection is unavailable |
-| `graph-node-kind` | Reserved; custom node-kind rendering is unavailable |
 | `graph-view` | Named graph view with a bounded model provider |
 | `graph-contributor` | Additive nodes and edges for an existing graph view |
-| `http-endpoint` | Reserved declaration; no HTTP-to-worker dispatcher |
 
 Any future override must use a versioned serializable renderer contract and
 explicit selection policy. There is no current override/renderer-selection
@@ -720,9 +708,7 @@ The implemented `graph-view` and `graph-contributor` surfaces bind
 `{ kind: "model-provider", provide(request, { signal }) }`. The host renders
 their models with the existing Mind Palace cards, filtering, zoom, keyboard
 controls, and browser-local movement. Add-ons do not receive graph-library
-objects or modify core nodes/edges. The broader `context.graphs` mounting
-facade and `graph-node-kind` custom renderers remain unimplemented; do not
-depend on those design excerpts for the current runtime.
+objects or modify core nodes/edges.
 
 A named view declares exact config `{ "contractVersion": 1 }`. It appears as
 a role-visible tab at `#/graph/addons/<addon-id>/<contribution-id>`.
@@ -1022,17 +1008,15 @@ public navigation and edit guards. Add-ons choose their own settings storage
 through permitted data APIs or personal browser state. `data.subscribe` supplies
 payload-free invalidation, not arbitrary package event publication.
 
-Broader scoped settings, event schemas, job progress and redacted logging are
-reserved design areas (C07/T11 in [the backlog](../../docs/BACKLOG.md)). A future
-implementation must preserve generation lifetime, typed values, authority and
-secret exclusion. Current source/provider credential controls remain host-owned.
+Scoped settings, event publication, job progress and add-on logging are not
+available. Source and provider credential controls are host-owned.
 
 ## Worker protocol
 
 ### Transport and framing
 
 Workers use bidirectional JSON-RPC 2.0. Native workers read stdin and write
-stdout. WASI workers use equivalent virtual streams. Each UTF-8 JSON message is
+stdout. Each UTF-8 JSON message is
 framed as:
 
 ```text
@@ -1232,7 +1216,7 @@ The currently composed methods are:
 | Worker -> host | `host/data.history` | Read authorized retained revisions |
 | Worker -> host | `host/service.call` | Call an exact bound service |
 
-Reserved, unimplemented method families are `addon/http.handle`,
+These method families do not exist: `addon/http.handle`,
 `addon/import.preview`, `addon/import.contribute`, `addon/migration.plan`,
 `addon/migration.apply`, `host/blob.create`, `host/blob.read`,
 `host/event.publish`, `host/http.fetch` and `host/progress.report`.
@@ -1333,7 +1317,7 @@ coordinator. It makes up to three automatic recovery attempts with bounded
 backoff, preserves optional-provider fallback, and stops retrying after repeated
 failure. Recovery revalidates the exact selected packages; it never replays a
 save or other domain call. Manual Reload resets an unavailable worker's retry
-budget. See [worker supervision](../../docs/rewrite/WORKER_SUPERVISION.md#restart-policy)
+budget. See [worker supervision](../../docs/reference/WORKER_SUPERVISION.md#restart-policy)
 for timing, stability, shutdown and validation boundaries.
 
 ## Permissions
@@ -1343,8 +1327,8 @@ optional. Broad wildcards are rejected unless the permission definition
 explicitly supports them.
 
 The schema recognizes the following permission families. Only implemented
-handlers can exercise them; in particular blob/network/event permissions do not
-make the reserved worker transports callable.
+handlers can exercise them; blob, network and event permissions do not make
+the missing worker calls available.
 
 Permission families are:
 
@@ -1413,21 +1397,12 @@ The host owns stopping/restarting runtimes, the immutable data plan, atomic
 package selection, stale checks, rollback and retry receipts. Healing preserves
 exact saved values; removal never includes core records or other add-ons.
 No worker migration method or browser add-on permission is introduced.
-See [the host contract](../../docs/rewrite/ADDON_DATA.md#reviewed-compatible-schema-upgrades).
+See [the host contract](../../docs/reference/ADDON_DATA.md#reviewed-compatible-schema-upgrades).
 
-General value transformation is not implemented. Removed definitions, changed
-key/core-target identity, invalid values and conflicting unique indexes remain
-blocked. The reserved worker two-phase design for the remaining T08 scope is:
-
-1. `addon/migration.plan` reads an exact snapshot and returns counts, warnings,
-   schema transitions, destructive effects, and a digest.
-2. After approval, `addon/migration.apply` receives that plan ID and snapshot
-   digest and returns bounded deterministic operations. The host applies them
-   transactionally or rejects the plan as stale.
-
-An implementation must retain a suitable recovery snapshot through accepted
-commit. No migration is an automatic update step. Worker conversion methods
-remain reserved; a worker never executes DDL or edits storage files.
+Value-transforming migrations are not available. Removed definitions, changed
+key or core-target identity, invalid values and conflicting unique indexes keep
+an update blocked until the DM resets that add-on's data. A worker never
+executes DDL or edits storage files.
 
 ## Imports and campaign bundles
 
@@ -1463,7 +1438,7 @@ still cannot create core records. Full backup restoration remains separate.
 
 ## Content and localization
 
-Rules and sources follow the [instance rules contract](../../docs/rewrite/RULES_SOURCES.md).
+Rules and sources follow the [instance rules contract](../../docs/reference/RULES_SOURCES.md).
 Optional `rules.supports` names supported ruleset IDs; `rules.defines` identifies
 the complete profile establishing the single instance ruleset. Additional
 sources must explicitly support it. `content[].groups.catalogKind` identifies
@@ -1495,40 +1470,19 @@ their own content from the locale in their host context.
 
 ## Debugging contract
 
-The manager currently shows package identity/fingerprints, saved generations,
+The manager shows package identity/fingerprints, retained generations,
 permission/change review, active/runtime state and recent lifecycle errors.
-Rules/source settings expose provider selections. Protected server snapshots
-also contain bounded worker diagnostics; the browser client does not render
-all of those fields. Browser activation/disposal failures have local diagnostic
-state rather than a complete unified Inspector.
+Its diagnostics disclosure renders worker health, start/exit information,
+bounded method/outcome/timing records and redacted request/correlation references.
+It also renders tab-local browser activation, dependency, refresh, contribution
+and disposal failure categories. Rules/source settings expose provider choices.
+The browser deliberately does not render every protected worker snapshot field.
 
-The remaining T11 work includes useful health/exit/negotiation and browser-scope
-details, redacted request correlation and a support export. Support bundles and
-redacted RPC traces are not implemented. Raw worker stderr is not a redacted
-support artifact. A future export must exclude credentials, private record
-bodies and raw imports, and test sensitive-field redaction before exposure.
-
-## V2 feature mapping
-
-This maps implemented replacements and explicitly reserved design areas.
-Reserved rows are not current functionality or instructions to restore the
-old runtime mechanism:
-
-| V2 mechanism | V3 replacement |
-|---|---|
-| `entry.js` receives a broad facade | Strict TypeScript SDK with generation-scoped handles |
-| `server/index.cjs` runs in the host | Native Go worker over framed RPC; WASI reserved |
-| Live service objects/functions | Schema-validated broker calls |
-| Opaque permission strings | Structured permissions with resource bounds and reasons |
-| Route/sidebar/action/slot registrations | Predeclared contribution IDs bound to custom elements |
-| Enum kinds, graph node kinds, views, and contributors | Bounded graph models implemented; enum/node-kind injection reserved |
-| Direct graph-library facade | General `GraphApi` reserved; host graph-model providers available |
-| UI override hooks | Raw overrides retired; external typed renderer selection reserved |
-| JSON add-on collections and per-record `addonData` | Schema-versioned collections and record extensions in host SQLite transactions |
-| Direct server endpoints | Namespaced endpoint declaration reserved; dispatcher unavailable |
-| Import provider callbacks | Stored preview plan and transactional commit protocol |
-| Lifecycle callback arrays | One supervised generation scope with abort and bounded shutdown |
-| Add-on test file list | Package conformance declaration plus external test harness |
+Browser diagnostics retain no exception messages, URLs, payloads or stack traces;
+their entries disappear with the tab. Full RPC payload tracing and a support
+export are unavailable and require a concrete future need. Raw worker stderr
+is not a redacted support artifact. Any future export must exclude credentials,
+private record bodies and raw imports, with sensitive-field redaction checks.
 
 ## First-party target profiles
 
@@ -1546,12 +1500,10 @@ and exportable without an engine; validated mechanical changes require one. The
 engine selects sources through contracts, with no hardcoded compendium identity.
 The host remains useful without any D&D-specific package.
 
-## Conformance requirements
+## Platform test coverage
 
-Existing tests verify implemented contracts; release CI coverage limitations
-are recorded under T02 in [the backlog](../../docs/BACKLOG.md). The following
-is the conformance target. Reserved features require their listed failure tests
-when implemented; listing them here does not claim current execution coverage:
+The host's tests cover these behaviours; keep them covered when changing the
+platform, and add the matching failure tests with any new surface:
 
 - archive traversal, collision, size, checksum, and manifest failures;
 - permission diff and approval persistence;
@@ -1559,10 +1511,10 @@ when implemented; listing them here does not claim current execution coverage:
 - activation ordering, cancellation, dispose-once, timeout, crash, restart, and
   rollback behavior;
 - malformed framing, oversized payloads, invalid schemas, and late responses;
-- transaction conflict, migration stale-plan, import stale-plan, and recovery;
+- transaction conflict, import stale-plan, and recovery;
 - UI contribution cleanup, isolated bridge teardown, and reload without stale
   handlers;
 - first-party add-ons against only public SDK and protocol artifacts.
 
-The conformance harness is part of the platform contract. A feature is not
-complete merely because a first-party add-on can call an internal host method.
+A feature is not done merely because a first-party add-on can call an internal
+host method; it has to work through the public SDK and protocol.

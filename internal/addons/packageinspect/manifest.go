@@ -45,7 +45,6 @@ type UIRuntime struct {
 type WorkerRuntime struct {
 	Type        string            `json:"type"`
 	Protocol    string            `json:"protocol"`
-	Entrypoint  string            `json:"entrypoint,omitempty"`
 	Entrypoints map[string]string `json:"entrypoints,omitempty"`
 }
 

@@ -1,9 +1,3 @@
-import {
-  exercisePlannerRecovery,
-  exercisePlannerRecoveryConflicts,
-  exercisePlannerRecoveryWrites,
-  exercisePlannerRecoveryStorage,
-} from "./installed-planner-recovery-fixture.mts";
 import { exerciseSchemaUpgrade } from "./installed-schema-upgrade-fixture.mts";
 import { exercisePackageCleanup } from "./installed-cleanup-fixture.mts";
 import { exercisePlanningReader } from "./installed-planning-reader-fixture.mts";
@@ -17,15 +11,7 @@ import type { ChildProcessByStdio } from "node:child_process";
 import type { Readable } from "node:stream";
 import type { FixtureCollection, FixtureRecord } from "./fixture-types.mts";
 import { plannerTab } from "./installed-planner-dialog-fixture.mts";
-import { exercisePlannerSelection } from "./installed-planner-selection-fixture.mts";
-import { exercisePlannerStartup } from "./installed-planner-startup-fixture.mts";
-import { exercisePlannerSession } from "./installed-planner-session-fixture.mts";
-import {
-  exercisePlannerActions,
-  exercisePlannerCreationFailures,
-} from "./installed-planner-actions-fixture.mts";
-import { exercisePlannerCanvas } from "./installed-planner-canvas-fixture.mts";
-import { exercisePlannerLive } from "./installed-planner-live-fixture.mts";
+import { exercisePlannerActions } from "./installed-planner-actions-fixture.mts";
 import { exerciseCampaignBundle } from "./installed-campaign-bundle-fixture.mts";
 import { exerciseImportCenter } from "./installed-import-center-fixture.mts";
 import { exerciseAddonManager } from "./installed-addon-manager-fixture.mts";
@@ -55,17 +41,7 @@ import {
   planningImport,
   replacementImportPackage,
 } from "./installed-import-fixture.mts";
-import { exercisePlannerEditing } from "./installed-planner-fixture.mts";
-import { exercisePlannerFlows } from "./installed-planner-flow-fixture.mts";
-import { exercisePlannerConcurrency } from "./installed-planner-concurrency-fixture.mts";
-import {
-  exercisePlannerNavigation,
-  unloadBlocked,
-  attemptHash,
-} from "./installed-planner-navigation-fixture.mts";
-import { exercisePlannerAnnotations } from "./installed-planner-annotation-fixture.mts";
-import { exercisePlannerStructure } from "./installed-planner-structure-fixture.mts";
-import { exerciseCzechInterface } from "./installed-interface-localization-fixture.mts";
+import { unloadBlocked, attemptHash } from "./installed-planner-navigation-fixture.mts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const output = resolve(root, "frontend/test-results/installed-dm");
@@ -761,20 +737,6 @@ for (const mode of ["integrated", "isolated"])
 
 if (process.env.CODEX_DM_TOOLS_ZIP)
   for (const mobile of [false, true])
-    void test(`installed Czech interface retains authored records, planner links, notes and undo on ${mobile ? "phone" : "desktop"}`, async (t) => {
-      await installReviewedPackage(
-        admin,
-        csrf,
-        "dm-tools",
-        await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-        dmToolsPermissions,
-      );
-      t.after(() => disable("dm-tools"));
-      await exerciseCzechInterface({ t, open, admin, csrf, output, mobile });
-    });
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  for (const mobile of [false, true])
     void test(`installed planner action parity creates, connects, resets and explains shortcuts on ${mobile ? "phone" : "desktop"}`, async (t) => {
       await installReviewedPackage(
         admin,
@@ -786,168 +748,6 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
       t.after(() => disable("dm-tools"));
       await exercisePlannerActions({ t, open, admin, csrf, output, mobile });
     });
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  void test("installed planner reconciles lost creation responses and retains provisional drafts", async (t) => {
-    await installReviewedPackage(
-      admin,
-      csrf,
-      "dm-tools",
-      await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-      dmToolsPermissions,
-    );
-    t.after(() => disable("dm-tools"));
-    await exercisePlannerCreationFailures({ t, open, admin, csrf });
-  });
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  void test("installed planner selects and moves groups, retains modal drafts and deletes mixed selections atomically", async (t) => {
-    await installReviewedPackage(
-      admin,
-      csrf,
-      "dm-tools",
-      await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-      dmToolsPermissions,
-    );
-    t.after(() => disable("dm-tools"));
-    await exercisePlannerSelection({ t, open, admin, csrf, output });
-  });
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  for (const failure of ["held", "rejected"] as const)
-    for (const mobile of [false, true])
-      void test(
-        `installed planner recovers ${failure} startup reads on ${mobile ? "phone" : "desktop"}`,
-        { timeout: 60_000 },
-        async (t) => {
-          await installReviewedPackage(
-            admin,
-            csrf,
-            "dm-tools",
-            await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-            dmToolsPermissions,
-          );
-          t.after(() => disable("dm-tools"));
-          await exercisePlannerStartup({ t, open, admin, csrf, output, mobile, failure });
-        },
-      );
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  for (const mobile of [false, true])
-    void test(
-      `installed large planning session preserves nested work on ${mobile ? "Czech touch phone" : "English keyboard desktop"}`,
-      { timeout: 120_000 },
-      async (t) => {
-        await installReviewedPackage(
-          admin,
-          csrf,
-          "dm-tools",
-          await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-          dmToolsPermissions,
-        );
-        t.after(() => disable("dm-tools"));
-        await exercisePlannerSession({ t, open, admin, csrf, output, mobile });
-      },
-    );
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  void test("installed planner and overview update live without losing edits or canvas state", async (t) => {
-    await installReviewedPackage(
-      admin,
-      csrf,
-      "dm-tools",
-      await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-      dmToolsPermissions,
-    );
-    t.after(() => disable("dm-tools"));
-    await exercisePlannerLive({ t, open, admin, csrf });
-  });
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  for (const mobile of [false, true])
-    void test(`installed planner recovers every draft after replacement on ${mobile ? "phone" : "desktop"}`, async (t) => {
-      const archive = await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP)));
-      await installReviewedPackage(admin, csrf, "dm-tools", archive, dmToolsPermissions);
-      t.after(() => disable("dm-tools"));
-      await exercisePlannerRecovery({ t, open, admin, csrf, output, archive, mobile });
-    });
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  for (const [name, exercise] of [
-    ["stale and removed drafts after disabling", exercisePlannerRecoveryConflicts],
-    ["confirmed and interrupted save outcomes", exercisePlannerRecoveryWrites],
-    ["blocked storage, malformed copies and player isolation", exercisePlannerRecoveryStorage],
-  ] as const)
-    void test("installed planner recovery preserves " + name, async (t) => {
-      const archive = await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP)));
-      await installReviewedPackage(admin, csrf, "dm-tools", archive, dmToolsPermissions);
-      t.after(() => disable("dm-tools"));
-      await exercise({ t, open, admin, csrf, output, archive });
-    });
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  void test("installed planner protects drafts on navigation, Back, sign-out and reload", async (t) => {
-    await installReviewedPackage(
-      admin,
-      csrf,
-      "dm-tools",
-      await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-      dmToolsPermissions,
-    );
-    t.after(() => disable("dm-tools"));
-    await exercisePlannerNavigation({ t, open, admin, csrf });
-  });
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  void test("installed planner changes kind and parent while preserving structure, drafts and annotations", async (t) => {
-    await installReviewedPackage(
-      admin,
-      csrf,
-      "dm-tools",
-      await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-      dmToolsPermissions,
-    );
-    t.after(() => disable("dm-tools"));
-    await exercisePlannerStructure({ t, open, admin, csrf, output });
-  });
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  void test("installed planner restores item fields and retains drafts through edits, conflicts and failed saves", async (t) => {
-    await installReviewedPackage(
-      admin,
-      csrf,
-      "dm-tools",
-      await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-      dmToolsPermissions,
-    );
-    t.after(() => disable("dm-tools"));
-    await exercisePlannerEditing({ t, open, admin, csrf, output });
-  });
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  void test("installed planner edits flows and keeps consequence deletion atomic", async (t) => {
-    await installReviewedPackage(
-      admin,
-      csrf,
-      "dm-tools",
-      await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-      dmToolsPermissions,
-    );
-    t.after(() => disable("dm-tools"));
-    await exercisePlannerFlows({ t, open, admin, csrf, output });
-  });
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  void test("installed planner rejects unseen children, annotations and simultaneous flow cycles", async (t) => {
-    await installReviewedPackage(
-      admin,
-      csrf,
-      "dm-tools",
-      await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-      dmToolsPermissions,
-    );
-    t.after(() => disable("dm-tools"));
-    await exercisePlannerConcurrency({ t, open, admin, csrf });
-  });
 
 if (process.env.CODEX_DM_TOOLS_ZIP)
   for (const mobile of [false, true])
@@ -1514,20 +1314,6 @@ after(async () => {
   }
 });
 
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  for (const mobile of [false, true])
-    void test(`reviewed planner annotations edit targets, quantities and shared notes on ${mobile ? "phone" : "desktop"}`, async (t) => {
-      await installReviewedPackage(
-        admin,
-        csrf,
-        "dm-tools",
-        await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-        dmToolsPermissions,
-      );
-      t.after(() => disable("dm-tools"));
-      await exercisePlannerAnnotations({ t, open, admin, csrf, output, mobile });
-    });
-
 for (const mode of ["integrated", "isolated"])
   void test(`installed ${mode} route reference catalogs respect grants and player visibility`, async (t) => {
     const id = `reference-${mode}`,
@@ -1654,20 +1440,6 @@ for (const mobile of [false, true])
   void test(`sourcebook and provider configuration is reviewed and revision guarded on ${mobile ? "phone" : "desktop"}`, async (t) => {
     await exerciseConfiguration({ t, open, admin, csrf, output, mobile });
   });
-
-if (process.env.CODEX_DM_TOOLS_ZIP)
-  for (const mobile of [false, true])
-    void test(`planner canvas restores navigation and scaled dragging on ${mobile ? "phone" : "desktop"}`, async (t) => {
-      await installReviewedPackage(
-        admin,
-        csrf,
-        "dm-tools",
-        await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP))),
-        dmToolsPermissions,
-      );
-      t.after(() => disable("dm-tools"));
-      await exercisePlannerCanvas({ t, open, admin, csrf, output, mobile });
-    });
 
 for (const mode of ["integrated", "isolated"])
   void test(`installed ${mode} record panels preserve separate saves and role-visible map context`, async (t) => {

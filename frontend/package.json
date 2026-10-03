@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit && tsc -p ../tsconfig.node.json",
     "test": "vitest run",
     "test:browser": "npm run build && node --test --test-concurrency=4 test/browser/*.browser.mts",
+    "test:installed": "node --test --test-concurrency=4 test/browser/installed-*.browser.mts",
     "check": "npm run typecheck && npm test && npm run test:browser"
   },
   "engines": {

@@ -629,11 +629,6 @@ func validateDeclarations(manifest Manifest, entries map[string]*zip.File, direc
 				return inspectionError(CodeInvalidDeclaration, "compatibility.workerProtocol", errors.New("worker runtime requires a compatible worker protocol range"))
 			}
 			worker := manifest.Runtime.Worker
-			if worker.Entrypoint != "" {
-				if err := requireFile(entries, worker.Entrypoint, "runtime.worker.entrypoint"); err != nil {
-					return err
-				}
-			}
 			targets := make([]string, 0, len(worker.Entrypoints))
 			for target := range worker.Entrypoints {
 				targets = append(targets, target)
@@ -730,17 +725,8 @@ func validateDeclarations(manifest Manifest, entries map[string]*zip.File, direc
 				)
 			}
 		}
-		switch contribution.Surface {
-		case "kind":
-			// Pure manifest data needs no runtime.
-		case "http-endpoint":
-			if manifest.Runtime == nil || manifest.Runtime.Worker == nil {
-				return inspectionError(CodeInvalidDeclaration, fmt.Sprintf("contributions[%d]", index), errors.New("HTTP endpoint has no worker runtime"))
-			}
-		default:
-			if manifest.Runtime == nil || manifest.Runtime.UI == nil {
-				return inspectionError(CodeInvalidDeclaration, fmt.Sprintf("contributions[%d]", index), errors.New("UI contribution has no UI runtime"))
-			}
+		if manifest.Runtime == nil || manifest.Runtime.UI == nil {
+			return inspectionError(CodeInvalidDeclaration, fmt.Sprintf("contributions[%d]", index), errors.New("UI contribution has no UI runtime"))
 		}
 	}
 	return nil

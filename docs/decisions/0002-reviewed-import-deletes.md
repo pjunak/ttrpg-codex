@@ -6,7 +6,7 @@
 
 **Decider:** Project maintainer
 
-**Implementation status, September 14, 2026:** The current planning adapter v2 supports reviewed deletes through host SQLite transactions. The file-journal and bundle-coordinator mechanisms below describe the old implementation, not current APIs. See [planning imports](../../../addon-dm-tools/docs/IMPORTING.md) and T19 in [the backlog](../BACKLOG.md).
+**Note:** The Go host implements reviewed deletes through planning adapter v2 and host SQLite transactions. The file-journal and bundle-coordinator mechanisms below describe the original Node implementation. See [planning imports](../../../addon-dm-tools/docs/IMPORTING.md).
 
 ## Context
 

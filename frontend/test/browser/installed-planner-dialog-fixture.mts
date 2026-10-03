@@ -1,23 +1,4 @@
-import type { Page, Locator } from "playwright";
-
-export async function choosePlannerOption(root: Page | Locator, name: string, value: string) {
-  const select = root.getByLabel(name, { exact: true }).and(root.locator("select"));
-  if (await select.isVisible()) {
-    await select.selectOption(value);
-    return;
-  }
-  const target = await select.evaluate((node, value) => {
-    const options = [...(node as HTMLSelectElement).options],
-      option = options.find((option) => option.value === value);
-    if (!option) throw new Error("Missing fixture choice: " + value);
-    return {
-      label: option.label,
-      duplicate: options.filter((candidate) => candidate.label === option.label).indexOf(option),
-    };
-  }, value);
-  await root.getByRole("combobox", { name, exact: true }).fill(target.label);
-  await root.getByRole("option", { name: target.label, exact: true }).nth(target.duplicate).click();
-}
+import type { Page } from "playwright";
 
 export async function closePlannerEditor(page: Page, locale = "en") {
   const dialog = page.getByRole("dialog", {
@@ -49,11 +30,4 @@ export async function plannerTab(page: Page, name: string) {
     .getByRole("dialog", { name: "Edit planning item", exact: true })
     .getByRole("tab", { name, exact: true })
     .click();
-}
-
-export async function editPlannerCard(page: Page, card: Locator, tab = "Details") {
-  await closePlannerEditor(page);
-  await page.locator('.dm-planner-shell[aria-busy="false"]').waitFor();
-  await card.dblclick();
-  await plannerTab(page, tab);
 }

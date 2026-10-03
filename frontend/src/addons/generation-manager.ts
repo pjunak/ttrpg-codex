@@ -22,9 +22,7 @@ export type BrowserContributionSurface =
   | "article-section"
   | "editor-panel"
   | "slot"
-  | "record-renderer"
   | "wiki-kind"
-  | "graph-node-kind"
   | "graph-view"
   | "graph-contributor";
 
@@ -759,9 +757,7 @@ function validContributionSurface(value: string): value is BrowserContributionSu
     value === "article-section" ||
     value === "editor-panel" ||
     value === "slot" ||
-    value === "record-renderer" ||
     value === "wiki-kind" ||
-    value === "graph-node-kind" ||
     value === "graph-view" ||
     value === "graph-contributor"
   );

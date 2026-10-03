@@ -9,14 +9,13 @@ starting the service.
 For an existing campaign, keep a verified backup and stop the server for updates.
 Database migrations are forward-only, so rolling back the image alone does not
 roll back its data. [Upgrade and rollback](#upgrade-and-rollback) describes the
-sequence. Old v1 campaigns and schema-3 sheets have separate offline procedures;
-a new installation needs neither.
+sequence.
 
 ## Requirements
 
 - Docker Engine with Compose for production.
 - A reverse proxy providing HTTPS for internet-facing instances.
-- Go 1.27.1 when building the native host or maintenance/conversion tools.
+- Go (version in `go.mod`) when building the native host or maintenance tool.
 - Node.js 26+ for frontend builds and repository checks; `.nvmrc` selects Node 26.
 
 ## Configuration
@@ -30,19 +29,19 @@ Copy `.env.example` to `.env` and set:
 | `CODEX_SECURE_COOKIES` | Set `true` behind HTTPS |
 | `CODEX_LOCALE` | Locale reported to add-on workers; default `en` |
 | `CODEX_TIME_ZONE` | IANA time zone reported to workers |
-| `CODEX_ADDON_AUTO_CLEANUP` | `true` by default; retain only the selected add-on build after healthy startup and activation. Superseded packages and their add-on recovery contexts are removed; campaign recovery and current saves remain. Set `false` for manual retention. See [package retention](rewrite/PACKAGE_LIFECYCLE.md#automatic-package-file-retention). |
+| `CODEX_ADDON_AUTO_CLEANUP` | `true` by default; retain only the selected add-on build after healthy startup and activation. Superseded packages and their add-on recovery contexts are removed; campaign recovery and current saves remain. Set `false` for manual retention. See [package retention](reference/PACKAGE_LIFECYCLE.md#automatic-package-file-retention). |
 | `CODEX_ADDON_KEEP_RECOVERY_PACKAGES` | `false` by default. Set `true` to retain historical add-on recovery contexts and package metadata, evicting only recoverable files. Has no effect while automatic cleanup is disabled. |
 
-The host has no default credential. Password bootstrap values initialize saved password
-hashes once and are not imported from v1 backups. Later starts use the saved
-credentials, so editing `.env` does not undo a password change or re-enable a
-disabled player password. Bootstrap values can be removed after first start.
+The host has no default credential. Password bootstrap values initialize saved
+password hashes once. Later starts use the saved credentials, so editing `.env`
+does not undo a password change or re-enable a disabled player password.
+Bootstrap values can be removed after first start.
 
 Map tiles are generated on first use in `data/cache/map-tiles-v1`; the first
 open can take longer while later reads reuse the cache. Originals remain in
 the verified blob store. This cache is excluded from backups and may be removed
 while the host is stopped; it regenerates automatically. Unsupported or oversized
-images use the original-image viewer. See [media limits](rewrite/MEDIA.md#map-tile-contract-and-cache).
+images use the original-image viewer. See [media limits](reference/MEDIA.md#map-tile-contract-and-cache).
 
 ## Password changes and access recovery
 
@@ -83,7 +82,7 @@ docker compose logs -f ttrpg-codex
 
 The container listens on port 3000 and stores all durable state below
 `/app/data`, mounted from `./data`. The production image contains the Go host,
-health probe, package inspector, converter, maintenance utility, and compiled
+health probe, package inspector, maintenance utility, and compiled
 frontend; it does not contain Node.js. The runtime user is deliberately pinned
 to UID/GID 1000 so existing production bind mounts retain their ownership
 across the Node-to-Go cutover.
@@ -92,44 +91,6 @@ The default Compose network is the existing external `proxy` network. Adjust
 that declaration for another reverse-proxy topology. Forward the original
 scheme and client address normally, terminate TLS at the proxy, and keep
 `CODEX_SECURE_COOKIES=true`.
-
-Existing schema-3 sheet installations use the separate, backed-up
-[offline retirement procedure](rewrite/CHARACTER_SHEET_CUTOVER.md) before
-activating Sheets 4. It never removes schema-4 characters or archived history.
-
-## One-time v1 conversion
-
-Reuse the downloaded UI backups already taken, keeping the input archives and
-old data unchanged. A repeated backup cycle is not a release requirement; if
-either site has changed since its backup, preserve those later changes before
-cutover. Build and inspect the current DM Tools ZIP first. The converter counts
-and omits retired sheet values; it does not accept a sheet conversion package:
-
-```powershell
-go run ./cmd/codex-addon-inspect ../addon-dm-tools/dist/dm-tools-3.0.0.zip
-```
-
-Convert each website independently. The output directory must not exist:
-
-```powershell
-go run ./cmd/codex-convert-v1 `
-  -in D:\backups\site-a-v1.zip `
-  -out D:\converted\site-a `
-  -report D:\converted\site-a-conversion-report.json `
-  -addon-package ..\addon-dm-tools\dist\dm-tools-3.0.0.zip
-```
-
-Read the JSON report printed to the terminal and saved at the requested new
-`-report` path. Confirm the input hash, imported collection counts, media
-counts, retired-core adjustments, omitted old-sheet counts, package hashes, and every deferred/unknown
-entry. Generated map tiles are deliberately discarded. The source ZIP is never
-modified.
-
-One reviewed conversion per site is sufficient. It may happen during the
-planned outage: stop the old site, retain its data directory, convert its final
-backup into a fresh directory, review the report, and use that new directory
-for v2. Keep the original UI ZIP and old directory available for rollback.
-Do not repeat a separate staging conversion merely to satisfy a process gate.
 
 ## Add-on installation
 
@@ -185,7 +146,7 @@ data removal. A changed package review opens a fresh compatibility/privilege
 review; a changed save requires a fresh data confirmation. No manual disable,
 schema application or second activation step is needed. The downloadable JSON
 is scoped recovery evidence, not a full backup ZIP or a general import file;
-[snapshot details](rewrite/ADDON_DATA.md#recovery-and-retention) explain its use.
+[snapshot details](reference/ADDON_DATA.md#recovery-and-retention) explain its use.
 
 Update results appear directly on each installed add-on. Open **Update source**
 on that add-on to connect or edit its repository, replace repository access, or
@@ -233,9 +194,9 @@ build release archives in each add-on repository and validate them with
 | `POST /api/admin/addon-activation-reviews/{review}/activation` | Start, health-check, and switch the reviewed generation |
 
 All four require a real DM session; mutations require its `X-Codex-CSRF`
-token. A staged ZIP cannot execute. Keep provider order intuitive during the
-first cutover: Compendium, Engine, Character Sheets, then DM Tools. The host
-still resolves and enforces the actual dependency graph.
+token. A staged ZIP cannot execute. Install providers before their consumers:
+Compendium, Engine, Character Sheets, then DM Tools. The host still resolves and
+enforces the actual dependency graph.
 
 ## Backups
 
@@ -249,7 +210,7 @@ Campaign restore works without matching add-ons and leaves their current saves
 untouched. Add-on restore requires its own matching build, schema and linked
 record identities. Deleting its recovery context leaves the campaign snapshot
 available. Use full offline restore when recovering packages or the entire host.
-See the [recovery contract](rewrite/BACKUP_RESTORE.md#campaign-recovery-points).
+See the [recovery contract](reference/BACKUP_RESTORE.md#campaign-recovery-points).
 
 ### Verify and restore a full backup
 
@@ -330,7 +291,7 @@ Restore verifies the archive and an isolated database before atomically
 publishing it. Never unpack or merge backup contents by hand. Keep the verified
 archive and an independent copy of the current data before replacement. After
 restoring, start the host and check login, campaign records, media and active
-add-ons before returning it to use. See the [archive and publication contract](rewrite/BACKUP_RESTORE.md)
+add-ons before returning it to use. See the [archive and publication contract](reference/BACKUP_RESTORE.md)
 for verification limits and interrupted-restore recovery.
 
 ## Reviewed offline storage maintenance
@@ -413,34 +374,12 @@ If a pre-fix database reports `migration checksum drift`:
 Never update `schema_migrations` hashes manually or bypass validation. A
 canonical build rejects the mismatch before applying any pending migration.
 
-## First-start smoke check
+## After an update
 
-For each site, check login, anonymous/player/DM visibility, the dashboard and
-a representative record edit, a portrait and map, and the installed add-ons
-actually used by that campaign. Confirm basic visual similarity on desktop and
-one phone. If something fails, fix it while the site is down or switch back to
-the old application and its unchanged data. A full automated test matrix is not
-required before returning the personal site to use.
-
-The broader checks below remain useful follow-ups. They are not all release
-prerequisites under the owner's accepted downtime and rollback policy:
-
-- Both converted instances report the expected core and add-on record counts.
-- Representative hidden/public records are correct for anonymous, player, and
-  DM views.
-- Core character profiles and DM Tools planning collections are present; old
-  sheet omissions match the conversion report. New characters use schema 4.
-- Portraits, maps, logos, and other migrated media load through opaque URLs.
-- All four v3 packages stage, review, activate, reload, and recover after a
-  restart.
-- Compendium browsing, rules-engine v4 calls, character building/combat with
-  automatic saving and DM Tools routes work together. Saved sheets remain
-  readable and printable without the rules provider.
-- Two browsers observe live edits and stale edits receive conflicts.
-- A fresh v2 backup verifies and can be restored into a disposable directory.
-
-Do not delete the old branch, old data directories, or downloaded UI backups
-until the owner is comfortable that rollback is unnecessary.
+Check `/api/health`, sign in, open the dashboard and a few records as DM and as
+a player, look at a portrait and a map, and open each active add-on. If
+something is wrong, restore the backup taken before the update (see
+[upgrade and rollback](#upgrade-and-rollback)).
 
 ## When new features are missing
 
@@ -466,8 +405,6 @@ The host supplies add-on management, GitHub access, sourcebook/provider controls
 and contributed-settings containers. Installed add-on generations supply their
 own planner, compendium and character-sheet screens. Updating the host does not
 activate new add-on ZIPs, and updating an add-on does not deploy a newer host.
-Character-sheet namespace retirement remains the separate
-[explicit offline operation](rewrite/CHARACTER_SHEET_CUTOVER.md).
 
 Use the automation below for a host update, then the
 [reviewed package workflow](#add-on-installation) for any intended add-on updates.
@@ -478,9 +415,9 @@ The following automation belongs to the maintained Asurai/Tiamat deployment.
 Other installations can build the Docker image and follow the ordinary update
 procedure below.
 
-A push to `main` runs the host and add-on compatibility gates, checks that the
-packaged runtime starts, publishes an immutable image, and deploys it to **both
-Asurai and Tiamat**. The workflow stays active until both infrastructure runs
+A push to `main` runs the host checks, checks that the packaged runtime starts,
+publishes an immutable image, and deploys it to **both Asurai and Tiamat**.
+Pushes that change only documentation do not build or deploy. The workflow stays active until both infrastructure runs
 finish. A failed deployment makes the application run fail; accepting the
 request alone is insufficient. Each deployment summary records the source
 commit, image digest and infrastructure run link.
@@ -501,59 +438,20 @@ checks but skips publication and deployment, with an explanatory summary.
 GitHub orders this queue by arrival, so the revision check also protects against
 rerunning an old push. See [GitHub's concurrency documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
 
-### Coordinate host and companion commits
+### Releasing add-ons
 
-The [compatibility workflow](../.github/workflows/addon-compatibility.yml) builds
-the four exact commits in [`companion-revisions.json`](../companion-revisions.json)
-against the candidate host. Local inspection and installed acceptance enforce
-the same source set. CI first checks that each commit is accessible, then checks
-out that SHA and verifies the checkout before packaging. Missing commits fail
-with repository/SHA diagnostics; CI never substitutes the latest default branch.
+Each add-on repository publishes its own releases: a successful `main` build
+uploads the inspected ZIP to a GitHub release tagged `build-<commit>`, marked
+latest. Publishing installs nothing; each site's DM updates through
+**Settings → Add-ons**. Add-ons depend on the host's Go SDK by module version, so
+a host change that add-ons need must be pushed to the host first; the add-on then
+updates its requirement (see [contributing](../CONTRIBUTING.md#ci-and-releases)).
+Keep public contracts compatible so the host and the installed add-ons keep
+working whichever is updated first.
 
-This prevents a passing local source set from silently becoming a different CI
-source set. Previously the companion checkouts omitted `ref`, which
-[defaults to each other repository's default branch](https://github.com/actions/checkout/blob/main/action.yml).
-Add-on package versions can stay unchanged across source commits, so version
-numbers alone do not identify accepted behavior.
-
-Native add-on publication also freezes its host SDK in each add-on's
-`host-sdk-revision.txt`; Sheets freezes the public engine model in
-`engine-model-revision.txt`. Changing one of these pins requires a new add-on
-commit, even if its semantic version stays unchanged. An existing commit
-release is immutable. Host compatibility still compiles the accepted companion
-sources against the candidate host and engine, rather than substituting the
-standalone build pins.
-
-1. Commit companion fixes after their owning gates. From clean adjacent
-   checkouts, run `node scripts/companion-revisions.mts record` in the host when
-   deliberately changing the source set; otherwise retain the existing pins.
-2. Rebuild the changed packages, inspect all four, and run full installed
-   acceptance using the [contributor procedure](../CONTRIBUTING.md#choose-validation-for-the-change).
-   Commit the accepted revision file with the dependent host changes.
-3. During an authorized release, make any newly pinned SDK/model commits
-   available before pushing the dependent add-on commits. A new host SDK can
-   first be published on a nondeploying host branch; pushing host `main` deploys
-   both sites. Publish and verify the companion builds before publishing the
-   dependent host revision. Pushing `ttrpg-codex` does not push sibling
-   repositories. Keep shared API changes compatible at each delivery boundary.
-4. Compare the CI `companion-provenance` artifact/summary with local
-   `release/companions/provenance.json`. Source SHAs must match the pins;
-   platform-specific package hashes remain explicit. The manual **Addon
-   compatibility** workflow can verify full private coverage and zero skips
-   without publishing or deploying the host.
-
-The availability check can also run locally with
-`node scripts/companion-revisions.mts github full` when `GITHUB_TOKEN` and
-`ADDON_SUITE_TOKEN` are already provided securely. It only reads commit
-availability; it does not push or activate add-ons. A 404 may mean an unpublished
-commit or missing repository access. Verify both before changing pins.
-
-If **Run test suite** passes but installed companion acceptance fails, inspect
-that job and its source commits first. A skipped **Build image** means there is
-no new image to recover through **Deploy published release**. After the source
-mismatch or test failure is fixed, retry the current host candidate. A retry of a
-`main` push can publish the image and deploy both sites, so it carries the same
-operational authorization as the original release.
+The nightly **Installed add-on smoke test** installs the latest published add-on
+releases into the current host and exercises their main workflows. A failure
+there does not block deployment; read its log and fix whichever side broke.
 
 ### Configure deployment once
 
@@ -607,15 +505,8 @@ succeeded. Requests with an uncertain outcome are never automatically sent
 again. A failed health check leaves diagnostic state available; it does not
 automatically roll back campaign data.
 
-For failed build or compatibility tests, inspect the job's `host-failure-metadata`
-or `installed-failure-metadata` artifact before rerunning. These bounded JSON
-records are retained for 14 days and distinguish HTTP rejection, transport
-failure and outstanding reads without publishing private package contents or
-credentials. Match browser records by the SHA-256 of the exact test name;
-setup/service records include their generated run UUID and stage. Expected
-rejection tests can produce records too. Detailed installed traces and host
-output stay local; see [contributor diagnostics](../CONTRIBUTING.md#quality-toolchain).
-Metadata cannot reconstruct evidence that was never captured in older runs.
+For a failed build, open the job log. Failed host browser tests upload their
+Playwright traces as the `host-browser-traces` artifact for 14 days.
 
 Successful add-on main builds publish inspected ZIPs to permanent commit
 releases, preserving repository visibility. **Latest published package** uses
@@ -630,6 +521,6 @@ current saves and existing backup ZIPs remain intact. Cancelled candidates are
 discarded; abandoned reviews expire after 30 minutes. The server retries pending
 file cleanup every minute. Settings shows storage status without cleanup buttons.
 A disabled add-on retains its selected build. An explicit operator retention
-override can preserve older builds; see [retention policy](rewrite/PACKAGE_LIFECYCLE.md#automatic-package-file-retention).
+override can preserve older builds; see [retention policy](reference/PACKAGE_LIFECYCLE.md#automatic-package-file-retention).
 No directory or SQLite editing is needed. Permanent namespace/history deletion
 and unused-media cleanup remain separate offline maintenance operations.
