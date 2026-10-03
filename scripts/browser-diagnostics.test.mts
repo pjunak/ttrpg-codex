@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import test, { type TestContext } from "node:test";
+import { fileURLToPath } from "node:url";
 import { trackBrowserContext } from "../frontend/test/browser/browser-diagnostics.mts";
 import type { PublicFailureRecord } from "../frontend/test/browser/public-failure-evidence.mts";
 
 function probe(t: TestContext, traceError?: Error, startupError?: Error, closeError?: Error) {
   let after: Parameters<TestContext["after"]>[0] | undefined;
   let closed = false;
-  let closes = 0,
+  let starts = 0,
+    closes = 0,
     stops = 0;
   let tracePath: string | undefined;
   const diagnostics: string[] = [];
@@ -22,6 +25,7 @@ function probe(t: TestContext, traceError?: Error, startupError?: Error, closeEr
   const browser: Parameters<typeof trackBrowserContext>[1] = {
     tracing: {
       async start() {
+        starts++;
         if (startupError) throw startupError;
       },
       async stop(options) {
@@ -50,6 +54,9 @@ function probe(t: TestContext, traceError?: Error, startupError?: Error, closeEr
     },
     get calls() {
       return { closes, stops };
+    },
+    get starts() {
+      return starts;
     },
     get tracePath() {
       return tracePath;
@@ -154,6 +161,85 @@ void test("tracing startup failure releases its context and preserves the origin
   assert.equal(fixture.records.length, 1);
   assert.equal(fixture.records[0]!.stage, "trace-start");
   assert.ok(!JSON.stringify(fixture.records).includes(original.message));
+  await fixture.finish();
+  assert.deepEqual(fixture.calls, { closes: 1, stops: 0 });
+  assert.equal(fixture.records.length, 1);
+});
+
+void test("a real Node deadline closes a context whose tracing startup settles late", () => {
+  const env = { ...process.env };
+  // Run an independent test owner rather than inheriting this runner's child mode.
+  delete env.NODE_TEST_CONTEXT;
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--test",
+      "--test-reporter=tap",
+      fileURLToPath(new URL("./fixtures/late-browser-start.mts", import.meta.url)),
+    ],
+    { encoding: "utf8", timeout: 10_000, windowsHide: true, env },
+  );
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 1, "The original test deadline must remain a cancellation");
+  assert.match(result.stdout, /test timed out after 15ms/);
+  assert.match(result.stdout, /# cancelled 1/);
+  const summary = result.stdout.match(/^(?:# )?LATE_CONTEXT (.+)$/m);
+  assert.ok(summary, result.stdout);
+  assert.deepEqual(JSON.parse(summary[1]!), {
+    closes: 1,
+    stops: 0,
+    reports: 1,
+    resumed: true,
+  });
+});
+
+void test("an already cancelled owner closes a late context before tracing starts", async (t) => {
+  const fixture = probe(t);
+  const controller = new AbortController();
+  const original = new Error("Owner already cancelled");
+  controller.abort(original);
+  const owner = { ...fixture.context, signal: controller.signal };
+  await assert.rejects(
+    trackBrowserContext(owner, fixture.browser, undefined, fixture.report),
+    (cause) => cause === original,
+  );
+  await fixture.finish();
+  assert.equal(fixture.starts, 0);
+  assert.deepEqual(fixture.calls, { closes: 1, stops: 0 });
+  assert.equal(fixture.records.length, 1);
+  assert.equal(fixture.records[0]!.stage, "trace-start");
+});
+
+void test("cleanup registration failure releases the context without starting tracing", async (t) => {
+  const fixture = probe(t);
+  const original = new Error("Owner hook registration failed");
+  fixture.context.after = () => {
+    throw original;
+  };
+  await assert.rejects(
+    trackBrowserContext(fixture.context, fixture.browser, undefined, fixture.report),
+    (cause) => cause === original,
+  );
+  assert.equal(fixture.starts, 0);
+  assert.deepEqual(fixture.calls, { closes: 1, stops: 0 });
+  assert.equal(fixture.records.length, 1);
+});
+
+void test("tracing rejection keeps its original cause when context cleanup also fails", async (t) => {
+  const original = new Error("Tracing startup failed");
+  const closeError = new Error("Context close failed");
+  const fixture = probe(t, undefined, original, closeError);
+  await assert.rejects(
+    trackBrowserContext(fixture.context, fixture.browser, undefined, fixture.report),
+    (cause) => cause === original,
+  );
+  await assert.rejects(fixture.finish(), (cause) => {
+    assert.ok(cause instanceof AggregateError);
+    assert.deepEqual(cause.errors, [closeError]);
+    return true;
+  });
+  assert.deepEqual(fixture.calls, { closes: 1, stops: 0 });
+  assert.equal(fixture.records.length, 1);
 });
 
 void test("metadata reporting failure cannot replace verification or skip cleanup", async (t) => {

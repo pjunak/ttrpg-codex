@@ -6482,3 +6482,53 @@ successfully, but there are no eligible failed browser records; no metadata
 artifact exists. That run therefore does not verify retrieval of an actual
 failure-metadata artifact. A fresh exact-source release must pass the repaired
 host gate, verified image publication and both actual infrastructure rollouts.
+
+## October 3 browser context ownership during test timeouts
+
+October 3, 2026. Following the reproduced
+[native fixture failure](#october-3-race-fixture-startup-coordination), an
+independent controlled Node test exposes another shared browser-cleanup gap.
+The earlier repair closes a rejected tracing start, but cleanup registration
+still occurs only after that asynchronous start resolves. If Node cancels the
+test while tracing is pending, no cleanup hook owns the new context.
+
+A real 15ms Node test deadline releases a held tracing start after cancellation.
+The original implementation retains the timeout but exits with **zero context
+closes, zero trace stops and zero metadata reports**, even though tracing resumes.
+The repaired implementation retains the same cancelled test and exits with
+**one context close, zero trace stops and one startup metadata report**. It never
+attempts to stop a trace whose startup was incomplete when cleanup began.
+
+The tracker registers its single cleanup hook before starting observation or
+awaiting tracing. An already cancelled owner releases a late-created context
+without starting tracing. Startup rejection and hook-registration failure use
+that same idempotent cleanup; context-close and reporting errors cannot replace
+the original startup cause. The cleanup snapshots its stage before asynchronous
+work so a late tracing result cannot turn an interrupted startup into a normal
+browser capture. Existing successful verification, private trace saving and
+context close ordering remain intact. This follows Node's
+[test-owned abort signal and cleanup hooks](https://nodejs.org/api/test.html#contextsignal).
+
+Eleven tracker regressions pass, including a separate real Node child process
+whose timeout must remain a cancellation. Child ownership removes only the
+parent runner's `NODE_TEST_CONTEXT` flag; no browser or production deadline is
+extended. The complete resulting host gate passes **101 tool tests, 585 unit
+tests, 343 browser cases and Go/race checks**. Its 199 optional installed skips
+remain separate from strict installed acceptance.
+
+The same four clean, inspected companion sources and unchanged Windows ZIP
+hashes pass **14/14 scoped installed cases**, with zero failures, cancellations
+or skips in **16,411 ms**: desktop/phone held and rejected planner startup,
+timeline/wiki replacement and retained drafts, standalone DM/player sheets,
+coordinator authorization and native engine Reload. All 33 product-parity gates
+and changed local document links pass. Workflow code is unchanged from the
+successful workflow-lint steps of run 37119456088.
+
+Controlled timeout captures and final logs remain ignored under
+`frontend/test-results/current-late-tracing-*` and `current-ci-repair-*`.
+Tested source provenance identifies `2dbcb27` plus these two repair slices;
+all four companion sources remain clean. Commit source identities are refreshed
+after the local commits before publishing. The approved deployment remains
+pending its fresh CI run; authenticated site operations, historical attribution
+and human/device acceptance stay open. Estimates remain **97% implemented /
+96% overall**, with 33 of 40 original rows closed.

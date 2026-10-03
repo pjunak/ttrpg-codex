@@ -15,7 +15,8 @@ import {
 
 /** Owns context cleanup; use the returned function for an explicit early close. */
 export async function trackBrowserContext(
-  t: Pick<TestContext, "after" | "passed" | "name" | "diagnostic">,
+  t: Pick<TestContext, "after" | "passed" | "name" | "diagnostic"> &
+    Partial<Pick<TestContext, "signal">>,
   context: {
     tracing: Pick<BrowserContext["tracing"], "start" | "stop">;
     close: BrowserContext["close"];
@@ -24,6 +25,7 @@ export async function trackBrowserContext(
   report: FailureReporter = writePublicFailure,
 ): Promise<() => Promise<void>> {
   let observation: ReturnType<typeof observeBrowser> | undefined;
+  let traceStarted = false;
   const publish = async (stage: string): Promise<void> => {
     try {
       await report(
@@ -42,40 +44,33 @@ export async function trackBrowserContext(
       }
     }
   };
-  try {
-    if (canObserveBrowser(context)) observation = observeBrowser(context);
-    await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
-  } catch (cause) {
-    await publish("trace-start");
-    try {
-      await context.close();
-    } catch {
-      /* Preserve the original startup failure. */
-    }
-    throw cause;
-  }
   const finish = async (): Promise<void> => {
+    // Startup can settle after the owner's deadline and during context.close().
+    // Keep this cleanup's stage fixed before either operation can resume.
+    const initialized = traceStarted;
     const failures: unknown[] = [];
     // Node stops later after hooks when one throws, so verification and cleanup
     // must share this hook to preserve diagnostics for page-error failures.
     try {
-      verify?.();
+      if (initialized) verify?.();
     } catch (error) {
       failures.push(error);
     }
     // Snapshot before cleanup: closing the context aborts its own live requests.
     observation?.stop();
     try {
-      if (!t.passed || failures.length > 0 || process.env.CODEX_TEST_TRACE === "1") {
-        const directory = fileURLToPath(new URL("../../test-results/traces/", import.meta.url));
-        await mkdir(directory, { recursive: true });
-        const suffix = createHash("sha256").update(t.name).digest("hex").slice(0, 10);
-        const name = t.name.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 90);
-        const path = join(directory, `${name}-${suffix}-${randomUUID()}.zip`);
-        await context.tracing.stop({ path });
-        t.diagnostic(`Browser trace: ${path}`);
-      } else {
-        await context.tracing.stop();
+      if (initialized) {
+        if (!t.passed || failures.length > 0 || process.env.CODEX_TEST_TRACE === "1") {
+          const directory = fileURLToPath(new URL("../../test-results/traces/", import.meta.url));
+          await mkdir(directory, { recursive: true });
+          const suffix = createHash("sha256").update(t.name).digest("hex").slice(0, 10);
+          const name = t.name.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 90);
+          const path = join(directory, `${name}-${suffix}-${randomUUID()}.zip`);
+          await context.tracing.stop({ path });
+          t.diagnostic(`Browser trace: ${path}`);
+        } else {
+          await context.tracing.stop();
+        }
       }
     } catch (error) {
       failures.push(error);
@@ -85,8 +80,8 @@ export async function trackBrowserContext(
       } catch (error) {
         failures.push(error);
       }
-      if (!t.passed || failures.length > 0 || process.env.CODEX_TEST_TRACE === "1")
-        await publish("browser");
+      if (!initialized || !t.passed || failures.length > 0 || process.env.CODEX_TEST_TRACE === "1")
+        await publish(initialized ? "browser" : "trace-start");
     }
     if (failures.length > 0)
       throw new AggregateError(failures, "Browser verification or cleanup failed", {
@@ -95,6 +90,21 @@ export async function trackBrowserContext(
   };
   let cleanup: Promise<void> | undefined;
   const close = (): Promise<void> => (cleanup ??= finish());
-  t.after(close);
+  try {
+    // Register ownership before awaiting tracing: Node runs after hooks when the
+    // test times out, even while the startup promise is still pending.
+    t.after(close);
+    t.signal?.throwIfAborted();
+    if (canObserveBrowser(context)) observation = observeBrowser(context);
+    await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
+    traceStarted = true;
+  } catch (cause) {
+    try {
+      await close();
+    } catch {
+      /* Preserve the original startup failure. */
+    }
+    throw cause;
+  }
   return close;
 }
