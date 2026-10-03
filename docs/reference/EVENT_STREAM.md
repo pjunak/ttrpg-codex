@@ -129,5 +129,5 @@ and package archives are outside log retention. SQLite reuses freed pages; the
 encoded row measurements do not claim immediate on-disk file shrinkage. See the
 [maintenance commands](../SELF_HOSTING.md#reviewed-offline-storage-maintenance).
 
-Import and background-job progress topics remain conditional extensions (C07);
-ordinary import writes already publish the owning data invalidations.
+There are no import or background-job progress topics; ordinary import writes
+publish the owning data invalidations.

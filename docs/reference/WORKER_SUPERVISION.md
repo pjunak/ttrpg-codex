@@ -206,8 +206,8 @@ cancels its obsolete retry state; other coordinator changes respect backoff.
 A boot-scoped runtime revision contributes to the opaque browser graph revision,
 so same-package restarts and missed intermediate notifications still invalidate
 browser handles. The existing public graph event carries no worker output.
-The existing browser graph reconciliation can remount add-on views; recovery of
-unsaved DM Tools drafts during forced replacement remains T30. Pending domain
+The existing browser graph reconciliation can remount add-on views; DM Tools
+recovers its own unsaved drafts across a forced replacement. Pending domain
 calls fail with their original outcome; monitoring never replays
 a domain request, import or save. The coordinator records bounded failure
 categories and detached redacted health/exit/request snapshots; Settings shows

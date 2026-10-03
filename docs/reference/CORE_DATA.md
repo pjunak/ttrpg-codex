@@ -1,28 +1,19 @@
 # Core campaign data
 
-The rewrite stores campaign records in SQLite without translating their
-product-owned JSON fields yet. This is deliberate: the first storage boundary
-must preserve existing campaign saves before typed domain projections replace
-individual legacy shapes.
+Campaign records are stored in SQLite as opaque JSON with storage-owned
+metadata around them. The host validates the fields it uses but never drops
+fields it does not know, so add-on data and older fields survive edits.
 
-## Compatibility contract
+## Record shape
 
-| Existing save behavior | Rewrite representation |
+| Campaign behaviour | Storage representation |
 |---|---|
 | List collections keep meaningful insertion order | Every record has a stable `position`; updates retain it and new records append after the highest surviving position. |
 | Keyed collections store values under an outer key | The outer key is stored separately from the JSON value, so settings arrays, campaign `main`, faction records, and boolean tombstones round-trip. |
 | Relationships use `(source, target, type)` rather than `id` | The tuple is encoded into a collision-free internal key while the original relationship object remains unchanged. |
-| Existing IDs never change on rename | Record keys are accepted as bounded UTF-8 and are not regenerated or slug-normalized during migration. |
+| Existing IDs never change on rename | Record keys are accepted as bounded UTF-8 and are never regenerated or slug-normalized. |
 | Missing collection files mean “use defaults”; an empty file means “intentionally empty” | `campaign_collections.materialized` distinguishes absent from materialized-empty collections. |
 | Record-owned fields, including `addonData`, survive | `body_json` retains the complete validated JSON record; the storage layer does not whitelist current UI fields. |
-| Legacy `deletedDefaults` may be an array | The compatibility decoder promotes it to the current keyed `{ id: true }` form. |
-| An export may contain add-on collections unknown to core | The decoder returns unknown top-level values as opaque passthrough data for the later package-aware import coordinator. |
-
-The codec accepts the object produced by the v1 `Store.exportJSON()` path and
-can produce the same top-level list/keyed collection shapes. The offline,
-fresh-database-only conversion path is documented in
-[`LEGACY_CONVERSION.md`](LEGACY_CONVERSION.md). It deliberately does not
-publish a legacy HTTP import route.
 
 ## SQLite ownership
 
@@ -243,8 +234,7 @@ before constructing deletes, so a relationship added in another tab cannot be
 mistaken for a user-requested removal. Unrelated campaign changes remain
 saveable. Cancel/reopen or successful save completion releases the old base.
 Chromium regressions in `frontend/test/browser/` exercise these component and
-preparation boundaries; full host/session/SSE acceptance remains a separate
-backlog gate.
+preparation boundaries.
 
 The dashboard's campaign name and tagline editor likewise retains its opening
 `campaign/main` revision. It prepares only the edited field, preserves the other
@@ -426,9 +416,7 @@ relationship-type dimming, faction visibility, neighborhood focus,
 and detail/context navigation. Text uses native CSS dimensions at each zoom
 instead of scaling a rendered canvas texture. Filter preferences retain the
 `cm_vf_<mode>` and `cm_filter_<mode>` keys with the preserved `frakce`, `vztahy`,
-and `tajemstvi` suffixes. Add-on graph contributions and real-campaign visual
-acceptance remain open in the backlog; no public Add-on API or persistence
-schema changes are introduced.
+and `tajemstvi` suffixes.
 
 `frontend/test/campaign-graph.test.ts` and `campaign-graph-modes.test.ts` cover
 projection, typed identity collisions, command chains, question shapes,
@@ -489,11 +477,7 @@ into the sidebar. An optional host navigation filter runs after the existing
 generation and role checks, so settings cannot grant access. Layout and changed
 visibility preferences save atomically with separate opening revisions, keeping
 inactive route keys. Changing a package's route identity requires reviewing its
-new opt-in entry. Offline v1 conversion materializes the original default groups
-and retired `hiddenSidebarPages` preferences into `sidebarLayout` when no saved
-layout exists, retaining the old setting for inspection. Existing layouts win;
-see [`LEGACY_CONVERSION.md`](LEGACY_CONVERSION.md). No startup compatibility
-reader is added.
+new opt-in entry.
 
 The production browser scenarios in `chrome-settings.browser.mts` and the unit
 checks in `campaign-chrome.test.ts` cover the controls, extensions, stale/deleted
@@ -511,8 +495,8 @@ retains a host-owned reviewed plan and composes both stores inside one SQLite
 transaction with deferred event notifications. These policies remain above the
 generic record store.
 
-Add-on collection migration and additional relational query indexes remain
-separate extensions, tracked in the [suite backlog](../BACKLOG.md). Domain
+Value-transforming add-on collection migrations and extra relational query
+indexes are [backlog ideas](../BACKLOG.md#ideas-only-with-a-concrete-need). Domain
 policies belong above the storage layer, not in transport-handler SQL.
 
 Native whole-host recovery archives and offline journaled restore are

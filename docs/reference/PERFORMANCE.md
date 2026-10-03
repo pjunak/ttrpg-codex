@@ -1,8 +1,7 @@
 # Host delivery and interaction measurements
 
-T29 evidence, September 16, 2026. This uses disposable synthetic data, not either
-live campaign. It establishes a reproducible baseline and fixes a measured
-transfer cost; it is not a physical-phone or field Web Vitals result.
+Measured September 16, 2026 on disposable synthetic data, not a live campaign.
+This is a reproducible baseline, not a physical-phone or field Web Vitals result.
 
 ## Method and reproducibility
 

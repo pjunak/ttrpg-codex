@@ -186,8 +186,7 @@ with both bundled and unavailable web fonts. Existing
 navigation/stale/pending/uncertain-response editor suites remain required.
 The new save-feedback cases cover delayed writes, stale failure, retained drafts
 and Cancel; fixture regressions cover cancelling a wiki conflict and saving a
-fresh draft. Human screen-reader and physical-touch acceptance remain part of
-T18-HOST; these automated checks do not claim to replace them.
+fresh draft.
 
 ## Local Markdown recovery
 

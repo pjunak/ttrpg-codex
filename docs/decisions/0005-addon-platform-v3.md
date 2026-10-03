@@ -4,13 +4,10 @@
 - Date: 2026-08-31
 - Decider: Project owner
 
-**Current status, October 3, 2026:** Native workers, inspection, browser SDK,
-isolated frames, automatic package retention and guided saved-data updates are
-implemented. WASI and other reserved transports remain unavailable/conditional.
-This records the accepted platform direction, not a list of callable APIs or
-remaining implementation tasks. Use the
-[availability table](../../examples/addons/API_V3.md#current-implementation-status)
-and [backlog](../BACKLOG.md) for the actual current boundary.
+**Outcome:** Implemented with native Go workers, inspection, the browser SDK,
+isolated frames, automatic package retention and guided saved-data updates.
+WASI workers were not built; the [API reference](../../examples/addons/API_V3.md)
+describes what is available.
 
 ## Context
 
@@ -180,15 +177,6 @@ a contribution, but it runs through the same worker and permission contracts.
 - Ports must not restore browser access to private host DOM or live objects.
 - Native worker packaging needs per-target artifacts.
 - A good Inspector and conformance harness are required, not optional polish.
-
-## Implemented foundation and conditional scope
-
-Manifest/package validation, native framing/lifecycle, the TypeScript SDK,
-isolated iframe transport and first-party ports are implemented and covered by
-worker and installed-package regressions. Normative schemas remain maintained
-in source. WASI and other reserved transports need a concrete consumer and an
-explicit scope decision; the original prototype suggestions are not pending
-rewrite tasks. Current live/human acceptance is tracked only in the backlog.
 
 ## Research basis
 

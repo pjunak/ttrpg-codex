@@ -1,56 +1,40 @@
 # Documentation
 
-Start with the guide for your task. References describe current behavior;
-the backlog tracks future work. Paths to companion repositories assume they
-are checked out alongside this repository.
+Start with the guide for your task. References describe how things work now;
+the backlog lists future work. Links to add-on repositories assume they are
+checked out next to this one.
 
-## Use or operate a campaign
+## Run a campaign site
 
 | Task | Read |
 | --- | --- |
 | Install, configure or update the server | [Self-hosting](SELF_HOSTING.md) |
-| Install add-ons or configure private GitHub access | [Add-on installation](SELF_HOSTING.md#add-on-installation) |
-| Choose a ruleset, books or service providers | [Rules and sources](rewrite/RULES_SOURCES.md) |
-| Recover Markdown or customize collection views | [Editing and browsing](rewrite/EDITOR_BROWSING.md) |
-| Use quick search, activity and map editing | [Search, activity and maps](rewrite/SEARCH_ACTIVITY_MAP.md) |
-| Understand character building, automatic saves and DM grants | [Character workflow](rewrite/CHARACTER_BUILD_HISTORY.md) |
-| Restore a backup or recover access | [Backups](SELF_HOSTING.md#backups) and [password recovery](SELF_HOSTING.md#password-changes-and-access-recovery) |
-| Convert an old campaign or retire an old sheet schema | [Offline conversion](rewrite/LEGACY_CONVERSION.md) and [sheet cutover](rewrite/CHARACTER_SHEET_CUTOVER.md) |
-
-The conversion and cutover guides describe explicit maintenance operations.
-They are unnecessary for a new installation.
+| Install or update add-ons, including from private GitHub repositories | [Add-on installation](SELF_HOSTING.md#add-on-installation) |
+| Back up, restore or recover access | [Backups](SELF_HOSTING.md#backups) and [password recovery](SELF_HOSTING.md#password-changes-and-access-recovery) |
+| Choose a ruleset, books or service providers | [Rules and sources](reference/RULES_SOURCES.md) |
+| Recover Markdown drafts or customize collection views | [Editing and browsing](reference/EDITOR_BROWSING.md) |
+| Use quick search, activity and map editing | [Search, activity and maps](reference/SEARCH_ACTIVITY_MAP.md) |
+| Build characters, automatic saving and DM grants | [Character sheet workflow](../../addon-dnd-character-sheets/docs/WORKFLOW.md) |
 
 ## Develop the host or an add-on
 
 Begin with [Contributing](../CONTRIBUTING.md) and [Architecture](ARCHITECTURE.md).
-For add-ons, use the [authoring guide](../examples/addons/AUTHORING.md),
-[API reference](../examples/addons/API_V3.md) and
-[machine contracts](../contracts/addons/v3/).
+Add-on authors start with the [authoring guide](../examples/addons/AUTHORING.md),
+then the [API reference](../examples/addons/API_V3.md) and the
+[machine-readable contracts](../contracts/addons/v3/).
 
-Detailed references remain under `rewrite/` to preserve existing links. The
-directory name records their origin; these documents describe the current
-implementation unless explicitly labeled historical.
-
-| Boundary | References |
+| Area | References |
 | --- | --- |
-| Records, access and mutations | [Core data](rewrite/CORE_DATA.md), [authentication](rewrite/AUTHENTICATION.md) |
-| Media and durable storage | [Media](rewrite/MEDIA.md), [blobs](rewrite/BLOBS.md), [backups](rewrite/BACKUP_RESTORE.md) |
-| Live invalidation and recovery | [Event stream](rewrite/EVENT_STREAM.md) |
-| Packages and browser contributions | [Package lifecycle](rewrite/PACKAGE_LIFECYCLE.md), [browser add-ons](rewrite/BROWSER_ADDONS.md) |
-| Content and service selection | [Content](rewrite/CONTENT.md), [service broker](rewrite/SERVICE_BROKER.md) |
-| Native workers | [Supervision](rewrite/WORKER_SUPERVISION.md), [worker broker](rewrite/WORKER_BROKER.md) |
-| Character persistence and explanations | [Current sheet workflow](rewrite/CHARACTER_BUILD_HISTORY.md), [generic retained extensions](rewrite/RETAINED_ADDON_HISTORY.md), [rule details](rewrite/RULE_DETAILS.md) |
-| Campaign views | [Maps](rewrite/MAPS.md), [campaign browsing](rewrite/EDITOR_BROWSING.md) |
+| Records, access and mutations | [Core data](reference/CORE_DATA.md), [authentication](reference/AUTHENTICATION.md) |
+| Files and durable storage | [Media](reference/MEDIA.md), [blobs](reference/BLOBS.md), [backups](reference/BACKUP_RESTORE.md) |
+| Live updates | [Event stream](reference/EVENT_STREAM.md) |
+| Campaign views | [Maps](reference/MAPS.md), [editing and browsing](reference/EDITOR_BROWSING.md), [performance](reference/PERFORMANCE.md) |
+| Packages and browser add-ons | [Package lifecycle](reference/PACKAGE_LIFECYCLE.md), [browser add-ons](reference/BROWSER_ADDONS.md), [shared UI](reference/UI_FOUNDATIONS.md) |
+| Add-on data, content and services | [Add-on data](reference/ADDON_DATA.md), [content](reference/CONTENT.md), [service broker](reference/SERVICE_BROKER.md), [retained history](reference/RETAINED_ADDON_HISTORY.md), [rule details](reference/RULE_DETAILS.md) |
+| Native workers | [Supervision](reference/WORKER_SUPERVISION.md), [worker broker](reference/WORKER_BROKER.md) |
 
-## Decisions, history and remaining work
+## Decisions and plans
 
-[REWRITE_HANDOFF.md](REWRITE_HANDOFF.md) is the concise continuation guide:
-project goals, repository ownership, remaining work and validation boundaries.
-[BACKLOG.md](BACKLOG.md) remains the only durable task list; it separates
-outstanding operational/human checks and historical investigations from
-conditional extensions. [Current acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md)
-records the deployed source, image and exact site results. The
-[feature-parity record](rewrite/FEATURE_PARITY_AUDIT.md#accepted-product-parity-release-gates)
-retains all 33 accepted release gates. Older audit and completed batch detail
-is recoverable in Git history, rather than repeated as current defects.
-[Architecture decisions](decisions/) explain the choices behind the system.
+[Architecture decisions](decisions/) explain why the system is shaped the way
+it is. [BACKLOG.md](BACKLOG.md) is the only task list for the host and the
+first-party add-ons.

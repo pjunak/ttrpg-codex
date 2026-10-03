@@ -73,9 +73,7 @@ revisions remain readable without an installed rules engine.
 - [Contributing](CONTRIBUTING.md): setup, code ownership and validation.
 - [Architecture](docs/ARCHITECTURE.md): how the application fits together.
 - [Add-on authoring](examples/addons/AUTHORING.md): the public Add-on API v3.
-- [Suite backlog](docs/BACKLOG.md): outstanding work and accepted scope.
-- [Rewrite handoff](docs/REWRITE_HANDOFF.md): current state, remaining acceptance
-  and code ownership for continuing development.
+- [Backlog](docs/BACKLOG.md): what is planned next.
 
 ## License
 

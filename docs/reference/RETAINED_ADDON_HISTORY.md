@@ -35,8 +35,7 @@ queries do not scan unrelated records. Current backups include all reachable
 history payloads; fresh-directory restore preserves them. Campaign recovery
 appends a new head instead of moving a retained head backward.
 
-See [add-on data](ADDON_DATA.md), [backup and restore](BACKUP_RESTORE.md), and the
-[retired-sheet cutover](CHARACTER_SHEET_CUTOVER.md). The latter refuses any
-namespace containing current retained history. Tests cover authority, immutable
+See [add-on data](ADDON_DATA.md) and [backup and restore](BACKUP_RESTORE.md).
+Tests cover authority, immutable
 snapshots, retries, stale heads, core lifetime isolation, campaign recovery and
 backup reconstruction.

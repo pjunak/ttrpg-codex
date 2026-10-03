@@ -240,13 +240,10 @@ still uses the separate cold-switch contract and may dispose the retained view.
 
 Player-preview tabs keep their separate fail-closed contract and never fall
 back to the browser's DM cookie through this recovery path. This adds no browser
-draft storage or history. [Installed character regressions](../../frontend/test/browser/installed-character-session-fixture.mts)
-cover pending autosaves, unchanged element identity, exact request retries,
-concurrent edits, same-role cookie renewal, DM/player, English/Czech and phone
-layout. Core browser tests also cover live expiry before Save and private drafts.
+draft storage or history. Core browser tests cover live expiry before Save and
+private drafts.
 Fixtures revoke real sessions through logout; clock-based expiration is covered
-by Go session tests. Provider/generation replacement remains a separate T33/T18
-acceptance boundary.
+by Go session tests.
 
 ## Authentication follow-ups
 

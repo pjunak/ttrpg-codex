@@ -108,7 +108,8 @@ replace the owner's original controls or attach data services. Programmatic
 records. Disconnect/reconnect disposes and creates a new handle. Disposal removes
 popups, handlers and timers, restores native select/label behavior and retains
 native values. It does not provide durable drafts or recover an entire destroyed
-domain screen; DM forced-replacement draft recovery remains T30.
+domain screen; add-ons that need drafts to survive a forced replacement keep
+them themselves, as DM Tools does.
 
 A minimal composition (all dynamic strings must use textContent/DOM APIs):
 
@@ -242,9 +243,8 @@ saving, navigation, provider absence, disposal/replacement, Czech and phone flow
 The installed Compendium suite also compares host/add-on control colors and
 text sizing in both skins and languages at 200% text size on a phone viewport,
 then checks keyboard selection, clear behavior, focus and retained filters.
-Automated Chromium checks and inspected screenshots are the evidence boundary.
-Manual NVDA/VoiceOver, physical-touch and full browser/OS zoom combinations have
-not been performed; the per-repository T18 acceptance work still owns those checks.
+These are automated Chromium checks. Spoken screen readers (NVDA/VoiceOver),
+physical touch and browser/OS zoom combinations have not been tested by hand.
 
 ## Add-on update confirmation
 

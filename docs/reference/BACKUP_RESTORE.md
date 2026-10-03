@@ -122,11 +122,10 @@ installation or restoring the previous directory.
 
 ## Deliberate boundary
 
-The two backups downloaded from the old websites are not accepted here. They
-are consumed by the separate, narrowly scoped
-[`codex-convert-v1`](LEGACY_CONVERSION.md) command, which writes a fresh data
-directory and database. This keeps legacy shape handling out of normal startup
-and out of the permanent native restore surface.
+Only `codex-backup.v2` archives are accepted. The original v1 site backups were
+converted once in September 2026 by a separate offline tool, since removed (it
+is in Git history before the October 2026 cleanup). Startup and restore contain
+no legacy-format handling.
 
 Settings → Backup & recovery downloads this same full archive and links the
 [verification and offline full-restore procedure](../SELF_HOSTING.md#verify-and-restore-a-full-backup)

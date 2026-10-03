@@ -4,11 +4,8 @@
 - Date: 2026-08-31
 - Decider: Project owner
 
-**Current status, October 3, 2026:** The Go/TypeScript host and native first-party
-ports are implemented on `main`; the authorized host release is deployed on
-both sites. [Current acceptance](../rewrite/HOST_CLEANUP_ACCEPTANCE.md) records
-delivery, and [the backlog](../BACKLOG.md) owns the remaining checks. The decision
-and alternatives below explain the architecture, not a new implementation plan.
+**Outcome:** Implemented. The Go/TypeScript host has run both campaign sites
+since September 2026.
 
 ## Context
 
@@ -24,17 +21,10 @@ end state is also intentionally consistent: TypeScript for browser code and Go
 for backend or worker code, without retaining project-owned JavaScript or
 Python runtimes as compatibility layers.
 
-At acceptance, the `main` branches held the stable implementation. Cutover,
-preservation of the old line, and branch renaming were separate release
-operations and were not authorized by this decision.
-
 ## Decision
 
 Replace the legacy host and first-party runtime with the Go/TypeScript
-architecture below. The coordinated rewrite branch was the original working
-branch; all five repositories now develop on `main`. Branch replacement and
-production rollout remain distinct operational decisions. The current workflow
-inventory and acceptance order live in the [suite backlog](../BACKLOG.md).
+architecture below.
 
 The target architecture is:
 
@@ -115,14 +105,6 @@ The add-on worker boundary supplies the isolation the project actually needs.
   ownership and add-on collection ownership remain explicit.
 - WASI is useful but cannot be treated as a universal replacement for native
   workers; runtime limitations must stay visible.
-
-## Implemented foundation
-
-Platform v3, the Go/TypeScript workspace, SQLite migrations, package inspection,
-native supervision and first-party ports are implemented. Preserved synthetic
-fixtures and installed workflows cover accepted parity. Current operational,
-reliability and human acceptance remain in the backlog; none of these completed
-foundation steps is an outstanding task.
 
 ## Research basis
 

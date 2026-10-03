@@ -6,8 +6,7 @@ and add-on infrastructure; game-specific rules and workflows belong in add-ons.
 ## Set up
 
 Use Go from [go.mod](go.mod) and Node.js from [.nvmrc](.nvmrc). Run commands
-from the repository root. PowerShell examples below show environment-variable
-syntax; use the equivalent syntax in your preferred shell.
+from the repository root.
 
 ```text
 npm ci
@@ -16,22 +15,21 @@ npm run check
 ```
 
 On Linux, Playwright may also need system libraries:
-`npx playwright install --with-deps chromium`.
+`npx playwright install --with-deps chromium`. The Go race detector needs a C
+compiler that Go supports; without one the race step of `npm run check` fails.
 
 The frontend is an npm workspace using the root lockfile. Add dependencies with
-`npm install -w @ttrpg-codex/frontend <package>` and commit its manifest together
-with the root `package-lock.json`.
+`npm install -w @ttrpg-codex/frontend <package>` and commit its manifest with the
+root `package-lock.json`.
 
-Migration SQL is pinned to LF by [.gitattributes](.gitattributes). Checksums
-cover the exact embedded bytes, so do not change released SQL or disable drift
-validation. The full gate verifies both Git checkout modes and the embedded
-history. An existing checkout may need a fresh checkout to pick up this rule;
-first preserve any local work. For databases created by older Windows builds,
-see [migration checksum recovery](docs/SELF_HOSTING.md#migration-checksum-drift).
+Migration SQL is pinned to LF by [.gitattributes](.gitattributes) because the
+host verifies migration checksums over the exact bytes. Never change a released
+migration. For databases created by older Windows builds, see
+[migration checksum drift](docs/SELF_HOSTING.md#migration-checksum-drift).
 
 ## Run the development host
 
-Build the frontend, set a local password and use a separate data directory:
+Build the frontend, set a local password and use a throwaway data directory:
 
 ```powershell
 npm --workspace @ttrpg-codex/frontend run build
@@ -39,273 +37,103 @@ $env:CODEX_DM_PASSWORD = 'local-development-only'
 go run ./cmd/codex -listen 127.0.0.1:3001 -data-dir data/development
 ```
 
-For a watch loop, leave the Go host running and open another terminal:
+For a watch loop, leave the host running and start Vite in another terminal;
+it proxies `/api` to the host:
 
 ```text
 npm --workspace @ttrpg-codex/frontend run dev
 ```
 
-Vite proxies `/api` to the host. Never point development checks at production
-data. Runtime directories, credentials, backups and install ZIPs stay out of Git.
+Never point development tools at a live site's data. To try a change against
+real content, restore a downloaded backup into a new directory with
+`go run ./cmd/codex-maintenance restore -data-dir <new-dir> -in <backup.zip>`
+and, if needed, set a local password there with `-reset-passwords` (see
+[password recovery](docs/SELF_HOSTING.md#password-changes-and-access-recovery)).
 
-## Choose validation for the change
+## Checks
 
-| Change | Checks |
+| Command | What it runs |
 | --- | --- |
-| Documentation only | Review changed claims, commands, relative links and heading anchors |
-| Host source or tooling | `npm run check` |
-| Concurrent worker, broker, event or lifecycle behavior | Full gate plus `go test -race` for affected packages |
-| Public add-on contract | Relevant host tests and every affected producer/consumer gate |
-| Package, manifest, worker or schema | Owning build, regenerated outputs and host ZIP inspection |
-| Release candidate | Full gates, relevant installed-package checks and `npm run release-check` |
+| `npm run check:fast` | No-JavaScript source guard, strict types, typed Oxlint, Prettier, gofmt, `go vet`, Staticcheck |
+| `npm run check` | Fast checks, tool tests, frontend unit tests, browser tests, Go tests and selected race tests |
+| `npm run format` / `go run ./tools/check.go format` | Format TypeScript/CSS/config and Go |
+| `npm run lint:fix` | Apply Oxlint fixes (review the diff) |
+| `npm run check:workflows` | actionlint, with ShellCheck from `PATH` |
+| `npm run check:vulnerabilities` | Reachable Go vulnerabilities |
+| `npm run check:dependencies` | npm audit; high or critical advisories fail |
 
-`npm run check` first runs the fast static checks below, then tests release and
-workflow-policy scripts, runs frontend unit and Chromium tests, builds browser
-assets, and runs all project-owned Go tests plus the selected race tests. Node
-`.mts` tools execute through built-in type stripping, so their separate strict
-type check remains mandatory. A C compiler supported by Go is required for the
-race detector; a missing compiler fails the gate rather than silently skipping it.
-
-### Quality toolchain
-
-All four TypeScript repositories use the same exact TypeScript 7, Oxlint,
-native typed-lint engine, Prettier, and Node type-definition versions. The host
-and add-on lockfiles are authoritative; update this set together and run the
-installed companion suite. Suite preparation rejects mismatched tool versions;
-`npm run check:toolchains` checks adjacent TypeScript companions before building.
-Node 26 is the development and CI baseline. TypeScript
-7 compiles the existing strict code directly; a second application rewrite or a
-second linter is unnecessary. Source tools and tests are TypeScript too; package
-JavaScript remains generated output.
-
-| Command | Purpose |
-| --- | --- |
-| `npm run check:fast` | Source guard, strict types, typed Oxlint, Prettier, gofmt, vet, Staticcheck |
-| `npm run check` | Fast checks plus tool, unit, browser, Go and selected race tests |
-| `npm run lint:fix` | Apply Oxlint fixes; review the diff and rerun checks afterward |
-| `npm run format` | Format authored TypeScript, CSS and toolchain configuration |
-| `go run ./tools/check.go format` | Format project-owned Go source |
-| `npm run check:workflows` | Validate GitHub Actions with actionlint |
-| `npm run check:vulnerabilities` | Check reachable Go vulnerabilities against the current database |
-| `npm run check:dependencies` | Audit the npm lockfile; high or critical advisories fail the gate |
-
-Oxlint checks correctness and typed promises, including test and release tools.
-Top-level Node test registrations use `void test(...)` because the runner owns
-completion. Negative regression probes verify that lint rejects forgotten work
-inside test callbacks and ordinary methods, even if a method is named `test`.
-Deliberate exceptions such as
-snapshotting mutable collections have a narrow, explained comment. Formatting
-is separate from linting; embedded Lit templates retain their existing content.
-Git attributes and EditorConfig keep formatter inputs on LF across platforms.
-Workflow checks require [ShellCheck](https://github.com/koalaman/shellcheck#installing)
-on `PATH`, including Windows development. The runner fails if it is missing,
-so local actionlint checks include the same shell analysis as GitHub's Linux runner.
-
-Go analysis tools are pinned separately in `go.tools.mod` and `go.tools.sum` so
-tool dependencies do not upgrade application dependencies. The Go runner invokes
-those tools while analyzing the application module. Its `fast`, `test`, `vuln`,
-`workflows`, and `format` modes are also used by Go companions; the headless rules
-engine does not need an npm toolchain. Network vulnerability checks run in CI and
-scheduled maintenance, outside the fast local edit loop. Dependabot proposes
-grouped npm, application Go-module, and GitHub Actions updates. Its Go-module
-scan does not update the custom `go.tools.mod` manifest: update those analysis-tool
-pins deliberately across all four Go repositories and rerun their gates. All
-dependency updates remain reviewed and tested before merging.
-The npm audit includes build and test dependencies, reports every severity, and
-blocks CI on high or critical advisories. It never applies automatic fixes.
-
-Shared control browser tests include axe checks at desktop and mobile widths,
-with dropdown and dialog states. These automated checks complement the existing
-keyboard and interaction tests; they do not establish human screen-reader
-acceptance. Failed shared-control tests retain Playwright traces under
-`frontend/test-results/traces/`. Set `CODEX_TEST_TRACE=1` to also keep traces for
-passing runs, and open a trace with `npx playwright show-trace <path-to-trace.zip>`.
-Tracked installed browser contexts also retain local traces; these can contain
-private package contents and credentials. The host test job uploads its synthetic
-browser traces on failure, but the companion job never uploads installed traces,
-screenshots, package ZIPs or raw host output.
-
-Tracked browser and installed-character setup/service failures also write bounded
-`test-failure-metadata.v1` JSON under `frontend/test-results/public-diagnostics/`.
-The host and companion workflows retain only this explicit JSON projection as
-`host-failure-metadata` and `installed-failure-metadata` for 14 days after a failed
-or cancelled job. It records fixed request/view categories, HTTP status, transport
-codes, durations, pending reads, page-error counts and available process exit
-state. It keeps at most 64 completed and 64 outstanding requests and reports
-omitted entries. URLs, queries, headers, bodies, package/record identifiers,
-exception text and host output are excluded at the write boundary. Test names
-are represented by their full SHA-256; calculate the hash of the exact test name
-to match a browser record to its test result. Host records retain their generated
-run UUID and stage instead. Unknown values become fixed fallback categories.
-Capture stops before browser cleanup so its own request aborts cannot explain
-the failed workflow. Metadata write failures preserve the original test error.
-
-The installed-character fixture also saves separate
-`frontend/test-results/installed-character/host-failure-*.json` records for
-setup and service failures. Each records its run, stage, method and HTTP status
-when available, process identity/exit state, and the latest 16,000 characters
-of disposable-host output. Transport exceptions are captured even when no HTTP
-response arrives. The helper does not serialize the caught exception or
-request/response bodies; artifact-write failure preserves the original error.
-Expected rejection tests produce records too: correlate their stage and time
-with the test result before treating them as failures. These ignored artifacts
-include raw output from local synthetic acceptance hosts; do not collect live-site
-data through this fixture helper.
-
-### Companion compatibility
-
-The compatibility workflow checks out the exact source SHAs in
-[`companion-revisions.json`](companion-revisions.json), checks their availability
-before building, and inspects each current manifest's ZIP. It runs Sheets Go
-tests/vet against the candidate host SDK as well as its browser checks. All
-packages remain in the same job; private package contents are never uploaded as
-CI artifacts. `release/companions/provenance.json` records exact host/sibling
-commits and ZIP hashes and is retained as the job artifact. Failed installed
-acceptance also records the source/hash table in the job summary and retains
-the public failure metadata described above. Expected rejection tests can
-produce metadata too; correlate each record with the test outcome and timestamp.
-
-Standalone native add-on CI freezes its host SDK with the add-on's
-`host-sdk-revision.txt`; Sheets also freezes its public engine model with
-`engine-model-revision.txt`. Those pins identify the dependencies for an
-immutable published add-on build. Host compatibility intentionally uses the
-candidate host and the engine commit in `companion-revisions.json` instead,
-so a proposed change is tested before its SDK pin is adopted. Local package
-commands use the adjacent checkouts; compare the recorded source commits and
-ZIP hashes when distinguishing candidate acceptance from a published build.
-
-The host and DM Tools each install Chromium using their own pinned Playwright
-version. Updating the host browser dependency must not leave the companion's
-rendering test without its required browser executable.
-
-When the candidate host changes Go dependencies, compatibility CI uses
-`scripts/prepare-companion-go.mts` from each Go companion's root. It copies the
-companion's module files to a separate scratch directory and reconciles them
-with `go mod tidy -modfile` from the companion root. Checks and package builders inherit that
-absolute module path with `-mod=readonly`; analysis tools still use their own
-`go.tools.mod`. Workspaces are disabled for this check. The pinned source files
-remain unchanged, and the normal clean-source and ZIP inspection gates still run.
-
-When companion source changes, run its owning gates and commit it first. From
-clean adjacent checkouts, explicitly update the host's source set with
-`node scripts/companion-revisions.mts record`. This changes only the revision
-file; it does not publish commits or establish acceptance. Otherwise use the
-already pinned commits. Check clean source before building:
-
-```text
-node scripts/companion-revisions.mts check full
-```
-
-After building the four companion ZIPs from those commits:
-
-```text
-node scripts/companion-suite.mts prepare ../addon-dm-tools ../addon-dnd-engine ../addon-dnd-character-sheets ../addon-dnd-2024-compendium
-npm --workspace @ttrpg-codex/frontend run build
-node scripts/companion-suite.mts test full
-```
-
-Inspection and installed acceptance both reject source revisions that differ
-from the committed pins. The runner verifies every copied ZIP against its
-inspected hash, supplies all four `CODEX_*_ZIP` inputs, and rejects any test
-failure or skip. Commit the accepted pins with the dependent host change. During
-authorized publication, make those companion commits available before the host;
-follow the [delivery procedure](docs/SELF_HOSTING.md#coordinate-host-and-companion-commits).
-
-Publication requires the private token and the full suite. A PR without private
-access runs the pinned public packages and explicitly reports incomplete
-publication coverage. Browser output and worker binaries belong to ignored build
-directories in every companion. Their standalone package commands rebuild from
-source; owner and integration CI reject tracked artifacts or source changes left
-by a build. Public schemas and generated source interfaces remain versioned.
-
-Browser files run four at a time to bound Chromium resource usage without
-changing individual test deadlines or coverage.
-The suite streams test output as it runs and saves partial TAP output to
-`release/companions/installed.tap`. A job cancellation can therefore leave useful
-progress in its log instead of discarding every unfinished test's diagnostics.
-The existing 32 MiB bounds on each output stream and the zero-skip requirement
-still apply; partial output never establishes acceptance.
-Failed or cancelled host test jobs retain browser trace ZIPs as
-`host-browser-traces` for 14 days. That upload excludes package archives and
-runtime directories; private companion-job contents remain outside public
-artifacts. Inspect the trace against its exact host source and original error.
-
-Focused checks are useful during development:
+Pick the narrowest useful test while iterating:
 
 ```text
 npm --workspace @ttrpg-codex/frontend test
 npm --workspace @ttrpg-codex/frontend run test:browser
 go test ./internal/transport/httpapi
 go test ./internal/addons/packagemanager
-go test ./sdk/go/workerrpc
+go test -race ./sdk/go/workerrpc
 ```
 
-Use the narrowest meaningful regression for changed behavior. Do not remove
-public SDK exports, dynamically registered contributions or fixture coverage
-solely because an unused-code tool cannot see their consumers.
+Run `go test -race` on changed worker, broker, event or lifecycle packages.
+Node tools and browser tests are strict `.mts` files executed through Node's
+type stripping, so `npm run typecheck` still checks them. Top-level test
+registrations use `void test(...)`.
 
-Browser test files start multiple Chromium processes. On a resource-constrained
-machine, build the frontend once and run the same suite from `frontend/` with
-`node --test --test-concurrency=4 test/browser/*.browser.mts`. Keep the same
-add-on archive variables and complete the other full-gate checks separately.
-This limits simultaneous processes without dropping cases.
+Failed browser tests keep a Playwright trace under
+`frontend/test-results/traces/` (set `CODEX_TEST_TRACE=1` to keep traces for
+passing tests too). Open one with `npx playwright show-trace <trace.zip>`.
 
-### Check secret-scanning changes
+Go analysis tools are pinned in `go.tools.mod` so they never upgrade
+application dependencies. Dependabot proposes grouped npm, Go and Actions
+updates monthly; it does not touch `go.tools.mod`.
 
-**Secret scan** runs separately from the application tests. `npm run check`
-does not run Gitleaks. Before publication, use the Gitleaks version pinned in
-[the workflow](.github/workflows/secret-scan.yml) to scan the outgoing commits:
+### Installed add-on smoke test
 
-```text
-gitleaks git --redact --log-opts="origin/main..HEAD" .
-npm run test:secret-scan
-```
-
-Choose the actual base revision when checking a different commit range. The
-scanner must be on `PATH`; the regression command also accepts an absolute
-`GITLEAKS_BINARY` path. Its fixtures are generated in a temporary directory and
-prove that the reviewed exceptions still detect other generic and
-provider-specific credentials.
-
-Keep [.gitleaks.toml](.gitleaks.toml) exceptions limited to the matching rule,
-exact value and file. The current exceptions are static browser focus selectors;
-they do not exclude the test directory, file contents or historical commits.
-See [Gitleaks rule allowlists](https://github.com/gitleaks/gitleaks/blob/v8.30.1/README.md#configuration).
-
-### Inspect companion package builds
-
-After building the companion ZIPs, run the same inspection command as the host
-compatibility workflow:
-
-```text
-node scripts/inspect-addon-builds.mts ../addon-dm-tools ../addon-dnd-engine ../addon-dnd-character-sheets ../addon-dnd-2024-compendium
-```
-
-The helper reads each repository's `addon.json` and inspects its exact current
-`dist/<id>-<version>.zip` through the host inspector. An older ZIP cannot stand
-in for a missing current build, and inspection failure still fails the gate.
-Use repository paths in workflows instead of maintaining versioned filenames
-there; each add-on owns its release identity.
-
-### Installed add-on checks
-
-These tests start disposable hosts and install reviewed ZIPs. Build the companion
-packages first, then supply their archive paths; without them the corresponding
-tests report skipped. In PowerShell:
+The `installed-*.browser.mts` files start disposable hosts, install real add-on
+ZIPs through the normal review lifecycle and exercise each add-on's main
+workflows. Cases that need a package skip when its ZIP is not supplied. Build
+the add-ons in their own repositories, then:
 
 ```powershell
-$env:CODEX_COMPENDIUM_ZIP = (Resolve-Path ../addon-dnd-2024-compendium/dist/dnd-2024-compendium-3.1.0.zip).Path
+$env:CODEX_DM_TOOLS_ZIP = (Resolve-Path ../addon-dm-tools/dist/dm-tools-3.0.0.zip).Path
 $env:CODEX_ENGINE_ZIP = (Resolve-Path ../addon-dnd-engine/dist/dnd-engine-4.0.0.zip).Path
 $env:CODEX_SHEETS_ZIP = (Resolve-Path ../addon-dnd-character-sheets/dist/dnd-sheets-4.0.0.zip).Path
-$env:CODEX_DM_TOOLS_ZIP = (Resolve-Path ../addon-dm-tools/dist/dm-tools-3.0.0.zip).Path
-npm run check
+$env:CODEX_COMPENDIUM_ZIP = (Resolve-Path ../addon-dnd-2024-compendium/dist/dnd-2024-compendium-3.1.0.zip).Path
+npm --workspace @ttrpg-codex/frontend run build
+npm --workspace @ttrpg-codex/frontend run test:installed
 ```
 
-The installed rules suite covers provider discovery, source changes and provider
-loss. Character tests exercise automatic saving, pending-edit recovery, provider
-transitions, transfer and print. Planner tests exercise the packaged UI, imports
-and lifecycle. Browser automation does not establish physical-device, human
-screen-reader or printer acceptance.
+It takes about two minutes. The **Installed add-on smoke test** workflow runs
+the same suite nightly against the latest published add-on releases; it never
+blocks a deployment. It needs the `ADDON_SUITE_TOKEN` secret (read access to the
+private compendium) for the compendium, rules and character cases, and it does
+not upload traces because they can contain private compendium text.
+
+Detailed character, rules and planner behaviour is tested in each add-on's own
+repository. Add an installed case only for something that needs the real host
+and packages together.
+
+## CI and releases
+
+| Workflow | When | What |
+| --- | --- | --- |
+| Build and dispatch | Push to `main`, pull requests, manual | `npm run check`, image build and start-up check; on `main` publishes the image and deploys both sites |
+| Deploy published release | Manual | Redeploys an earlier successful build to one site |
+| Installed add-on smoke test | Nightly, manual | Latest published add-ons on this host |
+| Quality maintenance | Weekly, manual | npm audit, actionlint, Go vulnerabilities |
+| Secret scan | Push, pull request | Gitleaks |
+
+Documentation-only changes (`*.md`, `docs/`) skip build and deploy. Operating
+the deployment is described in [publishing and deploying
+updates](docs/SELF_HOSTING.md#publishing-and-deploying-updates).
+
+Each add-on repository builds, tests and packages from a plain clone. Its Go
+code requires this module by version through the public module proxy, and its
+CI runs this repository's package inspector as a pinned Go tool. When an add-on
+needs an unreleased host change, develop against a local checkout with an
+uncommitted `go.work` (`go work init . ../ttrpg-codex` in the add-on), then
+push the host change and bump the add-on's requirement with
+`go get github.com/pjunak/ttrpg-codex@<commit>`. Successful add-on `main` builds
+publish their inspected ZIP as a GitHub release; installing it on a site is a
+separate step in Settings → Add-ons.
 
 ## Keep ownership clear
 
@@ -320,37 +148,21 @@ screen-reader or printer acceptance.
 | Browser add-on lifetime | `frontend/src/addons` |
 | Public compatibility contracts | `contracts/addons/v3` and `sdk/go/workerrpc` |
 
-Keep SQL behind stores and wire shapes behind clients/handlers. Add-ons consume
-public schemas and SDKs; they do not import host `internal/` or frontend modules.
-See [Architecture](docs/ARCHITECTURE.md) for the larger system.
-
-Migrations are forward-only and checksum verified. Preserve unknown record
-fields during ordinary edits. Released add-on, collection, extension and service
-IDs are permanent. Offline campaign conversion is a separate tool; do not add
-startup compatibility readers.
+Keep SQL behind stores and wire shapes behind clients and handlers. Add-ons use
+the public schemas and SDK; they never import host `internal/` packages or
+frontend modules. See [Architecture](docs/ARCHITECTURE.md).
 
 ## Write useful documentation
 
-Lead with the reader's task and resulting behavior. Put setup and common use in
-the README, detailed behavior in the owning reference, design rationale in an
-architecture decision, and future work only in [BACKLOG.md](docs/BACKLOG.md).
-The [documentation index](docs/README.md) links those owners.
-
-Use descriptive links, short paragraphs and copyable commands with their working
-directory and prerequisites. Link to version declarations instead of repeating
-tool versions throughout prose. Describe current behavior in the present tense;
-label old audit findings and acceptance results with their date. Remove obsolete
-plans once the current reference covers their useful decisions.
-
-Update documentation with behavior or contract changes. A passing test count is
-dated evidence, not a permanent claim about current coverage.
+Lead with the reader's task. Put setup and everyday use in the README, how
+things work in the owning reference under [docs/reference/](docs/reference/),
+design rationale in an [architecture decision](docs/decisions/), and future
+work only in [BACKLOG.md](docs/BACKLOG.md). Describe current behaviour in the
+present tense; history belongs in Git, not in documents. Update the owning
+document in the same change as the behaviour.
 
 ## Commit and hand off
 
-Group changes into understandable commits and keep independent repositories
-separate. Include the reason and relevant validation for nontrivial changes.
-Regenerate intentionally tracked distribution assets through their owning build.
-
-Report checks that passed, checks unavailable or skipped, and remaining manual
-verification. Pushing, publishing, deployment and live-data operations are
-separate decisions.
+Group changes into understandable commits, one repository at a time, and say
+why in the message. Report which checks ran. Pushing, publishing, deploying and
+live-data operations are separate decisions.

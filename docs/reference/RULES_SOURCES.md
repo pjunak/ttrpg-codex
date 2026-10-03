@@ -112,7 +112,7 @@ in-flight catalog epochs invalidate old runtime results together.
 
 ## Engine and character preservation
 
-The [character building and save model](CHARACTER_BUILD_HISTORY.md) uses
+The [character building and save model](../../../addon-dnd-character-sheets/docs/WORKFLOW.md) uses
 typed decisions, authenticated DM grants and retained projections. It keeps
 this specification's one-ruleset policy, compatible source selection and
 explicit adoption of changed rules.
@@ -143,7 +143,7 @@ authorize the replacement.
 **Data implications:** new optional books being off can make existing choices
 unavailable for future selection. The choices and saved sheets remain stored.
 Explicitly applying newly computed values can change derived statistics; the
-[character command contract](CHARACTER_BUILD_HISTORY.md#authoritative-mutation-path)
+[character command contract](../../../addon-dnd-character-sheets/docs/WORKFLOW.md#saving-and-transfer)
 governs that action. This
 work does not inspect or modify live campaign data.
 

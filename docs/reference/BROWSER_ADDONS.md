@@ -224,8 +224,7 @@ from the target.
 
 This trades a brief full contribution refresh for one small, deterministic
 lifecycle. That is appropriate for the current personal deployment and small
-first-party add-on set. The owner accepted this as an expected limitation on
-September 11, 2026. A graph change restarts all browser add-ons, including
+first-party add-on set. A graph change restarts all browser add-ons, including
 otherwise unchanged ones. Local actions honor published edit guards. Integrated
 record article sections may now opt into the
 [transient edit handoff](../../examples/addons/API_V3.md#pending-record-edits-during-generation-replacement):
@@ -589,10 +588,8 @@ failure recovery. With `CODEX_DM_TOOLS_ZIP` pointing to the rebuilt first-party
 archive it also exercises dashboard counts, desktop/phone styling, Czech copy,
 planner edits and notes, recent-item links, reload/new-tab/back navigation,
 invalid/deleted targets and failed-read retry through an installed package.
-`installed-planner-annotation-fixture.mts` covers core/planning/external targets,
-quantities, optional consequence targets, shared/unanchored notes, retained
-drafts, failed writes and phone layout. Separate installed route fixtures check
-grant and player filtering plus context refresh in both UI modes.
+Separate installed route fixtures check grant and player filtering plus context
+refresh in both UI modes; DM Tools' own tests cover planner annotations.
 
 Core data and host-issued add-on data/content/service facades share the default
 session transport. In a player-preview tab it supplies independent player
@@ -636,7 +633,7 @@ Contribution contexts supply navigation, host settings context and edit guards;
 `data.subscribe` handles host invalidations. These are not standalone
 `context.imports/events/settings/navigation/log` APIs.
 
-The current availability table is in [the public API](../../examples/addons/API_V3.md#current-implementation-status).
+The current availability table is in [the public API](../../examples/addons/API_V3.md#what-is-available).
 Settings → Add-ons includes a bounded diagnostics view for each add-on. This tab
 retains the last 32 activation, dependency, disposal, refresh and contribution
 failures with phase, generation, time and a local reference. Exception text,
@@ -644,6 +641,6 @@ stack traces, URLs and campaign payloads are not retained. Authority loss,
 logout, role changes and application disposal clear this local history. Worker
 health and request diagnostics use the separate DM-only administrative snapshot.
 
-The [suite backlog](../BACKLOG.md) tracks broader editor/renderer integration
-(C02), graph extensions (C03), and consumer-driven additional SDK handles (C07).
 Separate editor panels, settings panels and graph models are implemented.
+Broader editor integration, graph extensions and further SDK handles are
+[backlog ideas](../BACKLOG.md#ideas-only-with-a-concrete-need).

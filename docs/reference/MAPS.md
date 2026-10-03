@@ -249,5 +249,4 @@ WebP/JPEG handling, cache regeneration, concurrency and cancellation in Go.
 Application/HTTP checks verify current owner visibility even for cached and
 conditional reads. Desktop/phone browser fixtures verify matching coordinate
 geometry, zoom, image replacement, and failure fallback without downloading
-the source image on the successful tiled path. Real campaign acceptance remains
-in the suite backlog.
+the source image on the successful tiled path.
