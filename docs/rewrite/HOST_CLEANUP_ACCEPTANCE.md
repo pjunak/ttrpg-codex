@@ -6691,3 +6691,46 @@ site/backup acceptance, historical failure attribution and human/device results
 remain open; the owner-confirmed Tiamat add-on-free policy is unchanged.
 Estimates remain **97% implemented / 96% overall**, with **33/40 original rows
 closed**.
+## October 3 character transfer close readiness
+
+October 3, 2026. The approved four-commit host push through `2dc6776` starts
+[run 37132964947](https://github.com/pjunak/ttrpg-codex/actions/runs/37132964947).
+The host gate passes 103 tool tests, 585 unit tests, 344 browser cases and
+Go/race checks. Its mandatory installed companion gate fails the player-transfer
+case at the post-close focus assertion. The worker's forged-player authorization
+check already returned the expected 403. Publication and both deployments are
+skipped; the previous healthy `2bf0cc8` image remains deployed.
+
+The exact failing browser metadata is retained in `installed-failure-metadata`
+artifact `11278605613` and successfully downloaded. Its `f5659b974a` test hash
+matches the player-transfer case, with browser stage and zero page errors.
+Private raw traces are not published. This verifies the real failed-CI artifact
+path; it does not supply the missing historical T57, T18-DM or T53 captures.
+
+The installed package restores a current opening action from its native dialog
+`close` handler. The [HTML close algorithm](https://html.spec.whatwg.org/multipage/interactive-elements.html#close-the-dialog)
+queues that event. A controlled replacement of the opening button followed by
+native close gives `false` for the old same-task focus assertion, then restores
+the current button when the queued handler runs. Waiting only for the first
+focused button can also observe native focus before the handler replaces that
+button during cleanup. The fixture now waits for both removal of the closed
+dialog and focus on the current Import action, bounded to two seconds, before
+retaining the original role-based identity assertion.
+
+Both English/Czech transfer-and-print sessions and player transfer pass with
+zero skips in 42,255.8091 ms. The player case keeps its actual Close-button interaction, forged
+403 check, preserved input, absent confirmation and unchanged saved-state
+assertions, and permanently covers cancellation after replacing the opening
+button. The global 60/90-second deadlines remain unchanged. No host/add-on
+runtime, worker, schema, permission, source pin or ZIP changes are required.
+
+The final local `npm run check` passes 103 tool tests, 585 unit tests, 344 browser
+cases and all Go/race checks. Its 199 optional installed skips remain separate
+from the affected three-case zero-skip run and the mandatory CI gate. All 33
+product-parity gates and 387 local documentation links/anchors pass, and clean
+companion checkouts still match all four pinned source revisions.
+
+Controlled before/after logs and downloaded metadata remain ignored under
+`frontend/test-results/current-followup-*`. The repair still requires a fresh
+complete Linux installed gate, image publication, both exact infrastructure
+rollouts and public-site checks before this delivery is accepted.

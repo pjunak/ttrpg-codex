@@ -64,6 +64,22 @@ const messages = (locale: string) =>
         layout: "Sheet layout",
       };
 
+async function waitForImportFocus(sheet: Locator): Promise<void> {
+  // Native close queues the handler that restores a replaced opening control.
+  await sheet.page().waitForFunction(
+    () => {
+      const root = document.querySelector(".addon-dnd-character");
+      return (
+        root &&
+        !root.querySelector("dialog") &&
+        root.querySelector('[data-focus-key="import-character"]') === document.activeElement
+      );
+    },
+    undefined,
+    { timeout: 2000 },
+  );
+}
+
 export async function exported(page: Page, sheet: Locator, locale: string) {
   const downloadEvent = page.waitForEvent("download");
   await sheet.getByRole("button", { name: messages(locale).export, exact: true }).click();
@@ -247,6 +263,7 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
           .getByRole("dialog")
           .getByRole("button", { name: text.close, exact: true })
           .click();
+        await waitForImportFocus(sheet);
         assert.deepEqual(
           (await read()).state,
           next.state,
@@ -435,6 +452,7 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
       });
       assert.equal(forged.status(), 403, "The worker must also reject forged player authorization");
       await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      await waitForImportFocus(sheet);
       assert.equal(
         await sheet
           .getByRole("button", { name: "Import character", exact: true })
@@ -444,6 +462,31 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
       assert.equal(
         await sheet.getByRole("button", { name: "Replace character", exact: true }).count(),
         0,
+      );
+      assert.deepEqual((await f.call("load", { key })).state, stored.state);
+      await sheet.getByRole("button", { name: "Import character", exact: true }).click();
+      const sameTaskFocus = await sheet.getByRole("dialog").evaluate((node) => {
+        const opener = document.querySelector(
+          '.addon-dnd-character [data-focus-key="import-character"]',
+        );
+        if (!opener) throw new Error("Import opener is missing");
+        opener.replaceWith(opener.cloneNode(true));
+        (node as HTMLDialogElement).close();
+        return (
+          document.querySelector('.addon-dnd-character [data-focus-key="import-character"]') ===
+          document.activeElement
+        );
+      });
+      t.diagnostic(
+        `Replaced import opener focus before the queued close handler: ${sameTaskFocus}`,
+      );
+      await waitForImportFocus(sheet);
+      assert.equal(
+        await sheet
+          .getByRole("button", { name: "Import character", exact: true })
+          .evaluate((node) => node === document.activeElement),
+        true,
+        "Queued dialog cleanup restores the current import action after its opener was replaced",
       );
       assert.deepEqual((await f.call("load", { key })).state, stored.state);
     },
