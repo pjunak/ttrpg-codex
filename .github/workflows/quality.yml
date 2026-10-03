@@ -12,7 +12,6 @@ permissions:
 concurrency:
   group: quality-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
-  queue: max
 
 jobs:
   npm-dependencies:
