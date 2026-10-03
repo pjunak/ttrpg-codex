@@ -221,8 +221,7 @@ func browserContributions(
 func isBrowserContribution(surface string) bool {
 	switch surface {
 	case "route", "sidebar", "settings", "article-action", "article-section",
-		"editor-panel", "slot", "record-renderer", "wiki-kind",
-		"graph-node-kind", "graph-view", "graph-contributor":
+		"editor-panel", "slot", "wiki-kind", "graph-view", "graph-contributor":
 		return true
 	default:
 		return false

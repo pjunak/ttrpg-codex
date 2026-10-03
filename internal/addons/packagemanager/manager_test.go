@@ -895,7 +895,6 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 				"id": "unavailable.route", "surface": "route", "label": "Unavailable",
 				"requires": []string{"ui.unavailable"}, "config": map[string]any{"path": "unavailable"},
 			},
-			{"id": "alignment.kind", "surface": "kind", "label": "Alignment"},
 		},
 	})
 	provider, err := manager.Stage(context.Background(), providerArchive)

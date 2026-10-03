@@ -353,7 +353,7 @@ func TestInspectFileCompilesAndReportsServiceDocuments(t *testing.T) {
 	}
 	packagePath := writePackage(t, map[string][]byte{
 		manifestFilename:                         manifest,
-		"worker/addon.wasm":                      []byte("not executed during inspection"),
+		"worker/addon":                      []byte("not executed during inspection"),
 		"contracts/engine.service.json":          serviceBody,
 		"contracts/evaluate.request.schema.json": []byte(`{"$ref":"common.schema.json#/$defs/request"}`),
 		"contracts/evaluate.response.schema.json": []byte(
@@ -384,7 +384,7 @@ func TestInspectFileRejectsServiceDocumentMismatchAndExternalSchemaReference(t *
 		}`)
 		packagePath := writePackage(t, map[string][]byte{
 			manifestFilename:                manifestWithWorkerService(t, "dnd5e.rules-engine", "3.1.0"),
-			"worker/addon.wasm":             []byte("worker"),
+			"worker/addon":             []byte("worker"),
 			"contracts/engine.service.json": serviceBody,
 			"contracts/request.json":        []byte(`{"type":"object"}`),
 			"contracts/response.json":       []byte(`{"type":"object"}`),
@@ -516,7 +516,7 @@ func manifestWithWorkerService(t *testing.T, contract, version string) []byte {
 	manifest["compatibility"].(map[string]any)["workerProtocol"] = "^1.0.0"
 	manifest["runtime"] = map[string]any{
 		"worker": map[string]any{
-			"type": "wasi", "protocol": "^1.0.0", "entrypoint": "worker/addon.wasm",
+			"type": "native", "protocol": "^1.0.0", "entrypoints": map[string]any{"linux-amd64": "worker/addon"},
 		},
 	}
 	manifest["services"] = map[string]any{

@@ -43,9 +43,7 @@ const contributionSurfaces = new Set([
   "article-section",
   "editor-panel",
   "slot",
-  "record-renderer",
   "wiki-kind",
-  "graph-node-kind",
   "graph-view",
   "graph-contributor",
 ] as const);
