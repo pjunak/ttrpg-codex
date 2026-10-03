@@ -127,7 +127,7 @@ func TestSupervisorFactoryRejectsUnsupportedWorkerProfileAndTarget(t *testing.T)
 	}
 	for name, worker := range map[string]*packageinspect.WorkerRuntime{
 		"unsupported type": {Type: "wasi"},
-		"missing target": {Type: "native", Entrypoints: map[string]string{"linux-amd64": "worker/addon"}},
+		"missing target":   {Type: "native", Entrypoints: map[string]string{"linux-amd64": "worker/addon"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

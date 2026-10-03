@@ -353,7 +353,7 @@ func TestInspectFileCompilesAndReportsServiceDocuments(t *testing.T) {
 	}
 	packagePath := writePackage(t, map[string][]byte{
 		manifestFilename:                         manifest,
-		"worker/addon":                      []byte("not executed during inspection"),
+		"worker/addon":                           []byte("not executed during inspection"),
 		"contracts/engine.service.json":          serviceBody,
 		"contracts/evaluate.request.schema.json": []byte(`{"$ref":"common.schema.json#/$defs/request"}`),
 		"contracts/evaluate.response.schema.json": []byte(
@@ -384,7 +384,7 @@ func TestInspectFileRejectsServiceDocumentMismatchAndExternalSchemaReference(t *
 		}`)
 		packagePath := writePackage(t, map[string][]byte{
 			manifestFilename:                manifestWithWorkerService(t, "dnd5e.rules-engine", "3.1.0"),
-			"worker/addon":             []byte("worker"),
+			"worker/addon":                  []byte("worker"),
 			"contracts/engine.service.json": serviceBody,
 			"contracts/request.json":        []byte(`{"type":"object"}`),
 			"contracts/response.json":       []byte(`{"type":"object"}`),
