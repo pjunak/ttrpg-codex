@@ -5,6 +5,39 @@ import { fileURLToPath } from "node:url";
 import { trackBrowserContext } from "../frontend/test/browser/browser-diagnostics.mts";
 import type { PublicFailureRecord } from "../frontend/test/browser/public-failure-evidence.mts";
 
+for (const stage of ["login", "navigation"]) {
+  void test("failed character creation retains tracing and cleanup during " + stage, () => {
+    const env: NodeJS.ProcessEnv = { ...process.env, CODEX_CREATION_FAILURE_STAGE: stage };
+    delete env.NODE_TEST_CONTEXT;
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--test",
+        "--test-reporter=tap",
+        "--experimental-test-module-mocks",
+        fileURLToPath(new URL("./fixtures/failed-character-creation.mts", import.meta.url)),
+      ],
+      { encoding: "utf8", timeout: 10_000, windowsHide: true, env },
+    );
+    assert.equal(result.error, undefined);
+    assert.equal(result.status, 1, "The original creation failure must remain a test failure");
+    assert.match(result.stdout, new RegExp("Controlled creation " + stage + " failure"));
+    assert.match(result.stdout, /# fail 2/);
+    assert.match(result.stdout, /# cancelled 0/);
+    const summary = result.stdout.match(/^(?:# )?CREATION_CONTEXT (.+)$/m);
+    assert.ok(summary, result.stdout + result.stderr);
+    assert.deepEqual(JSON.parse(summary[1]!), {
+      opened: 2,
+      closes: 2,
+      starts: 2,
+      stops: 2,
+      traces: 2,
+      screenshots: 0,
+      reports: 2,
+    });
+  });
+}
+
 function probe(t: TestContext, traceError?: Error, startupError?: Error, closeError?: Error) {
   let after: Parameters<TestContext["after"]>[0] | undefined;
   let closed = false;

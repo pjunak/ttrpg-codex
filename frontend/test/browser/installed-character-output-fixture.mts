@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Locator, Page } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
 import { openBuilder, save, type Fixture } from "./installed-character-builder-fixture.mts";
 import { spellCharacter } from "./installed-character-spell-fixture.mts";
 
@@ -372,15 +373,14 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
       const f = fixture(),
         key = "player-transfer",
         stored = await spellCharacter(f, key, 1);
+      const errors: string[] = [];
       const context = await f.browser.newContext({ baseURL: f.origin });
-      t.after(() => context.close());
+      await trackBrowserContext(t, context, () => assert.deepEqual(errors, []));
       const login = await jsonResponse(
         await context.request.post("/api/login", { data: { password: "local-character-player" } }),
       );
-      const page = await context.newPage(),
-        errors: string[] = [];
+      const page = await context.newPage();
       page.on("pageerror", (error) => errors.push(error.message));
-      t.after(() => assert.deepEqual(errors, []));
       let connection: { url: string; body: Row } | undefined,
         previews = 0;
       page.on("request", (request) => {

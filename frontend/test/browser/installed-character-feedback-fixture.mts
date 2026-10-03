@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import type { Fixture } from "./installed-character-builder-fixture.mts";
 import { readyCharacter } from "./installed-character-command-fixture.mts";
 import { jsonResponse } from "./installed-graph-fixture.mts";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
 import { unloadBlocked } from "./installed-planner-navigation-fixture.mts";
 
 export function registerCharacterFeedbackTests(enabled: boolean, fixture: () => Fixture) {
@@ -27,12 +28,13 @@ export function registerCharacterFeedbackTests(enabled: boolean, fixture: () => 
           key = "feedback-" + scenario.role + "-" + scenario.locale;
         const initial = await readyCharacter(f, key),
           maximum = initial.state.projection.sheet.derived.maxHp;
+        const errors: string[] = [];
         const context = await f.browser.newContext({
           baseURL: f.origin,
           viewport: { width: 1440, height: 1000 },
           reducedMotion: "reduce",
         });
-        t.after(() => context.close());
+        await trackBrowserContext(t, context, () => assert.deepEqual(errors, []));
         await jsonResponse(
           await context.request.post("/api/login", {
             data: { password: "local-character-" + scenario.role },
@@ -42,10 +44,8 @@ export function registerCharacterFeedbackTests(enabled: boolean, fixture: () => 
           (locale) => localStorage.setItem("codex_lang", locale),
           scenario.locale,
         );
-        const page = await context.newPage(),
-          errors: string[] = [];
+        const page = await context.newPage();
         page.on("pageerror", (error) => errors.push(error.message));
-        t.after(() => assert.deepEqual(errors, []));
         await page.goto(f.origin + "/#/characters/" + key);
         await page.locator("#character-view-addons").click();
         const sheet = page.locator(".addon-dnd-character"),

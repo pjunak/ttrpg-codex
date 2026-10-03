@@ -6651,3 +6651,43 @@ is committed locally as `2b549f0` and remains unpublished. Historical failure
 attribution and physical touch/spoken assistive-technology/paper-print results
 remain open. Estimates stay **97% implemented (93–98%) / 96% overall
 (92–98%)**, with **33/40 original rows closed (83%)**.
+
+## October 3 character fixture startup and cleanup
+
+October 3, 2026. The remaining direct character contexts in creation, save
+feedback and player transfer now use the shared trace/error/cleanup owner before
+login or page setup. Creation previously registered cleanup after login: a login
+failure left the new context unowned. Its failed-test screenshot ran before
+context close, so screenshot failure also prevented cleanup. The other two
+fixtures closed before their separate page-error assertions and retained no
+trace for those verification failures. All now verify and capture before closing
+through the existing shared hook, retaining their assertions and deadlines.
+
+Two permanent regressions run the real creation fixtures under independent Node
+test owners with controlled browser/API doubles. Login and navigation failures
+remain test failures. Before repair, each run opens two contexts and closes none;
+the navigation case attempts two failing screenshots. After repair, each run
+starts/stops two traces, closes both contexts once and reports two bounded
+metadata records. The intentional failures use an injected recorder so they
+cannot enter CI's actual failure inventory. These are controlled cleanup
+regressions, not evidence identifying the older unexplained startup incidents.
+
+All **six affected installed workflows pass**, with zero failures, cancellations
+or skips, in **72,604 ms**: English/Czech creation entirely through the Builder,
+three role/layout/locale save-feedback cases, and player transfer with independent
+DM-grant authorization. They use the same clean Engine `f19f634`, Sheets
+`06ef7a5` and Compendium `2971a39` sources and inspected Windows ZIP hashes
+recorded in the preceding package acceptance; fresh hash checks match. Package
+contents, public contracts, schemas, privileges and production behavior do not
+change.
+
+The full resulting `npm run check` passes **103 tool tests, 585 unit tests,
+344 browser cases and Go/race checks**, keeping 199 optional installed skips
+separate from the six zero-skip package cases. All **33 product-parity gates**
+pass. Changed document links and the final diff are checked before commit.
+Evidence remains ignored under `frontend/test-results/current-creation-capture-*`.
+This follow-up stays local for the next deployment checkpoint. Authenticated
+site/backup acceptance, historical failure attribution and human/device results
+remain open; the owner-confirmed Tiamat add-on-free policy is unchanged.
+Estimates remain **97% implemented / 96% overall**, with **33/40 original rows
+closed**.

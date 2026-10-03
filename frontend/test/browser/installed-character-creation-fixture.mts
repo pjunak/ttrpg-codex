@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { resolve } from "node:path";
 import type { Locator } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
 import {
   choose,
   createCharacterRecord,
@@ -64,29 +65,21 @@ export function registerCharacterCreationTests(enabled: boolean, fixture: () => 
             };
         // Only the host article is seeded. Every sheet choice and play mutation below uses the UI.
         assert.equal((await createCharacterRecord(f, key)).state, undefined);
+        const errors: string[] = [];
         const context = await f.browser.newContext({
           baseURL: f.origin,
           viewport: { width: 1440, height: 1000 },
           reducedMotion: "reduce",
         });
+        await trackBrowserContext(t, context, () => assert.deepEqual(errors, []));
         await jsonResponse(
           await context.request.post("/api/login", {
             data: { password: wizard ? "local-character-player" : "local-character-dm" },
           }),
         );
         await context.addInitScript((value) => localStorage.setItem("codex_lang", value), locale);
-        const page = await context.newPage(),
-          errors: string[] = [];
+        const page = await context.newPage();
         page.on("pageerror", (error) => errors.push(error.message));
-        t.after(async () => {
-          if (!t.passed)
-            await page.screenshot({
-              path: resolve(f.output, "creation-failure-" + locale + ".png"),
-              fullPage: true,
-            });
-          await context.close();
-          assert.deepEqual(errors, []);
-        });
         await page.goto("/#/characters/" + key);
         await page.locator("#character-view-addons").click();
         const sheet = page.locator(".addon-dnd-character"),
