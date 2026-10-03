@@ -17,7 +17,7 @@ Use Go from `go.mod` and Node from `.nvmrc` (Node 26+), from this directory.
 npm ci
 npx playwright install chromium
 npm run check:fast   # types, lint, format, gofmt, vet, staticcheck (~1 min)
-npm run check        # + tool, unit, browser and Go tests incl. race (~5 min)
+npm run check        # + tool, unit, browser and Go tests incl. race (~3 min)
 ```
 
 Focused loops: `npm --workspace @ttrpg-codex/frontend test`,
