@@ -6576,8 +6576,10 @@ Logs, controlled capture records and source/hash provenance remain ignored
 under `frontend/test-results/current-installed-capture-*`. Full package
 acceptance identifies published base `2bf0cc8` plus the documented fixture
 changes; a clean committed provenance check follows the commit. This follow-up
-remains local for the next batch. It does not attribute the historical missing
-startup/provider captures or close authenticated-site and human acceptance.
+was initially held locally and is now included in the
+[approved follow-up rollout](#october-3-approved-follow-up-rollout). It does not
+attribute the historical missing startup/provider captures or close
+authenticated-site and human acceptance.
 
 ## October 3 repaired CI and verified diagnostic rollout
 
@@ -6647,8 +6649,9 @@ Delivery records, private infrastructure logs, downloaded artifacts, public
 checks and screenshots remain ignored under
 `frontend/test-results/current-diagnostics-release-*`. The subsequent
 [installed diagnostic follow-up](#october-3-installed-companion-capture-coverage)
-is committed locally as `2b549f0` and remains unpublished. Historical failure
-attribution and physical touch/spoken assistive-technology/paper-print results
+was initially committed locally as `2b549f0` and is now published in the
+[approved follow-up rollout](#october-3-approved-follow-up-rollout). Historical
+failure attribution and physical touch/spoken assistive-technology/paper-print results
 remain open. Estimates stay **97% implemented (93–98%) / 96% overall
 (92–98%)**, with **33/40 original rows closed (83%)**.
 
@@ -6686,8 +6689,9 @@ The full resulting `npm run check` passes **103 tool tests, 585 unit tests,
 separate from the six zero-skip package cases. All **33 product-parity gates**
 pass. Changed document links and the final diff are checked before commit.
 Evidence remains ignored under `frontend/test-results/current-creation-capture-*`.
-This follow-up stays local for the next deployment checkpoint. Authenticated
-site/backup acceptance, historical failure attribution and human/device results
+This follow-up was initially held for the next deployment checkpoint and is
+now included in the [approved follow-up rollout](#october-3-approved-follow-up-rollout).
+Authenticated site/backup acceptance, historical failure attribution and human/device results
 remain open; the owner-confirmed Tiamat add-on-free policy is unchanged.
 Estimates remain **97% implemented / 96% overall**, with **33/40 original rows
 closed**.
@@ -6731,6 +6735,79 @@ product-parity gates and 387 local documentation links/anchors pass, and clean
 companion checkouts still match all four pinned source revisions.
 
 Controlled before/after logs and downloaded metadata remain ignored under
-`frontend/test-results/current-followup-*`. The repair still requires a fresh
-complete Linux installed gate, image publication, both exact infrastructure
-rollouts and public-site checks before this delivery is accepted.
+`frontend/test-results/current-followup-*`. The fresh complete Linux installed
+gate, image publication, both exact infrastructure rollouts and public-site
+checks are accepted in the [approved follow-up rollout](#october-3-approved-follow-up-rollout).
+
+## October 3 approved follow-up rollout
+
+October 3, 2026. The owner approves full deployment of the four tested host
+commits `2b549f0`, `7bdfbd1`, `4e9d3ba` and `2dc6776`, together with any repairs
+needed for this rollout. The initial push stops at the
+[character-transfer focus assertion](#october-3-character-transfer-close-readiness)
+before image publication. The tested fixture repair `1463caf` is committed and
+pushed within that approval; no application or add-on runtime changes are needed.
+
+[Build and dispatch 37136713791](https://github.com/pjunak/ttrpg-codex/actions/runs/37136713791)
+and [secret scan 37136713560](https://github.com/pjunak/ttrpg-codex/actions/runs/37136713560)
+finish successfully. The Linux host gate passes **103 tool tests, 585 unit
+tests, 344 browser cases and Go/race checks**, with 199 optional installed skips
+kept separate from mandatory installed acceptance. That complete installed gate
+passes **278/278**, with zero failures, cancellations or skips, in
+**1,682,879 ms** (28 minutes 3 seconds), including the original Close-button
+checks and the permanent replaced-opener regression. Assertions, role authority
+and global deadlines remain intact.
+
+Downloaded `companion-provenance` artifact `11279082814` identifies the clean
+`1463caf` host and all four clean pinned sources: DM Tools `316399a`, Engine
+`f19f634`, Character Sheets `06ef7a5` and Compendium `2971a39`. Their inspected
+Linux ZIP hashes match the preceding accepted release. Downloaded
+`release-metadata` artifact `11279756103` identifies:
+
+```text
+repository: pjunak/ttrpg-codex
+sha: 1463caf7afb4c5c21b2eba6911a9ed8027a1f91d
+run_id: 37136713791
+image_ref: ghcr.io/pjunak/ttrpg-codex@sha256:c6dbad0289bbd15a4d4aaa6f368c1bb57b8462cbc12c1f43bc5e1137c99bb25f
+```
+
+| Verified job | Host job ID | Actual infrastructure run | Infrastructure deployment job |
+| --- | --- | --- | --- |
+| Host tests | 111242614679 | — | — |
+| Installed compatibility | 111242615011 | — | — |
+| Verified image publication | 111248055341 | — | — |
+| Asurai deployment and health | 111248249496 | [37138645252](https://github.com/pjunak/infra/actions/runs/37138645252) | 111248324537 |
+| Tiamat deployment and health | 111248249478 | [37138644929](https://github.com/pjunak/infra/actions/runs/37138644929) | 111248322531 |
+
+Both actual infrastructure runs succeed on
+`d4f056bb947b1c631c0f5b4c491a51d21b6634ae`, with the exact site and request
+identity. Their independently downloaded deployment logs confirm the dispatched
+`c6dbad02...` image is pulled, running and healthy on each site. Host dispatch,
+image publication or the static health version alone do not establish this.
+
+Fresh public checks after both rollouts return HTTP 200 for both roots, all
+selected assets and both health endpoints, with health `ok`. The roots remain
+`no-cache` and assets remain immutable. Entry `/assets/index-CUhpgqE4.js`, app
+`codex-app-DfMBwdJ7.js`, preload helper and CSS match the actual Docker build and
+have identical SHA-256 values across both sites. These assets are unchanged
+because this batch changes fixtures and documentation; release metadata and
+the running-image logs establish the new source identity.
+
+Ephemeral public Chromium sessions at 1360×900 and 390×844 confirm visible
+campaign content, live connections, no page errors, no failed requests and no
+horizontal overflow on both sites. Separate artwork checks load all four
+Asurai portraits and six Tiamat images at both widths, with positive natural
+dimensions and bounded 88-pixel or 56-pixel geometry. All four resulting
+desktop/phone artwork screenshots are visually inspected.
+
+Evidence stays ignored under `frontend/test-results/current-followup-release-*`.
+This completes the authorized host rollout. No add-on package is installed or
+activated, and no live campaign data is edited by these checks. **Tiamat remains
+outside add-on activation; Asurai alone targets the newest reviewed packages.**
+Authenticated inventory, independently verified full backups on both sites,
+Asurai's reviewed updates and recovery checks, historical failure attribution
+and physical touch/spoken screen-reader/paper-print acceptance remain open for
+joint review with the owner. The next step is full backup verification using the
+[running-image maintenance binary](../SELF_HOSTING.md#verify-with-the-running-host-image).
+Estimates remain **97% implemented (93–98%) / 96% overall (92–98%)**, with
+**33/40 original rows closed (83%)**.
