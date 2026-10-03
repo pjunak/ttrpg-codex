@@ -120,8 +120,25 @@ keyboard and interaction tests; they do not establish human screen-reader
 acceptance. Failed shared-control tests retain Playwright traces under
 `frontend/test-results/traces/`. Set `CODEX_TEST_TRACE=1` to also keep traces for
 passing runs, and open a trace with `npx playwright show-trace <path-to-trace.zip>`.
-Trace capture covers synthetic shared-control fixtures, not private installed
-package contents.
+Tracked installed browser contexts also retain local traces; these can contain
+private package contents and credentials. The host test job uploads its synthetic
+browser traces on failure, but the companion job never uploads installed traces,
+screenshots, package ZIPs or raw host output.
+
+Tracked browser and installed-character setup/service failures also write bounded
+`test-failure-metadata.v1` JSON under `frontend/test-results/public-diagnostics/`.
+The host and companion workflows retain only this explicit JSON projection as
+`host-failure-metadata` and `installed-failure-metadata` for 14 days after a failed
+or cancelled job. It records fixed request/view categories, HTTP status, transport
+codes, durations, pending reads, page-error counts and available process exit
+state. It keeps at most 64 completed and 64 outstanding requests and reports
+omitted entries. URLs, queries, headers, bodies, package/record identifiers,
+exception text and host output are excluded at the write boundary. Test names
+are represented by their full SHA-256; calculate the hash of the exact test name
+to match a browser record to its test result. Host records retain their generated
+run UUID and stage instead. Unknown values become fixed fallback categories.
+Capture stops before browser cleanup so its own request aborts cannot explain
+the failed workflow. Metadata write failures preserve the original test error.
 
 The installed-character fixture also saves separate
 `frontend/test-results/installed-character/host-failure-*.json` records for
@@ -144,7 +161,9 @@ tests/vet against the candidate host SDK as well as its browser checks. All
 packages remain in the same job; private package contents are never uploaded as
 CI artifacts. `release/companions/provenance.json` records exact host/sibling
 commits and ZIP hashes and is retained as the job artifact. Failed installed
-acceptance also records the source/hash table in the job summary.
+acceptance also records the source/hash table in the job summary and retains
+the public failure metadata described above. Expected rejection tests can
+produce metadata too; correlate each record with the test outcome and timestamp.
 
 Standalone native add-on CI freezes its host SDK with the add-on's
 `host-sdk-revision.txt`; Sheets also freezes its public engine model with

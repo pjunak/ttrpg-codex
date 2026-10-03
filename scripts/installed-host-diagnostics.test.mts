@@ -3,7 +3,13 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { installedHostDiagnostics } from "../frontend/test/browser/installed-host-diagnostics.mts";
+import { installedHostDiagnostics as createHostDiagnostics } from "../frontend/test/browser/installed-host-diagnostics.mts";
+import type { PublicFailureRecord } from "../frontend/test/browser/public-failure-evidence.mts";
+
+const installedHostDiagnostics = (
+  output: string,
+  host: Parameters<typeof createHostDiagnostics>[1],
+) => createHostDiagnostics(output, host, async () => {});
 
 async function fixture(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "codex-host-diagnostics-"));
@@ -129,4 +135,56 @@ void test("successful fixture actions return unchanged without writing failure e
     result,
   );
   assert.deepEqual(await readdir(output), []);
+});
+
+void test("public setup metadata survives failure of the private capture", async (t) => {
+  const directory = await fixture(t);
+  const output = join(directory, "occupied");
+  await writeFile(output, "unchanged");
+  const saved: PublicFailureRecord[] = [];
+  t.mock.method(console, "warn", () => {});
+  const original = new Error("Private setup failure");
+  await assert.rejects(
+    createHostDiagnostics(
+      output,
+      () => ({ pid: 42, exitCode: -1073741515, signalCode: null }),
+      async (record) => {
+        saved.push(record);
+      },
+    ).run("seed-character", async (evidence) => {
+      evidence.status = 503;
+      throw original;
+    }),
+    (cause) => cause === original,
+  );
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0]!.status, 503);
+  assert.equal(saved[0]!.host?.exitCode, -1073741515);
+  assert.equal(saved[0]!.stage, "seed-character");
+  assert.ok(!JSON.stringify(saved).includes(original.message));
+});
+
+void test("public reporting failure preserves the exact service error and private record", async (t) => {
+  const output = await fixture(t);
+  t.mock.method(console, "warn", () => {});
+  const original = new Error("Original service transport failure");
+  await assert.rejects(
+    createHostDiagnostics(
+      output,
+      () => undefined,
+      async () => {
+        throw new Error("Public metadata unavailable");
+      },
+    ).run(
+      "call-service",
+      async () => {
+        throw original;
+      },
+      "load",
+    ),
+    (cause) => cause === original,
+  );
+  const saved = await records(output);
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].method, "load");
 });

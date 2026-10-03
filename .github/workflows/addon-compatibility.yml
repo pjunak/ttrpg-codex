@@ -168,6 +168,17 @@ jobs:
         run: npm --workspace @ttrpg-codex/frontend run build && node scripts/companion-suite.mts test "$SUITE_MODE"
         working-directory: ttrpg-codex
 
+      # Raw installed traces can contain private rule data and credentials.
+      # Only the explicit metadata projection crosses the artifact boundary.
+      - name: Preserve public installed failure metadata
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: installed-failure-metadata
+          path: ttrpg-codex/frontend/test-results/public-diagnostics/*.json
+          if-no-files-found: ignore
+          retention-days: 14
+
       # Private package contents stay in this job, never in public artifacts.
       - name: Preserve exact commit and inspected-hash evidence
         if: always()

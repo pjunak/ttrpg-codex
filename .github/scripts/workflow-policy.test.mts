@@ -148,6 +148,21 @@ void test("DM rendering installs the browser owned by its pinned dependency vers
   assert.ok(install >= 0 && browser > install && check > browser);
 });
 
+void test("failed installed acceptance publishes only the explicit metadata directory", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/addon-compatibility.yml", import.meta.url),
+    "utf8",
+  );
+  const step = workflow
+    .split("- name: Preserve public installed failure metadata")[1]
+    ?.split("\n      - ")[0];
+  assert.ok(step, "Original installed failure metadata must survive the runner");
+  assert.match(step, /if: \$\{\{ failure\(\) \|\| cancelled\(\) \}\}/);
+  assert.match(step, /path: ttrpg-codex\/frontend\/test-results\/public-diagnostics\/\*\.json/);
+  assert.match(step, /retention-days: 14/);
+  assert.doesNotMatch(step, /traces|installed-character|host-failure|\.zip|\*\*/);
+});
+
 void test("candidate-host Go reconciliation precedes every companion check and package build", () => {
   const workflow = readFileSync(
     new URL("../workflows/addon-compatibility.yml", import.meta.url),

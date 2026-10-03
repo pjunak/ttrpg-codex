@@ -8,6 +8,7 @@ import { mkdir, mkdtemp, rm, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve, relative, isAbsolute } from "node:path";
 import { createServer } from "node:net";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { once } from "node:events";
@@ -135,7 +136,7 @@ for (const role of ["dm", "player"])
         baseURL: origin,
         viewport: { width: 390, height: 850 },
       });
-      t.after(() => context.close());
+      await trackBrowserContext(t, context);
       await jsonResponse(
         await context.request.post("/api/login", { data: { password: `local-sheets-${role}` } }),
       );

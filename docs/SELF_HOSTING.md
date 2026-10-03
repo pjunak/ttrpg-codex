@@ -560,6 +560,16 @@ succeeded. Requests with an uncertain outcome are never automatically sent
 again. A failed health check leaves diagnostic state available; it does not
 automatically roll back campaign data.
 
+For failed build or compatibility tests, inspect the job's `host-failure-metadata`
+or `installed-failure-metadata` artifact before rerunning. These bounded JSON
+records are retained for 14 days and distinguish HTTP rejection, transport
+failure and outstanding reads without publishing private package contents or
+credentials. Match browser records by the SHA-256 of the exact test name;
+setup/service records include their generated run UUID and stage. Expected
+rejection tests can produce records too. Detailed installed traces and host
+output stay local; see [contributor diagnostics](../CONTRIBUTING.md#quality-toolchain).
+Metadata cannot reconstruct evidence that was never captured in older runs.
+
 Successful add-on main builds publish inspected ZIPs to permanent commit
 releases, preserving repository visibility. **Latest published package** uses
 those releases; the additional Actions artifacts expire after 14 days.

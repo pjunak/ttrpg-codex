@@ -6373,3 +6373,67 @@ The estimate is **97% implemented (93–98%) / 96% overall (92–98%)** and
 including the previously blocked startup-fixture repair; it does not close the
 remaining operational or human acceptance rows. Subsequent development remains
 local until the next deployment receives approval.
+
+## October 3 public failure metadata and context startup cleanup
+
+October 3, 2026. Local development after the approved rollout closes a specific
+cleanup defect and the loss of bounded installed diagnostics at the CI artifact
+boundary. It does not establish the cause of the historical startup timeouts.
+
+The previous shared browser tracker started tracing before registering context
+cleanup. A controlled startup rejection on the previous implementation reproduces
+**zero context closes instead of one**. The repaired path attempts context close
+exactly once and preserves the original rejection even if diagnostics cannot be
+written. Shared verification, trace stop and context cleanup still preserve their
+original causes and execute once. Partial observer registration detaches already
+installed listeners. Broken readers, listener removal and metadata writes cannot
+replace the test failure. Timeline, wiki and standalone-sheet fixtures now use
+the shared tracker; their existing deadlines and assertions are preserved.
+
+Tracked browser and installed-character setup/service failures write
+`test-failure-metadata.v1` through an explicit allowlist at the publication
+boundary. Browser records retain fixed request/view categories, HTTP status,
+transport codes, timings, pending reads and aggregate counts. History is bounded
+to 64 completed and 64 pending requests, with omitted/capture-failure counters.
+Capture stops before context cleanup. Host records retain the generated run UUID,
+fixed stage/method, available HTTP status and process PID/exit/signal state,
+including negative Windows exit codes. Browser test names become SHA-256 values.
+URLs, headers, bodies, record/package identifiers, exception text and raw host
+output are excluded even when structurally typed inputs carry extra fields.
+
+A real Chromium fixture verifies HTTP 503 completes normally, an aborted service
+request retains `net::ERR_FAILED`, and a held policy read remains pending. All
+three retain their Settings view category; fake private headers, bodies, URL
+queries and page content never enter the saved JSON. This follows
+[Playwright's request-event contract](https://playwright.dev/docs/api/class-browsercontext#browser-context-on-requestfailed).
+Closing the context after capture does not append cleanup-generated aborts.
+
+Both host and compatibility workflows upload only
+`frontend/test-results/public-diagnostics/*.json` as their respective
+`host-failure-metadata` and `installed-failure-metadata` artifacts after failure
+or cancellation, retaining available files for 14 days. The existing synthetic
+host trace artifact remains separate. Raw installed traces, screenshots, package
+ZIPs and host-output records stay local. Workflow policy tests protect this
+boundary. Expected rejection records must be correlated with their test result
+and timestamp; metadata does not reconstruct missing historical captures.
+
+Validation: the before/after tracing-start regression changes from failure to
+pass; 40 focused diagnostic/workflow tests and the real Chromium case pass.
+The complete host gate passes **97 tool tests, 585 unit tests, 343 browser
+cases and Go/race checks**, with its 199 optional installed skips reported
+separately. Actionlint and ShellCheck pass. The same four clean, inspected
+[approved companion sources](#october-3-approved-delivery-and-packaging-dependency-repair)
+and unchanged Windows ZIP hashes pass **14/14 scoped installed cases**, with
+zero failures, cancellations or skips in **20,564 ms**: desktop/phone held and
+rejected planner startup, both timeline/wiki modes and retained drafts,
+standalone DM/player sheets, character coordinator authorization and native
+engine Reload. This scoped run supplements the completed 278/278 rollout gate;
+it is not a new claim of complete-suite acceptance for these local changes.
+
+Logs, source/hash provenance and controlled captures remain ignored under
+`frontend/test-results/current-public-failure-*`. The tested host provenance
+identifies base `55aa52e` plus the local diagnostic/documentation changes; all
+four companion sources are clean. The progress estimate remains 97% implemented
+and 96% overall. This batch stays local; the next push/deployment is paused for
+the user's next approval. Authenticated site, historical attribution and human
+acceptance requirements remain open.

@@ -121,6 +121,7 @@ linked where verified; publication alone does not install add-ons on a live site
 - [x] ~~**T15-SESSION-PERF-HOST — Reuse real UI save acknowledgements in multiclass acceptance**~~ — `aa7ab3c`; remove 13 repeated evaluations per session while retaining independent persistence checks, all assertions and deadlines; [measured acceptance and Linux boundary](rewrite/HOST_CLEANUP_ACCEPTANCE.md#multiclass-acceptance-without-repeated-evaluations).
 - [x] ~~**T15-DELIVERY-OCT01 — Publish the accepted cleanup and verify both site rollouts**~~ — `aa7ab3c`; 277/277 Linux installed cases with zero skips, verified image, successful Asurai/Tiamat infrastructure runs and matching served frontend assets; [release identity and site checks](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-1-cleanup-publication-and-both-site-rollouts).
 - [x] ~~**T15-DELIVERY-OCT03 — Publish the frozen fixes and verify both site rollouts**~~ — `fb7020f`; 278/278 Linux installed cases with zero skips, all four inspected releases, matching image/frontend, successful Asurai/Tiamat health checks and loaded public portraits; [release and site evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-3-host-rollout-and-public-site-acceptance).
+- [x] ~~**T57-CI-METADATA-HOST — Retain bounded failure metadata and close failed tracing starts**~~ — shared browser/setup/service capture, explicit public CI artifacts and timeline/wiki/standalone-sheet cleanup; [controlled failures and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-3-public-failure-metadata-and-context-startup-cleanup). Historical timeout attribution stays open.
 - [x] ~~**T15-MEDIA-HOST — Preserve artwork geometry, fallback and retained portrait previews**~~ — `438b5f1`; one shared renderer across all entities, bounded avatars, obsolete-event protection, localized unavailable previews and renewed/released draft URLs; fully loaded public portraits verified on both sites. [Reproductions, permission checks and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-shared-artwork-and-portrait-preview-recovery).
 - [x] ~~**T15-NATIVE-PINS-HOST — Coordinate frozen native build inputs and accepted sources**~~ — explicit SDK/model publication order, candidate compatibility and updated companion source pins; [implementation and acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-frozen-native-build-dependencies).
 - [x] ~~**T18-SAVED-CUE-HOST — Reproduce lost-response feedback and retain autosave traces**~~ — controlled same-revision guidance read, exact retry, restored controls and newer remote-state checks; shared trace/error/cleanup ownership in the older save fixture. [Failure and repair](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-2-frozen-native-build-dependencies).
@@ -142,8 +143,9 @@ and [parity audit](rewrite/FEATURE_PARITY_AUDIT.md#confirmed-findings).
 - [ ] **T57-VERIFY / P2 — Explain intermittent startup timeouts.**
   T57 timed out before the timeline mounted; T60 hit one phone-settings timeout;
   T61 timed out fetching rules policy during installed-fixture setup.
-  Subsequent runs passed; no shared cause is established. Retain bounded
-  timeline/settings captures and the separate character-fixture failure records.
+  Subsequent runs passed; no shared cause is established. Bounded browser and
+  character setup/service metadata now survives failed CI; private detailed
+  captures remain local. [Capture and cleanup acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md#october-3-public-failure-metadata-and-context-startup-cleanup).
   Preserve deadlines and assertions; [T61 evidence](rewrite/HOST_CLEANUP_ACCEPTANCE.md#passive-feat-bonuses-and-automatic-armor-conditions).
   Concrete request, recovery, worker and UI lifetime defects are fixed above;
   their controlled evidence does not explain these historical timeouts.

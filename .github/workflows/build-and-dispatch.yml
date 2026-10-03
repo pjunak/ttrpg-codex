@@ -85,6 +85,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Preserve public host failure metadata
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: host-failure-metadata
+          path: frontend/test-results/public-diagnostics/*.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   build:
     name: Build image
     needs: [test, compatibility, resolve-targets]

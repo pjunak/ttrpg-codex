@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import {
+  publicFailureRecord,
+  writePublicFailure,
+  type FailureReporter,
+} from "./public-failure-evidence.mts";
 
 type HostProcess = {
   pid?: number;
@@ -8,7 +13,11 @@ type HostProcess = {
   signalCode: NodeJS.Signals | null;
 };
 
-export function installedHostDiagnostics(output: string, host: () => HostProcess | undefined) {
+export function installedHostDiagnostics(
+  output: string,
+  host: () => HostProcess | undefined,
+  report: FailureReporter = writePublicFailure,
+) {
   const runId = randomUUID();
   let tail = "";
   return {
@@ -27,8 +36,9 @@ export function installedHostDiagnostics(output: string, host: () => HostProcess
         // Keep separate evidence even for overlapping or deliberately rejected
         // calls. Never copy exception text, request bodies or credentials here.
         const filename = `host-failure-${runId}-${randomUUID()}.json`;
+        let hostProcess: HostProcess | undefined;
         try {
-          const hostProcess = host();
+          hostProcess = host();
           const record = {
             runId,
             at: new Date().toISOString(),
@@ -46,6 +56,20 @@ export function installedHostDiagnostics(output: string, host: () => HostProcess
           });
         } catch {
           console.warn(`Could not save installed-host failure evidence for ${stage}.`);
+        }
+        try {
+          await report(
+            publicFailureRecord({
+              source: "host",
+              runId,
+              stage,
+              method,
+              status: evidence.status,
+              host: hostProcess,
+            }),
+          );
+        } catch {
+          console.warn("Could not save public installed-host failure metadata.");
         }
         throw cause;
       }
