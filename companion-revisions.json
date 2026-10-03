@@ -14,12 +14,12 @@
     {
       "id": "dnd-sheets",
       "repository": "pjunak/addon-dnd-character-sheets",
-      "revision": "d35a33ef5471d197d6aa7fecf682c327ad9c5a3d"
+      "revision": "06ef7a5e986a8974a7ead94349c02fe90c84c6b6"
     },
     {
       "id": "dnd-2024-compendium",
       "repository": "pjunak/addon-dnd-2024-compendium",
-      "revision": "3463daf25808514c73e624553a8541c644d0ac7c"
+      "revision": "2971a3958e6d56afc6a30d51b42233aa2b7c0966"
     }
   ]
 }

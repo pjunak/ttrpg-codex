@@ -6246,3 +6246,60 @@ External metadata, the four-case log and traces remain ignored under
 The estimate remains **97% implemented (93–98%) / 95% overall (91–97%)** and
 **33/40 original rows closed (83%)**. This checkpoint updates delivery evidence;
 it does not close the remaining operational or historical-attribution rows.
+
+## October 3 approved delivery and packaging dependency repair
+
+October 3, 2026. The owner approves publication and both host deployments for
+this batch, including fixes needed for the rollout to succeed. Development
+continues locally after this delivery and stops before the next major
+deployment. Add-on installation, activation and live campaign-data changes
+retain their separate review boundaries.
+
+SDK `8463f4aa1e38a1b7e3078fe1408f3a204fb4c902` is now accessible through
+GitHub, published first on the nondeploying `worker-sdk-8463f4a` branch.
+DM Tools `316399a` and Engine `f19f634` pass their main checks and publish
+inspected commit releases. Sheets' first [run 37112170341](https://github.com/pjunak/addon-dnd-character-sheets/actions/runs/37112170341)
+stops at the high-severity npm audit: its packaging dependency still selects
+`brace-expansion` 2.1.4. This is an upstream dependency finding, before the
+application tests or package publication, not another host runtime failure.
+
+Both Sheets and Compendium use that transitive dependency through Archiver.
+Their lockfiles now select 2.1.7, the compatible patched release covering the
+[CPU complexity](https://github.com/advisories/GHSA-q2hr-2g5m-vwhr),
+[nested-brace stack exhaustion](https://github.com/advisories/GHSA-qhr7-859c-m2p7)
+and [comma-parser stack exhaustion](https://github.com/advisories/GHSA-6j4f-fj2g-mc7p)
+advisories reported by the audit. Each fix changes only the dependency's
+version, URL and integrity hash. No toolchain version, audit threshold, test
+deadline, manifest or saved-data format changes.
+
+Local clean installs and dependency audits pass with zero findings. Sheets'
+full gate passes 40 TypeScript tests and its Go/race checks, workflow checks and
+Go vulnerability check. Compendium's full gate passes 83 tests and workflow
+lint. Both packages build and pass host inspection. Their Windows ZIP hashes
+remain exactly unchanged from the previously accepted four-package set.
+
+All four main builds and publishers finish successfully, and each actual
+latest-release endpoint selects the intended commit:
+
+| Add-on | Published source | Successful main run | Published Linux ZIP SHA-256 |
+| --- | --- | --- | --- |
+| DM Tools | [`316399a`](https://github.com/pjunak/addon-dm-tools/releases/tag/build-316399a5d2f427aac4a72b5796f0681aa19b65d3) | [37112167111](https://github.com/pjunak/addon-dm-tools/actions/runs/37112167111) | `04aa66166db831cdff2cff0bc62ec688d60ac360d4aaad912b4cacc6403149ef` |
+| Engine | [`f19f634`](https://github.com/pjunak/addon-dnd-engine/releases/tag/build-f19f634f6ca59ee0d23eed3d1c81a23210660fbc) | [37112168755](https://github.com/pjunak/addon-dnd-engine/actions/runs/37112168755) | `f7c42a5142726f0c002e16b88eee66296e6d2c471498ec071f8f57f089f42a12` |
+| Sheets | [`06ef7a5`](https://github.com/pjunak/addon-dnd-character-sheets/releases/tag/build-06ef7a5e986a8974a7ead94349c02fe90c84c6b6) | [37112901371](https://github.com/pjunak/addon-dnd-character-sheets/actions/runs/37112901371) | `58393269202f87626050d6ffdc1d941e39808dc656bdc1971431f01ac9577342` |
+| Compendium | [`2971a39`](https://github.com/pjunak/addon-dnd-2024-compendium/releases/tag/build-2971a3958e6d56afc6a30d51b42233aa2b7c0966) | [37112913599](https://github.com/pjunak/addon-dnd-2024-compendium/actions/runs/37112913599) | `06cfdaf85904a49f7c5331eab854cab0f8c77723f50eb8f766205ed9b6ed2bdb` |
+
+The host pins select these clean sources. Platform-specific inspected ZIP
+hashes stay explicit; publication alone does not activate packages on either
+site. Repaired-source inspection, owner checks and release metadata remain
+ignored under `frontend/test-results/current-approved-release-*`.
+
+Fresh full Windows installed acceptance of these repaired source pins passes
+**278/278**, with zero failures, cancellations or skips, in **904,615 ms**.
+All eight suite files use the same four inspected ZIPs and clean companion
+sources. The host runtime remains identical to validated `18a4ac2`; tested
+provenance identifies base `02d7042` plus the source-pin/documentation edits
+explicitly. The unchanged host's complete gate (85 tools, 585 unit tests,
+342 browser tests and Go/race checks) is reused; the production frontend
+rebuilds, all 13 source-pin/suite tools pass, all 33 product-parity gates pass
+and all 342 local document links/anchors resolve. Linux host acceptance and
+both site rollout identities remain to be recorded after publication.
