@@ -4,14 +4,6 @@ import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import type { BrowserContext } from "playwright";
-import {
-  canObserveBrowser,
-  observeBrowser,
-  publicFailureRecord,
-  writePublicFailure,
-  type BrowserEvidenceSource,
-  type FailureReporter,
-} from "./public-failure-evidence.mts";
 
 /** Owns context cleanup; use the returned function for an explicit early close. */
 export async function trackBrowserContext(
@@ -20,30 +12,10 @@ export async function trackBrowserContext(
   context: {
     tracing: Pick<BrowserContext["tracing"], "start" | "stop">;
     close: BrowserContext["close"];
-  } & Partial<BrowserEvidenceSource>,
+  },
   verify?: () => void,
-  report: FailureReporter = writePublicFailure,
 ): Promise<() => Promise<void>> {
-  let observation: ReturnType<typeof observeBrowser> | undefined;
   let traceStarted = false;
-  const publish = async (stage: string): Promise<void> => {
-    try {
-      await report(
-        publicFailureRecord({
-          source: "browser",
-          stage,
-          testName: t.name,
-          browser: observation?.stop(),
-        }),
-      );
-    } catch {
-      try {
-        t.diagnostic("Public browser failure metadata could not be saved.");
-      } catch {
-        /* Reporting cannot replace the test failure. */
-      }
-    }
-  };
   const finish = async (): Promise<void> => {
     // Startup can settle after the owner's deadline and during context.close().
     // Keep this cleanup's stage fixed before either operation can resume.
@@ -56,8 +28,6 @@ export async function trackBrowserContext(
     } catch (error) {
       failures.push(error);
     }
-    // Snapshot before cleanup: closing the context aborts its own live requests.
-    observation?.stop();
     try {
       if (initialized) {
         if (!t.passed || failures.length > 0 || process.env.CODEX_TEST_TRACE === "1") {
@@ -80,8 +50,6 @@ export async function trackBrowserContext(
       } catch (error) {
         failures.push(error);
       }
-      if (!initialized || !t.passed || failures.length > 0 || process.env.CODEX_TEST_TRACE === "1")
-        await publish(initialized ? "browser" : "trace-start");
     }
     if (failures.length > 0)
       throw new AggregateError(failures, "Browser verification or cleanup failed", {
@@ -95,7 +63,6 @@ export async function trackBrowserContext(
     // test times out, even while the startup promise is still pending.
     t.after(close);
     t.signal?.throwIfAborted();
-    if (canObserveBrowser(context)) observation = observeBrowser(context);
     await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
     traceStarted = true;
   } catch (cause) {

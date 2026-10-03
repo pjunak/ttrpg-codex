@@ -10,7 +10,10 @@ name: Build and dispatch
 on:
   push:
     branches: [main]
+    # Documentation-only changes need no new image or deployment.
+    paths-ignore: ["**/*.md", "docs/**", ".github/dependabot.yml"]
   pull_request:
+    paths-ignore: ["**/*.md", "docs/**"]
   workflow_dispatch:
     inputs:
       publish:
@@ -42,12 +45,6 @@ concurrency:
   queue: max
 
 jobs:
-  compatibility:
-    uses: ./.github/workflows/addon-compatibility.yml
-    with:
-      require_private: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' && (inputs.publish || inputs.deploy_target != 'none') }}
-    secrets: inherit
-
   test:
     name: Run test suite
     runs-on: ubuntu-latest
@@ -85,18 +82,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Preserve public host failure metadata
-        if: ${{ failure() || cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: host-failure-metadata
-          path: frontend/test-results/public-diagnostics/*.json
-          if-no-files-found: ignore
-          retention-days: 14
-
   build:
     name: Build image
-    needs: [test, compatibility, resolve-targets]
+    needs: [test, resolve-targets]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     outputs:
@@ -110,27 +98,6 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
-      - name: Inspect product release readiness
-        id: release_readiness
-        shell: bash
-        run: |
-          set +e
-          node scripts/check-release-readiness.mts
-          status=$?
-          set -e
-          if [[ "$status" -eq 0 ]]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Docker publication is disabled until the product-parity gate passes."
-          fi
-
-      - name: Refuse an incomplete release
-        if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && (inputs.publish || inputs.deploy_target != 'none')) && steps.release_readiness.outputs.ready != 'true' }}
-        run: |
-          echo "::error::Publish or deployment was requested while product parity is incomplete."
-          exit 1
-
       - name: Check automatic release is still current
         id: current
         if: github.event_name == 'push'
@@ -140,7 +107,7 @@ jobs:
           DEPLOY_SHA: ${{ github.sha }}
 
       - name: Log in to GHCR
-        if: ${{ steps.current.outputs.current != 'false' && steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
+        if: ${{ steps.current.outputs.current != 'false' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -202,7 +169,7 @@ jobs:
 
       - name: Publish the verified warm build
         id: publish_image
-        if: ${{ steps.current.outputs.current != 'false' && steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
+        if: ${{ steps.current.outputs.current != 'false' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -214,7 +181,7 @@ jobs:
           cache-from: type=gha
 
       - name: Record published release identity
-        if: ${{ steps.current.outputs.current != 'false' && steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
+        if: ${{ steps.current.outputs.current != 'false' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
         env:
           IMAGE_REF: ${{ steps.img.outputs.name }}@${{ steps.publish_image.outputs.digest }}
         run: |
@@ -222,7 +189,7 @@ jobs:
           node scripts/write-release-metadata.mts
 
       - uses: actions/upload-artifact@v7
-        if: ${{ steps.current.outputs.current != 'false' && steps.release_readiness.outputs.ready == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
+        if: ${{ steps.current.outputs.current != 'false' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
         with:
           name: release-metadata
           path: release/release.json

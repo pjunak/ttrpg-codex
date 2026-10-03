@@ -64,8 +64,3 @@ export async function expandCharacterDetails(sheet: Locator): Promise<void> {
     if (!(await details.evaluate((node) => (node as HTMLDetailsElement).open)))
       await details.locator(":scope > summary").click();
 }
-
-export async function classicLayout(sheet: Locator): Promise<void> {
-  await characterTab(sheet, "tools");
-  await sheet.getByLabel(/^(Sheet layout|Rozložení deníku)$/).selectOption("classic");
-}
