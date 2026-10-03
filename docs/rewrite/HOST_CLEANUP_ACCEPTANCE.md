@@ -6532,3 +6532,49 @@ after the local commits before publishing. The approved deployment remains
 pending its fresh CI run; authenticated site operations, historical attribution
 and human/device acceptance stay open. Estimates remain **97% implemented /
 96% overall**, with 33 of 40 original rows closed.
+
+## October 3 installed companion capture coverage
+
+October 3, 2026. Further local development during the approved `2bf0cc8`
+release closes related evidence gaps without changing the deployed UI or data.
+Compendium browsing, installed graph views and four direct character build/play/
+autosave/provider-loss contexts now use the shared tracker. They retain their
+existing assertions and deadlines. Compendium page-error verification shares
+the cleanup hook, so that verification failure cannot skip context close or
+failure capture. Explicit early character closure uses the same idempotent
+owner; no tracing work follows an already closed context.
+
+The incomplete-character startup catch previously attempted its screenshot
+before reconstructing the error and reading sheet text. A screenshot or text
+failure could replace the actual startup timeout. That catch now uses the
+existing independent failure recorder. A controlled real Chromium page times
+out waiting for STR, then closes before capture: the old screenshot-first path
+loses the original `TimeoutError`; the new path retains that exact object and
+writes JSON identifying unavailable body and screenshot captures. A permanent
+real-browser regression protects the same outcome. No raw detailed record is
+added to the public CI metadata upload path.
+
+The three complete installed files pass **196/196**, with zero failures,
+cancellations or skips, in **873,805 ms** (14 minutes 34 seconds), using the same
+four clean source pins and unchanged inspected Windows ZIPs. They cover all
+character setup/build/play/autosave/provider transitions, both compendium roles
+and phone/desktop browsing, source policy, and integrated/isolated graph lifecycle.
+The final autosave-catch change receives a separate fresh coordinator/startup
+check after that full run; the closed-page failure is also tested in real
+Chromium. This is scoped acceptance, not a replacement for the complete
+eight-file Linux release gate.
+
+The complete host gate for the context/caller edits passes **101 tool tests,
+585 unit tests, 343 browser cases and Go/race checks**, with 199 optional
+installed skips kept separate. The additional closed-page browser regression
+passes independently after it is added, and the final source/type/lint/format/
+Go vet/Staticcheck gate passes on all resulting files. Product-parity and changed
+document links are checked before committing. SDK, manifests, package bytes,
+schemas, privileges and production behavior remain unchanged.
+
+Logs, controlled capture records and source/hash provenance remain ignored
+under `frontend/test-results/current-installed-capture-*`. Full package
+acceptance identifies published base `2bf0cc8` plus the documented fixture
+changes; a clean committed provenance check follows the commit. This follow-up
+remains local for the next batch. It does not attribute the historical missing
+startup/provider captures or close authenticated-site and human acceptance.

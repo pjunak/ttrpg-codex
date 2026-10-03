@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import type { ChildProcessByStdio } from "node:child_process";
 import type { Readable } from "node:stream";
 import assert from "node:assert/strict";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
 import { registerCompendiumNavigationTests } from "./installed-compendium-navigation-fixture.mts";
 import { registerCompendiumSourceTests } from "./installed-compendium-sources-fixture.mts";
 import { before, after, test } from "node:test";
@@ -122,6 +123,7 @@ after(async () => {
   }
 });
 async function open(t: TestContext, role = "dm", mobile = false, locale = "en", navigate = true) {
+  const errors: string[] = [];
   const context = await browser.newContext({
     baseURL: origin,
     viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
@@ -129,16 +131,14 @@ async function open(t: TestContext, role = "dm", mobile = false, locale = "en", 
     hasTouch: mobile,
     reducedMotion: "reduce",
   });
-  t.after(() => context.close());
+  await trackBrowserContext(t, context, () => assert.deepEqual(errors, []));
   await jsonResponse(
     await context.request.post("/api/login", { data: { password: `local-compendium-${role}` } }),
   );
   await context.addInitScript((locale) => localStorage.setItem("codex_lang", locale), locale);
   const page = await context.newPage();
   page.setDefaultTimeout(15_000);
-  const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  t.after(() => assert.deepEqual(errors, []));
   if (navigate) {
     await page.goto(`/${route}`);
     await page

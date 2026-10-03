@@ -6,6 +6,7 @@ import type { ChildProcessByStdio } from "node:child_process";
 import type { Readable } from "node:stream";
 import type { FixtureCollection, FixtureRecord } from "./fixture-types.mts";
 import assert from "node:assert/strict";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
 import { before, after, test } from "node:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -147,7 +148,7 @@ async function open(t: TestContext, role = "dm", mobile = false) {
     hasTouch: mobile,
     reducedMotion: "reduce",
   });
-  t.after(() => context.close());
+  await trackBrowserContext(t, context);
   await jsonResponse(
     await context.request.post("/api/login", { data: { password: `local-graph-fixture-${role}` } }),
   );

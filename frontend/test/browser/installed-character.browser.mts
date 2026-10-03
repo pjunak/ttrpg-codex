@@ -5,6 +5,8 @@ import {
   hpActionsView,
 } from "./installed-character-navigation-fixture.mts";
 import assert from "node:assert/strict";
+import { trackBrowserContext } from "./browser-diagnostics.mts";
+import { reportBrowserFailure } from "./failure-diagnostics.mts";
 import { before, after, test } from "node:test";
 import { readFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { resolve, relative, isAbsolute } from "node:path";
@@ -334,7 +336,7 @@ void test(
       storageState: await admin.storageState(),
       viewport: { width: 1440, height: 1000 },
     });
-    t.after(() => context.close());
+    await trackBrowserContext(t, context);
     const page = await context.newPage(),
       errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -344,10 +346,7 @@ void test(
     try {
       await sheet.getByLabel("STR", { exact: true }).waitFor({ timeout: 10000 });
     } catch (error) {
-      await page.screenshot({ path: resolve(output, "failed-autosave.png"), fullPage: true });
-      throw new Error(
-        String(error) + "\n" + JSON.stringify(errors) + "\n" + (await sheet.innerText()),
-      );
+      await reportBrowserFailure(t, page, resolve(output, "failed-autosave"), { errors }, error);
     }
     await page.waitForFunction(
       () => !document.querySelector(".addon-dnd-character")?.hasAttribute("aria-busy"),
@@ -659,7 +658,7 @@ void test(
       storageState: await admin.storageState(),
       viewport: { width: 1440, height: 1000 },
     });
-    t.after(() => context.close());
+    await trackBrowserContext(t, context);
     const page = await context.newPage();
     await page.goto(origin + "/#/characters/new-hero");
     await page.locator("#character-view-addons").click();
@@ -772,7 +771,7 @@ void test(
   { skip: !enabled },
   async (t) => {
     const context = await browser.newContext({ storageState: await admin.storageState() });
-    t.after(() => context.close());
+    await trackBrowserContext(t, context);
     const page = await context.newPage();
     await page.goto(origin + "/#/characters/new-hero");
     await page.locator("#character-view-addons").click();
@@ -955,7 +954,7 @@ void test(
     assert.equal(frozen.status, "unavailable");
     assert.deepEqual(frozen.state, adopted.state);
     const context = await browser.newContext({ storageState: await admin.storageState() });
-    t.after(() => context.close());
+    const close = await trackBrowserContext(t, context);
     const page = await context.newPage();
     await page.goto(origin + "/#/characters/new-hero");
     await page.locator("#character-view-addons").click();
@@ -1018,7 +1017,7 @@ void test(
         .waitFor();
     }
     assert.equal(await sheet.getByRole("button", { name: "+ Shield", exact: true }).count(), 0);
-    await context.close();
+    await close();
     const fixture = { admin, browser, csrf, origin, output, call };
     await verifyFrozenCreatedCharacters(fixture);
     // Finished workflows must not retain browser sessions until this parent ends.
