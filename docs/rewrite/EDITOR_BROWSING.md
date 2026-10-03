@@ -1,10 +1,8 @@
 # Markdown recovery and collection browsing
 
-Implemented September 11, 2026 in the current Go/TypeScript application. These
-workflows address F01 and F02 in the [feature audit](FEATURE_PARITY_AUDIT.md).
-They share the current editor descriptors, role projections, localization,
-design tokens, and record mutation path. They introduce no dependencies,
-legacy handlers, campaign schema changes, or add-on contract changes.
+Campaign browsing and Markdown recovery share the host's editor descriptors,
+role projections, localization, design tokens and record mutation path.
+Preserved URLs enter these current workflows without restoring legacy handlers.
 
 ## Saved core URLs
 

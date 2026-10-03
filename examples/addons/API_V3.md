@@ -16,14 +16,14 @@ requirements. Machine-readable definitions live in
 
 ## Current implementation status
 
-Checked against the September 16, 2026 host source. Manifest acceptance and a
+Checked against the October 3, 2026 host source. Manifest acceptance and a
 reserved protocol name do not establish a callable runtime surface. The
 [suite backlog](../../docs/BACKLOG.md) owns future work. Sections labeled reserved
 below describe constraints for a possible implementation, not available APIs.
 
 | Surface | Current availability |
 | --- | --- |
-| Package lifecycle | ZIP inspection/staging, exact review/approval, activation/cohort restart, rollback, reload, disable, uninstall and startup recovery are implemented. Inactive archives/data do not expire. |
+| Package lifecycle | ZIP inspection/staging, exact review/approval, activation/cohort restart, reload, disable, uninstall and startup recovery are implemented. Selected-build-only retention is the default; superseded packages and their add-on recovery contexts are removed automatically. Campaign recovery, current saves and external backups remain. Removed builds must be uploaded again for rollback. |
 | Browser SDK | `addon`, `signal`, `capabilities`, `permissions`, `ui`, `data`, `content` and `services` exist. Navigation/host context/edit guards are supplied to contributions; broader standalone handles are unavailable. |
 | Shared integrated controls | `ui.controls.v1` lends `ui.enhance(ownRoot)` for native fields, search/comboboxes, states, actions, tabs and modal focus. [Markers, tokens and lifetime](../../docs/rewrite/UI_FOUNDATIONS.md); DOM enhancement is unavailable in isolated frames. |
 | Browser own service | Explicit `includeOwn` is supported after activation; it does not establish native-worker self-binding during initialization. |
@@ -31,7 +31,7 @@ below describe constraints for a possible implementation, not available APIs.
 | Worker transport | Native lifecycle, brokered service calls and package-data/retained-history callbacks are implemented. No WASI runtime or namespaced `http-endpoint` execution is composed. |
 | Imports | DM Tools exposes format-routed import-adapter v2 review/commit. The host lends campaign-bundle adapter v3 with scoped contributor v1, atomic publication and receipt status. No separate `addon/import.*` RPC dispatcher is composed. |
 | Schema upgrades | The host's update confirmation offers validated healing or explicit current-save removal with optional backup. General value-transforming plan/apply orchestration is absent (T08). |
-| Recovery/diagnostics | Initial/periodic health, bounded automatic worker recovery, affected-consumer invalidation, manual reload, host-start recovery and basic manager diagnostics work. Rich redacted worker/browser diagnostics and support bundles remain unfinished (T11). |
+| Recovery/diagnostics | Initial/periodic health, bounded automatic worker recovery, consumer invalidation, reload and host-start recovery work. The manager renders bounded worker health/exit/request timing and redacted correlation references plus tab-local browser failures. Full RPC payload traces and support-bundle export are unavailable. |
 | Optional host calls/trust | Worker blob, event, network and progress methods, package-signature verification and OS resource enforcement are not implemented. Permissions never create these capabilities. |
 
 The runtime composition in [cmd/codex](../../cmd/codex/main.go),
@@ -1023,7 +1023,7 @@ through permitted data APIs or personal browser state. `data.subscribe` supplies
 payload-free invalidation, not arbitrary package event publication.
 
 Broader scoped settings, event schemas, job progress and redacted logging are
-reserved design areas (C07/T11 in [the backlog](../../docs/BACKLOG.md)). A future
+reserved design areas (C07 in [the backlog](../../docs/BACKLOG.md)). A future
 implementation must preserve generation lifetime, typed values, authority and
 secret exclusion. Current source/provider credential controls remain host-owned.
 
@@ -1495,18 +1495,19 @@ their own content from the locale in their host context.
 
 ## Debugging contract
 
-The manager currently shows package identity/fingerprints, saved generations,
+The manager shows package identity/fingerprints, retained generations,
 permission/change review, active/runtime state and recent lifecycle errors.
-Rules/source settings expose provider selections. Protected server snapshots
-also contain bounded worker diagnostics; the browser client does not render
-all of those fields. Browser activation/disposal failures have local diagnostic
-state rather than a complete unified Inspector.
+Its diagnostics disclosure renders worker health, start/exit information,
+bounded method/outcome/timing records and redacted request/correlation references.
+It also renders tab-local browser activation, dependency, refresh, contribution
+and disposal failure categories. Rules/source settings expose provider choices.
+The browser deliberately does not render every protected worker snapshot field.
 
-The remaining T11 work includes useful health/exit/negotiation and browser-scope
-details, redacted request correlation and a support export. Support bundles and
-redacted RPC traces are not implemented. Raw worker stderr is not a redacted
-support artifact. A future export must exclude credentials, private record
-bodies and raw imports, and test sensitive-field redaction before exposure.
+Browser diagnostics retain no exception messages, URLs, payloads or stack traces;
+their entries disappear with the tab. Full RPC payload tracing and a support
+export are unavailable and require a concrete future need. Raw worker stderr
+is not a redacted support artifact. Any future export must exclude credentials,
+private record bodies and raw imports, with sensitive-field redaction checks.
 
 ## V2 feature mapping
 

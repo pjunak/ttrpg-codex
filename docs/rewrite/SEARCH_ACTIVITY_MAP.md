@@ -1,11 +1,9 @@
 # Quick search, activity and map editing
 
-F03–F05 of the [feature assessment](FEATURE_PARITY_AUDIT.md) are implemented
-within the current host. These workflows share existing search, field definitions,
-validation, role projection and campaign transactions. There are no new legacy
-readers, dependencies, data migrations or add-on API changes.
+Quick search, recent activity and focused map editing use the host's search,
+field definitions, validation, role projection and campaign transactions.
 
-## Quick search (F03)
+## Quick search
 
 Ctrl/Cmd+K and the sidebar Search control open a native modal over the current
 page. The editor remains mounted. Escape, the close button or the shortcut again
@@ -32,7 +30,7 @@ field opens the first result, and Enter on a link follows it. The modal confines
 Tab navigation, has an accessible name, and announces concise result status.
 It does not introduce a general command framework or a custom listbox.
 
-## Recent activity (F04)
+## Recent activity
 
 The dashboard keeps one latest row per currently visible record, capped at
 thirty. Each row adds a concise Created or updated-fields summary. Reference
@@ -54,7 +52,7 @@ existing timestamps. Specific summaries start with new meaningful writes;
 the host neither reconstructs historical changes nor adds a history/diff store.
 Hidden/deleted records are excluded by the ordinary dataset projection.
 
-## Focused map editor (F05)
+## Focused map editor
 
 Edit location opens marker type, attitudes and map notes alongside the existing
 coordinate controls. The optional size override sits under Marker details;

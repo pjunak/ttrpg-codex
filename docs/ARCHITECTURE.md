@@ -88,8 +88,11 @@ upload -> inspect/stage -> review -> approve exact grants -> activate
 
 Generations are named by archive SHA-256. Activation resolves dependencies and
 services, starts and health-checks the candidate, then switches routing without
-mixing generations. Previous generations remain available for reviewed
-rollback. Disable stops routing but preserves files, grants, and user data.
+mixing generations. The default retention policy keeps only the selected build
+after successful updates and at startup, preserving pending review candidates
+until resolved or expired. Removed builds must be uploaded again for rollback.
+Campaign recovery remains independent of removed add-on recovery contexts.
+Disable stops routing while preserving current user data and the selected build.
 
 Add-on data uses package-declared JSON Schemas. Collections and record
 extensions live in host SQLite with revisions, visibility, ownership, and core-
@@ -111,8 +114,9 @@ LIFO, once-only cleanup prevents stale handlers and services after reloads.
 DM Tools supplies the visible format-routed Import Center and a planning adapter
 through `codex.import-adapter` v2. Its worker retains the reviewed plan and
 commits guarded add-on mutations through host transactions. A host-owned
-campaign-bundle provider for combined core and add-on imports is not currently
-implemented; its remaining work is T19 in [the backlog](BACKLOG.md).
+campaign-bundle adapter v3 supplies scoped contributor v1 previews, atomic core
+and add-on publication, and receipt reconciliation. The host lends it to the
+Import Center; it owns authorization, exact retained plans and recovery.
 
 ## Frontend
 

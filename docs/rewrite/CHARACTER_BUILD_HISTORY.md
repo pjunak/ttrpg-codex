@@ -1,7 +1,7 @@
 # Character building and play
 
 The host owns profiles, portraits and campaign relationships. Character Sheets
-adds a rules-calculated workspace. Compact uses the final standalone mockup:
+adds a rules-calculated workspace. Compact uses the accepted six-tab layout:
 Sheet, Combat, Equipment, Spells, Builder and Tools in a left rail. Tools sits
 at the bottom, with Builder just above it. Compact fits up to 1,360 px within the
 host article; Classic retains its 1,120 px, five-tab arrangement. Compact places

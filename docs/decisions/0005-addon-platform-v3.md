@@ -4,17 +4,22 @@
 - Date: 2026-08-31
 - Decider: Project owner
 
-**Implementation status, September 14, 2026:** Native workers, inspection, the browser SDK and isolated frames are implemented. WASI remains unavailable and conditional; the original delivery list below is not a current completion checklist. Use the [availability table](../../examples/addons/API_V3.md#current-implementation-status) and [backlog](../BACKLOG.md).
+**Current status, October 3, 2026:** Native workers, inspection, browser SDK,
+isolated frames, automatic package retention and guided saved-data updates are
+implemented. WASI and other reserved transports remain unavailable/conditional.
+This records the accepted platform direction, not a list of callable APIs or
+remaining implementation tasks. Use the
+[availability table](../../examples/addons/API_V3.md#current-implementation-status)
+and [backlog](../BACKLOG.md) for the actual current boundary.
 
 ## Context
 
-Add-on API v2 has good ownership principles: stable IDs, capability discovery,
+The retired Add-on API v2 established useful ownership principles: stable IDs, capability discovery,
 permission review, generic service contracts, optional providers, bounded
-lifecycle hooks, and host-owned import transactions. Its execution model is
-the limiting factor. Browser entry modules receive a broad facade, while
-server entry modules execute inside the Node.js host and exchange live objects.
-That boundary cannot survive a Go rewrite and makes failures hard to isolate or
-replay.
+lifecycle hooks and host-owned import transactions. Its execution model was the
+limiting factor: browser modules received a broad facade, while server modules
+executed inside the Node.js host and exchanged live objects. That boundary could
+not survive the Go rewrite and made failures hard to isolate or replay.
 
 The replacement must cover the suite's current requirements:
 
@@ -46,10 +51,11 @@ namespaces.
 
 ### 2. Declarative browser contribution contract
 
-The manifest declares every host surface the add-on may occupy. A typed
-TypeScript SDK supplies scoped handles for data, services, imports, events,
-settings, navigation, and logs. Runtime code binds implementations only to
-declared contribution IDs.
+The manifest declares every host surface the add-on may occupy. The current
+typed TypeScript SDK supplies scoped UI, data, content and service handles;
+contribution contexts carry navigation and edit guards. Broader standalone
+event, settings, job and logging handles remain reserved. Runtime code binds
+implementations only to declared contribution IDs.
 
 Integrated UI modules run in the trusted application realm and use custom
 elements with scoped styles. Packages that need a stronger UI boundary use a
@@ -58,20 +64,20 @@ accepts raw HTML strings or string-to-function action dispatch.
 
 ### 3. Framed worker protocol
 
-Backend add-ons run outside the host process. Native workers communicate over
-standard input/output; WASI workers communicate over equivalent virtual
-streams. Both use JSON-RPC 2.0 messages with LSP-style `Content-Length` framing.
-Standard output is protocol-only and standard error carries structured logs.
+Backend add-ons run outside the host process. Implemented native workers use
+standard input/output with JSON-RPC 2.0 and LSP-style `Content-Length` framing.
+Standard output is protocol-only and standard error is diagnostic output.
+Equivalent WASI virtual streams remain a conditional design, not a runtime.
 
 The protocol defines initialization, readiness, health, cancellation,
 deadlines, graceful shutdown, stable error kinds, request and correlation IDs,
-frame and concurrency limits, and capability negotiation. Large data crosses
-the boundary through opaque blob handles or bounded chunks, not unbounded base64
-messages.
+frame and concurrency limits, and capability negotiation. Implemented messages
+remain bounded; general worker blob transports are reserved.
 
 Workers receive no database handle, host filesystem path, or bearer secret.
-They call capability-scoped host methods for data, blobs, services, events,
-logging, and reviewed outbound HTTP. Mutation requests carry idempotency keys.
+Implemented callbacks use capability-scoped data and service methods. Worker
+blob, event, network and progress transports are unavailable; declared
+permissions alone do not create them. Mutation requests retain idempotency.
 
 ### 4. Host-mediated service and data contracts
 
@@ -82,23 +88,28 @@ persists bindings and never silently replaces a stale single-provider binding.
 
 Core data and add-on collections are accessed through revision-aware APIs.
 The host validates schemas and permissions and owns transaction boundaries.
-Add-on data migrations are planned against a snapshot, reviewed when relevant,
-and applied by the host inside a recoverable transaction.
+Guided saved-data updates review a snapshot and apply compatible healing or
+explicit reset inside a recoverable transaction, with an optional data download.
+General value-transforming migrations require a concrete preservation case and
+are not implemented.
 
 ### 5. Supervised generation lifecycle
 
 Install and update follow a staged state machine:
 
-`inspect -> approve -> stage -> resolve -> migrate -> start -> health -> switch`
+`inspect/stage -> review -> approve -> resolve -> start -> health -> switch`
 
-The previous generation remains recoverable until the new generation is
-healthy and active. Disable, reload, update, and uninstall cancel scoped work,
+Saved-data resolution is included when required. The default selected-build
+retention removes superseded packages after successful updates and at startup;
+removed builds need re-upload for rollback. Campaign recovery stays independent.
+Disable, reload, update and uninstall cancel scoped work,
 dispose browser contributions, stop workers, release service bindings, and
 invalidate generation handles in a deterministic order.
 
-The host exposes an Add-on Inspector showing lifecycle transitions, versions,
-grants, service bindings, worker health, redacted RPC traces, logs, active jobs,
-subscriptions, migrations, and rollback results under shared correlation IDs.
+The manager exposes identity, grants, service selections, lifecycle state,
+worker health/exit, bounded request timing, redacted correlation references and
+tab-local browser failures. Full RPC payload tracing and support exports remain
+unavailable; they are not required to close this platform implementation.
 
 ## Isolation profiles
 
@@ -108,7 +119,7 @@ Add-on Platform v3 makes trust claims explicit:
 |---|---|---|
 | Integrated TypeScript UI | Reviewed first-party UI | Lifecycle and API isolation, not a security sandbox |
 | Sandboxed iframe UI | Less-trusted visual extensions | Browser-origin and capability boundary |
-| WASI worker | Portable pure or bounded computation | Capability-oriented runtime boundary |
+| WASI worker | Conditional portable-computation design | Reserved; no runtime or current isolation claim |
 | Native Go worker | OS, parser, or library access not available in WASI | Crash isolation; not a security sandbox by itself |
 
 Native Go workers are ordinary executables, not Go `plugin` packages. The Go
@@ -166,19 +177,18 @@ a contribution, but it runs through the same worker and permission contracts.
 ### Negative
 
 - RPC and schema generation add engineering overhead.
-- Browser code that currently reaches into host DOM or objects must be ported.
+- Ports must not restore browser access to private host DOM or live objects.
 - Native worker packaging needs per-target artifacts.
 - A good Inspector and conformance harness are required, not optional polish.
 
-## Follow-up actions
+## Implemented foundation and conditional scope
 
-1. Maintain the normative v3 API specification and JSON Schemas in source.
-2. Implement manifest validation and package inspection without execution.
-3. Implement the worker framing, initialization, cancellation, and test harness.
-4. Implement the TypeScript SDK and an isolated-iframe transport.
-5. Port one pure service provider to WASI and one stateful add-on to a native
-   worker to validate both profiles.
-6. Add destructive update, crash, timeout, stale binding, and rollback tests.
+Manifest/package validation, native framing/lifecycle, the TypeScript SDK,
+isolated iframe transport and first-party ports are implemented and covered by
+worker and installed-package regressions. Normative schemas remain maintained
+in source. WASI and other reserved transports need a concrete consumer and an
+explicit scope decision; the original prototype suggestions are not pending
+rewrite tasks. Current live/human acceptance is tracked only in the backlog.
 
 ## Research basis
 

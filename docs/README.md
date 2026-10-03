@@ -39,15 +39,18 @@ implementation unless explicitly labeled historical.
 | Packages and browser contributions | [Package lifecycle](rewrite/PACKAGE_LIFECYCLE.md), [browser add-ons](rewrite/BROWSER_ADDONS.md) |
 | Content and service selection | [Content](rewrite/CONTENT.md), [service broker](rewrite/SERVICE_BROKER.md) |
 | Native workers | [Supervision](rewrite/WORKER_SUPERVISION.md), [worker broker](rewrite/WORKER_BROKER.md) |
-| Character persistence and explanations | [Retained history](rewrite/RETAINED_ADDON_HISTORY.md), [rule details](rewrite/RULE_DETAILS.md) |
+| Character persistence and explanations | [Current sheet workflow](rewrite/CHARACTER_BUILD_HISTORY.md), [generic retained extensions](rewrite/RETAINED_ADDON_HISTORY.md), [rule details](rewrite/RULE_DETAILS.md) |
 | Campaign views | [Maps](rewrite/MAPS.md), [campaign browsing](rewrite/EDITOR_BROWSING.md) |
 
 ## Decisions, history and remaining work
 
-[BACKLOG.md](BACKLOG.md) is the suite's only durable backlog. Its September 14
-source audit separates T01–T19 concrete work from C01–C10 conditional extensions,
-records source/deployment evidence, and retains the 33 accepted product gates.
-Start there for the current completion list. The [feature audit](rewrite/FEATURE_PARITY_AUDIT.md)
-preserves the original comparison and subsequent decisions; its missing-feature
-descriptions are historical evidence, not a current bug list.
+[REWRITE_HANDOFF.md](REWRITE_HANDOFF.md) is the concise continuation guide:
+project goals, repository ownership, remaining work and validation boundaries.
+[BACKLOG.md](BACKLOG.md) remains the only durable task list; it separates
+outstanding operational/human checks and historical investigations from
+conditional extensions. [Current acceptance](rewrite/HOST_CLEANUP_ACCEPTANCE.md)
+records the deployed source, image and exact site results. The
+[feature-parity record](rewrite/FEATURE_PARITY_AUDIT.md#accepted-product-parity-release-gates)
+retains all 33 accepted release gates. Older audit and completed batch detail
+is recoverable in Git history, rather than repeated as current defects.
 [Architecture decisions](decisions/) explain the choices behind the system.

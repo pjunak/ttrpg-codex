@@ -51,6 +51,7 @@ there instead of expanding this always-loaded file.
 | Reference | Read before changing |
 |---|---|
 | [`README.md`](README.md) and [`CONTRIBUTING.md`](CONTRIBUTING.md) | Setup, boundaries, and complete gates |
+| [`docs/REWRITE_HANDOFF.md`](docs/REWRITE_HANDOFF.md) and [`docs/BACKLOG.md`](docs/BACKLOG.md) | Continue the cleanup: current delivery, code ownership and remaining acceptance |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System ownership and request/data flow |
 | [`docs/SELF_HOSTING.md`](docs/SELF_HOSTING.md) | Configuration, backup, conversion, deployment, and recovery |
 | [`docs/rewrite/CORE_DATA.md`](docs/rewrite/CORE_DATA.md) | Core records, revisions, visibility, and transactions |
@@ -181,7 +182,7 @@ overrides, current `rewrite-v2/data` mounts and retained backups.
 ## Completion and durable planning
 
 - Architecture completion is not product completion. The product-parity gates
-  in the [historical acceptance record](docs/rewrite/FEATURE_PARITY_AUDIT.md#accepted-product-parity-release-gates)
+  in the [accepted parity record](docs/rewrite/FEATURE_PARITY_AUDIT.md#accepted-product-parity-release-gates)
   and npm run release-check define the release
   boundary; release-check also rejects frontend/REWRITE_INCOMPLETE if present.
   npm run check proves

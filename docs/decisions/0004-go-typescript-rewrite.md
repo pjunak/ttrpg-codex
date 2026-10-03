@@ -4,16 +4,20 @@
 - Date: 2026-08-31
 - Decider: Project owner
 
-**Implementation status, September 14, 2026:** The Go/TypeScript host and native first-party ports are implemented and the personal-site cutover was accepted. The original delivery list below is historical; current gaps are in [the backlog](../BACKLOG.md).
+**Current status, October 3, 2026:** The Go/TypeScript host and native first-party
+ports are implemented on `main`; the authorized host release is deployed on
+both sites. [Current acceptance](../rewrite/HOST_CLEANUP_ACCEPTANCE.md) records
+delivery, and [the backlog](../BACKLOG.md) owns the remaining checks. The decision
+and alternatives below explain the architecture, not a new implementation plan.
 
 ## Context
 
-The current host is a Node.js/Express application with browser JavaScript,
+At the decision date, the host was a Node.js/Express application with browser JavaScript,
 CommonJS server modules, JSON-file persistence, and an in-process add-on API.
 That implementation proved the product and established useful public contracts,
-but the same JavaScript objects currently cross too many trust and ownership
-boundaries. Runtime add-ons are coupled to Node.js, data contracts are only
-partly machine checked, and a faulty server add-on can affect the host process.
+but the same JavaScript objects crossed too many trust and ownership boundaries.
+Runtime add-ons were coupled to Node.js, data contracts were only partly machine
+checked, and a faulty server add-on could affect the host process.
 
 This is a personal project, so a larger rewrite is acceptable. The preferred
 end state is also intentionally consistent: TypeScript for browser code and Go
@@ -26,15 +30,11 @@ operations and were not authorized by this decision.
 
 ## Decision
 
-Develop the next major version on the coordinated `rewrite/go-typescript`
-branch in the host and all first-party add-on repositories.
-
-Implementation status, September 4: rewrite development now occupies `main` in
-all five repositories, with the former host preserved at
-`origin/deprecated/pre-rewrite-2026-09-01`. This source-branch transition does
-not establish product parity or authorize production cutover. The current
-workflow inventory, remaining gates, and acceptance order live in the
-[suite backlog](../BACKLOG.md).
+Replace the legacy host and first-party runtime with the Go/TypeScript
+architecture below. The coordinated rewrite branch was the original working
+branch; all five repositories now develop on `main`. Branch replacement and
+production rollout remain distinct operational decisions. The current workflow
+inventory and acceptance order live in the [suite backlog](../BACKLOG.md).
 
 The target architecture is:
 
@@ -46,7 +46,8 @@ The target architecture is:
 - generated TypeScript clients and shared schemas at HTTP, storage, service,
   and worker boundaries;
 - HTTP/JSON for request-response operations and SSE for one-way live updates;
-- out-of-process Go or WASI add-on workers rather than in-process host plugins;
+- out-of-process Go workers rather than in-process host plugins; WASI remains
+  an unimplemented conditional alternative;
 - Node.js only as a development/build tool for the TypeScript frontend, not as
   a production runtime dependency;
 - no project-owned Python runtime in the rewritten product.
@@ -115,16 +116,13 @@ The add-on worker boundary supplies the isolation the project actually needs.
 - WASI is useful but cannot be treated as a universal replacement for native
   workers; runtime limitations must stay visible.
 
-## Follow-up actions
+## Implemented foundation
 
-1. Ratify Add-on Platform v3 before implementing the new loader.
-2. Capture v2 behavior as black-box compatibility tests and export fixtures.
-3. Establish the Go module, TypeScript workspace, generated contracts, and
-   SQLite migration runner.
-4. Implement package inspection and the add-on supervisor before porting
-   first-party add-ons.
-5. Migrate first-party add-ons in dependency order and exercise rollback.
-6. Plan the branch cutover only after data migration and release checks pass.
+Platform v3, the Go/TypeScript workspace, SQLite migrations, package inspection,
+native supervision and first-party ports are implemented. Preserved synthetic
+fixtures and installed workflows cover accepted parity. Current operational,
+reliability and human acceptance remain in the backlog; none of these completed
+foundation steps is an outstanding task.
 
 ## Research basis
 
