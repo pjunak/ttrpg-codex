@@ -6303,3 +6303,73 @@ explicitly. The unchanged host's complete gate (85 tools, 585 unit tests,
 rebuilds, all 13 source-pin/suite tools pass, all 33 product-parity gates pass
 and all 342 local document links/anchors resolve. Linux host acceptance and
 both site rollout identities remain to be recorded after publication.
+
+## October 3 host rollout and public site acceptance
+
+October 3, 2026. The approved host source
+`fb7020fd0099a0c5d099d8d218e9350b97f8c6ed` is published and deployed to both
+sites. [Build and dispatch 37114048750](https://github.com/pjunak/ttrpg-codex/actions/runs/37114048750)
+and [secret scan 37114048469](https://github.com/pjunak/ttrpg-codex/actions/runs/37114048469)
+finish successfully. The host gate passes 85 tool tests, 585 unit tests,
+342 browser cases and Go/race checks; its 199 optional installed skips remain
+separate from the strict package gate. Fresh npm and Go vulnerability checks
+report no findings.
+
+Strict Linux installed acceptance passes **278/278**, with zero failures,
+cancellations or skips, in **1,308,035 ms** (21 minutes 48 seconds). The actual
+`companion-provenance` artifact records the exact clean host, all four clean
+source pins and the same Linux ZIP hashes as the
+[inspected commit releases](#october-3-approved-delivery-and-packaging-dependency-repair).
+The image passes production-user startup and packaged HTTPS trust checks before
+publication. The downloaded `release-metadata` artifact identifies:
+
+```text
+repository: pjunak/ttrpg-codex
+sha: fb7020fd0099a0c5d099d8d218e9350b97f8c6ed
+run_id: 37114048750
+image_ref: ghcr.io/pjunak/ttrpg-codex@sha256:42e86883208967e72b2d2041bf0e7f9c42b145e8c591367e167b8c882c09c2f5
+```
+
+| Verified job | Host job ID | Infrastructure run |
+| --- | --- | --- |
+| Host test suite | 111177286192 | — |
+| Installed compatibility | 111177286184 | — |
+| Verified image publication | 111181091845 | — |
+| Asurai deployment and health | 111181394078 | [37115497040](https://github.com/pjunak/infra/actions/runs/37115497040) |
+| Tiamat deployment and health | 111181394124 | [37115499988](https://github.com/pjunak/infra/actions/runs/37115499988) |
+
+Both infrastructure runs select the correct site, source request and image;
+both finish successfully on infrastructure
+`d4f056bb947b1c631c0f5b4c491a51d21b6634ae`. Their respective deployment jobs
+`111181463077` and `111181467028` pass configuration staging, serialized rollout
+and health verification. Successful host image publication is not substituted
+for these independent deployment results.
+
+Post-deployment public checks verify both sites return HTTP 200 and health `ok`.
+Their `/assets/index-CUhpgqE4.js`, `codex-app-DfMBwdJ7.js`, preload helper and
+stylesheet match the actual Docker frontend build filenames and have identical
+SHA-256 values across the two sites. The root remains `no-cache`; fingerprinted
+assets are immutable. Before this rollout both sites served
+`/assets/index-CQkKxxec.js`.
+
+Chromium at 1360×900 and 390×844 verifies visible campaign content, attached live
+connections, no page errors, no failed requests and no horizontal overflow on
+both sites. Additional fully loaded artwork checks verify four Asurai portraits
+and six Tiamat images at both widths, with positive natural dimensions and
+bounded 88-pixel or 56-pixel rendered geometry. No live campaign record is edited.
+
+Delivery artifacts, metadata, public browser results and screenshots remain
+ignored under `frontend/test-results/current-approved-release-*`. The browser
+helper still fails before authenticated inventory with `apply deny-read ACLs`;
+reload of its current documentation does not fix startup. Authenticated manager,
+matching-binary full backup, intended add-on activation, Asurai retention and
+independent recovery, Tiamat state and existing consequence targets remain open.
+No add-on ZIP was installed or activated on either live site by this rollout.
+Historical failure attribution and physical touch/spoken assistive-technology/
+paper-print checks are unchanged.
+
+The estimate is **97% implemented (93–98%) / 96% overall (92–98%)** and
+**33/40 original rows closed (83%)**. This closes the current delivery slice,
+including the previously blocked startup-fixture repair; it does not close the
+remaining operational or human acceptance rows. Subsequent development remains
+local until the next deployment receives approval.
