@@ -80,7 +80,7 @@ async function open(t: TestContext, mobile = false) {
       value = {
         contractVersion: "addon-github.v1",
         sources: [],
-        credentials: { defaultSource: "none", environmentConfigured: false, repositories: [] },
+        credentials: { defaultSource: "none", repositories: [] },
       };
     else if (path === "/api/admin/addon-github/discover")
       value = {

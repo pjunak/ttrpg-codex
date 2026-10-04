@@ -94,9 +94,6 @@ export const githubEn = {
   "github.scopedToken": "Repository token configured",
   "github.token.none": "Not configured",
   "github.token.stored": "Stored on this server",
-  "github.token.environment": "Server environment",
-  "github.environmentHint":
-    "An environment token is available as a fallback. Change it in the server configuration.",
   "github.invalid":
     "Enter a GitHub owner/repository or repository URL, and a valid access token when needed.",
   "github.identity":
@@ -205,9 +202,6 @@ export const githubCs: Record<keyof typeof githubEn, string> = {
   "github.scopedToken": "Token repozitáře je nastaven",
   "github.token.none": "Nenastaveno",
   "github.token.stored": "Uložen na tomto serveru",
-  "github.token.environment": "Prostředí serveru",
-  "github.environmentHint":
-    "Jako záloha je dostupný token z prostředí serveru. Změníte jej v konfiguraci serveru.",
   "github.invalid":
     "Zadejte vlastníka/repozitář nebo URL repozitáře GitHub a v případě potřeby platný přístupový token.",
   "github.identity": "Balíček patří jinému doplňku. Zkontrolujte repozitář a vybraný balíček.",

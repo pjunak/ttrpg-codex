@@ -15,7 +15,6 @@ const status: GitHubStatus = {
   sources: [],
   credentials: {
     defaultSource: "none",
-    environmentConfigured: false,
     repositories: ["owner/repo"],
   },
 };
@@ -97,12 +96,12 @@ it("invalidates only the changed add-on while preserving other update results an
   expect(state.results).toEqual({});
 });
 
-it("reuses only the matching repository token or an explicitly configured default", () => {
+it("reuses only the matching repository token or a stored default", () => {
   expect(hasGitHubAccess(status, "https://github.com/Owner/Repo.git/")).toBe(true);
   expect(hasGitHubAccess(status, "owner/another")).toBe(false);
   expect(
     hasGitHubAccess(
-      { ...status, credentials: { ...status.credentials, defaultSource: "environment" } },
+      { ...status, credentials: { ...status.credentials, defaultSource: "stored" } },
       "owner/another",
     ),
   ).toBe(true);

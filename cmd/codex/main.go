@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -337,8 +336,7 @@ func composeHost(
 			)
 		}
 	}
-	githubToken := strings.TrimSpace(os.Getenv("CODEX_GITHUB_TOKEN"))
-	githubAddons, err := githubsource.New(githubsource.Config{DB: db, DataDirectory: dataDirectory, Lifecycle: addons, Inspector: inspector, EnvironmentToken: githubToken})
+	githubAddons, err := githubsource.New(githubsource.Config{DB: db, DataDirectory: dataDirectory, Lifecycle: addons, Inspector: inspector})
 	if err != nil {
 		_ = addons.Shutdown(context.Background())
 		return nil, fmt.Errorf("configure GitHub add-ons: %w", err)

@@ -502,7 +502,6 @@ export class CodexAddonManager extends LitElement {
     if (!status) return nothing;
     return html`<details class="github-tokens"><summary>${t("github.tokens")}</summary><p>${t("github.tokenHint")}</p>
       <p>${t("github.defaultToken")}: ${t(`github.token.${status.credentials.defaultSource}`)}</p>
-      ${status.credentials.environmentConfigured ? html`<p>${t("github.environmentHint")}</p>` : nothing}
       <form class="addon-source-form" @submit=${(event: SubmitEvent) => {
         event.preventDefault();
         if (this.#busy) return;

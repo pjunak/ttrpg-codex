@@ -107,11 +107,10 @@ and campaign data.
 GitHub tokens live in a separate `credentials/github.db` SQLite database under
 the data directory, outside the campaign backup/recovery allowlist. The UI can
 set, replace or remove a default token and exact lowercase repository tokens.
-Lookup order is exact repository, stored default, then `CODEX_GITHUB_TOKEN`.
+Lookup order is the exact repository's token, then the stored default.
 Responses expose configuration/source and repository names only.
 Token inputs are cleared on submission, including uncertain responses; refresh
-reads configured state before an explicit retry. Environment tokens are changed
-through server configuration. Credentials are not restored with campaign
+reads configured state before an explicit retry. Credentials are not restored with campaign
 backups.
 
 All routes require real and effective DM authority; POST also requires CSRF:

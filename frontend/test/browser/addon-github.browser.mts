@@ -84,7 +84,6 @@ for (const mobile of [false, true])
       sources: links,
       credentials: {
         defaultSource: tokens.has("") ? "stored" : "none",
-        environmentConfigured: false,
         repositories: [...tokens.keys()].filter(Boolean),
       },
     });
@@ -507,7 +506,7 @@ for (const mobile of [false, true])
         value = {
           contractVersion: "addon-github.v1",
           sources: links,
-          credentials: { defaultSource: "none", environmentConfigured: false, repositories: [] },
+          credentials: { defaultSource: "none", repositories: [] },
         };
       else if (path.endsWith("/addon-github/discover")) {
         const id = String(body.addonId);
@@ -646,7 +645,7 @@ for (const mobile of [false, true])
         value = {
           contractVersion: "addon-github.v1",
           sources: [],
-          credentials: { defaultSource: "none", environmentConfigured: false, repositories: [] },
+          credentials: { defaultSource: "none", repositories: [] },
         };
       else if (path === "/api/admin/addons")
         value = { contractVersion: "addon-inventory.v1", addonIds: ["example"] };
@@ -781,7 +780,7 @@ for (const mobile of [false, true])
           value = {
             contractVersion: "addon-github.v1",
             sources: [{ addonId: "example", revision: 1, source }],
-            credentials: { defaultSource: "none", environmentConfigured: false, repositories: [] },
+            credentials: { defaultSource: "none", repositories: [] },
           };
         else if (path.endsWith("/addon-github/discover"))
           value = {

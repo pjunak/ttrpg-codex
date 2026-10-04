@@ -19,8 +19,7 @@ export interface GitHubStatus {
   contractVersion: "addon-github.v1";
   sources: GitHubLink[];
   credentials: {
-    defaultSource: "none" | "stored" | "environment";
-    environmentConfigured: boolean;
+    defaultSource: "none" | "stored";
     repositories: string[];
   };
 }
@@ -73,10 +72,10 @@ function parseSource(value: unknown): GitHubSource {
 }
 export function parseGitHubStatus(value: unknown): GitHubStatus {
   const r = record(value, ["contractVersion", "sources", "credentials"]),
-    c = record(r["credentials"], ["defaultSource", "environmentConfigured", "repositories"]);
+    c = record(r["credentials"], ["defaultSource", "repositories"]);
   if (
     r["contractVersion"] !== "addon-github.v1" ||
-    !["none", "stored", "environment"].includes(text(c["defaultSource"]))
+    !["none", "stored"].includes(text(c["defaultSource"]))
   )
     return fail();
   return {
@@ -96,7 +95,6 @@ export function parseGitHubStatus(value: unknown): GitHubStatus {
     }),
     credentials: {
       defaultSource: c["defaultSource"] as GitHubStatus["credentials"]["defaultSource"],
-      environmentConfigured: boolean(c["environmentConfigured"]),
       repositories: list(c["repositories"]).map(repo),
     },
   };

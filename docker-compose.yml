@@ -7,7 +7,6 @@ services:
     environment:
       - CODEX_DM_PASSWORD=${CODEX_DM_PASSWORD:-}
       - CODEX_PLAYER_PASSWORD=${CODEX_PLAYER_PASSWORD:-}
-      - CODEX_GITHUB_TOKEN=${CODEX_GITHUB_TOKEN:-}
     command:
       - /app/codex
       - -listen

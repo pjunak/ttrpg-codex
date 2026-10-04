@@ -115,7 +115,7 @@ func fixture(t *testing.T) (*Service, *packagemanager.Manager, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { manager.Shutdown(ctx) })
-	service, err := New(Config{DB: db, DataDirectory: root, Lifecycle: manager, Inspector: inspector, EnvironmentToken: "environment-token"})
+	service, err := New(Config{DB: db, DataDirectory: root, Lifecycle: manager, Inspector: inspector})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestRepositoryNormalizationAndCredentialPersistence(t *testing.T) {
 	if bytes.Contains(jsonBody(status), []byte("replacement-token")) || len(status.Credentials.Repositories) != 2 {
 		t.Fatalf("bad token status: %+v", status.Credentials)
 	}
-	reopened, err := New(Config{DB: s.store.db, DataDirectory: root, Lifecycle: s.lifecycle, Inspector: s.inspector, EnvironmentToken: "environment-token"})
+	reopened, err := New(Config{DB: s.store.db, DataDirectory: root, Lifecycle: s.lifecycle, Inspector: s.inspector})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,8 +174,8 @@ func TestRepositoryNormalizationAndCredentialPersistence(t *testing.T) {
 	if err := s.SaveToken(ctx, "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if value, _ := s.token(ctx, "owner/repo"); value != "environment-token" {
-		t.Fatal("missing environment fallback")
+	if value, _ := s.token(ctx, "owner/repo"); value != "" {
+		t.Fatal("a cleared default still supplied a token")
 	}
 	if value, _ := s.token(ctx, "owner/other"); value != "other-scoped-token" {
 		t.Fatal("unrelated token was removed")
@@ -205,12 +205,15 @@ func TestRepositoryNormalizationAndCredentialPersistence(t *testing.T) {
 func TestReleaseStagesReviewedUpdatesAndTracksActiveGeneration(t *testing.T) {
 	s, manager, _ := fixture(t)
 	ctx := context.Background()
+	if err := s.SaveToken(ctx, "", "default-token"); err != nil {
+		t.Fatal(err)
+	}
 	source := Source{Repo: "owner/repo", Channel: "release"}
 	body := packageBytes(t, "example", "1.0.0")
 	assetID := int64(1)
 	downloadCalls := 0
 	s.client.Transport = transportFunc(func(r *http.Request) (*http.Response, error) {
-		if r.URL.Host != "api.github.com" || r.Header.Get("Authorization") != "Bearer environment-token" {
+		if r.URL.Host != "api.github.com" || r.Header.Get("Authorization") != "Bearer default-token" {
 			t.Fatalf("unexpected remote request: %s", r.URL.Host)
 		}
 		if r.URL.Path == "/repos/owner/repo/releases/latest" {

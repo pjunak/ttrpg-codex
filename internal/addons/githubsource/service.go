@@ -69,9 +69,8 @@ type Discovery struct {
 	Candidates []Candidate `json:"candidates"`
 }
 type TokenStatus struct {
-	DefaultSource         string   `json:"defaultSource"`
-	EnvironmentConfigured bool     `json:"environmentConfigured"`
-	Repositories          []string `json:"repositories"`
+	DefaultSource string   `json:"defaultSource"`
+	Repositories  []string `json:"repositories"`
 }
 type Status struct {
 	ContractVersion string         `json:"contractVersion"`
@@ -83,18 +82,16 @@ type Lifecycle interface {
 	StageUpdateArchive(context.Context, io.Reader, string, int64) (packagemanager.Generation, error)
 }
 type Config struct {
-	DB               *sql.DB
-	DataDirectory    string
-	Lifecycle        Lifecycle
-	Inspector        *packageinspect.Inspector
-	EnvironmentToken string
+	DB            *sql.DB
+	DataDirectory string
+	Lifecycle     Lifecycle
+	Inspector     *packageinspect.Inspector
 }
 type Service struct {
-	store            *store
-	lifecycle        Lifecycle
-	inspector        *packageinspect.Inspector
-	environmentToken string
-	client           *http.Client
+	store     *store
+	lifecycle Lifecycle
+	inspector *packageinspect.Inspector
+	client    *http.Client
 }
 
 func New(config Config) (*Service, error) {
@@ -102,7 +99,7 @@ func New(config Config) (*Service, error) {
 		return nil, ErrInvalid
 	}
 	return &Service{store: &store{db: config.DB, credentialPath: filepath.Join(config.DataDirectory, "credentials", "github.db")}, lifecycle: config.Lifecycle, inspector: config.Inspector,
-		environmentToken: strings.TrimSpace(config.EnvironmentToken), client: &http.Client{Timeout: 25 * time.Second, CheckRedirect: githubRedirect}}, nil
+		client: &http.Client{Timeout: 25 * time.Second, CheckRedirect: githubRedirect}}, nil
 }
 
 func NormalizeRepo(raw string) (string, error) {
@@ -145,7 +142,7 @@ func normalizeSource(source Source) (Source, error) {
 func validAddonID(id string) bool { return len(id) <= 80 && addonPattern.MatchString(id) }
 
 func (s *Service) Status(ctx context.Context) (Status, error) {
-	result := Status{ContractVersion: "addon-github.v1", Credentials: TokenStatus{DefaultSource: "none", EnvironmentConfigured: s.environmentToken != "", Repositories: []string{}}}
+	result := Status{ContractVersion: "addon-github.v1", Credentials: TokenStatus{DefaultSource: "none", Repositories: []string{}}}
 	sources, err := s.store.sources(ctx)
 	if err != nil {
 		return result, err
@@ -154,9 +151,6 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	tokens, err := s.store.tokens(ctx)
 	if err != nil {
 		return result, err
-	}
-	if s.environmentToken != "" {
-		result.Credentials.DefaultSource = "environment"
 	}
 	if tokens[""] != "" {
 		result.Credentials.DefaultSource = "stored"
@@ -193,10 +187,7 @@ func (s *Service) token(ctx context.Context, repo string) (string, error) {
 	if token := tokens[repo]; token != "" {
 		return token, nil
 	}
-	if token := tokens[""]; token != "" {
-		return token, nil
-	}
-	return s.environmentToken, nil
+	return tokens[""], nil
 }
 func (s *Service) SaveSource(ctx context.Context, item LinkedSource, remove bool) error {
 	if !validAddonID(item.AddonID) || item.Revision < 0 {
@@ -343,6 +334,6 @@ func NewPackageFetcher(config Config) (packagemanager.PackageFetcher, error) {
 		return nil, ErrInvalid
 	}
 	service := &Service{store: &store{db: config.DB, credentialPath: filepath.Join(config.DataDirectory, "credentials", "github.db")}, inspector: config.Inspector,
-		environmentToken: strings.TrimSpace(config.EnvironmentToken), client: &http.Client{Timeout: 25 * time.Second, CheckRedirect: githubRedirect}}
+		client: &http.Client{Timeout: 25 * time.Second, CheckRedirect: githubRedirect}}
 	return service.FetchPackage, nil
 }

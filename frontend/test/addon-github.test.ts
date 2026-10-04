@@ -17,7 +17,6 @@ const status = {
   sources: [{ addonId: "example", revision: 1, source }],
   credentials: {
     defaultSource: "stored",
-    environmentConfigured: true,
     repositories: ["owner/repo"],
   },
 };
