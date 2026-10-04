@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
@@ -33,6 +34,7 @@ type Config struct {
 	CampaignEnums            CampaignEnums
 	CampaignEnumWriter       CampaignMutationAuthorizer
 	BackupArchives           BackupArchives
+	BackupRestores           BackupRestores
 	RecoveryPoints           RecoveryPoints
 	BackupAuthorizer         AdminAuthorizer
 	Media                    MediaAssets
@@ -46,7 +48,10 @@ type Config struct {
 	Events                   EventSource
 	EventAuthorizer          EventAuthorizer
 	EventHeartbeat           time.Duration
-	Frontend                 fs.FS
+	// ShuttingDown closes when the host begins shutting down; event streams
+	// end so graceful shutdown does not wait for them.
+	ShuttingDown <-chan struct{}
+	Frontend     fs.FS
 }
 
 type server struct {
@@ -68,6 +73,8 @@ type server struct {
 	campaignEnums            CampaignEnums
 	campaignEnumWriter       CampaignMutationAuthorizer
 	backupArchives           BackupArchives
+	backupRestores           BackupRestores
+	restoreBusy              sync.Mutex
 	recoveryPoints           RecoveryPoints
 	backupAuthorizer         AdminAuthorizer
 	media                    MediaAssets
@@ -82,6 +89,7 @@ type server struct {
 	events                   EventSource
 	eventAuthorizer          EventAuthorizer
 	eventHeartbeat           time.Duration
+	shuttingDown             <-chan struct{}
 	frontend                 http.Handler
 }
 
@@ -93,6 +101,7 @@ func New(config Config) (http.Handler, error) {
 		(config.CampaignTwins == nil) != (config.CampaignTwinWriter == nil) ||
 		(config.CampaignEnums == nil) != (config.CampaignEnumWriter == nil) ||
 		(config.BackupArchives == nil) != (config.BackupAuthorizer == nil) ||
+		config.BackupRestores != nil && config.BackupArchives == nil ||
 		config.RecoveryPoints != nil && config.Authentication == nil ||
 		(config.Media == nil) != (config.MediaAuthorizer == nil) ||
 		(config.AddonData == nil) != (config.AddonDataAuthorizer == nil) ||
@@ -121,6 +130,7 @@ func New(config Config) (http.Handler, error) {
 		campaignTwins: config.CampaignTwins, campaignTwinWriter: config.CampaignTwinWriter,
 		campaignEnums: config.CampaignEnums, campaignEnumWriter: config.CampaignEnumWriter,
 		backupArchives: config.BackupArchives, backupAuthorizer: config.BackupAuthorizer,
+		backupRestores: config.BackupRestores,
 		recoveryPoints: config.RecoveryPoints,
 		media:          config.Media, mediaAuthorizer: config.MediaAuthorizer,
 		addonData: config.AddonData, addonDataAuthorizer: config.AddonDataAuthorizer,
@@ -129,7 +139,7 @@ func New(config Config) (http.Handler, error) {
 		browserServiceAuthorizer: config.BrowserServiceAuthorizer,
 		loginLimiter:             newLoginLimiter(), events: config.Events,
 		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
-		frontend: frontend,
+		shuttingDown: config.ShuttingDown, frontend: frontend,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)

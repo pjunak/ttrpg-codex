@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -56,11 +57,22 @@ type hostRuntime struct {
 	handler  http.Handler
 	addons   *packagemanager.Manager
 	campaign *campaigndata.Service
+	restarts <-chan struct{}
+	stopping func()
 }
+
+// errRestartForRestore makes the process exit so its supervisor (Docker's
+// restart policy) starts it again; startup then installs the staged backup.
+var errRestartForRestore = errors.New("restarting to install the restored backup")
+
+const restartExitCode = 75
 
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		if errors.Is(err, errRestartForRestore) {
+			os.Exit(restartExitCode)
+		}
 		os.Exit(1)
 	}
 }
@@ -131,12 +143,14 @@ func run() error {
 		IdleTimeout:       60 * time.Second,
 	}
 
+	server.RegisterOnShutdown(runtime.stopping)
 	serveErrors := make(chan error, 1)
 	go func() {
 		logger.Info("rewrite host listening", "address", server.Addr, "version", version)
 		serveErrors <- server.ListenAndServe()
 	}()
 
+	restart := false
 	select {
 	case err := <-serveErrors:
 		if !errors.Is(err, http.ErrServerClosed) {
@@ -144,14 +158,44 @@ func run() error {
 		}
 		return nil
 	case <-ctx.Done():
+	case <-runtime.restarts:
+		restart = true
+		logger.Info("backup restore staged; restarting")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("shutdown HTTP server: %w", err)
+		_ = server.Close()
+		if !restart {
+			return fmt.Errorf("shutdown HTTP server: %w", err)
+		}
+		logger.Warn("forced HTTP shutdown before restarting", "error", err)
+	}
+	if restart {
+		return errRestartForRestore
 	}
 	return nil
+}
+
+// stagedRestores verifies an uploaded backup into the data directory; the next
+// start installs it before SQLite opens.
+type stagedRestores struct {
+	dataDirectory string
+	restarts      chan struct{}
+}
+
+func (r stagedRestores) Stage(ctx context.Context, archivePath string) (backuparchive.RestoreResult, error) {
+	return backuparchive.Stage(ctx, backuparchive.StageConfig{
+		ArchivePath: archivePath, DataDirectory: r.dataDirectory, Migrations: migrations.FS,
+	})
+}
+
+func (r stagedRestores) Restart() {
+	select {
+	case r.restarts <- struct{}{}:
+	default:
+	}
 }
 
 func composeHost(
@@ -219,6 +263,8 @@ func composeHost(
 	backupArchives := &backuparchive.Creator{
 		Database: db, DataDirectory: dataDirectory, HostVersion: version,
 	}
+	restores := stagedRestores{dataDirectory: dataDirectory, restarts: make(chan struct{}, 1)}
+	stopping := make(chan struct{})
 	inspector, err := packageinspect.New(packageinspect.DefaultLimits)
 	if err != nil {
 		return nil, fmt.Errorf("configure package inspector: %w", err)
@@ -343,6 +389,7 @@ func composeHost(
 		CampaignEnums:            campaignData,
 		CampaignEnumWriter:       httpapi.SessionCampaignTwinAuthorizer(authentication),
 		BackupArchives:           backupArchives,
+		BackupRestores:           restores,
 		RecoveryPoints:           recoveryPoints,
 		BackupAuthorizer:         httpapi.SessionAdminAuthorizer(authentication),
 		Media:                    mediaService,
@@ -355,7 +402,7 @@ func composeHost(
 		BrowserServiceAuthorizer: httpapi.SessionBrowserServiceAuthorizer(authentication),
 		AddonLifecycle:           addons, AdminAuthorizer: httpapi.SessionAdminAuthorizer(authentication),
 		BrowserAddons: addons, BrowserAuthorizer: httpapi.SessionBrowserAuthorizer,
-		Events: eventBroker, EventAuthorizer: httpapi.SessionEventAuthorizer,
+		Events: eventBroker, EventAuthorizer: httpapi.SessionEventAuthorizer, ShuttingDown: stopping,
 		Frontend: frontend,
 	})
 	if err != nil {
@@ -363,5 +410,8 @@ func composeHost(
 		return nil, fmt.Errorf("configure HTTP API: %w", err)
 	}
 	addons.StartMonitoring(ctx)
-	return &hostRuntime{handler: handler, addons: addons, campaign: campaignData}, nil
+	return &hostRuntime{
+		handler: handler, addons: addons, campaign: campaignData,
+		restarts: restores.restarts, stopping: sync.OnceFunc(func() { close(stopping) }),
+	}, nil
 }

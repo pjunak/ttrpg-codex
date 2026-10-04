@@ -120,6 +120,32 @@ takes its place, and only then is the old directory removed. Startup resolves
 an interrupted journal before opening SQLite, either finishing a validated
 installation or restoring the previous directory.
 
+## Restore from the web
+
+A DM can restore a full archive from Settings → Backup & recovery without
+shell access. `POST /api/backup/restore` (DM session plus CSRF,
+`Content-Type: application/zip`, at most 1 GiB) saves the upload to temporary
+storage and runs the same verification as the offline command. The verified
+copy is extracted and migrated into `.restore-stage-*` inside the data
+directory, so it also works when that directory is a mount point. The running
+site is unchanged until `.restore-pending.json` is written; only then does the
+endpoint answer `202` with `backup-restore.v1` (`createdAt`, `hostVersion`,
+`appliedMigrations`) and the host shuts down with exit code 75.
+
+The supervisor (Docker's `restart: unless-stopped`) starts the host again.
+Before SQLite opens, startup moves every current entry into
+`.restore-previous-*`, publishes the staged entries, validates the installed
+database and only then deletes the previous copy and the journal. The journal
+records each phase, so an interruption resumes where it stopped. If the staged
+files are missing or the installed database fails validation, startup refuses
+to continue and leaves the previous data in place for the operator.
+
+Refusals leave the site running: `INVALID_BACKUP` (400, with the reason, for
+example a recovery package this host no longer accepts), `RESTORE_PENDING` or
+`RESTORE_IN_PROGRESS` (409), `PAYLOAD_TOO_LARGE` (413) and
+`RESTORE_UNAVAILABLE` (503). Sessions do not survive the restart, and the
+restored passwords are the ones saved in the archive.
+
 ## Deliberate boundary
 
 Only `codex-backup.v2` archives are accepted. The original v1 site backups were
@@ -127,11 +153,10 @@ converted once in September 2026 by a separate offline tool, since removed (it
 is in Git history before the October 2026 cleanup). Startup and restore contain
 no legacy-format handling.
 
-Settings → Backup & recovery downloads this same full archive and links the
-[verification and offline full-restore procedure](../SELF_HOSTING.md#verify-and-restore-a-full-backup)
-from both English and Czech interfaces. Archive upload
-and publication remain an offline maintenance operation; campaign recovery
-points below are available without restarting the host.
+Settings → Backup & recovery downloads this same full archive, restores one
+(above) and links the [operator procedure](../SELF_HOSTING.md#verify-and-restore-a-full-backup)
+in both English and Czech. Campaign recovery points below work without a
+restart.
 
 ## Campaign recovery points
 

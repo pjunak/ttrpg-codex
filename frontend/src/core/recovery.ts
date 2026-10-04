@@ -193,3 +193,104 @@ export async function recoveryRequest(
   signal.throwIfAborted();
   return parseRecoveryListing(value);
 }
+
+export interface StagedBackupRestore {
+  readonly createdAt: string;
+  readonly hostVersion: string;
+}
+export type BackupRestoreErrorCode =
+  "invalid" | "pending" | "busy" | "too-large" | "forbidden" | "failed";
+export class BackupRestoreError extends Error {
+  constructor(
+    readonly code: BackupRestoreErrorCode,
+    readonly detail = "",
+  ) {
+    super(code);
+  }
+}
+
+const stagedRestoreKeys: ReadonlySet<string> = new Set([
+  "contractVersion",
+  "createdAt",
+  "hostVersion",
+  "appliedMigrations",
+]);
+export function parseStagedBackupRestore(value: unknown): StagedBackupRestore {
+  const where = "POST /api/backup/restore";
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, stagedRestoreKeys) ||
+    value["contractVersion"] !== "backup-restore.v1" ||
+    typeof value["createdAt"] !== "string" ||
+    Number.isNaN(Date.parse(value["createdAt"])) ||
+    typeof value["hostVersion"] !== "string" ||
+    !natural(value["appliedMigrations"])
+  )
+    throw new BoundaryValidationError(where, "response must be a staged restore");
+  return { createdAt: value["createdAt"], hostVersion: value["hostVersion"] };
+}
+
+// Uploads a full backup. The host verifies and stages it, then restarts to
+// install it; the current data is unchanged until then.
+export async function restoreFullBackup(
+  signal: AbortSignal,
+  csrfToken: string,
+  archive: Blob,
+): Promise<StagedBackupRestore> {
+  const response = await sessionFetch("/api/backup/restore", {
+    signal,
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/zip",
+      "X-Codex-CSRF": csrfToken,
+    },
+    body: archive,
+  });
+  signal.throwIfAborted();
+  const value: unknown = await waitForSignal(
+    response.json().catch(() => null),
+    signal,
+  );
+  signal.throwIfAborted();
+  if (response.ok) return parseStagedBackupRestore(value);
+  const error = isRecord(value) && isRecord(value["error"]) ? value["error"] : {};
+  const kind = error["kind"];
+  const codes: Readonly<Record<string, BackupRestoreErrorCode>> = {
+    INVALID_BACKUP: "invalid",
+    RESTORE_PENDING: "pending",
+    RESTORE_IN_PROGRESS: "busy",
+    PAYLOAD_TOO_LARGE: "too-large",
+    FORBIDDEN: "forbidden",
+  };
+  throw new BackupRestoreError(
+    (typeof kind === "string" ? codes[kind] : undefined) ?? "failed",
+    kind === "INVALID_BACKUP" && typeof error["message"] === "string"
+      ? error["message"].slice(0, 500)
+      : "",
+  );
+}
+
+// Resolves once the restarted host answers health checks, or false after the
+// deadline. The first checks wait for the old process to stop serving.
+export async function waitForHostRestart(
+  signal: AbortSignal,
+  { delay = 3000, interval = 2000, deadline = 5 * 60_000 } = {},
+): Promise<boolean> {
+  const sleep = (ms: number) =>
+    waitForSignal(new Promise<void>((resolve) => setTimeout(resolve, ms)), signal);
+  const started = Date.now();
+  await sleep(delay);
+  while (Date.now() - started < deadline) {
+    signal.throwIfAborted();
+    const response = await sessionFetch("/api/health", { signal, cache: "no-store" }).catch(
+      () => undefined,
+    );
+    signal.throwIfAborted();
+    if (response?.ok) return true;
+    await sleep(interval);
+  }
+  return false;
+}

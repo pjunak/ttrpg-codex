@@ -237,6 +237,22 @@ The DM endpoint `GET /api/backup` downloads the same verified archive contract
 as the maintenance CLI. Download a full ZIP from Settings → Backup & recovery,
 then verify it independently.
 
+#### Restore from Settings
+
+Settings → Backup & recovery → **Restore a full backup** replaces the whole
+site: campaign, files, add-ons, passwords and recovery points. Download a ZIP
+of the current state first. Choose the backup, confirm, and the host verifies
+it while the site keeps running. A rejected file changes nothing and the page
+says why. An accepted one makes the host restart; the page reloads when it is
+back and everyone signs in again with the passwords saved in that backup.
+
+The restart relies on the process supervisor: the supplied Compose file's
+`restart: unless-stopped` starts the container again. A native installation
+without one stops instead; start it again and it finishes installing the
+backup before serving. Each host accepts only archives whose recovery packages
+it can still inspect, so restore an archive with the host version it came
+from, or a later one that still accepts its add-on builds.
+
 #### Verify with the running host image
 
 The image includes `/app/codex-maintenance`. Run these commands on the Docker

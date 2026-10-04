@@ -174,6 +174,8 @@ func Restore(ctx context.Context, config RestoreConfig) (RestoreResult, error) {
 	return RestoreResult{Manifest: manifest, AppliedMigrations: applied}, nil
 }
 
+// Recover runs before SQLite opens. It finishes or rolls back an interrupted
+// offline restore, then installs a restore staged from the web.
 func Recover(ctx context.Context, dataDirectory string, migrations fs.FS) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -185,6 +187,16 @@ func Recover(ctx context.Context, dataDirectory string, migrations fs.FS) error 
 	if filepath.Dir(absolute) == absolute {
 		return fmt.Errorf("restore recovery directory cannot be a filesystem root")
 	}
+	if err := recoverOfflineRestore(ctx, absolute, migrations); err != nil {
+		return err
+	}
+	if exists, err := pathExists(absolute); err != nil || !exists {
+		return err
+	}
+	return finishStagedRestore(ctx, absolute, migrations)
+}
+
+func recoverOfflineRestore(ctx context.Context, absolute string, migrations fs.FS) error {
 	journalPath := restoreJournalPath(absolute)
 	body, err := os.ReadFile(journalPath)
 	if os.IsNotExist(err) {
@@ -425,7 +437,7 @@ func restoreJournalPath(dataDirectory string) string {
 	return filepath.Join(filepath.Dir(dataDirectory), "."+filepath.Base(dataDirectory)+".restore.json")
 }
 
-func writeRestoreJournal(filename string, journal restoreJournal) error {
+func writeRestoreJournal(filename string, journal any) error {
 	body, err := json.Marshal(journal)
 	if err != nil {
 		return err

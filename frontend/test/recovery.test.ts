@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { parseRecoveryListing } from "../src/core/recovery.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  BackupRestoreError,
+  parseRecoveryListing,
+  parseStagedBackupRestore,
+  restoreFullBackup,
+  waitForHostRestart,
+} from "../src/core/recovery.js";
 import { parseCampaignRestored } from "../src/core/event-stream.js";
 
 describe("campaign recovery boundaries", () => {
@@ -78,5 +84,102 @@ describe("campaign recovery boundaries", () => {
     expect(() =>
       parseRecoveryListing({ ...listing, contractVersion: "recovery-points.v1" }),
     ).toThrow();
+  });
+});
+
+describe("full backup restore", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+  const respond = (status: number, body: unknown) =>
+    vi.fn(async () => new Response(JSON.stringify(body), { status }));
+
+  it("uploads the archive as a ZIP with CSRF and returns the staged backup", async () => {
+    const fetch = respond(202, {
+      contractVersion: "backup-restore.v1",
+      createdAt: "2026-10-04T10:15:44Z",
+      hostVersion: "2.0.0",
+      appliedMigrations: 1,
+    });
+    vi.stubGlobal("fetch", fetch);
+    const archive = new Blob(["zip"], { type: "application/zip" });
+    await expect(
+      restoreFullBackup(new AbortController().signal, "token", archive),
+    ).resolves.toEqual({ createdAt: "2026-10-04T10:15:44Z", hostVersion: "2.0.0" });
+    const [path, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(path).toBe("/api/backup/restore");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe(archive);
+    expect(init.headers).toMatchObject({
+      "Content-Type": "application/zip",
+      "X-Codex-CSRF": "token",
+    });
+  });
+
+  it("maps server refusals to stable codes and keeps only the invalid-archive reason", async () => {
+    for (const [status, kind, code] of [
+      [400, "INVALID_BACKUP", "invalid"],
+      [409, "RESTORE_PENDING", "pending"],
+      [409, "RESTORE_IN_PROGRESS", "busy"],
+      [413, "PAYLOAD_TOO_LARGE", "too-large"],
+      [503, "RESTORE_UNAVAILABLE", "failed"],
+    ] as const) {
+      vi.stubGlobal("fetch", respond(status, { error: { kind, message: "manifest is missing" } }));
+      const error: unknown = await restoreFullBackup(
+        new AbortController().signal,
+        "token",
+        new Blob(["zip"]),
+      ).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(BackupRestoreError);
+      expect((error as BackupRestoreError).code).toBe(code);
+      expect((error as BackupRestoreError).detail).toBe(
+        code === "invalid" ? "manifest is missing" : "",
+      );
+    }
+  });
+
+  it("rejects malformed staged responses", () => {
+    expect(() =>
+      parseStagedBackupRestore({
+        contractVersion: "backup-restore.v1",
+        createdAt: "not a date",
+        hostVersion: "2.0.0",
+        appliedMigrations: 0,
+      }),
+    ).toThrow();
+    expect(() =>
+      parseStagedBackupRestore({
+        contractVersion: "backup-restore.v1",
+        createdAt: "2026-10-04T10:15:44Z",
+        hostVersion: "2.0.0",
+        appliedMigrations: 0,
+        extra: true,
+      }),
+    ).toThrow();
+  });
+
+  it("waits through a restart until health answers again", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls++;
+        if (calls < 3) throw new TypeError("connection refused");
+        return new Response(JSON.stringify({ status: "ok", version: "2.0.0" }));
+      }),
+    );
+    await expect(
+      waitForHostRestart(new AbortController().signal, { delay: 0, interval: 0, deadline: 5000 }),
+    ).resolves.toBe(true);
+    expect(calls).toBe(3);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("connection refused");
+      }),
+    );
+    await expect(
+      waitForHostRestart(new AbortController().signal, { delay: 0, interval: 1, deadline: 20 }),
+    ).resolves.toBe(false);
   });
 });

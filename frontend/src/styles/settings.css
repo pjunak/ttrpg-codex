@@ -116,6 +116,29 @@ codex-recovery-settings {
 .settings-recovery-review p {
   font: 0.85rem/1.6 var(--font-ui);
 }
+.settings-full-restore {
+  display: grid;
+  gap: 0.7rem;
+  justify-items: start;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--chrome-field-border);
+  font: 0.8rem var(--font-ui);
+}
+.settings-full-restore h3 {
+  font-family: var(--font-title);
+  color: var(--accent-gold);
+}
+.settings-full-restore > label[data-ui-field] {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 100%;
+}
+.settings-full-restore-confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 @media (max-width: 48rem) {
   .settings-snapshot-row {
     grid-template-columns: auto minmax(0, 1fr) auto;

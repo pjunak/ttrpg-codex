@@ -54,7 +54,23 @@ const enCatalog = {
     "This restores only the selected add-on's documents and files. Campaign records and other add-ons stay as they are. The current state is saved first. Linked records must still match; restore the campaign first if needed.",
   "recovery.guide": "Verify and restore a full backup (opens in a new tab)",
   "recovery.offline":
-    "Download a full ZIP for an independent backup. Full archive restore is performed with the host stopped, using the maintenance command.",
+    "Download a full ZIP for an independent backup of the whole site, including add-ons and passwords.",
+  "recovery.fullTitle": "Restore a full backup",
+  "recovery.fullIntro":
+    "Replaces everything on this site with the uploaded backup: campaign, files, add-ons, passwords and recovery points. Download a ZIP of the current state first. The server restarts to finish and everyone has to sign in again.",
+  "recovery.fullFile": "Backup ZIP",
+  "recovery.fullConfirm": "Replace all current data with this backup",
+  "recovery.fullRestore": "Restore and restart",
+  "recovery.fullUploading": "Uploading and checking the backup…",
+  "recovery.fullRestarting":
+    "Backup from {date} accepted. The server is restarting to install it; this page reloads when it is back.",
+  "recovery.fullTimeout":
+    "The server is not back yet. If it does not restart on its own, start it again; it finishes installing the backup as it starts.",
+  "recovery.fullInvalid": "This file is not a valid backup: {detail}",
+  "recovery.fullPending": "A restored backup is already waiting for the server to restart.",
+  "recovery.fullBusy": "Another backup is being restored. Try again shortly.",
+  "recovery.fullTooLarge": "The backup is larger than the 1 GiB upload limit.",
+  "recovery.fullFailed": "The backup could not be restored. The current data is unchanged.",
   "recovery.busy": "Working…",
   "recovery.revertCount": "Revert recent edit groups",
   "recovery.revert": "Undo",
@@ -594,7 +610,23 @@ const csCatalog = {
     "Obnoví se pouze dokumenty a soubory vybraného doplňku. Záznamy kampaně a ostatní doplňky zůstanou beze změny. Současný stav se nejprve uloží. Propojené záznamy musí odpovídat; podle potřeby nejprve obnovte kampaň.",
   "recovery.guide": "Ověření a obnova úplné zálohy (anglicky, otevře novou kartu)",
   "recovery.offline":
-    "Pro nezávislou zálohu stáhněte úplný ZIP. Obnova z archivu se provádí příkazem údržby při zastaveném serveru.",
+    "Pro nezávislou zálohu celého webu včetně doplňků a hesel stáhněte úplný ZIP.",
+  "recovery.fullTitle": "Obnovit úplnou zálohu",
+  "recovery.fullIntro":
+    "Nahradí vše na tomto webu nahranou zálohou: kampaň, soubory, doplňky, hesla i body obnovy. Nejprve si stáhněte ZIP současného stavu. Server se pro dokončení restartuje a všichni se musí znovu přihlásit.",
+  "recovery.fullFile": "ZIP se zálohou",
+  "recovery.fullConfirm": "Nahradit všechna současná data touto zálohou",
+  "recovery.fullRestore": "Obnovit a restartovat",
+  "recovery.fullUploading": "Nahrávám a kontroluji zálohu…",
+  "recovery.fullRestarting":
+    "Záloha z {date} byla přijata. Server se restartuje, aby ji nainstaloval; stránka se po návratu znovu načte.",
+  "recovery.fullTimeout":
+    "Server zatím neodpovídá. Pokud se nerestartuje sám, spusťte jej znovu; instalaci zálohy dokončí při startu.",
+  "recovery.fullInvalid": "Tento soubor není platná záloha: {detail}",
+  "recovery.fullPending": "Obnovená záloha už čeká na restart serveru.",
+  "recovery.fullBusy": "Právě se obnovuje jiná záloha. Zkuste to za chvíli.",
+  "recovery.fullTooLarge": "Záloha je větší než limit 1 GiB pro nahrání.",
+  "recovery.fullFailed": "Zálohu se nepodařilo obnovit. Současná data zůstala beze změny.",
   "recovery.busy": "Pracuji…",
   "recovery.revertCount": "Vrátit poslední skupiny úprav",
   "recovery.revert": "Vrátit",

@@ -8,9 +8,15 @@ and concrete; delete them when done (Git keeps the history).
 - **Check the first nightly smoke test.** The **Installed add-on smoke test**
   workflow runs at 02:41 UTC; confirm it passes and that the `ADDON_SUITE_TOKEN`
   secret still grants read access to the compendium repository.
-- **Asurai add-ons.** Take a backup, then update all four add-ons to their
-  latest published packages in Settings → Add-ons. If DM Tools reports dangling
-  consequence targets, fix those planner entries by hand (it only reports them).
+- **Roll out the native-data release, in this order.** (1) Push the add-on
+  branches so Compendium 3.2.0, Engine 4.1.0 and Sheets 4.1.0 publish. (2) On
+  Asurai, download a backup, then update those three in Settings → Add-ons; the
+  current host accepts them. (3) Merge and deploy the host; migration 0024
+  converts both sites' remaining v1 names on startup. (4) Download fresh backups
+  from both sites: ZIPs taken before step 2 contain the old Compendium build,
+  which the new host refuses, so they restore only on the previous host image.
+  If DM Tools reports dangling consequence targets, fix those planner entries by
+  hand (it only reports them).
 - **Asurai characters.** The players are rebuilding Bloodvell, Kael Vor, Ines
   and Talia in the new sheet builder. The September reconstructions and their
   review notes are archived with the backups for reference.
@@ -37,10 +43,6 @@ and concrete; delete them when done (Git keeps the history).
 
 ## Ideas (only with a concrete need)
 
-- **Restore a full backup from the web UI.** The old app could upload and
-  restore a backup ZIP in Settings; the new host restores only with
-  `codex-maintenance restore` on the server. A web flow could upload and verify
-  the archive, stage it with the existing restore journal and restart.
 - **Update all add-ons at once.** The old app had an "Update all" button; now
   each add-on is updated through its own review.
 

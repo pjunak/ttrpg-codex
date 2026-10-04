@@ -1,8 +1,11 @@
 import { LitElement, html, nothing } from "lit";
 import { UIControlsController } from "../ui/controller.js";
 import {
+  BackupRestoreError,
   recoveryRequest,
   RecoveryRequestError,
+  restoreFullBackup,
+  waitForHostRestart,
   type RecoveryAction,
   type RecoveryListing,
   type RecoveryPoint,
@@ -18,8 +21,13 @@ export class CodexRecoverySettings extends LitElement {
     message: { state: true },
     review: { state: true },
     selection: { state: true },
+    restoring: { state: true },
+    fullMessage: { state: true },
   };
   declare private selection: string;
+  declare private restoring: "uploading" | "restarting" | "timeout" | undefined;
+  declare private fullMessage:
+    { key: MessageKey; values?: Record<string, string>; alert: boolean } | undefined;
   declare csrfToken: string;
   declare listing: RecoveryListing | undefined;
   declare busy: boolean;
@@ -81,7 +89,7 @@ export class CodexRecoverySettings extends LitElement {
         <option value="campaign">${this.#ui.t("recovery.campaign")}</option>
         ${addons.map((addon) => html`<option value=${`addon:${addon}`}>${this.#ui.t("recovery.addon", { addon })}</option>`)}
       </select></label></div>
-      <p class="settings-hint">${this.#ui.t("recovery.offline")} <a href="https://github.com/pjunak/ttrpg-codex/blob/main/docs/SELF_HOSTING.md#verify-and-restore-a-full-backup" target="_blank" rel="noreferrer">${this.#ui.t("recovery.guide")}</a></p>
+      <p class="settings-hint">${this.#ui.t("recovery.offline")}</p>
       ${this.busy ? html`<p role="status">${this.#ui.t("recovery.busy")}</p>` : nothing}
       ${this.message ? html`<p role=${this.#failed ? "alert" : "status"}>${this.#ui.t(this.message)}</p>` : nothing}
       ${
@@ -101,13 +109,77 @@ export class CodexRecoverySettings extends LitElement {
         }
       `
       }
+      ${this.#fullRestore()}
     </section>`;
   }
-  #date(point: RecoveryPoint): string {
+  #fullRestore() {
+    const locked = this.busy || this.restoring !== undefined;
+    return html`<form class="settings-full-restore" aria-labelledby="full-restore-title" @submit=${(event: SubmitEvent) => void this.#restoreFull(event)}>
+      <h3 id="full-restore-title">${this.#ui.t("recovery.fullTitle")}</h3>
+      <p class="settings-hint">${this.#ui.t("recovery.fullIntro")} <a href="https://github.com/pjunak/ttrpg-codex/blob/main/docs/SELF_HOSTING.md#verify-and-restore-a-full-backup" target="_blank" rel="noreferrer">${this.#ui.t("recovery.guide")}</a></p>
+      <label data-ui-field><span>${this.#ui.t("recovery.fullFile")}</span><input type="file" name="archive" accept=".zip,application/zip" required ?disabled=${locked} /></label>
+      <label class="settings-full-restore-confirm"><input type="checkbox" name="confirm" required ?disabled=${locked} /> ${this.#ui.t("recovery.fullConfirm")}</label>
+      <div class="settings-recovery-actions"><button type="submit" ?disabled=${locked}>⚠ ${this.#ui.t("recovery.fullRestore")}</button></div>
+      ${this.fullMessage ? html`<p role=${this.fullMessage.alert ? "alert" : "status"}>${this.#ui.t(this.fullMessage.key, this.fullMessage.values)}</p>` : nothing}
+    </form>`;
+  }
+  async #restoreFull(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const archive = new FormData(event.currentTarget as HTMLFormElement).get("archive");
+    if (this.busy || this.restoring !== undefined || !(archive instanceof File) || !archive.size)
+      return;
+    const signal = this.#abort.signal;
+    this.restoring = "uploading";
+    this.fullMessage = { key: "recovery.fullUploading", alert: false };
+    this.#saving(true);
+    try {
+      const staged = await restoreFullBackup(signal, this.csrfToken, archive);
+      this.restoring = "restarting";
+      this.fullMessage = {
+        key: "recovery.fullRestarting",
+        values: { date: this.#date(staged.createdAt) },
+        alert: false,
+      };
+      this.#saving(false);
+      if (await waitForHostRestart(signal)) {
+        location.reload();
+        return;
+      }
+      this.restoring = "timeout";
+      this.fullMessage = { key: "recovery.fullTimeout", alert: true };
+    } catch (error: unknown) {
+      if (signal.aborted) return;
+      this.#saving(false);
+      this.restoring = undefined;
+      const code = error instanceof BackupRestoreError ? error.code : "failed";
+      const keys: Readonly<Record<string, MessageKey>> = {
+        invalid: "recovery.fullInvalid",
+        pending: "recovery.fullPending",
+        busy: "recovery.fullBusy",
+        "too-large": "recovery.fullTooLarge",
+        forbidden: "recovery.forbidden",
+      };
+      this.fullMessage = {
+        key: keys[code] ?? "recovery.fullFailed",
+        values: { detail: error instanceof BackupRestoreError ? error.detail : "" },
+        alert: true,
+      };
+    }
+  }
+  #saving(saving: boolean): void {
+    this.dispatchEvent(
+      new CustomEvent("campaign-edit-dirty", {
+        detail: { dirty: false, saving },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+  #date(createdAt: string): string {
     return new Intl.DateTimeFormat(this.#ui.locale, {
       dateStyle: "medium",
       timeStyle: "medium",
-    }).format(new Date(point.createdAt));
+    }).format(new Date(createdAt));
   }
   #scope(): RecoveryScope {
     return this.selection.startsWith("addon:")
@@ -122,11 +194,11 @@ export class CodexRecoverySettings extends LitElement {
           ? "recovery.safety"
           : "recovery.edit";
     return html`<div class="settings-snapshot-row" data-point-id=${point.id}>
-      <span aria-hidden="true">🕒</span><time datetime=${point.createdAt}>${this.#date(point)}</time><span class="settings-snapshot-reason">${this.#ui.t(reason)}</span>
+      <span aria-hidden="true">🕒</span><time datetime=${point.createdAt}>${this.#date(point.createdAt)}</time><span class="settings-snapshot-reason">${this.#ui.t(reason)}</span>
       <span class="settings-row-usage">${Math.max(1, Math.round(point.bytes / 1024))} kB</span>
       <div class="settings-recovery-actions">
-        <button type="button" class="settings-btn-edit" aria-label=${`${this.#ui.t("recovery.restore")} ${this.#date(point)}`} ?disabled=${this.busy || this.#reloadRequired} @click=${() => this.#review(point, "restore")}>↶</button>
-        <button type="button" class="settings-btn-del" aria-label=${`${this.#ui.t("recovery.delete")} ${this.#date(point)}`} ?disabled=${this.busy || this.#reloadRequired} @click=${() => this.#review(point, "delete")}>🗑</button>
+        <button type="button" class="settings-btn-edit" aria-label=${`${this.#ui.t("recovery.restore")} ${this.#date(point.createdAt)}`} ?disabled=${this.busy || this.#reloadRequired} @click=${() => this.#review(point, "restore")}>↶</button>
+        <button type="button" class="settings-btn-del" aria-label=${`${this.#ui.t("recovery.delete")} ${this.#date(point.createdAt)}`} ?disabled=${this.busy || this.#reloadRequired} @click=${() => this.#review(point, "delete")}>🗑</button>
       </div></div>`;
   }
   #review(point: RecoveryPoint, kind: "restore" | "delete"): void {
@@ -191,7 +263,7 @@ export class CodexRecoverySettings extends LitElement {
     const ready = scope.scope === "campaign" || addon?.compatible === true;
     return html`<section class="settings-recovery-review" aria-labelledby="recovery-review-title">
       <h3 id="recovery-review-title" tabindex="-1">${this.#ui.t(deleting ? "recovery.deleteReview" : "recovery.restoreReview")}</h3>
-      <p><strong>${scope.scope === "campaign" ? this.#ui.t("recovery.campaign") : this.#ui.t("recovery.addon", { addon: scope.addonId })}</strong> · ${this.#date(point)}</p>
+      <p><strong>${scope.scope === "campaign" ? this.#ui.t("recovery.campaign") : this.#ui.t("recovery.addon", { addon: scope.addonId })}</strong> · ${this.#date(point.createdAt)}</p>
       <p>${this.#ui.t("recovery.summary", { records: scope.scope === "campaign" ? point.records : 0, documents: addon?.documents ?? 0, media: addon?.media ?? point.campaignMedia })}</p>
       <p>${this.#ui.t(deleting ? "recovery.deleteEffect" : scope.scope === "campaign" ? "recovery.restoreEffect" : "recovery.addonEffect")}</p>
       ${!deleting && !ready ? html`<p role="status">${this.#ui.t("recovery.compatibility")}</p>` : nothing}

@@ -122,6 +122,8 @@ func (s *server) eventStream(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-s.shuttingDown:
+			return
 		case event, open := <-subscription.Events:
 			if !s.eventSessionCurrent(r) {
 				return
