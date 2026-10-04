@@ -9,7 +9,7 @@ browser never learns the hash-addressed filesystem location.
 | Kind | Target | Upload/delete authority | Read visibility |
 |---|---|---|---|
 | `character-portrait` | existing character key | authenticated player for a public character; effective DM for any character | follows the character |
-| `pet-portrait` | existing pet key | authenticated player or effective DM | public |
+| `companion-portrait` | existing companion key | authenticated player or effective DM | public |
 | `location-map` | existing location key | authenticated player for a public location; effective DM for any location | follows the location |
 | `world-map` | `main` | effective DM | public |
 | `marker-icon` | existing `settings.pinTypes` key | effective DM | public |
@@ -148,9 +148,3 @@ sequence. Upload creates a verified blob first and then binds it; a failed bind
 logically deletes the new handle. Replacing media creates a new immutable
 handle, so an interrupted campaign-record save cannot corrupt the previous
 image. Old handles can be deleted after the new campaign revision commits.
-
-The one-time v1 converter creates these same bindings for record-referenced
-portraits, local maps, configured icons and branding plus the canonical world
-map. It rewrites known record URLs to opaque handles, discards generated tile
-caches, and reports unreferenced media instead of guessing ownership. It never
-restores the old public directory layout.

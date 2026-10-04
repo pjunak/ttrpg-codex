@@ -190,16 +190,9 @@ func TestManifestSchemaRequiresCanonicalNavigationMetadata(t *testing.T) {
 			name: "wiki provider",
 			contribution: map[string]any{
 				"id": "library.wiki", "surface": "wiki-kind", "label": "Library",
-				"config": map[string]any{"contractVersion": 1, "kinds": []any{"spell", "magic-item"}, "legacyRoots": []any{"compendium"}, "search": true},
+				"config": map[string]any{"contractVersion": 1, "kinds": []any{"spell", "magic-item"}, "search": true},
 			},
 			valid: true,
-		},
-		{
-			name: "wiki arbitrary legacy path",
-			contribution: map[string]any{
-				"id": "library.wiki", "surface": "wiki-kind", "label": "Library",
-				"config": map[string]any{"contractVersion": 1, "kinds": []any{"spell"}, "legacyRoots": []any{"../campaign"}},
-			},
 		},
 		{
 			name: "wiki unsupported contract",

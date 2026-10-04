@@ -20,10 +20,7 @@ var identityCollections = []campaign.Collection{
 }
 
 func projectPublic(snapshot campaign.Snapshot) (campaign.Snapshot, error) {
-	originalIDs, err := recordIDs(snapshot.Records)
-	if err != nil {
-		return campaign.Snapshot{}, err
-	}
+	var err error
 	visible := make([]campaign.Record, 0, len(snapshot.Records))
 	for _, record := range snapshot.Records {
 		descriptor, ok := campaign.Describe(record.Collection)
@@ -55,15 +52,6 @@ func projectPublic(snapshot campaign.Snapshot) (campaign.Snapshot, error) {
 	}
 	visibleIDs[campaign.Factions]["neutral"] = struct{}{}
 	visibleIDs[campaign.Factions]["party"] = struct{}{}
-	hiddenIDs := make(map[string]struct{})
-	for _, collection := range identityCollections {
-		for id := range originalIDs[collection] {
-			if _, exists := visibleIDs[collection][id]; !exists {
-				hiddenIDs[id] = struct{}{}
-			}
-		}
-	}
-
 	relationshipTargets, err := relationshipTargetKinds(visible)
 	if err != nil {
 		return campaign.Snapshot{}, err
@@ -71,12 +59,7 @@ func projectPublic(snapshot campaign.Snapshot) (campaign.Snapshot, error) {
 	projected := make([]campaign.Record, 0, len(visible))
 	for _, record := range visible {
 		keep := true
-		record.Value, keep, err = closeRecord(
-			record,
-			visibleIDs,
-			hiddenIDs,
-			relationshipTargets,
-		)
+		record.Value, keep, err = closeRecord(record, visibleIDs, relationshipTargets)
 		if err != nil {
 			return campaign.Snapshot{}, projectionError(record, err)
 		}
@@ -98,15 +81,6 @@ func recordIDs(records []campaign.Record) (map[campaign.Collection]map[string]st
 			continue
 		}
 		ids[record.Key] = struct{}{}
-		if record.Collection == campaign.Factions {
-			value, err := objectValue(record.Value)
-			if err != nil {
-				return nil, projectionError(record, err)
-			}
-			if id, ok := value["id"].(string); ok && id != "" {
-				ids[id] = struct{}{}
-			}
-		}
 	}
 	return result, nil
 }
@@ -143,7 +117,6 @@ func relationshipTargetKinds(records []campaign.Record) (map[string]campaign.Col
 func closeRecord(
 	record campaign.Record,
 	ids map[campaign.Collection]map[string]struct{},
-	hiddenIDs map[string]struct{},
 	relationshipTargets map[string]campaign.Collection,
 ) (json.RawMessage, bool, error) {
 	if record.Collection == campaign.Relationships {
@@ -169,9 +142,6 @@ func closeRecord(
 		value, err := closeSetting(record, ids[campaign.Locations])
 		return value, true, err
 	}
-	if record.Collection == campaign.DeletedDefaults {
-		return append(json.RawMessage(nil), record.Value...), true, nil
-	}
 
 	value, err := transformObject(record.Value, func(value map[string]any) {
 		switch record.Collection {
@@ -193,14 +163,10 @@ func closeRecord(
 		case campaign.Artifacts:
 			removeInvalidScalar(value, "ownerCharacterId", ids[campaign.Characters])
 			removeInvalidScalar(value, "locationId", ids[campaign.Locations])
-		case campaign.Pets:
-			closePetOwner(value, ids)
+		case campaign.Companions:
+			closeCompanionOwner(value, ids)
 		}
-		closeAuditReferences(value, hiddenIDs)
 		projectActivity(value, ViewPublic)
-		if record.Collection == campaign.Locations {
-			closeLocationNoteActivity(value)
-		}
 	})
 	return value, true, err
 }
@@ -338,7 +304,7 @@ func filterObjectArrayByID(
 	}
 }
 
-func closePetOwner(
+func closeCompanionOwner(
 	value map[string]any,
 	ids map[campaign.Collection]map[string]struct{},
 ) {
@@ -359,35 +325,6 @@ func closePetOwner(
 	if _, exists := visible[ownerID]; !exists {
 		value["ownerType"] = "none"
 		value["ownerId"] = ""
-	}
-}
-
-func closeAuditReferences(value map[string]any, hidden map[string]struct{}) {
-	lastChange, ok := value["lastChange"].(map[string]any)
-	if !ok {
-		return
-	}
-	fields, ok := lastChange["fields"].([]any)
-	if !ok {
-		return
-	}
-	filtered := make([]any, 0, len(fields))
-	for _, candidate := range fields {
-		change, ok := candidate.(map[string]any)
-		if !ok {
-			filtered = append(filtered, candidate)
-			continue
-		}
-		from, _ := change["from"].(string)
-		to, _ := change["to"].(string)
-		_, hidesFrom := hidden[from]
-		_, hidesTo := hidden[to]
-		if !hidesFrom && !hidesTo {
-			filtered = append(filtered, candidate)
-		}
-	}
-	if len(filtered) != len(fields) {
-		lastChange["fields"] = filtered
 	}
 }
 

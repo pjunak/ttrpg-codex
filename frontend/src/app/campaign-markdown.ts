@@ -83,19 +83,6 @@ interface SemanticHTML {
   readonly className?: string;
 }
 
-const legacyScopeAliases: Readonly<Partial<Record<CampaignCollectionName, readonly string[]>>> =
-  Object.freeze({
-    characters: Object.freeze(["character", "postava"]),
-    locations: Object.freeze(["location", "misto"]),
-    events: Object.freeze(["event", "udalost"]),
-    mysteries: Object.freeze(["mystery", "zahada"]),
-    factions: Object.freeze(["faction", "frakce", "frakce-id"]),
-    pantheon: Object.freeze(["deity", "buh"]),
-    artifacts: Object.freeze(["artifact", "artefakt"]),
-    historicalEvents: Object.freeze(["historical-event", "historicka-udalost"]),
-    pets: Object.freeze(["companion", "companions", "pet"]),
-  });
-
 export function parseCampaignMarkdownDocuments(
   sources: readonly string[],
 ): readonly CampaignMarkdownDocument[] {
@@ -478,7 +465,7 @@ function isWikiToken(token: Token): token is CampaignWikiToken {
 function pageForScope(scope: string): CampaignPageDefinition | undefined {
   const normalized = normalizeIdentity(scope);
   return campaignPages.find((page) =>
-    [page.id, page.collection, page.singular, ...(legacyScopeAliases[page.collection] ?? [])].some(
+    [page.id, page.collection, page.singular].some(
       (candidate) => normalizeIdentity(candidate) === normalized,
     ),
   );

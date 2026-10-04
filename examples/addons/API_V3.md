@@ -442,7 +442,7 @@ Initial surfaces cover existing suite needs:
 | `article-section` | Additive schema-backed section on a record page |
 | `editor-panel` | Structured editor extension |
 | `slot` | Named host composition point |
-| `wiki-kind` | Bounded wiki reference, legacy bookmark, and optional search provider |
+| `wiki-kind` | Bounded wiki reference and optional search provider |
 | `graph-view` | Named graph view with a bounded model provider |
 | `graph-contributor` | Additive nodes and edges for an existing graph view |
 
@@ -573,11 +573,10 @@ iframe API or an HTML-returning service.
 Declare a `wiki-kind` contribution with exact config:
 
 ```json
-{ "contractVersion": 1, "kinds": ["spell", "armor"], "legacyRoots": ["old-library"], "search": true }
+{ "contractVersion": 1, "kinds": ["spell", "armor"], "search": true }
 ```
 
-`kinds` contains 1–64 unique lowercase kind slugs; optional `legacyRoots`
-contains at most 16 unique root slugs. `search` defaults to false. Bind
+`kinds` contains 1–64 unique lowercase kind slugs. `search` defaults to false. Bind
 `{ kind: "model-provider", provide(request, { signal }) }` in either UI mode.
 The [wiki-links schema](../../contracts/addons/v3/wiki-links.schema.json)
 defines the versioned JSON boundary. The host sends one of:
@@ -585,8 +584,7 @@ defines the versioned JSON boundary. The host sends one of:
 ```ts
 { contractVersion: "wiki-links.v1", operation: "resolve", references: [
   { label: "Shield", hint: "spell" },
-  { label: "My ward", hint: "spell:shield" },
-  { path: "#/old-library/spell:shield" }
+  { label: "My ward", hint: "spell:shield" }
 ] }
 { contractVersion: "wiki-links.v1", operation: "search", query: "shield", limit: 20 }
 ```
@@ -595,10 +593,7 @@ References are requested only for displayed article text/editor previews after
 the core wiki resolver finds no match. Typed hints are offered only to providers
 declaring that kind; untyped labels are offered to all active wiki providers.
 Providers receive the requested label/hint, never the article, campaign, or
-record key. The host routes old bookmarks only when the core route is unknown
-and a declared root matches a complete first path segment. Existing core routes
-always win. Legacy resolution replaces the history entry with the canonical
-route, so Back does not loop through the old bookmark.
+record key.
 
 Return only unique matches (omit missing/ambiguous references):
 

@@ -3,8 +3,7 @@ import { browserAddonRouteHash, parseBrowserAddonLocation } from "./navigation.j
 import type { ActiveBrowserContribution, BrowserContributionRegistry } from "./browser-sdk.js";
 import type { BrowserRole } from "./generation-manager.js";
 
-export type WikiReference =
-  { readonly label: string; readonly hint: string } | { readonly path: string };
+export type WikiReference = { readonly label: string; readonly hint: string };
 export type WikiRequest =
   | {
       readonly contractVersion: "wiki-links.v1";
@@ -48,14 +47,6 @@ export function acceptsWikiReference(
   active: ActiveBrowserContribution,
   reference: WikiReference,
 ): boolean {
-  if ("path" in reference) {
-    const root = /^#\/([a-z0-9-]+)(?:\/|$)/u.exec(reference.path)?.[1];
-    return (
-      !!root &&
-      strings(active.descriptor.config["legacyRoots"]).includes(root) &&
-      reference.path.length <= 2048
-    );
-  }
   return (
     !reference.hint ||
     strings(active.descriptor.config["kinds"]).includes(reference.hint.split(":", 1)[0]!)

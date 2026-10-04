@@ -12,7 +12,7 @@ import {
 
 const node = (key: string): GraphNode => ({
   key,
-  legacyKey: key,
+  recordKey: key,
   kind: "character",
   name: key,
   route: `#/characters/${key}`,

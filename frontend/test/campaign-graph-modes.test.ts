@@ -4,16 +4,10 @@ import type {
   CampaignDataset,
   CampaignRecord,
 } from "../src/core/campaign-data.js";
-import {
-  emptyGraphFilter,
-  graphEdgeGeometry,
-  graphNodeStates,
-  initialGraphPositions,
-} from "../src/app/campaign-graph.js";
+import { emptyGraphFilter, graphEdgeGeometry, graphNodeStates } from "../src/app/campaign-graph.js";
 import {
   graphNodeKey as key,
   graphPreferenceKeys,
-  migrateGraphPositions,
   projectCampaignGraph,
 } from "../src/app/campaign-graph-modes.js";
 
@@ -93,8 +87,8 @@ describe("faction and mystery graph modes", () => {
       before = structuredClone(data),
       graph = projectCampaignGraph(data, "factions");
     expect(
-      graph.nodes.filter((node) => node.kind === "faction").map((node) => node.legacyKey),
-    ).toEqual(["hub_watch", "hub_guild"]);
+      graph.nodes.filter((node) => node.kind === "faction").map((node) => node.recordKey),
+    ).toEqual(["watch", "guild"]);
     expect(graph.nodes.find((node) => node.key === key("faction", "watch"))).toMatchObject({
       count: 2,
       color: "#886633",
@@ -114,7 +108,7 @@ describe("faction and mystery graph modes", () => {
     );
     expect(graph.edges.filter((edge) => edge.type === "located_at")).toHaveLength(3);
     expect(
-      graph.nodes.filter((node) => node.kind === "location").map((node) => node.legacyKey),
+      graph.nodes.filter((node) => node.kind === "location").map((node) => node.recordKey),
     ).toEqual(["gate", "outpost"]);
     expect(graph.edges.some((edge) => edge.type === "enemy")).toBe(false);
     expect(JSON.stringify(graph)).not.toContain("secret");
@@ -142,7 +136,7 @@ describe("faction and mystery graph modes", () => {
       "#/mysteries/gate",
     );
     expect(graph.edges).toHaveLength(4);
-    expect(graph.nodes.some((node) => node.legacyKey === "scout")).toBe(false);
+    expect(graph.nodes.some((node) => node.recordKey === "scout")).toBe(false);
     expect(JSON.stringify(graph)).not.toMatch(
       /secret|An answer is not a preview|\[object Object\]/,
     );
@@ -162,18 +156,7 @@ describe("faction and mystery graph modes", () => {
         ?.hidden,
     ).toBe(false);
   });
-  it("migrates only unambiguous old coordinates and separates all mode preferences", () => {
-    const data = dataset({ characters: [row("hub_watch", { name: "Same ID", knowledge: 4 })] });
-    const graph = projectCampaignGraph(data, "factions"),
-      legacy = { hub_watch: { x: 12, y: 34 }, captain: { x: -50, y: 20 }, gate: { x: 250, y: 0 } };
-    const migrated = migrateGraphPositions(graph, legacy);
-    expect(migrated.has(key("faction", "watch"))).toBe(false);
-    expect(migrated.has(key("character", "hub_watch"))).toBe(false);
-    expect(migrated.get(key("character", "captain"))).toEqual(legacy.captain);
-    expect(migrated.get(key("location", "gate"))).toEqual(legacy.gate);
-    expect(initialGraphPositions(graph, migrated).get(key("character", "captain"))).toEqual(
-      legacy.captain,
-    );
+  it("separates all mode preferences", () => {
     expect(
       new Set(
         ["factions", "relationships", "mysteries"].flatMap((mode) => {

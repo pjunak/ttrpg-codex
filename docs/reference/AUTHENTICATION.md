@@ -189,8 +189,8 @@ its next heartbeat; later revocation closes it before the next live publication
 or heartbeat.
 
 Native backups include password hashes; restoring one restores its saved
-passwords. Older backups without this table bootstrap on the first start.
-Legacy v1 conversion still excludes credentials. The offline
+passwords. A backup without saved passwords bootstraps them from the environment
+on first start. The offline
 `codex -data-dir <directory> -reset-passwords` command replaces saved passwords
 from the environment under the same exclusive data-directory lock as the host,
 then exits without changing campaign data. See the

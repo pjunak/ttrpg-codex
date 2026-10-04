@@ -114,7 +114,7 @@ func (service *Service) DeleteEnumItem(
 	if request.Mode == EnumReplace || request.Mode == EnumClear {
 		replacement := request.ReplacementID
 		for _, binding := range bindings {
-			if err := planner.updateEachObject(binding.collection, true, func(value map[string]any) bool {
+			if err := planner.updateEachObject(binding.collection, func(value map[string]any) bool {
 				if binding.array {
 					return replaceEnumArray(value, binding.field, request.ItemID, replacement)
 				}
@@ -140,18 +140,6 @@ func (service *Service) DeleteEnumItem(
 	if err := planner.applyRequested(WriteDM, campaign.Mutation{
 		Kind: campaign.Put, Collection: campaign.Settings, Key: request.Category,
 		Value: settingsBody, ExpectedRevision: request.ExpectedRevision,
-	}); err != nil {
-		return EnumDeleteResult{}, err
-	}
-
-	tombstoneKey := "settings:" + request.Category + ":" + request.ItemID
-	tombstoneRevision := int64(0)
-	if tombstone, exists := planner.record(campaign.DeletedDefaults, tombstoneKey); exists {
-		tombstoneRevision = tombstone.Revision
-	}
-	if err := planner.applyRequested(WriteDM, campaign.Mutation{
-		Kind: campaign.Put, Collection: campaign.DeletedDefaults, Key: tombstoneKey,
-		Value: json.RawMessage("true"), ExpectedRevision: tombstoneRevision,
 	}); err != nil {
 		return EnumDeleteResult{}, err
 	}

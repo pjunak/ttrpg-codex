@@ -133,7 +133,7 @@ func TestMutationPlansReferenceOwningDeleteAtomically(t *testing.T) {
 		{Collection: campaign.Relationships, Key: relationshipKey("alice", "bob", "ally"), Revision: 4, Visibility: campaign.VisibilityPublic, Value: raw(`{"source":"alice","target":"bob","type":"ally","visibility":"public"}`)},
 		{Collection: campaign.Events, Key: "arrival", Revision: 5, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"arrival","characters":["alice","bob"]}`)},
 		{Collection: campaign.Artifacts, Key: "crown", Revision: 6, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"crown","ownerCharacterId":"alice"}`)},
-		{Collection: campaign.Pets, Key: "owl", Revision: 7, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"owl","ownerType":"character","ownerId":"alice"}`)},
+		{Collection: campaign.Companions, Key: "owl", Revision: 7, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"owl","ownerType":"character","ownerId":"alice"}`)},
 	}}}
 	service, _ := New(repository)
 	service.now = func() time.Time { return time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC) }
@@ -157,41 +157,33 @@ func TestMutationPlansReferenceOwningDeleteAtomically(t *testing.T) {
 		t.Fatalf("event reference survived: %#v", event)
 	}
 	artifact := mutationObject(t, writes, campaign.Artifacts, "crown")
-	pet := mutationObject(t, writes, campaign.Pets, "owl")
-	if artifact["ownerCharacterId"] != "" || pet["ownerType"] != "none" || pet["ownerId"] != "" {
-		t.Fatalf("owned references survived: artifact=%#v pet=%#v", artifact, pet)
+	companion := mutationObject(t, writes, campaign.Companions, "owl")
+	if artifact["ownerCharacterId"] != "" || companion["ownerType"] != "none" || companion["ownerId"] != "" {
+		t.Fatalf("owned references survived: artifact=%#v companion=%#v", artifact, companion)
 	}
 }
 
 func TestMutationAllowsSimpleDeletesAndRejectsInvalidAuthority(t *testing.T) {
 	t.Parallel()
 	repository := &fakeRepository{snapshot: campaign.Snapshot{Records: []campaign.Record{{
-		Collection: campaign.Pets, Key: "owl", Revision: 2,
+		Collection: campaign.Companions, Key: "owl", Revision: 2,
 		Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"owl"}`),
 	}}}}
 	service, _ := New(repository)
 	if _, err := service.Mutate(context.Background(), MutationAuthority{}, []campaign.Mutation{{
-		Kind: campaign.Delete, Collection: campaign.Pets, Key: "owl", ExpectedRevision: 2,
+		Kind: campaign.Delete, Collection: campaign.Companions, Key: "owl", ExpectedRevision: 2,
 	}}); !errors.Is(err, ErrInvalidAuthority) {
 		t.Fatalf("authority error = %v", err)
 	}
 	if _, err := service.Mutate(context.Background(), MutationAuthority{
 		ActorID: "player", Role: WritePlayer,
 	}, []campaign.Mutation{{
-		Kind: campaign.Delete, Collection: campaign.Pets, Key: "owl", ExpectedRevision: 2,
+		Kind: campaign.Delete, Collection: campaign.Companions, Key: "owl", ExpectedRevision: 2,
 	}}); err != nil {
 		t.Fatalf("simple delete failed: %v", err)
 	}
 	if len(repository.writes) != 1 || repository.writes[0].Mutations[0].Kind != campaign.Delete {
 		t.Fatalf("simple delete write = %+v", repository.writes)
-	}
-	if _, err := service.Mutate(context.Background(), MutationAuthority{
-		ActorID: "player", Role: WritePlayer,
-	}, []campaign.Mutation{{
-		Kind: campaign.Put, Collection: campaign.DeletedDefaults,
-		Key: "example", Value: raw(`true`), ExpectedRevision: 0,
-	}}); err != nil {
-		t.Fatalf("keyed tombstone write failed: %v", err)
 	}
 }
 
@@ -243,7 +235,7 @@ func TestPlayerSavePreservesRoleFilteredReferencesAcrossCollections(t *testing.T
 		{Collection: campaign.Mysteries, Key: "riddle", Revision: 7, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"riddle","characters":["secret"],"locations":["hidden-place"]}`)},
 		{Collection: campaign.HistoricalEvents, Key: "war", Revision: 8, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"war","characters":["secret"],"locations":["hidden-place"]}`)},
 		{Collection: campaign.Artifacts, Key: "crown", Revision: 9, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"crown","ownerCharacterId":"secret","locationId":"hidden-place"}`)},
-		{Collection: campaign.Pets, Key: "owl", Revision: 10, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"owl","ownerType":"character","ownerId":"secret"}`)},
+		{Collection: campaign.Companions, Key: "owl", Revision: 10, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"owl","ownerType":"character","ownerId":"secret"}`)},
 	}}}
 	service, _ := New(repository)
 	_, err := service.Mutate(context.Background(), MutationAuthority{
@@ -255,7 +247,7 @@ func TestPlayerSavePreservesRoleFilteredReferencesAcrossCollections(t *testing.T
 		{Kind: campaign.Put, Collection: campaign.Mysteries, Key: "riddle", ExpectedRevision: 7, Value: raw(`{"id":"riddle","name":"Riddle","characters":["guessed"],"locations":["guessed"]}`)},
 		{Kind: campaign.Put, Collection: campaign.HistoricalEvents, Key: "war", ExpectedRevision: 8, Value: raw(`{"id":"war","name":"War","characters":["guessed"],"locations":["guessed"]}`)},
 		{Kind: campaign.Put, Collection: campaign.Artifacts, Key: "crown", ExpectedRevision: 9, Value: raw(`{"id":"crown","name":"Crown","ownerCharacterId":"guessed","locationId":"guessed"}`)},
-		{Kind: campaign.Put, Collection: campaign.Pets, Key: "owl", ExpectedRevision: 10, Value: raw(`{"id":"owl","name":"Owl","ownerType":"faction","ownerId":"guessed"}`)},
+		{Kind: campaign.Put, Collection: campaign.Companions, Key: "owl", ExpectedRevision: 10, Value: raw(`{"id":"owl","name":"Owl","ownerType":"faction","ownerId":"guessed"}`)},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -299,9 +291,9 @@ func TestPlayerSavePreservesRoleFilteredReferencesAcrossCollections(t *testing.T
 	if artifact["ownerCharacterId"] != "secret" || artifact["locationId"] != "hidden-place" {
 		t.Fatalf("hidden artifact references changed: %#v", artifact)
 	}
-	pet := mutationObject(t, writes, campaign.Pets, "owl")
-	if pet["ownerType"] != "character" || pet["ownerId"] != "secret" {
-		t.Fatalf("hidden pet owner changed: %#v", pet)
+	companion := mutationObject(t, writes, campaign.Companions, "owl")
+	if companion["ownerType"] != "character" || companion["ownerId"] != "secret" {
+		t.Fatalf("hidden companion owner changed: %#v", companion)
 	}
 }
 
@@ -343,7 +335,7 @@ func TestLocationAndFactionDeletesCloseCrossCollectionReferences(t *testing.T) {
 		{Collection: campaign.Settings, Key: "mapViews", Revision: 6, Visibility: campaign.VisibilityPublic, Value: raw(`[{"id":"town-view","parentId":"town"}]`)},
 		{Collection: campaign.Settings, Key: "mapConfigs", Revision: 7, Visibility: campaign.VisibilityPublic, Value: raw(`{"local-town":{"zoom":2},"world":{"zoom":1}}`)},
 		{Collection: campaign.Factions, Key: "guild", Revision: 8, Visibility: campaign.VisibilityPublic, Value: raw(`{"name":"Guild"}`)},
-		{Collection: campaign.Pets, Key: "owl", Revision: 9, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"owl","ownerType":"faction","ownerId":"guild"}`)},
+		{Collection: campaign.Companions, Key: "owl", Revision: 9, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"owl","ownerType":"faction","ownerId":"guild"}`)},
 	}}}
 	service, _ := New(repository)
 	service.now = func() time.Time { return time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC) }
@@ -379,10 +371,10 @@ func TestLocationAndFactionDeletesCloseCrossCollectionReferences(t *testing.T) {
 relationshipDeleted:
 	mapViews := mutationValue(t, writes, campaign.Settings, "mapViews").([]any)
 	mapConfigs := mutationValue(t, writes, campaign.Settings, "mapConfigs").(map[string]any)
-	pet := mutationObject(t, writes, campaign.Pets, "owl")
+	companion := mutationObject(t, writes, campaign.Companions, "owl")
 	if len(mapViews) != 0 || mapConfigs["local-town"] != nil || mapConfigs["world"] == nil ||
-		pet["ownerType"] != "none" {
-		t.Fatalf("settings or pet references survived: views=%#v configs=%#v pet=%#v", mapViews, mapConfigs, pet)
+		companion["ownerType"] != "none" {
+		t.Fatalf("settings or companion references survived: views=%#v configs=%#v companion=%#v", mapViews, mapConfigs, companion)
 	}
 }
 

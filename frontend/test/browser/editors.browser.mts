@@ -32,7 +32,7 @@ after(async () => {
 });
 
 function dataset(changes: Record<string, FixtureRecord<unknown>[]> = {}) {
-  const keyed = new Set(["factions", "deletedDefaults", "settings", "campaign"]);
+  const keyed = new Set(["factions", "settings", "campaign"]);
   return {
     contractVersion: "campaign-data.v1",
     collections: [
@@ -42,13 +42,12 @@ function dataset(changes: Record<string, FixtureRecord<unknown>[]> = {}) {
       "events",
       "mysteries",
       "factions",
-      "deletedDefaults",
       "pantheon",
       "artifacts",
       "settings",
       "historicalEvents",
       "campaign",
-      "pets",
+      "companions",
     ].map((name) => ({
       name,
       shape: keyed.has(name) ? "keyed" : "list",

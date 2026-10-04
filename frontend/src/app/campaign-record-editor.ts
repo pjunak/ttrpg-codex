@@ -283,7 +283,7 @@ export function applyRecordFieldPatch(
 }
 
 export function collectionManagesVisibility(collection: CampaignCollectionName): boolean {
-  return collection !== "pets";
+  return collection !== "companions";
 }
 
 export function prepareCampaignRecordSave(
@@ -347,7 +347,7 @@ export function prepareCampaignRecordSave(
     if (detail.creating && value["faction"] === "") value["faction"] = "neutral";
     if (value["faction"] === "party") value["attitudes"] = [];
   }
-  if (page.collection === "pets" && detail.creating && line(value["icon"]) === "")
+  if (page.collection === "companions" && detail.creating && line(value["icon"]) === "")
     value["icon"] = "🐾";
   if (page.collection === "locations" && line(value["parentId"]) !== line(current["parentId"])) {
     // Coordinates belong to the old image's frame; a different parent needs a new placement.
@@ -777,7 +777,7 @@ const editorFields: Readonly<
     field("tags", "Tags", { kind: "tags", maximumLength: 100, maximumItems: 100 }),
     field("body", "Article", { kind: "markdown", maximumLength: 200_000 }),
   ]),
-  pets: Object.freeze([
+  companions: Object.freeze([
     name,
     field("icon", "Icon", { maximumLength: 16, placeholder: "🐾" }),
     field("species", "Species"),

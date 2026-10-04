@@ -188,7 +188,6 @@ function wikiPackage(
         config: {
           contractVersion: 1,
           kinds: ["spell"],
-          legacyRoots: ["old-library"],
           search: true,
         },
       },
@@ -210,7 +209,7 @@ function wikiPackage(
       const target = { route: 'detail', query: [['id', 'shield']] };
       return { contractVersion: 'wiki-links.v1', matches: request.operation === 'search' ? [{index:0,label:'Shield reference',target}] : request.references.flatMap((reference,index) => {
         if (reference.label === 'Captain') throw Error('Core references should take priority');
-        return reference.path || reference.hint === 'spell:shield' ? [{index,target}] : [];
+        return reference.hint === 'spell:shield' ? [{index,target}] : [];
       }) };
     } });
   }`;
@@ -291,19 +290,6 @@ for (const mode of ["integrated", "isolated"])
     await page.goto("/#/search");
     await page.locator(".campaign-search-field input").fill("shield");
     await page.getByRole("link", { name: "Shield reference" }).waitFor();
-    await page.goto("/#/old-library/spell:shield");
-    await (
-      mode === "isolated"
-        ? page.frameLocator("[data-addon-route-outlet] iframe").getByText("Reference detail")
-        : page.getByText("Reference detail")
-    ).waitFor();
-    assert.ok(page.url().endsWith(`#/addons/${id}/library?id=shield`));
-    await page.reload();
-    await (
-      mode === "isolated"
-        ? page.frameLocator("[data-addon-route-outlet] iframe").getByText("Reference detail")
-        : page.getByText("Reference detail")
-    ).waitFor();
     await installReviewedPackage(
       admin,
       csrf,
@@ -315,6 +301,4 @@ for (const mode of ["integrated", "isolated"])
     await ward.getByRole("button", { name: "Ward", exact: true }).click();
     await ward.getByRole("status").filter({ hasText: "current source is unavailable" }).waitFor();
     assert.equal(await full.count(), 0);
-    await page.goto("/#/old-library/spell:shield");
-    await page.getByRole("heading", { name: "This page is not in the index." }).waitFor();
   });

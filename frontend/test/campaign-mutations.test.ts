@@ -253,7 +253,7 @@ describe("CampaignMutationClient", () => {
         [
           {
             operation: "delete",
-            collection: "pets",
+            collection: "companions",
             key: "owl",
             expectedRevision: 1,
           },

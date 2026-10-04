@@ -224,7 +224,7 @@ function createAttitudeContext(dataset: CampaignDataset): AttitudeContext {
 
 export function projectDashboard(dataset: CampaignDataset): DashboardModel {
   const characters = entitiesFor(dataset, "characters");
-  const pets = entitiesFor(dataset, "pets");
+  const allCompanions = entitiesFor(dataset, "companions");
   const party = characters
     .filter((character) => character.raw["faction"] === "party")
     .sort((left, right) => left.name.localeCompare(right.name, "cs"));
@@ -233,10 +233,10 @@ export function projectDashboard(dataset: CampaignDataset): DashboardModel {
       .records.filter((record) => recordValue(record)["faction"] === "party")
       .map((record) => record.key),
   );
-  const companions = pets.filter(
-    (pet) =>
-      pet.raw["ownerType"] === "party" ||
-      (pet.raw["ownerType"] === "character" && partyKeys.has(text(pet.raw["ownerId"]))),
+  const companions = allCompanions.filter(
+    (companion) =>
+      companion.raw["ownerType"] === "party" ||
+      (companion.raw["ownerType"] === "character" && partyKeys.has(text(companion.raw["ownerId"]))),
   );
   const events = entitiesFor(dataset, "events").map((event): DashboardEvent =>
     Object.freeze({
@@ -429,7 +429,7 @@ const secondaryFields: Readonly<
   pantheon: ["domain", "title"],
   artifacts: [],
   historicalEvents: ["start", "end"],
-  pets: ["species", "ownerType"],
+  companions: ["species", "ownerType"],
 };
 
 const excerptFields: Readonly<
@@ -443,5 +443,5 @@ const excerptFields: Readonly<
   pantheon: ["description"],
   artifacts: ["description"],
   historicalEvents: ["summary", "body"],
-  pets: ["note"],
+  companions: ["note"],
 };

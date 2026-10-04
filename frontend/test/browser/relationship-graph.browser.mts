@@ -169,28 +169,32 @@ async function fixture(
           "cm_pos_vztahy",
           malformedStorage ? "{broken" : JSON.stringify(savedPositions),
         );
+        const layout = (points: Record<string, [string, number, number]>) =>
+          JSON.stringify(
+            Object.fromEntries(Object.values(points).map(([key, x, y]) => [key, { x, y }])),
+          );
         localStorage.setItem(
-          "cm_pos_frakce",
-          JSON.stringify({
-            hub_watch: { x: -330, y: -250 },
-            hub_guild: { x: 330, y: -250 },
-            ryn: { x: -330, y: 0 },
-            mira: { x: 0, y: 0 },
-            kael: { x: 330, y: 250 },
-            talia: { x: 330, y: 0 },
-            gate: { x: 0, y: -250 },
-            outpost: { x: -330, y: 250 },
+          "cm_pos_v2_frakce",
+          layout({
+            watch: ['["faction","watch"]', -330, -250],
+            guild: ['["faction","guild"]', 330, -250],
+            ryn: ['["character","ryn"]', -330, 0],
+            mira: ['["character","mira"]', 0, 0],
+            kael: ['["character","kael"]', 330, 250],
+            talia: ['["character","talia"]', 330, 0],
+            gate: ['["location","gate"]', 0, -250],
+            outpost: ['["location","outpost"]', -330, 250],
           }),
         );
         localStorage.setItem(
-          "cm_pos_tajemstvi",
-          JSON.stringify({
-            gate: { x: -300, y: -200 },
-            veil: { x: 300, y: -200 },
-            unresolved: { x: 0, y: 260 },
-            ryn: { x: -300, y: 70 },
-            mira: { x: 0, y: 70 },
-            talia: { x: 300, y: 70 },
+          "cm_pos_v2_tajemstvi",
+          layout({
+            gate: ['["mystery","gate"]', -300, -200],
+            veil: ['["mystery","veil"]', 300, -200],
+            unresolved: ['["mystery","unresolved"]', 0, 260],
+            ryn: ['["character","ryn"]', -300, 70],
+            mira: ['["character","mira"]', 0, 70],
+            talia: ['["character","talia"]', 300, 70],
           }),
         );
         localStorage.setItem("codex_lang", locale);
@@ -310,7 +314,7 @@ for (const mobile of [false, true])
     );
   });
 
-void test("pointer and keyboard moves persist legacy centers and never modify campaign records", async (t) => {
+void test("pointer and keyboard moves persist saved centers and never modify campaign records", async (t) => {
   const { page } = await fixture(t);
   const before = structuredClone(campaign);
   await drag(page, "ryn", 100, 55);
@@ -496,9 +500,9 @@ void test("another tab interrupts an active drag without overwriting its saved a
   );
 });
 
-void test("anonymous Czech readers can arrange the read-only graph and use the preserved route", async (t) => {
+void test("anonymous Czech readers can arrange the read-only graph", async (t) => {
   const { page } = await fixture(t, { role: "", locale: "cs" });
-  await page.goto(`${origin}/#/mapa/vztahy`);
+  await page.goto(`${origin}/#/graph/relationships`);
   await node(page, "ryn").waitFor();
   await page.getByRole("heading", { name: /Myšlenkový palác/ }).waitFor();
   await node(page, "ryn").focus();
@@ -608,10 +612,9 @@ for (const mode of ["factions", "mysteries"])
       }
     });
 
-void test("mode changes isolate filters and migrated positions while preserving the original browser values", async (t) => {
+void test("mode changes isolate filters and positions", async (t) => {
   const { page } = await fixture(t, { mixed: true });
   const before = structuredClone(campaign);
-  const legacy = await page.evaluate(() => localStorage.getItem("cm_pos_frakce")!);
   await switchMode(page, "factions");
   assert.deepEqual(await typedPosition(page, "character", "ryn"), { x: -330, y: 0 });
   await typedNode(page, "character", "ryn").focus();
@@ -633,7 +636,6 @@ void test("mode changes isolate filters and migrated positions while preserving 
   await page.reload();
   await typedNode(page, "character", "ryn").waitFor();
   assert.deepEqual(await typedPosition(page, "character", "ryn"), { x: -325, y: 0 });
-  assert.equal(await page.evaluate(() => localStorage.getItem("cm_pos_frakce")!), legacy);
   await switchMode(page, "relationships");
   assert.deepEqual((await positions(page)).ryn, savedPositions.ryn);
   await switchMode(page, "mysteries");
@@ -699,6 +701,7 @@ void test("same IDs in different collections keep separate cards, links and save
 
 void test("route changes and live removal cancel a mixed graph drag without saving it into another mode", async (t) => {
   const { page } = await fixture(t, { mixed: true });
+  const factions = await page.evaluate(() => localStorage.getItem("cm_pos_v2_frakce"));
   await switchMode(page, "factions");
   const rect = await typedNode(page, "character", "ryn").boundingBox().then(required);
   await page.mouse.move(rect.x + 20, rect.y + 20);
@@ -710,7 +713,7 @@ void test("route changes and live removal cancel a mixed graph drag without savi
   await typedNode(page, "mystery", "gate").waitFor();
   await page.mouse.up();
   assert.deepEqual(await typedPosition(page, "character", "ryn"), { x: -300, y: 70 });
-  assert.equal(await page.evaluate(() => localStorage.getItem("cm_pos_v2_frakce")!), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem("cm_pos_v2_frakce")), factions);
   await publish(page, () => {
     collection("characters").records = collection("characters").records.filter(
       (record) => record.key !== "ryn",
@@ -745,21 +748,20 @@ for (const reducedMotion of ["reduce", "no-preference"] as const)
       touchPoints: [{ x: x + 25, y: y + 30 }],
     });
     await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await page.waitForFunction(() => localStorage.getItem("cm_pos_v2_frakce") !== null);
+    await page.waitForFunction(
+      (key) => JSON.parse(localStorage.getItem("cm_pos_v2_frakce")!)[key].x !== 0,
+      typedKey("character", "mira"),
+    );
     const after = await typedPosition(page, "character", "mira");
     assert.ok(Math.abs(after.x - before.x - 25 / zoom) < 1);
     assert.ok(Math.abs(after.y - before.y - 30 / zoom) < 1);
     assert.match(page.url(), /#\/graph\/factions$/);
   });
 
-void test("anonymous Czech readers can use every preserved Mind Palace URL", async (t) => {
+void test("anonymous Czech readers can open each Mind Palace view", async (t) => {
   const { page } = await fixture(t, { mixed: true, role: "", locale: "cs" });
-  for (const [hash, mode] of [
-    ["palac", "factions"],
-    ["frakce", "factions"],
-    ["tajemstvi", "mysteries"],
-  ]) {
-    await page.goto(`${origin}/#/mapa/${hash}`);
+  for (const mode of ["factions", "mysteries"]) {
+    await page.goto(`${origin}/#/graph/${mode}`);
     await page.waitForFunction(
       (mode) => document.querySelector("codex-campaign-graph")?.mode === mode,
       mode,
@@ -876,6 +878,7 @@ void test("Escape restores the complete pre-drag arrangement after other cards h
 
 void test("a completed drop survives an immediate mode change without writing into the destination layout", async (t) => {
   const { page } = await fixture(t, { mixed: true, reducedMotion: "no-preference" });
+  const mysteries = await page.evaluate(() => localStorage.getItem("cm_pos_v2_tajemstvi"));
   await switchMode(page, "factions");
   await holdDrag(page, typedKey("character", "ryn"), 70, 50);
   await page.mouse.up();
@@ -890,7 +893,7 @@ void test("a completed drop survives an immediate mode change without writing in
     typedKey("character", "ryn"),
   );
   assert.deepEqual(saved, { x: -260, y: 50 });
-  assert.equal(await page.evaluate(() => localStorage.getItem("cm_pos_v2_tajemstvi")!), null);
+  assert.equal(await page.evaluate(() => localStorage.getItem("cm_pos_v2_tajemstvi")), mysteries);
   await switchMode(page, "factions");
   assert.deepEqual(await typedPosition(page, "character", "ryn"), saved);
 });

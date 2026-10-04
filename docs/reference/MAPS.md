@@ -9,7 +9,6 @@ Leaflet's image-coordinate behavior is documented in its
 ## Coordinates and ownership
 
 - World map route: `#/map/world`; local map route: `#/map/local/<encoded key>`.
-  The preserved `#/mapa/svet` and `#/mapa/local/<encoded key>` hashes also work.
   Event article links append `/event/<encoded key>/show` or `/place`. Show
   enables the overlay and centers the event; Place opens a pending placement
   for an authenticated editor. Neither action writes data by navigating.
@@ -34,7 +33,7 @@ Leaflet's image-coordinate behavior is documented in its
 
 ## Marker attitude glows
 
-Map markers retain the preserved v1 diagonal glow bands. Zero active attitudes
+Map markers use diagonal attitude glow bands. Zero active attitudes
 leave only the dark artwork outline or glyph stroke; one adds a single colored
 glow; two or more render one copy of the artwork/glyph per active attitude.
 Each copy has its own glow and a sheared clip polygon, with extended outer
@@ -111,7 +110,7 @@ and retain the draft. The same protection applies to the map's unplaced picker.
 
 The location form edits `pinType` through the shared marker definitions and an
 optional 14–64px `size` override. Empty size restores type inheritance; unknown
-stored marker IDs remain selectable but cannot be invented. The v1 Custom
+stored marker IDs remain selectable but cannot be invented. The Custom
 fallback remains available when there are no configured definitions. The free
 text Kind label remains independent metadata. Changing `parentId` clears only
 the old `x`/`y` placement, as the coordinates belong to another image frame;

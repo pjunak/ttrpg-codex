@@ -108,14 +108,6 @@ func TestActivitySuppressesNormalizationNoiseAndPreservesOriginalFields(t *testi
 	if !strings.Contains(string(current.Value), `"extension":{"keep":true}`) {
 		t.Fatal("authored extension lost")
 	}
-	for _, timestamp := range []string{`1000`, `"1970-01-01T00:00:01Z"`} {
-		withoutSummary := activityFixtureRecord(campaign.Locations, "town", `{"id":"town","name":"Town","updatedAt":`+timestamp+`}`, campaign.VisibilityPublic)
-		first := activityPlan(t, []campaign.Record{withoutSummary}, campaign.Mutation{Kind: campaign.Put, Collection: campaign.Locations, Key: "town", ExpectedRevision: 1, Value: raw(`{"id":"town","name":"Town"}`)})
-		activity := readStoredActivity(first.current[mutationTarget(campaign.Locations, "town")].Value)
-		if activity.Public == nil || activity.Public.At != 1000 || activity.Public.Kind != "updated" || len(activity.Public.Fields) != 0 {
-			t.Fatalf("no-op lost original generic activity: %+v", activity.Public)
-		}
-	}
 	noPublicChange := activityFixtureRecord(campaign.Locations, "town", `{"id":"town","name":"Town","updatedAt":1000,"lastChange":{"contractVersion":"activity.v1","dm":null,"public":null}}`, campaign.VisibilityPublic)
 	noop := activityPlan(t, []campaign.Record{noPublicChange}, campaign.Mutation{Kind: campaign.Put, Collection: campaign.Locations, Key: "town", ExpectedRevision: 1, Value: raw(`{"id":"town","name":"Town"}`)})
 	if readStoredActivity(noop.current[mutationTarget(campaign.Locations, "town")].Value).Public != nil {

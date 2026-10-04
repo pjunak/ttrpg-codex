@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"reflect"
 	"sort"
-	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
 )
@@ -57,7 +56,7 @@ func (planner *mutationPlanner) prepareActivity() error {
 	}
 	sort.Strings(ordered)
 	for _, source := range ordered {
-		if err := planner.updateObject(campaign.Characters, source, false, func(value map[string]any) bool { return true }); err != nil {
+		if err := planner.updateObject(campaign.Characters, source, func(value map[string]any) bool { return true }); err != nil {
 			return err
 		}
 	}
@@ -180,9 +179,6 @@ func nextActivity(before, after campaign.Record, previous *recordActivity, relat
 		fields = append(fields, "relationships")
 	}
 	if len(fields) == 0 {
-		if previous == nil && readStoredActivity(before.Value).Contract != activityContract {
-			return activityFromSaveTime(before)
-		}
 		return previous
 	}
 	sort.Strings(fields)
@@ -190,27 +186,6 @@ func nextActivity(before, after campaign.Record, previous *recordActivity, relat
 		fields = fields[:24]
 	}
 	return &recordActivity{Kind: "updated", Fields: fields, At: at}
-}
-
-// Preserve the existing generic activity row when a record first receives
-// summary metadata through a no-op or a change invisible to this reader.
-func activityFromSaveTime(record campaign.Record) *recordActivity {
-	value, _ := objectValue(record.Value)
-	var at int64
-	switch timestamp := value["updatedAt"].(type) {
-	case float64:
-		if timestamp > 0 && timestamp <= 8_640_000_000_000_000 && timestamp == float64(int64(timestamp)) {
-			at = int64(timestamp)
-		}
-	case string:
-		if parsed, err := time.Parse(time.RFC3339Nano, timestamp); err == nil {
-			at = parsed.UnixMilli()
-		}
-	}
-	if at <= 0 {
-		return nil
-	}
-	return &recordActivity{Kind: "updated", Fields: []string{}, At: at}
 }
 
 func readStoredActivity(raw json.RawMessage) storedActivity {

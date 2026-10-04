@@ -17,13 +17,12 @@ const shapes = {
   events: "list",
   mysteries: "list",
   factions: "keyed",
-  deletedDefaults: "keyed",
   pantheon: "list",
   artifacts: "list",
   settings: "keyed",
   historicalEvents: "list",
   campaign: "keyed",
-  pets: "list",
+  companions: "list",
 } as const;
 
 const dataset: CampaignDataset = {

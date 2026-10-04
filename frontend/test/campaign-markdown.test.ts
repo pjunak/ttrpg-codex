@@ -49,7 +49,7 @@ describe("campaign markdown", () => {
 
   it("parses wiki syntax without turning raw HTML into a rendering boundary", () => {
     const document = parseCampaignMarkdown(
-      "Meet **[[Lantern Watch|frakce:watch]]**.\n\n<script>alert(1)</script>",
+      "Meet **[[Lantern Watch|faction:watch]]**.\n\n<script>alert(1)</script>",
     );
 
     expect(document.tokens.map(({ type }) => type)).toEqual(["paragraph", "space", "html"]);
@@ -62,7 +62,7 @@ describe("campaign markdown", () => {
       factions: [{ key: "watch", revision: 1, value: { id: "watch", name: "Lantern Watch" } }],
     });
     const rendered = renderCampaignMarkdown(
-      parseCampaignMarkdown("**[[Lantern Watch|frakce:watch]]** and [[Missing witness]]"),
+      parseCampaignMarkdown("**[[Lantern Watch|faction:watch]]** and [[Missing witness]]"),
       { dataset: campaign },
     );
     const markup = templateStructure(rendered);
@@ -95,12 +95,12 @@ describe("campaign markdown", () => {
         "Ryn",
       ),
     ).toMatchObject({ href: "#/characters/ryn-public", key: "ryn-public" });
-    expect(resolveCampaignWikiLink({ dataset: campaign }, "Watch", "frakce:watch")).toMatchObject({
+    expect(resolveCampaignWikiLink({ dataset: campaign }, "Watch", "faction:watch")).toMatchObject({
       href: "#/factions/watch",
       key: "watch",
     });
     expect(
-      resolveCampaignWikiLink({ dataset: campaign }, "Hidden", "postava:hidden-character"),
+      resolveCampaignWikiLink({ dataset: campaign }, "Hidden", "character:hidden-character"),
     ).toBeUndefined();
     expect(
       resolveCampaignWikiLink({ dataset: campaign }, "Lantern Watch", "misto"),
@@ -136,13 +136,12 @@ function dataset(
     events: "list",
     mysteries: "list",
     factions: "keyed",
-    deletedDefaults: "keyed",
     pantheon: "list",
     artifacts: "list",
     settings: "keyed",
     historicalEvents: "list",
     campaign: "keyed",
-    pets: "list",
+    companions: "list",
   };
   return {
     contractVersion: "campaign-data.v1",

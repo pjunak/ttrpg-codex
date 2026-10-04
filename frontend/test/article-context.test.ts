@@ -12,18 +12,15 @@ function dataset(input: Records) {
       "events",
       "mysteries",
       "factions",
-      "deletedDefaults",
       "pantheon",
       "artifacts",
       "settings",
       "historicalEvents",
       "campaign",
-      "pets",
+      "companions",
     ].map((name) => ({
       name,
-      shape: ["factions", "deletedDefaults", "settings", "campaign"].includes(name)
-        ? "keyed"
-        : "list",
+      shape: ["factions", "settings", "campaign"].includes(name) ? "keyed" : "list",
       materialized: true,
       revision: 1,
       records: Object.entries(input[name] ?? {}).map(([key, value]) => ({
@@ -58,7 +55,7 @@ const data = dataset({
     unknown: { name: "Unrevealed name", knowledge: 0, location: "gate" },
   },
   events: { arrival: { name: "Arrival", characters: ["captain"], locations: ["gate"] } },
-  pets: {
+  companions: {
     hound: { name: "Hound", ownerType: "faction", ownerId: "watch" },
     raven: { name: "Raven", ownerType: "character", ownerId: "captain" },
   },

@@ -4,7 +4,6 @@ import { campaignCollection, type CampaignDataset } from "../core/campaign-data.
 import {
   graphColor,
   graphSearch,
-  parseGraphPositions,
   projectRelationshipGraph,
   type CampaignGraph,
   type GraphEdge,
@@ -30,7 +29,6 @@ const card = (
   kind,
   key: graphNodeKey(kind, key),
   recordKey: key,
-  legacyKey: kind === "faction" ? `hub_${key}` : key,
   name: text(value["name"]) || key,
   route: `#/${route}/${encodeURIComponent(key)}`,
   color: nodeColor,
@@ -79,7 +77,7 @@ export function projectCampaignGraph(campaign: CampaignDataset, mode: GraphMode)
     ...node,
     key: graphNodeKey("character", node.key),
   }));
-  const characterById = new Map(characters.map((node) => [node.legacyKey, node]));
+  const characterById = new Map(characters.map((node) => [node.recordKey, node]));
   if (mode === "mysteries") {
     const edges: GraphEdge[] = [],
       involved = new Map<string, GraphNode>();
@@ -108,7 +106,7 @@ export function projectCampaignGraph(campaign: CampaignDataset, mode: GraphMode)
       return mystery;
     });
     return {
-      nodes: [...mysteries, ...characters.flatMap((node) => involved.get(node.legacyKey) ?? [])],
+      nodes: [...mysteries, ...characters.flatMap((node) => involved.get(node.recordKey) ?? [])],
       edges,
     };
   }
@@ -155,9 +153,9 @@ export function projectCampaignGraph(campaign: CampaignDataset, mode: GraphMode)
     ]),
   );
   const nodes = characters.map((character) => {
-    const value = records.get(character.legacyKey)!,
+    const value = records.get(character.recordKey)!,
       hub = hubByFaction.get(character.faction);
-    const incoming = commands.filter((edge) => edge.target === character.legacyKey);
+    const incoming = commands.filter((edge) => edge.target === character.recordKey);
     if (
       hub &&
       !incoming.some((edge) => characterById.get(edge.source)?.faction === character.faction)
@@ -178,7 +176,7 @@ export function projectCampaignGraph(campaign: CampaignDataset, mode: GraphMode)
     return {
       ...character,
       title: text(characterReadingValue(value)["title"]),
-      commandCount: commands.filter((edge) => edge.source === character.legacyKey).length,
+      commandCount: commands.filter((edge) => edge.source === character.recordKey).length,
       commander: characterById.get(incoming[0]?.source ?? "")?.name ?? "",
       glow: factionColors.get(character.faction) ?? "",
     };
@@ -196,28 +194,13 @@ export function graphPreferenceKeys(mode: GraphMode | `addon:${string}:${string}
   if (mode.startsWith("addon:"))
     return {
       positions: `cm_pos_v3_${mode}`,
-      legacyPositions: `cm_pos_v3_${mode}`,
       filters: `cm_vf_v3_${mode}`,
       factions: `cm_filter_v3_${mode}`,
     };
   const suffix = mode === "factions" ? "frakce" : mode === "mysteries" ? "tajemstvi" : "vztahy";
   return {
     positions: mode === "relationships" ? `cm_pos_${suffix}` : `cm_pos_v2_${suffix}`,
-    legacyPositions: `cm_pos_${suffix}`,
     filters: `cm_vf_${suffix}`,
     factions: `cm_filter_${suffix}`,
   };
-}
-
-/** Ambiguous v1 IDs cannot identify a card; never copy one position to two records. */
-export function migrateGraphPositions(graph: CampaignGraph, legacy: unknown) {
-  const positions = parseGraphPositions(legacy),
-    counts = new Map<string, number>();
-  for (const node of graph.nodes) counts.set(node.legacyKey, (counts.get(node.legacyKey) ?? 0) + 1);
-  return new Map(
-    graph.nodes.flatMap((node) => {
-      const point = positions.get(node.legacyKey);
-      return point && counts.get(node.legacyKey) === 1 ? [[node.key, point] as const] : [];
-    }),
-  );
 }

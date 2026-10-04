@@ -21,13 +21,12 @@ const names: CampaignCollectionName[] = [
   "events",
   "mysteries",
   "factions",
-  "deletedDefaults",
   "pantheon",
   "artifacts",
   "settings",
   "historicalEvents",
   "campaign",
-  "pets",
+  "companions",
 ];
 function dataset(
   locations: readonly CampaignRecord[],
@@ -38,9 +37,7 @@ function dataset(
     contractVersion: "campaign-data.v1",
     collections: names.map((name) => ({
       name,
-      shape: ["factions", "deletedDefaults", "settings", "campaign"].includes(name)
-        ? "keyed"
-        : "list",
+      shape: ["factions", "settings", "campaign"].includes(name) ? "keyed" : "list",
       materialized: true,
       revision: 1,
       records:

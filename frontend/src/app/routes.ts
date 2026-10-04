@@ -21,7 +21,7 @@ export const campaignPages: readonly CampaignPageDefinition[] = Object.freeze([
   page("pantheon", "pantheon", "Deity", "Pantheon", "✨", "world"),
   page("artifacts", "artifacts", "Artifact", "Artifacts", "🗝", "world"),
   page("history", "historicalEvents", "Historical event", "History", "📜", "world"),
-  page("companions", "pets", "Companion", "Companions", "🐾", "campaign"),
+  page("companions", "companions", "Companion", "Companions", "🐾", "campaign"),
 ]);
 
 export const contextCreationActions = {
@@ -69,49 +69,8 @@ export type AppRoute =
   | { readonly kind: "addon" }
   | { readonly kind: "not-found"; readonly path: string };
 
-const savedLists: Readonly<Record<string, string>> = {
-  postavy: "characters",
-  mista: "locations",
-  udalosti: "timeline",
-  zahady: "mysteries",
-  frakce: "factions",
-  mazlicci: "companions",
-  panteon: "pantheon",
-  artefakty: "artifacts",
-  historie: "history",
-  parta: "party",
-  nastaveni: "settings",
-};
-const savedArticles: Readonly<Record<string, string>> = {
-  postava: "characters",
-  misto: "locations",
-  udalost: "events",
-  zahada: "mysteries",
-  frakce: "factions",
-  buh: "pantheon",
-  artefakt: "artifacts",
-  "historicka-udalost": "history",
-};
-
-/** Normalize only the preserved core namespace; IDs are decoded exactly once by the parser. */
 export function canonicalAppHash(hash: string): string {
-  if (hash === "") return "#/";
-  const match = /^#\/([^/?]+)(?:\/([^/?]+))?$/u.exec(hash);
-  if (!match) return hash;
-  const section = match[1]!,
-    key = match[2];
-  if (key === undefined && Object.hasOwn(savedLists, section)) return `#/${savedLists[section]}`;
-  if (key !== undefined && Object.hasOwn(savedArticles, section)) {
-    try {
-      if (!decodeURIComponent(key) || /\p{Cc}/u.test(decodeURIComponent(key))) return hash;
-    } catch {
-      return hash;
-    }
-    return key === "new"
-      ? `#/create/${savedArticles[section]}`
-      : `#/${savedArticles[section]}/${key}`;
-  }
-  return hash;
+  return hash === "" ? "#/" : hash;
 }
 
 export function createReturnHash(route: Extract<AppRoute, { kind: "create" }>): string {
@@ -181,14 +140,10 @@ export function parseAppRoute(hash: string): AppRoute {
   if (hash === "#/dm") return { kind: "dm" };
   const addonGraph = parseAddonGraphHash(hash);
   if (addonGraph) return { kind: "campaign-graph", mode: addonGraph };
-  if (["#/graph/relationships", "#/mapa/vztahy"].includes(hash))
-    return { kind: "campaign-graph", mode: "relationships" };
-  if (["#/graph/factions", "#/mapa/palac", "#/mapa/frakce"].includes(hash))
-    return { kind: "campaign-graph", mode: "factions" };
-  if (["#/graph/mysteries", "#/mapa/tajemstvi"].includes(hash))
-    return { kind: "campaign-graph", mode: "mysteries" };
-  if (["#/timeline", "#/casova-osa", "#/mapa/casova-osa"].includes(hash))
-    return { kind: "timeline" };
+  if (hash === "#/graph/relationships") return { kind: "campaign-graph", mode: "relationships" };
+  if (hash === "#/graph/factions") return { kind: "campaign-graph", mode: "factions" };
+  if (hash === "#/graph/mysteries") return { kind: "campaign-graph", mode: "mysteries" };
+  if (hash === "#/timeline") return { kind: "timeline" };
   const newEvent = /^#\/timeline\/new\/([1-9]\d*)$/u.exec(hash);
   if (newEvent !== null && Number.isSafeInteger(Number(newEvent[1]))) {
     return {
@@ -243,9 +198,7 @@ export function parseAppRoute(hash: string): AppRoute {
     return { kind: "not-found", path: hash };
   }
   const map =
-    /^#\/(?:map\/world|mapa\/svet|(?:map|mapa)\/local\/([^/]+))(?:\/(event|location)\/([^/]+)\/(show|place))?$/u.exec(
-      hash,
-    );
+    /^#\/map\/(?:world|local\/([^/]+))(?:\/(event|location)\/([^/]+)\/(show|place))?$/u.exec(hash);
   if (map !== null) {
     try {
       const parentId = map[1] === undefined ? null : decodeURIComponent(map[1]);

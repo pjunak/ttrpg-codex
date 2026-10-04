@@ -27,18 +27,18 @@ describe("application routes", () => {
     }
   });
   it("opens the restored relationship graph without accepting unfinished graph routes", () => {
-    for (const hash of ["#/graph/relationships", "#/mapa/vztahy"])
+    for (const hash of ["#/graph/relationships"])
       expect(parseAppRoute(hash)).toEqual({ kind: "campaign-graph", mode: "relationships" });
-    for (const hash of ["#/graph/factions", "#/mapa/palac", "#/mapa/frakce"])
+    for (const hash of ["#/graph/factions"])
       expect(parseAppRoute(hash)).toEqual({ kind: "campaign-graph", mode: "factions" });
-    for (const hash of ["#/graph/mysteries", "#/mapa/tajemstvi"])
+    for (const hash of ["#/graph/mysteries"])
       expect(parseAppRoute(hash)).toEqual({ kind: "campaign-graph", mode: "mysteries" });
-    for (const hash of ["#/graph/relationships/extra", "#/graph/unknown", "#/mapa/tajemstvi/extra"])
+    for (const hash of ["#/graph/relationships/extra", "#/graph/unknown", "#/mapa/vztahy"])
       expect(parseAppRoute(hash).kind).toBe("not-found");
   });
-  it("opens the preserved timeline aliases and session-aware shared event editor", () => {
-    for (const hash of ["#/timeline", "#/casova-osa", "#/mapa/casova-osa"])
-      expect(parseAppRoute(hash)).toEqual({ kind: "timeline" });
+  it("opens the timeline and the session-aware shared event editor", () => {
+    expect(parseAppRoute("#/timeline")).toEqual({ kind: "timeline" });
+    expect(parseAppRoute("#/casova-osa").kind).toBe("not-found");
     expect(parseAppRoute("#/timeline/new/3")).toMatchObject({
       kind: "create",
       preset: "event",
@@ -77,7 +77,7 @@ describe("application routes", () => {
       kind: "map",
       parentId: "gate/upper",
     });
-    expect(parseAppRoute("#/mapa/svet")).toEqual({ kind: "map", parentId: null });
+    expect(parseAppRoute("#/map/world")).toEqual({ kind: "map", parentId: null });
     expect(parseAppRoute("#/map/local/%00").kind).toBe("not-found");
     expect(parseAppRoute("#/locations")).toMatchObject({
       kind: "collection",
@@ -160,55 +160,27 @@ describe("application routes", () => {
   });
 });
 
-describe("preserved core URLs", () => {
-  it("maps the finite list and article inventory without reinterpreting encoded keys", () => {
-    const lists = {
-      postavy: "characters",
-      mista: "locations",
-      udalosti: "timeline",
-      zahady: "mysteries",
-      frakce: "factions",
-      mazlicci: "companions",
-      panteon: "pantheon",
-      artefakty: "artifacts",
-      historie: "history",
-      parta: "party",
-      nastaveni: "settings",
-    };
-    for (const [old, current] of Object.entries(lists))
-      expect(parseAppRoute("#/" + old)).toEqual(parseAppRoute("#/" + current));
-    const articles = {
-      postava: "characters",
-      misto: "locations",
-      udalost: "events",
-      zahada: "mysteries",
-      frakce: "factions",
-      buh: "pantheon",
-      artefakt: "artifacts",
-      "historicka-udalost": "history",
-    };
-    for (const [old, current] of Object.entries(articles)) {
-      expect(parseAppRoute("#/" + old + "/gate%2Fhorn%C3%AD%252F")).toMatchObject({
-        kind: "record",
-        page: { id: current },
-        key: "gate/horní%2F",
-      });
-      expect(parseAppRoute("#/" + old + "/new")).toMatchObject({
-        kind: "create",
-        preset: "blank",
-        page: { id: current },
-      });
-      expect(parseAppRoute("#/" + old + "/%6Eew")).toMatchObject({ kind: "record", key: "new" });
-    }
+describe("core URLs", () => {
+  it("opens records and creation pages without reinterpreting encoded keys", () => {
+    expect(parseAppRoute("#/characters/gate%2Fhorn%C3%AD%252F")).toMatchObject({
+      kind: "record",
+      page: { id: "characters" },
+      key: "gate/horní%2F",
+    });
+    expect(parseAppRoute("#/create/characters")).toMatchObject({
+      kind: "create",
+      preset: "blank",
+      page: { id: "characters" },
+    });
     expect(parseAppRoute("#/characters/new")).toMatchObject({ kind: "record", key: "new" });
     for (const bad of [
-      "#/misto/%00",
-      "#/postava/%E0%A4%A",
-      "#/frakce/a/extra",
+      "#/locations/%00",
+      "#/characters/%E0%A4%A",
+      "#/factions/a/extra",
       "#/create/missing",
-      "#/postava/new/extra",
       "#/create/characters/extra",
-      "#/misto/",
+      "#/postava/someone",
+      "#/postavy",
     ])
       expect(parseAppRoute(bad).kind).toBe("not-found");
   });

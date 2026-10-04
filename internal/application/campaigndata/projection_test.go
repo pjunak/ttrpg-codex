@@ -31,9 +31,6 @@ func TestPublicDatasetClosesReferencesWithoutChangingDMSnapshot(t *testing.T) {
 		roles[0].(map[string]any)["locationId"] != "town" {
 		t.Fatalf("location roles were not closed: %#v", roles)
 	}
-	if fields := alice["lastChange"].(map[string]any)["fields"].([]any); len(fields) != 1 {
-		t.Fatalf("hidden audit reference survived: %#v", fields)
-	}
 
 	town := recordObject(t, public, campaign.Locations, "town")
 	assertMissing(t, town, "parentId")
@@ -48,9 +45,9 @@ func TestPublicDatasetClosesReferencesWithoutChangingDMSnapshot(t *testing.T) {
 	artifact := recordObject(t, public, campaign.Artifacts, "crown")
 	assertMissing(t, artifact, "ownerCharacterId", "locationId")
 
-	pet := recordObject(t, public, campaign.Pets, "owl")
-	if pet["ownerType"] != "none" || pet["ownerId"] != "" {
-		t.Fatalf("hidden pet owner survived: %#v", pet)
+	companion := recordObject(t, public, campaign.Companions, "owl")
+	if companion["ownerType"] != "none" || companion["ownerId"] != "" {
+		t.Fatalf("hidden companion owner survived: %#v", companion)
 	}
 
 	mapViews := recordValue(t, public, campaign.Settings, "mapViews").([]any)
@@ -60,9 +57,6 @@ func TestPublicDatasetClosesReferencesWithoutChangingDMSnapshot(t *testing.T) {
 	mapConfigs := recordValue(t, public, campaign.Settings, "mapConfigs").(map[string]any)
 	if len(mapConfigs) != 2 || mapConfigs["local-town"] == nil || mapConfigs["world"] == nil {
 		t.Fatalf("map configs were not closed: %#v", mapConfigs)
-	}
-	if deleted := recordValue(t, public, campaign.DeletedDefaults, "settings:genders:male"); deleted != true {
-		t.Fatalf("deleted default marker changed: %#v", deleted)
 	}
 
 	dm, err := service.Dataset(context.Background(), ViewDM)
@@ -74,7 +68,7 @@ func TestPublicDatasetClosesReferencesWithoutChangingDMSnapshot(t *testing.T) {
 		t.Fatalf("DM record was projected: %#v", dmAlice)
 	}
 	if source := string(snapshot.Records[0].Value); source != string(raw(
-		`{"id":"alice","visibility":"public","linkedTwinId":"secret","faction":"secret-faction","location":"hidden-cave","locationRoles":[{"locationId":"town"},{"locationId":"hidden-cave"}],"lastChange":{"fields":[{"key":"location","from":"hidden-cave"},{"key":"name","from":"Old"}]}}`,
+		`{"id":"alice","visibility":"public","linkedTwinId":"secret","faction":"secret-faction","location":"hidden-cave","locationRoles":[{"locationId":"town"},{"locationId":"hidden-cave"}]}`,
 	)) {
 		t.Fatalf("source snapshot was mutated: %s", source)
 	}
@@ -99,7 +93,7 @@ func TestPublicDatasetRejectsMalformedStoredProjectionData(t *testing.T) {
 
 func projectionFixture() campaign.Snapshot {
 	return campaign.Snapshot{Records: []campaign.Record{
-		{Collection: campaign.Characters, Key: "alice", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"alice","visibility":"public","linkedTwinId":"secret","faction":"secret-faction","location":"hidden-cave","locationRoles":[{"locationId":"town"},{"locationId":"hidden-cave"}],"lastChange":{"fields":[{"key":"location","from":"hidden-cave"},{"key":"name","from":"Old"}]}}`)},
+		{Collection: campaign.Characters, Key: "alice", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"alice","visibility":"public","linkedTwinId":"secret","faction":"secret-faction","location":"hidden-cave","locationRoles":[{"locationId":"town"},{"locationId":"hidden-cave"}]}`)},
 		{Collection: campaign.Characters, Key: "secret", Visibility: campaign.VisibilityDM, Revision: 1, Value: raw(`{"id":"secret","visibility":"dm"}`)},
 		{Collection: campaign.Factions, Key: "guild", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"name":"Guild","visibility":"public"}`)},
 		{Collection: campaign.Factions, Key: "secret-faction", Visibility: campaign.VisibilityDM, Revision: 1, Value: raw(`{"id":"private-faction-id","visibility":"dm"}`)},
@@ -107,7 +101,7 @@ func projectionFixture() campaign.Snapshot {
 		{Collection: campaign.Locations, Key: "hidden-cave", Visibility: campaign.VisibilityDM, Revision: 1, Value: raw(`{"id":"hidden-cave","visibility":"dm"}`)},
 		{Collection: campaign.Events, Key: "arrival", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"arrival","visibility":"public","characters":["alice","secret"],"locations":["town","hidden-cave"],"mapParentId":"hidden-cave"}`)},
 		{Collection: campaign.Artifacts, Key: "crown", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"crown","visibility":"public","ownerCharacterId":"secret","locationId":"hidden-cave"}`)},
-		{Collection: campaign.Pets, Key: "owl", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"owl","ownerType":"character","ownerId":"secret"}`)},
+		{Collection: campaign.Companions, Key: "owl", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"owl","ownerType":"character","ownerId":"secret"}`)},
 		{Collection: campaign.Relationships, Key: "hidden-target", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"source":"alice","target":"secret","type":"ally","visibility":"public"}`)},
 		{Collection: campaign.Relationships, Key: "hidden-source", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"source":"secret","target":"alice","type":"ally","visibility":"public"}`)},
 		{Collection: campaign.Relationships, Key: "mission-visible", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"source":"alice","target":"town","type":"mission","visibility":"public"}`)},
@@ -115,7 +109,6 @@ func projectionFixture() campaign.Snapshot {
 		{Collection: campaign.Settings, Key: "relationshipTypes", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`[{"id":"travels","target":"location"}]`)},
 		{Collection: campaign.Settings, Key: "mapViews", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`[{"id":"visible","parentId":"town"},{"id":"hidden","parentId":"hidden-cave"}]`)},
 		{Collection: campaign.Settings, Key: "mapConfigs", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"world":{"zoom":1},"local-town":{"zoom":2},"local-hidden-cave":{"zoom":3},"local-":{"zoom":4}}`)},
-		{Collection: campaign.DeletedDefaults, Key: "settings:genders:male", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`true`)},
 	}}
 }
 

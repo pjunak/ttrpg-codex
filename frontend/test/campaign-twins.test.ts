@@ -41,18 +41,15 @@ const dataset = parseCampaignDataset({
     "events",
     "mysteries",
     "factions",
-    "deletedDefaults",
     "pantheon",
     "artifacts",
     "settings",
     "historicalEvents",
     "campaign",
-    "pets",
+    "companions",
   ].map((name) => ({
     name,
-    shape: ["factions", "deletedDefaults", "settings", "campaign"].includes(name)
-      ? "keyed"
-      : "list",
+    shape: ["factions", "settings", "campaign"].includes(name) ? "keyed" : "list",
     materialized: true,
     revision: 1,
     records: name === "locations" ? pair : [],

@@ -20,12 +20,7 @@ import {
   type GraphPoint,
 } from "./campaign-graph.js";
 import { UiLocalizationController } from "./ui-localization.js";
-import {
-  graphModes,
-  graphPreferenceKeys,
-  migrateGraphPositions,
-  projectCampaignGraph,
-} from "./campaign-graph-modes.js";
+import { graphModes, graphPreferenceKeys, projectCampaignGraph } from "./campaign-graph-modes.js";
 import { GraphMotion } from "./campaign-graph-motion.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
@@ -915,13 +910,7 @@ export class CodexCampaignGraph extends LitElement {
         return undefined;
       }
     };
-    const positions = read(keys.positions);
-    this.positions = initialGraphPositions(
-      this.#graph,
-      positions === null && this.mode !== "relationships"
-        ? migrateGraphPositions(this.#graph, read(keys.legacyPositions))
-        : parseGraphPositions(positions),
-    );
+    this.positions = initialGraphPositions(this.#graph, parseGraphPositions(read(keys.positions)));
     this.filters = parseGraphFilter(read(keys.filters));
     const factions = read(keys.factions);
     this.hiddenFactions = new Set(

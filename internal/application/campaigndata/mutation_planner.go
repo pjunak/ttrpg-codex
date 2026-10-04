@@ -176,9 +176,6 @@ func (planner *mutationPlanner) validatePlayerReferences() error {
 		if !exists || change.kind != campaign.Put || change.role != WritePlayer {
 			continue
 		}
-		if record.Collection == campaign.DeletedDefaults {
-			continue
-		}
 		value, err := objectValue(record.Value)
 		if err != nil {
 			return err
@@ -208,7 +205,7 @@ func (planner *mutationPlanner) validatePlayerReferences() error {
 		case campaign.Artifacts:
 			valid = validScalarReference(value["ownerCharacterId"], preservedReferenceIDs(ids[campaign.Characters], originalValue["ownerCharacterId"])) &&
 				validScalarReference(value["locationId"], preservedReferenceIDs(ids[campaign.Locations], originalValue["locationId"]))
-		case campaign.Pets:
+		case campaign.Companions:
 			ownerType, _ := value["ownerType"].(string)
 			originalOwnerType, _ := originalValue["ownerType"].(string)
 			originalOwnerID := any(nil)
@@ -282,7 +279,7 @@ func (planner *mutationPlanner) preserveUnavailablePlayerReferences(
 	case campaign.Artifacts:
 		preserveUnavailableScalar(incoming, current, "ownerCharacterId", ids[campaign.Characters])
 		preserveUnavailableScalar(incoming, current, "locationId", ids[campaign.Locations])
-	case campaign.Pets:
+	case campaign.Companions:
 		preserveUnavailableOwner(incoming, current, ids)
 	}
 
@@ -310,15 +307,6 @@ func (planner *mutationPlanner) visibleIdentityIDs() (
 				continue
 			}
 			result[collection][record.Key] = struct{}{}
-			if collection == campaign.Factions {
-				value, err := objectValue(record.Value)
-				if err != nil {
-					return nil, err
-				}
-				if id, ok := value["id"].(string); ok && id != "" {
-					result[collection][id] = struct{}{}
-				}
-			}
 		}
 	}
 	return result, nil
@@ -432,7 +420,7 @@ func (planner *mutationPlanner) clearTwin(deleted campaign.Record) error {
 		linkedID != "" && linkedID != deleted.Key {
 		return fmt.Errorf("%w: twin link is not reciprocal", ErrManagedCampaignField)
 	}
-	return planner.updateObject(twin.Collection, twin.Key, true, func(value map[string]any) bool {
+	return planner.updateObject(twin.Collection, twin.Key, func(value map[string]any) bool {
 		if _, exists := value["linkedTwinId"]; !exists {
 			return false
 		}
@@ -463,18 +451,18 @@ func (planner *mutationPlanner) deleteCharacterReferences(id string) error {
 	for _, collection := range []campaign.Collection{
 		campaign.Events, campaign.Mysteries, campaign.HistoricalEvents,
 	} {
-		if err := planner.updateEachObject(collection, true, func(value map[string]any) bool {
+		if err := planner.updateEachObject(collection, func(value map[string]any) bool {
 			return removeString(value, "characters", id)
 		}); err != nil {
 			return err
 		}
 	}
-	if err := planner.updateEachObject(campaign.Locations, true, func(value map[string]any) bool {
+	if err := planner.updateEachObject(campaign.Locations, func(value map[string]any) bool {
 		return removeString(value, "characters", id)
 	}); err != nil {
 		return err
 	}
-	if err := planner.updateEachObject(campaign.Artifacts, true, func(value map[string]any) bool {
+	if err := planner.updateEachObject(campaign.Artifacts, func(value map[string]any) bool {
 		if value["ownerCharacterId"] != id {
 			return false
 		}
@@ -483,7 +471,7 @@ func (planner *mutationPlanner) deleteCharacterReferences(id string) error {
 	}); err != nil {
 		return err
 	}
-	return planner.updateEachObject(campaign.Pets, false, func(value map[string]any) bool {
+	return planner.updateEachObject(campaign.Companions, func(value map[string]any) bool {
 		if value["ownerType"] != "character" || value["ownerId"] != id {
 			return false
 		}
@@ -511,7 +499,7 @@ func (planner *mutationPlanner) deleteLocationReferences(id string) error {
 			}
 		}
 	}
-	if err := planner.updateEachObject(campaign.Locations, true, func(value map[string]any) bool {
+	if err := planner.updateEachObject(campaign.Locations, func(value map[string]any) bool {
 		changed := removeString(value, "connections", id)
 		if value["parentId"] == id {
 			value["parentId"] = ""
@@ -521,7 +509,7 @@ func (planner *mutationPlanner) deleteLocationReferences(id string) error {
 	}); err != nil {
 		return err
 	}
-	if err := planner.updateEachObject(campaign.Characters, true, func(value map[string]any) bool {
+	if err := planner.updateEachObject(campaign.Characters, func(value map[string]any) bool {
 		changed := false
 		if value["location"] == id {
 			value["location"] = ""
@@ -535,7 +523,7 @@ func (planner *mutationPlanner) deleteLocationReferences(id string) error {
 		campaign.Events, campaign.Mysteries, campaign.HistoricalEvents,
 	} {
 		current := collection
-		if err := planner.updateEachObject(collection, true, func(value map[string]any) bool {
+		if err := planner.updateEachObject(collection, func(value map[string]any) bool {
 			changed := removeString(value, "locations", id)
 			if current == campaign.Events && value["mapParentId"] == id {
 				delete(value, "mapParentId")
@@ -548,7 +536,7 @@ func (planner *mutationPlanner) deleteLocationReferences(id string) error {
 			return err
 		}
 	}
-	if err := planner.updateEachObject(campaign.Artifacts, true, func(value map[string]any) bool {
+	if err := planner.updateEachObject(campaign.Artifacts, func(value map[string]any) bool {
 		if value["locationId"] != id {
 			return false
 		}
@@ -561,7 +549,7 @@ func (planner *mutationPlanner) deleteLocationReferences(id string) error {
 }
 
 func (planner *mutationPlanner) deleteFactionReferences(id string) error {
-	if err := planner.updateEachObject(campaign.Characters, true, func(value map[string]any) bool {
+	if err := planner.updateEachObject(campaign.Characters, func(value map[string]any) bool {
 		if value["faction"] != id {
 			return false
 		}
@@ -572,7 +560,7 @@ func (planner *mutationPlanner) deleteFactionReferences(id string) error {
 	}); err != nil {
 		return err
 	}
-	return planner.updateEachObject(campaign.Pets, false, func(value map[string]any) bool {
+	return planner.updateEachObject(campaign.Companions, func(value map[string]any) bool {
 		if value["ownerType"] != "faction" || value["ownerId"] != id {
 			return false
 		}
@@ -619,7 +607,7 @@ func (planner *mutationPlanner) synchronizeLocation(id string, role WriteRole) e
 		if !editable {
 			continue
 		}
-		if err := planner.updateObject(campaign.Locations, peer.Key, true, func(peerValue map[string]any) bool {
+		if err := planner.updateObject(campaign.Locations, peer.Key, func(peerValue map[string]any) bool {
 			return setStringMembership(peerValue, "connections", id, connected)
 		}); err != nil {
 			return err
@@ -633,7 +621,7 @@ func (planner *mutationPlanner) synchronizeLocation(id string, role WriteRole) e
 	}
 	if !equalStringArray(value["connections"], ordered) {
 		value["connections"] = ordered
-		return planner.storeObject(record, value, false)
+		return planner.storeObject(record, value)
 	}
 	return nil
 }
@@ -704,11 +692,10 @@ func (planner *mutationPlanner) relationshipTargetKinds() (map[string]campaign.C
 
 func (planner *mutationPlanner) updateEachObject(
 	collection campaign.Collection,
-	audit bool,
 	update func(map[string]any) bool,
 ) error {
 	for _, record := range planner.records(collection) {
-		if err := planner.updateObject(collection, record.Key, audit, update); err != nil {
+		if err := planner.updateObject(collection, record.Key, update); err != nil {
 			return err
 		}
 	}
@@ -718,7 +705,6 @@ func (planner *mutationPlanner) updateEachObject(
 func (planner *mutationPlanner) updateObject(
 	collection campaign.Collection,
 	key string,
-	audit bool,
 	update func(map[string]any) bool,
 ) error {
 	record, exists := planner.record(collection, key)
@@ -732,18 +718,11 @@ func (planner *mutationPlanner) updateObject(
 	if !update(value) {
 		return nil
 	}
-	return planner.storeObject(record, value, audit)
+	return planner.storeObject(record, value)
 }
 
-func (planner *mutationPlanner) storeObject(
-	record campaign.Record,
-	value map[string]any,
-	audit bool,
-) error {
+func (planner *mutationPlanner) storeObject(record campaign.Record, value map[string]any) error {
 	value["updatedAt"] = planner.updatedAt
-	if audit {
-		value["lastChange"] = map[string]any{"refs": true}
-	}
 	body, err := json.Marshal(value)
 	if err != nil {
 		return err

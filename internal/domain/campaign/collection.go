@@ -26,13 +26,12 @@ const (
 	Events           Collection = "events"
 	Mysteries        Collection = "mysteries"
 	Factions         Collection = "factions"
-	DeletedDefaults  Collection = "deletedDefaults"
 	Pantheon         Collection = "pantheon"
 	Artifacts        Collection = "artifacts"
 	Settings         Collection = "settings"
 	HistoricalEvents Collection = "historicalEvents"
 	Campaign         Collection = "campaign"
-	Pets             Collection = "pets"
+	Companions       Collection = "companions"
 )
 
 type Shape string
@@ -63,13 +62,12 @@ var descriptors = []Descriptor{
 	{Name: Events, Shape: List, VisibilityBearing: true},
 	{Name: Mysteries, Shape: List, VisibilityBearing: true},
 	{Name: Factions, Shape: Keyed, VisibilityBearing: true},
-	{Name: DeletedDefaults, Shape: Keyed},
 	{Name: Pantheon, Shape: List, VisibilityBearing: true},
 	{Name: Artifacts, Shape: List, VisibilityBearing: true},
 	{Name: Settings, Shape: Keyed, DMOnlyWrite: true},
 	{Name: HistoricalEvents, Shape: List, VisibilityBearing: true},
 	{Name: Campaign, Shape: Keyed, DMOnlyWrite: true},
-	{Name: Pets, Shape: List},
+	{Name: Companions, Shape: List},
 }
 
 func Descriptors() []Descriptor {

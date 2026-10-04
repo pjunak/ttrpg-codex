@@ -89,10 +89,9 @@ export function parseRuleDetails(value: unknown): RuleDetails {
     wiki !== undefined &&
     (!isRecord(wiki) ||
       !(
-        (hasOnlyKeys(wiki, new Set(["path"])) && boundedText(wiki["path"], 2000)) ||
-        (hasOnlyKeys(wiki, new Set(["label", "hint"])) &&
-          boundedText(wiki["label"], 300) &&
-          boundedText(wiki["hint"], 300))
+        hasOnlyKeys(wiki, new Set(["label", "hint"])) &&
+        boundedText(wiki["label"], 300) &&
+        boundedText(wiki["hint"], 300)
       ))
   )
     return fail();

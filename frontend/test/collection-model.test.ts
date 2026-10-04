@@ -14,7 +14,7 @@ import { campaignPages, parseAppRoute } from "../src/app/routes.js";
 import { setUiLocale } from "../src/app/ui-localization.js";
 
 function dataset(changes: Record<string, { key: string; revision: number; value: unknown }[]>) {
-  const keyed = new Set(["factions", "deletedDefaults", "settings", "campaign"]);
+  const keyed = new Set(["factions", "settings", "campaign"]);
   return parseCampaignDataset({
     contractVersion: "campaign-data.v1",
     collections: [
@@ -24,13 +24,12 @@ function dataset(changes: Record<string, { key: string; revision: number; value:
       "events",
       "mysteries",
       "factions",
-      "deletedDefaults",
       "pantheon",
       "artifacts",
       "settings",
       "historicalEvents",
       "campaign",
-      "pets",
+      "companions",
     ].map((name) => ({
       name,
       shape: keyed.has(name) ? "keyed" : "list",

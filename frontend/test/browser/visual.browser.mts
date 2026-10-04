@@ -518,7 +518,7 @@ for (const scenario of [
       ["pantheon", "pantheon"],
       ["artifacts", "artifacts"],
       ["history", "historicalEvents"],
-      ["companions", "pets"],
+      ["companions", "companions"],
     ];
     const portrait = "/api/media/b_" + "7".repeat(32);
     for (const [, collection] of collections) {

@@ -78,24 +78,7 @@ export class SidebarEditError extends Error {
     super(`sidebar layout is ${kind}`);
   }
 }
-const aliases: Readonly<Record<string, string>> = Object.freeze({
-  "/mapa/vztahy": "/graph/relationships",
-  "/mapa/palac": "/graph/factions",
-  "/mapa/frakce": "/graph/factions",
-  "/mapa/tajemstvi": "/graph/mysteries",
-  "/casova-osa": "/timeline",
-  "/mapa/svet": "/map/world",
-  "/mista": "/locations",
-  "/postavy": "/characters",
-  "/frakce": "/factions",
-  "/mazlicci": "/companions",
-  "/zahady": "/mysteries",
-  "/panteon": "/pantheon",
-  "/artefakty": "/artifacts",
-  "/historie": "/history",
-});
-export function sidebarPage(route: string) {
-  const canonical = aliases[route] ?? route;
+export function sidebarPage(canonical: string) {
   if (canonical === "/")
     return { id: "dashboard", route: canonical, label: uiText("shell.overview"), icon: "🏠" };
   if (canonical === "/party")
@@ -170,11 +153,9 @@ export function parseSidebarLayout(value: unknown): SidebarLayout {
   const pages = (value: unknown): readonly string[] => {
     if (!Array.isArray(value) || value.length > 128) throw new SidebarEditError("invalid");
     return value.map((route) => {
-      if (typeof route !== "string" || !/^\/(?!\/)[^\p{Cc}]*$/u.test(route) || route.length > 256)
+      if (typeof route !== "string" || sidebarPage(route) === undefined || routes.has(route))
         throw new SidebarEditError("invalid");
-      const canonical = sidebarPage(route)?.route ?? route;
-      if (routes.has(canonical)) throw new SidebarEditError("invalid");
-      routes.add(canonical);
+      routes.add(route);
       return route;
     });
   };
@@ -205,8 +186,7 @@ export function parseSidebarLayout(value: unknown): SidebarLayout {
     };
   });
   const hidden = [...pages(value["hidden"] ?? [])];
-  // Pages added by the rewrite start hidden in a curated layout. Unknown saved
-  // routes survive editing and can become available when their workflow returns.
+  // Pages missing from a saved layout, such as newly added ones, start hidden.
   for (const route of allSidebarRoutes(defaultSidebarLayout()))
     if (!routes.has(route)) hidden.push(route);
   return { ...value, sections, hidden };

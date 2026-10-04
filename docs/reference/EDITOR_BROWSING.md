@@ -2,27 +2,19 @@
 
 Campaign browsing and Markdown recovery share the host's editor descriptors,
 role projections, localization, design tokens and record mutation path.
-Preserved URLs enter these current workflows without restoring legacy handlers.
 
-## Saved core URLs
+## Core URLs
 
-Preserved Czech list/article routes normalize to the current route before
-rendering, including party and settings. The former event-list URL opens the
-timeline. The finite aliases come from the preserved routing inventory; map,
-graph, timeline and provider-owned Compendium aliases keep their existing
-handlers. Unknown or malformed paths still reach the not-found view.
+Each list, article, party, settings, timeline (`#/timeline`), map (`#/map/...`)
+and Mind Palace view (`#/graph/...`) has exactly one route. Unknown or malformed
+paths reach the not-found view. Leaving an open editor passes the normal
+dirty/saving guard first. IDs are decoded once, preserving encoded slashes,
+percent signs and exact twin identity.
 
-Normalization replaces the current history entry. Back does not acquire an
-extra redirect stop, and aliases for the current article do not remount an open
-editor. All other destinations pass the normal dirty/saving guard first. IDs
-are decoded once, preserving encoded slashes, percent signs and exact twin
-identity.
-
-Old singular `/new` routes open `#/create/<collection-page>` through the current
-record form. Anonymous visitors can sign in and continue at that destination;
-Cancel returns to its collection and creates no record. The current record
-route `#/characters/new` still addresses a record whose key is `new`.
-Route unit tests and real-host record-workflow tests cover the alias inventory,
+`#/create/<collection-page>` opens the record form. Anonymous visitors can sign
+in and continue at that destination; Cancel returns to its collection and
+creates no record. The record route `#/characters/new` addresses a record whose
+key is `new`. Route unit tests and real-host record-workflow tests cover
 malformed paths, Back, sign-in, cancellation and retained dirty values.
 
 ## Campaign links and article outlines

@@ -2,7 +2,6 @@ import { LitElement, html, nothing } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import {
-  allSidebarRoutes,
   campaignSidebar,
   defaultSidebarLayout,
   moveSidebarPage,
@@ -137,7 +136,7 @@ export class CodexSidebarSettings extends LitElement {
         <span class="sb-grip" draggable="true" aria-hidden="true" @dragstart=${(event: DragEvent) => this.#startDrag(event, "page", route)} @dragend=${() => {
           this.#drag = undefined;
         }}>⠿</span>
-        <span class="sb-page-label">${page?.icon ?? "·"} ${name}${page === undefined ? html`<small>${this.#ui.t("sidebar.unavailable")}</small>` : nothing}</span>
+        <span class="sb-page-label">${page?.icon ?? "·"} ${name}</span>
         <span class="sb-order-controls"><button type="button" aria-label=${this.#ui.t("sidebar.pageUp", { name })} ?disabled=${index === 0} @click=${() => this.#movePage(route, section, index - 1)}>↑</button>
           <button type="button" aria-label=${this.#ui.t("sidebar.pageDown", { name })} ?disabled=${index === pages.length - 1} @click=${() => this.#movePage(route, section, index + 1)}>↓</button></span>
         <select aria-label=${this.#ui.t("sidebar.movePage", { name })} @change=${(event: Event) => this.#movePage(route, (event.target as HTMLSelectElement).value, 128)}>
@@ -223,12 +222,7 @@ export class CodexSidebarSettings extends LitElement {
   };
   readonly #defaults = (): void => {
     if (!this.layout || !window.confirm(this.#ui.t("sidebar.confirmDefaults"))) return;
-    const defaults = defaultSidebarLayout();
-    this.#change({
-      ...this.layout,
-      ...defaults,
-      hidden: allSidebarRoutes(this.layout).filter((route) => sidebarPage(route) === undefined),
-    });
+    this.#change({ ...this.layout, ...defaultSidebarLayout() });
   };
   readonly #cancel = (): void => {
     if (

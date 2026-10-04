@@ -28,7 +28,7 @@ const collections = [
   ["pantheon", "pantheon"],
   ["artifacts", "artifacts"],
   ["history", "historicalEvents"],
-  ["companions", "pets"],
+  ["companions", "companions"],
 ] as const;
 let browser: Browser, server: PreviewServer, origin: string;
 

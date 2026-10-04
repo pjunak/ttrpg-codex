@@ -33,7 +33,7 @@ type Kind string
 
 const (
 	CharacterPortrait Kind = "character-portrait"
-	PetPortrait       Kind = "pet-portrait"
+	CompanionPortrait Kind = "companion-portrait"
 	LocationMap       Kind = "location-map"
 	WorldMap          Kind = "world-map"
 	MarkerIcon        Kind = "marker-icon"
@@ -262,8 +262,8 @@ func (service *Service) target(
 	switch kind {
 	case CharacterPortrait:
 		return service.recordVisibility(ctx, campaign.Characters, targetKey)
-	case PetPortrait:
-		return service.recordVisibility(ctx, campaign.Pets, targetKey)
+	case CompanionPortrait:
+		return service.recordVisibility(ctx, campaign.Companions, targetKey)
 	case LocationMap:
 		return service.recordVisibility(ctx, campaign.Locations, targetKey)
 	case WorldMap, BrandingLogo:
@@ -331,7 +331,7 @@ func (service *Service) requirePinType(ctx context.Context, targetKey string) er
 
 func maximumBytes(kind Kind) (uint64, error) {
 	switch kind {
-	case CharacterPortrait, PetPortrait:
+	case CharacterPortrait, CompanionPortrait:
 		return 20 << 20, nil
 	case LocationMap, WorldMap:
 		return 40 << 20, nil

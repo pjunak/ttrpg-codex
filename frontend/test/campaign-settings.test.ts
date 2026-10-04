@@ -196,13 +196,12 @@ const names: readonly CampaignCollectionName[] = [
   "events",
   "mysteries",
   "factions",
-  "deletedDefaults",
   "pantheon",
   "artifacts",
   "settings",
   "historicalEvents",
   "campaign",
-  "pets",
+  "companions",
 ];
 
 function dataset(
@@ -213,10 +212,7 @@ function dataset(
     collections: names.map((name) => ({
       name,
       shape:
-        name === "factions" ||
-        name === "deletedDefaults" ||
-        name === "settings" ||
-        name === "campaign"
+        name === "factions" || name === "settings" || name === "campaign"
           ? ("keyed" as const)
           : ("list" as const),
       materialized: true,

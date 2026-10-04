@@ -18,7 +18,7 @@ import type { CampaignGraph, GraphNode } from "../src/app/campaign-graph.js";
 
 const core = {
   key: "captain",
-  legacyKey: "captain",
+  recordKey: "captain",
   kind: "character",
   name: "Hidden from the provider request",
   search: "Private body",
@@ -71,7 +71,7 @@ describe("campaign add-on graphs", () => {
   it("namespaces nodes, edges and filter types without exposing record bodies", () => {
     expect(graphModelRequest(base, "relationships").coreNodes).toEqual([]);
     const factions = {
-      nodes: [{ ...core, kind: "faction" as const, recordKey: "watch", legacyKey: "hub_watch" }],
+      nodes: [{ ...core, kind: "faction" as const, recordKey: "watch" }],
       edges: [],
     };
     expect(graphModelRequest(factions, "factions", permissions).coreNodes).toEqual([]);

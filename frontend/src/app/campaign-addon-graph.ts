@@ -92,7 +92,7 @@ export function graphModelRequest(
   let bytes = 0;
   for (const node of base.nodes) {
     if (!resources.has(collections[node.kind])) continue;
-    const reference = { id: node.key, kind: node.kind, key: node.recordKey ?? node.legacyKey };
+    const reference = { id: node.key, kind: node.kind, key: node.recordKey };
     bytes += new TextEncoder().encode(JSON.stringify(reference)).length;
     if (coreNodes.length === 512 || bytes > 24_000) break;
     coreNodes.push(reference);
@@ -169,7 +169,7 @@ export function parseAddonGraphModel(
     return {
       kind: "addon",
       key,
-      legacyKey: "",
+      recordKey: "",
       name,
       route,
       hint: summary,

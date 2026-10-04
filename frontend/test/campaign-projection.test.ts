@@ -190,13 +190,12 @@ function emptyDataset(): CampaignDataset {
     events: "list",
     mysteries: "list",
     factions: "keyed",
-    deletedDefaults: "keyed",
     pantheon: "list",
     artifacts: "list",
     settings: "keyed",
     historicalEvents: "list",
     campaign: "keyed",
-    pets: "list",
+    companions: "list",
   };
   const collections = Object.entries(definitions).map(([name, shape]) => ({
     name: name as CampaignCollectionName,
@@ -276,7 +275,7 @@ function records(name: CampaignCollectionName): CampaignCollection["records"] {
           },
         },
       ];
-    case "pets":
+    case "companions":
       return [
         {
           key: "moth",
@@ -318,7 +317,6 @@ function records(name: CampaignCollectionName): CampaignCollection["records"] {
       ];
     case "artifacts":
     case "campaign":
-    case "deletedDefaults":
     case "historicalEvents":
     case "locations":
     case "mysteries":

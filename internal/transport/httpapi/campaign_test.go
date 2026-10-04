@@ -172,7 +172,7 @@ func TestCampaignTransactionMapsConflictsWithoutLeakingDerivedTarget(t *testing.
 	})
 	request := httptest.NewRequest(http.MethodPost, "/api/campaign/transactions", strings.NewReader(`{
 		"contractVersion":"campaign-mutation.v1",
-		"mutations":[{"operation":"delete","collection":"pets","key":"owl","expectedRevision":2}]
+		"mutations":[{"operation":"delete","collection":"companions","key":"owl","expectedRevision":2}]
 	}`))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()

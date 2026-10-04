@@ -118,7 +118,7 @@ describe("shared party identity", () => {
     }
   });
 
-  it("uses one identity for party portraits, inherited glows, faction choices, and pet ownership", () => {
+  it("uses one identity for party portraits, inherited glows, faction choices, and companion ownership", () => {
     const campaign = dataset(setting({ ...saved, name: "Night Owls", badge: "🦉" }));
     const model = projectDashboard(campaign);
     expect(model.partyIdentity.name).toBe("Night Owls");
@@ -132,8 +132,8 @@ describe("shared party identity", () => {
     expect(
       editorOptionsFor(campaign, faction, "scout").filter((option) => option.value === "party"),
     ).toEqual([{ value: "party", label: "🦉 Night Owls" }]);
-    const owner = editorFieldsFor("pets").find((field) => field.kind === "owner")!;
-    expect(editorOptionsFor(campaign, owner, "pet")).toContainEqual({
+    const owner = editorFieldsFor("companions").find((field) => field.kind === "owner")!;
+    expect(editorOptionsFor(campaign, owner, "companion")).toContainEqual({
       value: "party:",
       label: "🦉 Night Owls",
     });
@@ -148,19 +148,18 @@ function dataset(settings: CampaignCollection["records"] = []): CampaignDataset 
     "events",
     "mysteries",
     "factions",
-    "deletedDefaults",
     "pantheon",
     "artifacts",
     "settings",
     "historicalEvents",
     "campaign",
-    "pets",
+    "companions",
   ];
   return {
     contractVersion: "campaign-data.v1",
     collections: names.map((name) => ({
       name,
-      shape: ["factions", "deletedDefaults", "settings", "campaign"].includes(name)
+      shape: ["factions", "settings", "campaign"].includes(name)
         ? ("keyed" as const)
         : ("list" as const),
       materialized: true,

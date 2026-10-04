@@ -15,7 +15,6 @@ const route = active("route", "detail", { path: "library" });
 const provider = active("wiki-kind", "links", {
   contractVersion: 1,
   kinds: ["spell"],
-  legacyRoots: ["old-library"],
   search: true,
 });
 const request: WikiRequest = {
@@ -90,11 +89,9 @@ function harness(providers: readonly ActiveBrowserContribution[] = [provider]) {
   return { controller, changed: () => changed(), update };
 }
 describe("public wiki links", () => {
-  it("claims only declared typed hints and whole legacy roots", () => {
+  it("claims only declared typed hints", () => {
     expect(acceptsWikiReference(provider, { label: "Shield", hint: "spell:shield" })).toBe(true);
     expect(acceptsWikiReference(provider, { label: "Shield", hint: "character" })).toBe(false);
-    expect(acceptsWikiReference(provider, { path: "#/old-library/spell:shield" })).toBe(true);
-    expect(acceptsWikiReference(provider, { path: "#/old-library-other/spell" })).toBe(false);
   });
   it("constructs encoded same-generation routes and rejects stale or arbitrary targets", () => {
     expect(parseWikiMatches(response(), provider, [route], request)[0]?.href).toBe(

@@ -93,7 +93,7 @@ export function articleContext(
     if (entries.length) sections.push({ id, title, groups: [{ entries }] });
   };
   const matching = (
-    name: "characters" | "locations" | "events" | "pets",
+    name: "characters" | "locations" | "events" | "companions",
     predicate: (value: Readonly<Record<string, unknown>>) => boolean,
   ) =>
     campaignCollection(campaign, name).records.filter((record) => predicate(recordValue(record)));
@@ -156,8 +156,11 @@ export function articleContext(
       "companions",
       uiText("context.companions"),
       references(
-        "pets",
-        matching("pets", (item) => item["ownerType"] === owner && keys.has(text(item["ownerId"]))),
+        "companions",
+        matching(
+          "companions",
+          (item) => item["ownerType"] === owner && keys.has(text(item["ownerId"])),
+        ),
       ),
     );
   }

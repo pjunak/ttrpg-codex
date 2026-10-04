@@ -268,23 +268,15 @@ disabled add-on. They cannot apply a review prepared for combined activation:
 
 Responses use `addon-schema-review.v1`, with schema transitions, counts,
 blockers, fingerprints and expiry. Combined reviews include `forActivation` and
-an applied `resolution`; legacy reviews omit them. Review responses contain no document bodies
+an applied `resolution`; standalone schema reviews omit them. Review responses contain no document bodies
 or document keys. These are host administration endpoints, not add-on-granted
 permissions or public worker methods.
 
 ## Remaining public surface
 
-The package/storage/application contract, package lifecycle integration, and
-the deliberately narrow first-party v1 backup conversion are implemented. The
-following still sits above this boundary:
+The package/storage/application contract and package lifecycle integration
+are implemented. The following still sits above this boundary:
 
 - reviewed value-transforming migration orchestration. The reserved worker
   `addon/migration.plan` and `addon/migration.apply` methods are not implemented;
   the compatible schema-only workflow above does not implement them.
-
-The offline converter strips migrated `dnd-sheets` data from core JSON only
-after the matching extension write succeeds in the same fresh output build.
-It imports the six stable DM Tools collections against the selected package's
-compiled schemas and reports everything it does not recognize. Legacy source
-ZIPs remain authoritative backups until supervised comparison and live smoke
-testing complete.

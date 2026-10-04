@@ -28,7 +28,7 @@ func TestDeleteEnumItemReplacesUsagesAndWritesTombstoneAtomically(t *testing.T) 
 		t.Fatalf("delete enum = %+v, %v; writes = %+v", result, err, repository.writes)
 	}
 	writes := repository.writes[0].Mutations
-	if len(writes) != 5 {
+	if len(writes) != 4 {
 		t.Fatalf("mutations = %+v", writes)
 	}
 	character := mutationObject(t, writes, campaign.Characters, "alice")
@@ -39,9 +39,6 @@ func TestDeleteEnumItemReplacesUsagesAndWritesTombstoneAtomically(t *testing.T) 
 	settings := mutationRaw(t, writes, campaign.Settings, "attitudes")
 	if string(settings) != `[{"id":"new"}]` {
 		t.Fatalf("settings = %s", settings)
-	}
-	if string(mutationRaw(t, writes, campaign.DeletedDefaults, "settings:attitudes:old")) != "true" {
-		t.Fatalf("tombstone missing: %+v", writes)
 	}
 }
 

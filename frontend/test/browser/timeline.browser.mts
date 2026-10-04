@@ -420,7 +420,7 @@ void test("empty timelines keep an initial session and a way to create the first
   assert.equal(writes.length, 0);
 });
 
-void test("anonymous timeline and preserved routes remain read-only; clean data refreshes", async (t) => {
+void test("anonymous timeline remains read-only; clean data refreshes", async (t) => {
   const { page, writes } = await fixture(t, { role: "" });
   assert.equal(await page.getByRole("button", { name: "Edit timeline" }).count(), 0);
   assert.equal(await page.locator('.tl-card[draggable="true"]').count(), 0);
@@ -429,19 +429,17 @@ void test("anonymous timeline and preserved routes remain read-only; clean data 
     event("later").revision++;
   });
   await card(page, "later").getByText("A changed arrival", { exact: true }).waitFor();
-  for (const hash of ["#/casova-osa", "#/mapa/casova-osa"]) {
-    await page.goto(`${origin}/${hash}`);
-    await page.locator(".tl-board").waitFor();
-  }
+  await page.goto(`${origin}/#/timeline`);
+  await page.locator(".tl-board").waitFor();
   assert.equal(writes.length, 0);
 });
 
-void test("Czech timeline labels and old sidebar preferences reach the restored board", async (t) => {
+void test("Czech timeline labels and sidebar preferences reach the board", async (t) => {
   const { page } = await fixture(t, { locale: "cs-CZ", role: "dm" });
   collection("settings").records.push({
     key: "sidebarLayout",
     revision: 1,
-    value: { sections: [{ id: "kampan", label: "Campaign", pages: ["/casova-osa"] }], hidden: [] },
+    value: { sections: [{ id: "campaign", label: "Campaign", pages: ["/timeline"] }], hidden: [] },
   });
   await page.reload();
   await page

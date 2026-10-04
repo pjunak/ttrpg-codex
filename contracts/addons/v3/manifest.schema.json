@@ -484,17 +484,6 @@
                       "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
                     }
                   },
-                  "legacyRoots": {
-                    "type": "array",
-                    "maxItems": 16,
-                    "uniqueItems": true,
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 64,
-                      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
-                    }
-                  },
                   "search": {
                     "type": "boolean"
                   }

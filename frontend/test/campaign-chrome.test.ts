@@ -23,18 +23,18 @@ const layout = {
   extension: { keep: true },
   sections: [
     {
-      id: "svet",
+      id: "world",
       label: "My world",
       icon: "🦉",
       collapsible: true,
       defaultOpen: false,
       role: "",
-      pages: ["/postavy", "/mista"],
+      pages: ["/characters", "/locations"],
       extension: { color: "gold" },
     },
-    { id: "private", label: "DM", role: "dm", pages: ["/dm", "/future/page"] },
+    { id: "private", label: "DM", role: "dm", pages: ["/timeline", "/events"] },
   ],
-  hidden: ["/mapa/svet"],
+  hidden: ["/map/world"],
 };
 const dataset = (records: CampaignCollection["records"] = []): CampaignDataset => ({
   contractVersion: "campaign-data.v1",
@@ -138,40 +138,40 @@ describe("curated sidebar layout", () => {
     const curated = campaignSidebar(
       dataset([{ key: "sidebarLayout", revision: 2, value: layout }]),
     );
-    expect(curated.sections.map((section) => section.id)).toEqual(["svet", "private"]);
+    expect(curated.sections.map((section) => section.id)).toEqual(["world", "private"]);
     expect(curated.sections[0]).toMatchObject({
       label: "My world",
       defaultOpen: false,
-      pages: ["/postavy", "/mista"],
+      pages: ["/characters", "/locations"],
       extension: { color: "gold" },
     });
     expect(curated.hidden).toContain("/party");
-    expect(curated.hidden).toContain("/mapa/svet");
+    expect(curated.hidden).toContain("/map/world");
   });
-  it("resolves preserved route aliases through the implemented registry only", () => {
-    expect(sidebarPage("/postavy")?.route).toBe("/characters");
-    expect(sidebarPage("/mapa/svet")?.route).toBe("/map/world");
-    expect(sidebarPage("/mapa/palac")).toMatchObject({
+  it("resolves only implemented core pages", () => {
+    expect(sidebarPage("/characters")?.route).toBe("/characters");
+    expect(sidebarPage("/map/world")?.route).toBe("/map/world");
+    expect(sidebarPage("/graph/factions")).toMatchObject({
       route: "/graph/factions",
       label: "Mind Palace",
     });
-    expect(sidebarPage("/mapa/frakce")).toMatchObject({ route: "/graph/factions" });
-    expect(sidebarPage("/mapa/tajemstvi")).toMatchObject({ route: "/graph/mysteries" });
+    expect(sidebarPage("/graph/factions")).toMatchObject({ route: "/graph/factions" });
+    expect(sidebarPage("/graph/mysteries")).toMatchObject({ route: "/graph/mysteries" });
     expect(sidebarPage("https://other.test")).toBeUndefined();
     expect(sidebarPage("/dm")).toBeUndefined();
   });
-  it("moves and hides pages while preserving extension fields and unavailable routes", () => {
+  it("moves and hides pages while preserving extension fields", () => {
     const parsed = parseSidebarLayout(layout),
       before = structuredClone(parsed);
-    const moved = moveSidebarPage(parsed, "/postavy", "private", 1);
-    expect(moved.sections[0]?.pages).toEqual(["/mista"]);
-    expect(moved.sections[1]?.pages).toEqual(["/dm", "/postavy", "/future/page"]);
+    const moved = moveSidebarPage(parsed, "/characters", "private", 1);
+    expect(moved.sections[0]?.pages).toEqual(["/locations"]);
+    expect(moved.sections[1]?.pages).toEqual(["/timeline", "/characters", "/events"]);
     expect(moved.sections[0]?.["extension"]).toEqual({ color: "gold" });
-    const hidden = moveSidebarPage(moved, "/postavy", "__hidden__", 0);
-    expect(hidden.hidden[0]).toBe("/postavy");
+    const hidden = moveSidebarPage(moved, "/characters", "__hidden__", 0);
+    expect(hidden.hidden[0]).toBe("/characters");
     expect(new Set(allSidebarRoutes(hidden)).size).toBe(allSidebarRoutes(hidden).length);
     expect(parsed).toEqual(before);
-    expect(moveSidebarPage(parsed, "/postavy", "absent", 0)).toBe(parsed);
+    expect(moveSidebarPage(parsed, "/characters", "absent", 0)).toBe(parsed);
   });
   it("merges the reviewed layout with an optimistic revision and keeps unknown data", () => {
     const campaign = dataset([{ key: "sidebarLayout", revision: 7, value: layout }]);
@@ -179,7 +179,7 @@ describe("curated sidebar layout", () => {
     expect(
       prepareSidebarSave(campaign, {
         expectedRevision: 7,
-        layout: moveSidebarPage(parsed, "/mista", "__hidden__", 0),
+        layout: moveSidebarPage(parsed, "/locations", "__hidden__", 0),
       }),
     ).toMatchObject({
       collection: "settings",
@@ -199,7 +199,7 @@ describe("curated sidebar layout", () => {
       null,
       [],
       { sections: {} },
-      { sections: [{ id: "x", pages: ["/characters", "/postavy"] }] },
+      { sections: [{ id: "x", pages: ["/characters", "/characters"] }] },
       {
         sections: [
           { id: "x", pages: [] },
@@ -209,6 +209,8 @@ describe("curated sidebar layout", () => {
       { sections: [{ id: "x", pages: [], role: "player" }] },
       { sections: [{ id: "x", pages: ["//other.test"] }] },
       { sections: [{ id: "x", pages: ["javascript:bad"] }] },
+      { sections: [{ id: "x", pages: ["/future/page"] }] },
+      { sections: [{ id: "x", pages: ["/dm"] }] },
     ]) {
       expect(() => parseSidebarLayout(raw)).toThrow("invalid");
     }

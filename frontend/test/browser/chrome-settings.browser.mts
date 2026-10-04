@@ -39,22 +39,22 @@ const originalLayout = {
   extension: { keep: true },
   sections: [
     {
-      id: "prehled",
+      id: "overview",
       label: "Our archive",
       icon: "",
       collapsible: false,
       defaultOpen: true,
       role: "",
-      pages: ["/", "/mapa/svet"],
+      pages: ["/", "/map/world"],
     },
     {
-      id: "svet",
+      id: "world",
       label: "World notes",
       icon: "🦉",
       collapsible: true,
       defaultOpen: false,
       role: "",
-      pages: ["/postavy", "/mista"],
+      pages: ["/characters", "/locations"],
       extension: { keep: true },
     },
     {
@@ -64,10 +64,10 @@ const originalLayout = {
       collapsible: false,
       defaultOpen: true,
       role: "dm",
-      pages: ["/mysteries", "/dm", "/future/page"],
+      pages: ["/mysteries", "/timeline"],
     },
   ],
-  hidden: ["/frakce"],
+  hidden: ["/factions"],
 };
 before(async () => {
   await mkdir(output, { recursive: true });
@@ -388,10 +388,10 @@ void test("sidebar editing preserves original route names and extensions through
   await openCategory(page, "sidebar");
   const panel = page.locator("codex-sidebar-settings");
   await panel
-    .locator('[data-section="svet"]')
+    .locator('[data-section="world"]')
     .getByLabel("Section name", { exact: true })
     .fill("Shared notes");
-  await panel.getByLabel("Move Characters to", { exact: true }).selectOption("prehled");
+  await panel.getByLabel("Move Characters to", { exact: true }).selectOption("overview");
   await panel.getByRole("button", { name: "Move Characters up", exact: true }).click();
   await panel.getByLabel("Move World map to", { exact: true }).selectOption("__hidden__");
   await panel.getByRole("button", { name: "Delete section Private plans", exact: true }).click();
@@ -399,28 +399,28 @@ void test("sidebar editing preserves original route names and extensions through
   await saved(page, "sidebarLayout", 5);
   assert.equal(writes.length, 1);
   assert.equal(writes[0][0].expectedRevision, 4);
-  assert.deepEqual(setting("sidebarLayout").value.sections[0].pages, ["/", "/postavy"]);
+  assert.deepEqual(setting("sidebarLayout").value.sections[0].pages, ["/", "/characters"]);
   assert.deepEqual(setting("sidebarLayout").value.extension, { keep: true });
   assert.deepEqual(setting("sidebarLayout").value.sections[1].extension, { keep: true });
-  assert.ok(setting("sidebarLayout").value.hidden.includes("/future/page"));
+  assert.ok(setting("sidebarLayout").value.hidden.includes("/timeline"));
   assert.equal(await page.locator('.core-navigation a[href="#/characters"]').isVisible(), true);
   assert.equal(await page.locator('.core-navigation a[href="#/map/world"]').count(), 0);
-  assert.equal(await page.locator('.core-navigation a[href="#/future/page"]').count(), 0);
+  assert.equal(await page.locator('.core-navigation a[href="#/timeline"]').count(), 0);
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: `${output}/sidebar-desktop.png`, fullPage: true });
-  const world = panel.locator('[data-section="svet"]');
-  await panel.locator('[data-page="/postavy"] .sb-grip').dragTo(world.locator(".sb-pages"));
-  assert.equal(await world.locator('[data-page="/postavy"]').count(), 1);
+  const world = panel.locator('[data-section="world"]');
+  await panel.locator('[data-page="/characters"] .sb-grip').dragTo(world.locator(".sb-pages"));
+  assert.equal(await world.locator('[data-page="/characters"]').count(), 1);
   await panel.getByRole("button", { name: "Save", exact: true }).click();
   await saved(page, "sidebarLayout", 6);
-  assert.ok(setting("sidebarLayout").value.sections[1].pages.includes("/postavy"));
+  assert.ok(setting("sidebarLayout").value.sections[1].pages.includes("/characters"));
 });
 
 void test("phone sidebar conflicts keep the draft and cancel reloads the current layout", async (t) => {
   const { page, writes } = await fixture(t, { mobile: true });
   await openCategory(page, "sidebar");
   const panel = page.locator("codex-sidebar-settings"),
-    name = panel.locator('[data-section="svet"]').getByLabel("Section name", { exact: true });
+    name = panel.locator('[data-section="world"]').getByLabel("Section name", { exact: true });
   await name.fill("My layout");
   await publish(page, () => {
     setting("sidebarLayout").revision++;
@@ -493,7 +493,7 @@ void test("server conflicts keep uploaded branding and sidebar drafts without ch
   await openCategory(page, "sidebar");
   const sidebar = page.locator("codex-sidebar-settings");
   await sidebar
-    .locator('[data-section="svet"]')
+    .locator('[data-section="world"]')
     .getByLabel("Section name", { exact: true })
     .fill("Unaccepted section");
   await sidebar.getByRole("button", { name: "Save", exact: true }).click();
@@ -502,20 +502,20 @@ void test("server conflicts keep uploaded branding and sidebar drafts without ch
   assert.equal(setting("sidebarLayout").value.sections[1].label, "World notes");
   assert.equal(
     await sidebar
-      .locator('[data-section="svet"]')
+      .locator('[data-section="world"]')
       .getByLabel("Section name", { exact: true })
       .inputValue(),
     "Unaccepted section",
   );
 });
 
-void test("section drag, addition and reset preserve unavailable saved routes", async (t) => {
+void test("section drag, addition and reset keep layout extensions", async (t) => {
   const { page } = await fixture(t);
   await openCategory(page, "sidebar");
   const panel = page.locator("codex-sidebar-settings");
   await panel
     .locator('[data-section="private"] .sb-sec-head > .sb-grip')
-    .dragTo(panel.locator('[data-section="prehled"] .sb-sec-head'));
+    .dragTo(panel.locator('[data-section="overview"] .sb-sec-head'));
   assert.equal(
     await panel.locator("[data-section]").first().getAttribute("data-section"),
     "private",
@@ -524,7 +524,7 @@ void test("section drag, addition and reset preserve unavailable saved routes", 
   assert.equal(await panel.locator("[data-section]").count(), 4);
   page.once("dialog", (dialog) => dialog.accept());
   await panel.getByRole("button", { name: "↺ Reset layout", exact: true }).click();
-  assert.equal(await panel.locator('.sb-hidden [data-page="/future/page"]').count(), 1);
+  assert.equal(await panel.locator('.sb-hidden [data-page="/events"]').count(), 1);
   await panel.getByRole("button", { name: "Save", exact: true }).click();
   await saved(page, "sidebarLayout", 5);
   assert.equal(setting("sidebarLayout").value.sections[0].id, "overview");

@@ -10,8 +10,7 @@ export interface GraphPoint {
 }
 export interface GraphNode {
   readonly kind: "character" | "faction" | "location" | "mystery" | "addon";
-  readonly legacyKey: string;
-  readonly recordKey?: string;
+  readonly recordKey: string;
   readonly key: string;
   readonly name: string;
   readonly route: string;
@@ -144,7 +143,7 @@ export function projectRelationshipGraph(campaign: CampaignDataset): CampaignGra
     for (const edge of connected) counts.set(edge.type, (counts.get(edge.type) ?? 0) + 1);
     return {
       kind: "character",
-      legacyKey: record.key,
+      recordKey: record.key,
       key: record.key,
       name: text(value["name"]) || record.key,
       route: `#/characters/${encodeURIComponent(record.key)}`,

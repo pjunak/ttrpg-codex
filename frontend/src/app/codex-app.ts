@@ -441,13 +441,6 @@ export class CodexApp extends LitElement {
         this.route,
         this.authority.state === "known" ? (this.authority.auth.role ?? "public") : "public",
       );
-    if (this.isConnected && this.route.kind === "not-found") {
-      const target = this.#links.resolve({ path: window.location.hash });
-      if (target.status === "resolved") {
-        window.history.replaceState(null, "", target.href);
-        this.#onHashChange();
-      }
-    }
     if (this.isConnected && this.#outletLocale !== this.#ui.locale) {
       this.#outletLocale = this.#ui.locale;
       this.#routeOutlet?.refresh();
@@ -1193,10 +1186,8 @@ export class CodexApp extends LitElement {
             return page === undefined ? [] : [page];
           });
           if (entries.length === 0) return nothing;
-          const colorGroup =
-            group.id === "kampan" ? "campaign" : group.id === "svet" ? "world" : group.id;
           const open = !group.collapsible || this.#sidebarSectionOpen(group);
-          return html`<section class=${`navigation-${colorGroup}`} data-navigation-section=${group.id}>
+          return html`<section class=${`navigation-${group.id}`} data-navigation-section=${group.id}>
             <h2>${
               group.collapsible
                 ? html`<button class="sidebar-section-toggle" aria-expanded=${open} @click=${() => this.#toggleSidebarSection(group)}>
@@ -1575,13 +1566,6 @@ export class CodexApp extends LitElement {
         }
         return nothing;
       case "not-found":
-        if (this.#links.resolve({ path: window.location.hash }).status === "loading") {
-          return html`<section class="loading-page" role="status"><p>${this.#ui.t("shell.openingAddon")}</p></section>`;
-        }
-        if (this.#links.resolve({ path: window.location.hash }).status === "failed") {
-          return html`<section class="unavailable-page" role="status"><p>${this.#ui.t("wiki.failed")}</p>
-            <button type="button" @click=${this.#links.retry}>${this.#ui.t("wiki.retry")}</button></section>`;
-        }
         return html`<section class="unavailable-page"><p class="page-kicker">${this.#ui.t("shell.campaignArchive")}</p><h1>${this.#ui.t("shell.pageMissing")}</h1><p>${this.#ui.t("shell.pageMissingHint")}</p><a class="primary-link" href="#/">${this.#ui.t("shell.returnOverview")}</a></section>`;
     }
   }

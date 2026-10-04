@@ -75,12 +75,10 @@ export function bindRuleDetails(
       return;
     const reference = detail.reference;
     if (
-      "path" in reference
-        ? typeof reference.path !== "string" || reference.path.length > 2000
-        : typeof reference.label !== "string" ||
-          typeof reference.hint !== "string" ||
-          reference.label.length > 200 ||
-          reference.hint.length > 300
+      typeof reference.label !== "string" ||
+      typeof reference.hint !== "string" ||
+      reference.label.length > 200 ||
+      reference.hint.length > 300
     )
       return;
     event.stopPropagation();

@@ -24,18 +24,15 @@ function dataset(changes: Record<string, { key: string; revision: number; value:
       "events",
       "mysteries",
       "factions",
-      "deletedDefaults",
       "pantheon",
       "artifacts",
       "settings",
       "historicalEvents",
       "campaign",
-      "pets",
+      "companions",
     ].map((name) => ({
       name,
-      shape: ["factions", "deletedDefaults", "settings", "campaign"].includes(name)
-        ? "keyed"
-        : "list",
+      shape: ["factions", "settings", "campaign"].includes(name) ? "keyed" : "list",
       materialized: true,
       revision: 1,
       records: changes[name] ?? [],

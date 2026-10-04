@@ -441,9 +441,7 @@ outlet/bridge unit suites cover recognition, projection bounds, and delivery.
 constructs same-generation route targets. `AddonLinksController` owns batching,
 view caches, search debounce, retries, and cancellation. Record articles and
 Markdown previews preserve core resolution priority; global search appends
-provider groups to existing campaign results. The app only offers unknown
-hashes to providers claiming that complete legacy root, then replaces the
-history entry with the canonical URL. Disabling/replacing a binding clears all
+provider groups to existing campaign results. Disabling/replacing a binding clears all
 cached results synchronously. Both integrated callbacks and isolated callback
 frames use the same boundary and ten-second deadline.
 

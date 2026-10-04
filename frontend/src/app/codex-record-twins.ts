@@ -55,7 +55,7 @@ export class CodexRecordTwins extends LitElement {
     }
   }
   protected override render() {
-    if (!this.record || !this.page || this.page.collection === "pets") return nothing;
+    if (!this.record || !this.page || this.page.collection === "companions") return nothing;
     const records = campaignCollection(this.campaign, this.page.collection).records;
     const twinKey = text(recordValue(this.record)["linkedTwinId"]);
     const twin = records.find((record) => record.key === twinKey);

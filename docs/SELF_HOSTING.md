@@ -84,8 +84,7 @@ The container listens on port 3000 and stores all durable state below
 `/app/data`, mounted from `./data`. The production image contains the Go host,
 health probe, package inspector, maintenance utility, and compiled
 frontend; it does not contain Node.js. The runtime user is deliberately pinned
-to UID/GID 1000 so existing production bind mounts retain their ownership
-across the Node-to-Go cutover.
+to UID/GID 1000 so existing production bind mounts keep their ownership.
 
 The default Compose network is the existing external `proxy` network. Adjust
 that declaration for another reverse-proxy topology. Forward the original

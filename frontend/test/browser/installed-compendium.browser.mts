@@ -352,7 +352,7 @@ void test(
 
 for (const mobile of [false, true])
   void test(
-    `campaign references and old Compendium bookmarks work on ${mobile ? "phone" : "desktop"}`,
+    `campaign references and Compendium search work on ${mobile ? "phone" : "desktop"}`,
     { skip: !archivePath },
     async (t) => {
       const key = `library-notes-${mobile}`;
@@ -373,7 +373,7 @@ for (const mobile of [false, true])
                   knowledge: 4,
                   visibility: "public",
                   description:
-                    "[[Fireball|spell]] and [[Ward|spell:shield]] and [[Equipment|armor:shield]]. Ambiguous: [[Shield]]. [Old monster](#/bestiary/monster:aboleth).",
+                    "[[Fireball|spell]] and [[Ward|spell:shield]] and [[Equipment|armor:shield]]. Ambiguous: [[Shield]].",
                 },
               },
             ],
@@ -420,16 +420,6 @@ for (const mobile of [false, true])
         .getByRole("button", { name: "Ward", exact: true })
         .waitFor();
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
-      await page.getByRole("link", { name: "Old monster", exact: true }).click();
-      await page.locator(".comp-reading-pane h1").filter({ hasText: "Aboleth" }).waitFor();
-      assert.match(page.url(), /\/bestiary\?kind=monster&id=aboleth$/u);
-      await page.goto("/#/compendium/spell:shield");
-      await page.locator(".comp-reading-pane h1").filter({ hasText: "Shield" }).waitFor();
-      assert.ok(page.url().endsWith(`${route}?kind=spell&id=shield`));
-      await page.goto("/#/compendium/spell");
-      await page.locator('[data-filter="level"]').waitFor();
-      await page.goto("/#/compendium");
-      await page.locator(".comp-reading-pane .codex-link-tile").first().waitFor();
       await page.goto("/#/search");
       await page.locator(".campaign-search-field input").fill("shield");
       const results = page.locator('.search-group[aria-label="Compendium"]');

@@ -5,15 +5,10 @@
   "oneOf": [{ "$ref": "#/$defs/resolve" }, { "$ref": "#/$defs/search" }, { "$ref": "#/$defs/response" }],
   "$defs": {
     "reference": {
-      "oneOf": [
-        { "type": "object", "additionalProperties": false, "required": ["label", "hint"], "properties": {
-          "label": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "hint": { "type": "string", "maxLength": 300 }
-        } },
-        { "type": "object", "additionalProperties": false, "required": ["path"], "properties": {
-          "path": { "type": "string", "maxLength": 2048, "pattern": "^#/" }
-        } }
-      ]
+      "type": "object", "additionalProperties": false, "required": ["label", "hint"], "properties": {
+        "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "hint": { "type": "string", "maxLength": 300 }
+      }
     },
     "resolve": {
       "type": "object", "additionalProperties": false, "required": ["contractVersion", "operation", "references"], "properties": {

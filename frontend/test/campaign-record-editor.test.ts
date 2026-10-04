@@ -860,7 +860,7 @@ describe("campaign record editing", () => {
       "tags",
       "description",
     ]);
-    expect(editorFieldsFor("pets").map(({ key }) => key)).toEqual([
+    expect(editorFieldsFor("companions").map(({ key }) => key)).toEqual([
       "name",
       "icon",
       "species",
@@ -993,17 +993,17 @@ describe("campaign record editing", () => {
     });
 
     const campaign = dataset({
-      pets: [{ key: "owl", revision: 3, value: { id: "owl", name: "Owl" } }],
+      companions: [{ key: "owl", revision: 3, value: { id: "owl", name: "Owl" } }],
     });
     expect(
       prepareCampaignRecordDelete(campaign, {
-        collection: "pets",
+        collection: "companions",
         key: "owl",
         expectedRevision: 3,
       }).mutations[0],
     ).toEqual({
       operation: "delete",
-      collection: "pets",
+      collection: "companions",
       key: "owl",
       expectedRevision: 3,
     });
@@ -1021,19 +1021,19 @@ describe("campaign record editing", () => {
       },
       false,
     );
-    const pet = prepareCampaignRecordSave(
+    const companion = prepareCampaignRecordSave(
       dataset({}),
       {
-        collection: "pets",
-        key: "new-pet",
+        collection: "companions",
+        key: "new-companion",
         expectedRevision: 0,
         creating: true,
-        fields: formFields("pets", { name: "New pet" }),
+        fields: formFields("companions", { name: "New companion" }),
       },
       false,
     );
     expect(character.mutations[0]).toMatchObject({ value: { faction: "neutral" } });
-    expect(pet.mutations[0]).toMatchObject({
+    expect(companion.mutations[0]).toMatchObject({
       value: { icon: "🐾", ownerType: "none", ownerId: "" },
     });
   });
@@ -1078,13 +1078,12 @@ function dataset(
     events: "list",
     mysteries: "list",
     factions: "keyed",
-    deletedDefaults: "keyed",
     pantheon: "list",
     artifacts: "list",
     settings: "keyed",
     historicalEvents: "list",
     campaign: "keyed",
-    pets: "list",
+    companions: "list",
   };
   return {
     contractVersion: "campaign-data.v1",

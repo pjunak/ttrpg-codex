@@ -153,13 +153,12 @@ function dataset(
     events: "list",
     mysteries: "list",
     factions: "keyed",
-    deletedDefaults: "keyed",
     pantheon: "list",
     artifacts: "list",
     settings: "keyed",
     historicalEvents: "list",
     campaign: "keyed",
-    pets: "list",
+    companions: "list",
   };
   return {
     contractVersion: "campaign-data.v1",

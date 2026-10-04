@@ -115,7 +115,7 @@ describe("relationship graph projection and local arrangement", () => {
     expect(projected.nodes[0]?.route).toBe("#/characters/key%2Fwith%20%3F%23");
     expect(projected.edges).toEqual([]);
   });
-  it("retains valid legacy centers and ignores malformed or extreme coordinates", () => {
+  it("retains valid saved centers and ignores malformed or extreme coordinates", () => {
     const saved = parseGraphPositions({
       a: { x: -42.5, y: 100 },
       b: { x: "100", y: 0 },

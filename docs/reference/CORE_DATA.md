@@ -20,7 +20,8 @@ fields it does not know, so add-on data and older fields survive edits.
 `campaign_collections` owns collection shape, materialization state, and a
 monotonic collection revision. `campaign_records` owns the outer key, list
 position, opaque JSON value, materialized visibility, record revision, and
-timestamps. The fixed v1 core collection set is seeded by migration 0005;
+timestamps. The fixed core collection set is seeded by migration 0005 and
+finalized by 0024;
 add-on collections remain under the separate v3 collection contract rather
 than being smuggled into this table.
 
@@ -181,7 +182,7 @@ and phone, plus retained/cancelled wiki drafts and blocked twin operations.
 The retained location field `notes` is DM-owned Markdown, separate from
 `description` and `mapNotes`. DMs can read it on the location article and
 edit it with the normal revision-checked record form. Public/player projections
-remove it and any corresponding legacy/current activity fields. Player writes
+remove it, and public activity summaries never name it. Player writes
 cannot supply it; ordinary public edits preserve its exact stored value,
 including unfamiliar retained shapes. No conversion, migration or public-copy
 operation is needed. Backup/recovery still retains the original field.
@@ -196,9 +197,8 @@ settings edit. `POST /api/campaign/enums/delete` accepts the exact
 reject if referenced, replace every reference, or clear every reference.
 The application recognizes only the six host-owned enum categories and their
 typed usage fields. It verifies the loaded settings revision and replacement,
-updates every affected record, removes the definition, and writes its
-`deletedDefaults` tombstone in one transaction. This avoids both silent
-dangling references and accidental re-seeding after restart.
+updates every affected record and removes the definition in one transaction,
+so no reference is left dangling.
 
 The TypeScript client now has one canonical route/descriptor registry for the
 nine user-facing record collections. Its list, search, detail, create, edit,
@@ -311,8 +311,7 @@ boundaries. Coordinates, map scope, saved views, draft revisions, and image
 replacement are described in [`MAPS.md`](MAPS.md).
 
 The session timeline at `#/timeline` uses the role-filtered `events` collection;
-historical events remain a separate archive. Preserved `#/casova-osa` and
-`#/mapa/casova-osa` hashes open the same board. Columns use stored `sitting`
+historical events remain a separate archive. Columns use stored `sitting`
 numbers and stable `order` sorting. Missing, zero, or invalid session numbers
 display in session 1 without rewriting the stored value. Empty columns remain
 visible through session 200; larger sparse timelines show occupied sessions
@@ -348,10 +347,7 @@ widget state across refreshes, role/read grants, replacement and disable, and
 protection of core order drafts. Real-campaign visual acceptance remains open.
 
 Mind Palace has faction, relationship, and mystery modes at `#/graph/factions`,
-`#/graph/relationships`, and `#/graph/mysteries`. The preserved `#/mapa/palac`
-and `#/mapa/frakce` hashes open factions; `#/mapa/vztahy` opens relationships,
-and `#/mapa/tajemstvi` opens mysteries. Converted sidebar entries reach the
-same views. `projectRelationshipGraph` reads characters, relationship records,
+`#/graph/relationships`, and `#/graph/mysteries`. `projectRelationshipGraph` reads characters, relationship records,
 shared enum definitions, and faction/party presentation
 from the current role projection. Canonical relationship record keys identify
 edges, including multiple relationships between the same characters. Missing
@@ -372,15 +368,12 @@ Mixed graph modes qualify node identities by collection and encode generated
 edge identities as tuples. Equal character, location, mystery, and hub IDs
 therefore cannot join the wrong records or overwrite each other's arrangement.
 
-Arrangement remains a browser preference under the original `cm_pos_vztahy`
-key for Relationships: values are node centers keyed by permanent character
-IDs. Factions and mysteries use `cm_pos_v2_frakce` and `cm_pos_v2_tajemstvi`
-with collection-qualified keys. If the new key is absent, an unambiguous old
-`cm_pos_frakce` or `cm_pos_tajemstvi` entry supplies the initial position.
-Ambiguous entries are ignored, and the original values are never rewritten.
+Arrangement is a browser preference. Relationships use `cm_pos_vztahy`, with
+node centers keyed by permanent character IDs. Factions and mysteries use
+`cm_pos_v2_frakce` and `cm_pos_v2_tajemstvi` with collection-qualified keys.
 Pointer, touch, and keyboard moves save local coordinates only; no campaign
 mutation is sent.
-Valid old positions win over the deterministic initial placement of new nodes.
+Valid saved positions win over the deterministic initial placement of new nodes.
 Malformed or extreme coordinates are ignored, and storage failures retain the
 in-memory arrangement with an explicit retry. Pointer movement uses a disposable
 `GraphMotion` draft: edge control points lag with the original spring/damping
@@ -428,7 +421,7 @@ unaffected positions, bounded work, and animated edge geometry. Browser cases in
 geometry, pointer and keyboard arrangement, wheel/pan behavior, detail links,
 context actions, filtering, reload, live removal, cross-tab interruption,
 storage failure/retry, mode isolation, touch input with and without reduced
-motion, and anonymous Czech use of all preserved graph hashes. Motion cases
+motion, and anonymous Czech use of every graph view. Motion cases
 also verify deferred saves, idle frame shutdown, complete cancellation,
 navigation during settling, live projection changes, cross-tab races, and
 runtime reduced-motion changes. `campaign-addon-graph.test.ts` verifies model
@@ -500,5 +493,4 @@ indexes are [backlog ideas](../BACKLOG.md#ideas-only-with-a-concrete-need). Doma
 policies belong above the storage layer, not in transport-handler SQL.
 
 Native whole-host recovery archives and offline journaled restore are
-documented in [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md). Legacy website backups
-are input only to the separate one-time converter.
+documented in [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md).

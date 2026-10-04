@@ -1138,7 +1138,7 @@ function articleFacts(
             : "";
     if (result !== "") facts.push([uiSourceLabel(label), result]);
   }
-  if (collection === "pets") {
+  if (collection === "companions") {
     const owner = articleOwner(dataset, value);
     if (owner.length) facts.push([uiText("Owner"), renderArticleReferences(owner)]);
   }
@@ -1240,7 +1240,7 @@ const factDefinitions: Readonly<Record<string, readonly (readonly [string, strin
     ["Characters", "characters", "characters"],
     ["Locations", "locations", "locations"],
   ],
-  pets: [["Species", "species"]],
+  companions: [["Species", "species"]],
 };
 
 if (!customElements.get("codex-record-page")) {
