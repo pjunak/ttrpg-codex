@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -11,6 +12,11 @@ import (
 )
 
 func TestSupervisorDistinguishesOwnedPipeCleanupFromTransportFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Closing a synchronous Windows pipe waits for a blocked read instead
+		// of interrupting it, so this model of an open writer would hang.
+		t.Skip("closing a pipe does not interrupt a blocked read on Windows")
+	}
 	for _, owned := range []bool{true, false} {
 		name := "unexpected close"
 		if owned {

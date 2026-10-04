@@ -82,9 +82,19 @@ func (ctx pipeDeadlineContext) Err() error {
 }
 
 func TestSupervisorStartupDrainHonorsDeadlineAfterExit(t *testing.T) {
-	supervisor := newPipeSupervisor(t, "exit-with-inherited-stdout", nil)
+	supervisor := newPipeSupervisor(t, "exit-with-inherited-stdout", func(config *Config) {
+		config.StartupTimeout = 5 * time.Second
+	})
+	// The deadline expires only after the worker has exited, so slow process
+	// launches cannot turn this into an ordinary startup timeout.
+	expire, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	result := make(chan error, 1)
-	go func() { result <- supervisor.Start(context.Background()) }()
+	go func() {
+		result <- supervisor.Start(pipeDeadlineContext{Context: context.Background(), done: expire.Done()})
+	}()
+	waitPipeExit(t, supervisor)
+	cancel()
 	select {
 	case err := <-result:
 		assertLifecycleCode(t, err, CodeStartupFailed)
@@ -112,10 +122,21 @@ func TestSupervisorBoundsInheritedStderrCleanup(t *testing.T) {
 		{"unexpected-nonzero", CodeProcessExited, 17},
 	} {
 		t.Run(test.mode, func(t *testing.T) {
-			supervisor := newPipeSupervisor(t, "inherited-stderr-"+test.mode, nil)
+			// Process launches can be slow (race builds, cold Windows starts), so
+			// the startup deadline expires only once the descendant holds stderr.
+			// TestSupervisorBoundsStartupAndShutdown checks the configured timer.
+			supervisor := newPipeSupervisor(t, "inherited-stderr-"+test.mode, func(config *Config) {
+				config.StartupTimeout = 5 * time.Second
+			})
+			expire, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			var startup context.Context = context.Background()
+			if test.mode == "startup-timeout" {
+				startup = pipeDeadlineContext{Context: context.Background(), done: expire.Done()}
+			}
 			result := make(chan error, 1)
 			go func() {
-				if err := supervisor.Start(context.Background()); err != nil {
+				if err := supervisor.Start(startup); err != nil {
 					result <- err
 					return
 				}
@@ -132,10 +153,14 @@ func TestSupervisorBoundsInheritedStderrCleanup(t *testing.T) {
 					result <- supervisor.Wait(context.Background())
 				}
 			}()
+			if test.mode == "startup-timeout" {
+				waitPipeMarker(t, supervisor, "pipe-holder-ready")
+				cancel()
+			}
 			select {
 			case err := <-result:
 				assertLifecycleCode(t, err, test.code)
-			case <-time.After(2 * time.Second):
+			case <-time.After(10 * time.Second):
 				t.Fatal("inherited stderr kept process completion or termination blocked")
 			}
 			snapshot := supervisor.Snapshot()
@@ -210,6 +235,17 @@ func assertPipeHolderStillOpen(t *testing.T, supervisor *Supervisor) {
 		}
 		if time.Now().After(deadline) {
 			t.Fatal("the descendant did not acknowledge a probe after supervisor completion")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func waitPipeExit(t *testing.T, supervisor *Supervisor) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for supervisor.Snapshot().ExitedAt == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("native worker did not exit")
 		}
 		time.Sleep(time.Millisecond)
 	}
