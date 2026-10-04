@@ -25,18 +25,12 @@ and concrete; delete them when done (Git keeps the history).
 
 ## Later
 
-- **Retire the already-converted v1 data.** Decide what to keep, archive or
-  delete: the v1 `data` and `data-snapshots` directories and conversion
-  artifacts next to `rewrite-v2/` on both servers, the September sheet-reset
-  backups, and the local copies (`ttrpg-codex/data/`, `data-snapshots/`, the
-  archived backups). Optionally spot-check a few records against the current
-  sites first. Tiamat's conversion skipped one image (17 KB) that no record
-  referenced; look at it in the v1 data before deleting anything. The
-  converter is in Git history before the October cleanup and the old app is
-  tagged `v1-final` in every repository. Once the server's v1 directories are
-  gone, stop each site, move `rewrite-v2/data` to `data`, change the volume in
-  the infra stack's Compose file and READMEs in the same deploy, and remove the
-  `rewrite-v2` notes from the infra guide.
+- **Retire the v1 layout on the servers.** Archive each site's v1 `data`,
+  `data-snapshots` and `rewrite-v2` evidence to the owner's backups, move
+  `rewrite-v2/data` to `data`, deploy the infra change that mounts `./data`,
+  then remove the temporary `rewrite-v2/data` link. The local copies are already
+  archived. Tiamat's conversion skipped one unreferenced 17 KB image; it stays
+  in the archive. The old app is tagged `v1-final` in every repository.
 - **Tag host versions.** Add-ons currently require the host by Go
   pseudo-version. Real tags (for example `v0.1.0`) would read better and let
   the add-ons reference the publish action by tag instead of commit SHA.
