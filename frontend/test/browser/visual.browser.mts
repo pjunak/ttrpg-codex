@@ -1,21 +1,17 @@
 import { required } from "./fixture-types.mts";
 import type { Browser, Page, Locator } from "playwright";
 import type { TestContext } from "node:test";
-import type { PreviewServer, ViteDevServer } from "vite";
+import type { PreviewServer } from "vite";
 import type { AddressInfo } from "node:net";
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { createServer, preview } from "vite";
+import { preview } from "vite";
 import { visualCampaign, visualFixturePlugin } from "./visual-fixture.mts";
 
-let server: PreviewServer,
-  referenceServer: ViteDevServer,
-  browser: Browser,
-  origin: string,
-  referenceOrigin: string;
+let server: PreviewServer, browser: Browser, origin: string;
 const artifacts = fileURLToPath(new URL("../../test-results/visual/", import.meta.url));
 before(async () => {
   await mkdir(artifacts, { recursive: true });
@@ -28,21 +24,11 @@ before(async () => {
     preview: { host: "127.0.0.1", port: 0 },
   });
   origin = `http://127.0.0.1:${(server.httpServer.address() as AddressInfo).port}`;
-  referenceServer = await createServer({
-    root,
-    configFile: false,
-    cacheDir: fileURLToPath(new URL("../../node_modules/.vite-visual-reference", import.meta.url)),
-    logLevel: "error",
-    server: { host: "127.0.0.1", port: 0 },
-  });
-  await referenceServer.listen();
-  referenceOrigin = `http://127.0.0.1:${(referenceServer.httpServer!.address() as AddressInfo).port}`;
   browser = await chromium.launch({ headless: true });
 });
 after(async () => {
   await browser?.close();
   await server?.close();
-  await referenceServer?.close();
 });
 
 async function fixture(
@@ -96,17 +82,107 @@ async function style(page: Page, selector: string, properties: string[]) {
       );
     }, properties);
 }
-async function compare(
+const gold = "rgb(200, 160, 64)",
+  parchment = "rgb(245, 237, 216)",
+  cinzel = '"Cinzel Variable", Georgia, serif',
+  inter = '"Inter Variable", "Helvetica Neue", sans-serif';
+// The Classic theme's approved typography, surfaces and card geometry.
+function classicDesign(viewport: "desktop" | "mobile"): Record<string, Record<string, string>> {
+  const desktop = viewport === "desktop";
+  return {
+    body: {
+      "background-color": "rgb(20, 16, 8)",
+      color: parchment,
+      "font-family": '"Lora Variable", Georgia, serif',
+      "font-size": "16px",
+      "line-height": "25.6px",
+    },
+    ".campaign-content": {
+      "margin-left": desktop ? "240px" : "0px",
+      "padding-top": desktop ? "32px" : "16px",
+      "padding-left": desktop ? "32px" : "16px",
+      "padding-right": desktop ? "32px" : "16px",
+    },
+    ".campaign-sidebar": {
+      width: desktop ? "240px" : "320px",
+      "background-color": "rgb(28, 21, 9)",
+      "border-right-color": "rgba(200, 160, 64, 0.15)",
+    },
+    "#campaign-title": {
+      "font-family": cinzel,
+      "font-size": "41.6px",
+      "font-weight": "600",
+      "line-height": "49.92px",
+      "letter-spacing": "2.496px",
+      color: gold,
+    },
+    ".campaign-title-page": {
+      padding: "24px 16px 20px",
+      "margin-bottom": "32px",
+      "text-align": "center",
+    },
+    ".campaign-identity-pen": {
+      width: "26px",
+      height: "26px",
+      "border-radius": "50%",
+      "font-size": "12px",
+      color: "rgb(139, 105, 20)",
+      opacity: "0.45",
+      "border-top-color": "rgba(200, 160, 64, 0.25)",
+    },
+    ".party-add": {
+      padding: "4px 9.6px",
+      "font-family": inter,
+      "font-size": "12.48px",
+      color: gold,
+      "background-color": "rgba(0, 0, 0, 0)",
+      "border-radius": "4px",
+      "border-top-color": "rgba(200, 160, 64, 0.3)",
+    },
+    ".section-heading h2": {
+      "font-family": cinzel,
+      "font-size": "17.6px",
+      "line-height": "21.12px",
+      "letter-spacing": "0.88px",
+      color: gold,
+    },
+    ".party-member": {
+      width: "160px",
+      padding: "12px",
+      gap: "8px",
+      "border-radius": "12px",
+      "background-color": "rgb(36, 28, 13)",
+      "border-top-color": "rgba(200, 160, 64, 0.2)",
+    },
+    ".party-portrait": { width: "88px", height: "88px", "border-radius": "50%" },
+    ".party-member-copy strong": {
+      "font-family": cinzel,
+      "font-size": "14.72px",
+      color: parchment,
+    },
+    ".party-member-copy > span": {
+      "font-family": inter,
+      "font-size": "11.52px",
+      color: "rgb(154, 134, 96)",
+    },
+    ".record-row": {
+      "background-color": "rgb(36, 28, 13)",
+      "border-radius": "12px",
+      "border-top-color": "rgba(255, 255, 255, 0.07)",
+    },
+    ".record-row-copy strong": { "font-family": cinzel, "font-size": "14.4px", color: parchment },
+  };
+}
+async function expectDesign(
   page: Page,
-  reference: Page,
-  actual: string,
-  original: string,
-  properties: string[],
+  design: Record<string, Record<string, string>>,
+  selector: string,
 ) {
+  const expected = design[selector]!;
   assert.deepEqual(
-    await style(page, actual, properties),
-    await style(reference, original, properties),
-    `${actual} must retain v1 appearance`,
+    await style(page, selector, Object.keys(expected)),
+    expected,
+    `${selector} must keep the Classic design`,
   );
 }
 async function fits(page: Page) {
@@ -125,90 +201,24 @@ for (const [name, viewport] of Object.entries({
   desktop: { width: 1440, height: 1000 },
   mobile: { width: 390, height: 844 },
 })) {
-  void test(`classic ${name} matches preserved v1 typography, surfaces and card geometry`, async (t) => {
+  void test(`classic ${name} keeps its typography, surfaces and card geometry`, async (t) => {
     const page = await fixture(t, viewport);
-    const reference = await page.context().newPage();
-    await reference.goto(`${referenceOrigin}/test/browser/reference/classic.html`);
-    await reference.evaluate(() => document.fonts.ready);
-    await compare(page, reference, "body", "body", [
-      "background-color",
-      "color",
-      "font-family",
-      "font-size",
-      "line-height",
-    ]);
-    await compare(page, reference, ".campaign-content", ".main-content", [
-      "margin-left",
-      "padding-top",
-      "padding-left",
-      "padding-right",
-    ]);
-    await compare(page, reference, ".campaign-sidebar", ".sidebar", [
-      "width",
-      "background-color",
-      "border-right-color",
-    ]);
-    await compare(page, reference, "#campaign-title", ".dash-hero-name", [
-      "font-family",
-      "font-size",
-      "font-weight",
-      "line-height",
-      "letter-spacing",
-      "color",
-    ]);
-    await compare(page, reference, ".campaign-title-page", ".dash-hero", [
-      "padding",
-      "margin-bottom",
-      "text-align",
-    ]);
-    await compare(page, reference, ".campaign-identity-pen", ".dash-hero-pen", [
-      "width",
-      "height",
-      "border-radius",
-      "font-size",
-      "color",
-      "opacity",
-      "border-top-color",
-    ]);
-    await compare(page, reference, ".party-add", ".dash-section-add", [
-      "padding",
-      "font-family",
-      "font-size",
-      "color",
-      "background-color",
-      "border-radius",
-      "border-top-color",
-    ]);
-    await compare(page, reference, ".section-heading h2", ".dash-section-head h2", [
-      "font-family",
-      "font-size",
-      "line-height",
-      "letter-spacing",
-      "color",
-    ]);
-    await compare(page, reference, ".party-member", ".dash-party-card", [
-      "width",
-      "padding",
-      "gap",
-      "border-radius",
-      "background-color",
-      "border-top-color",
-    ]);
-    await compare(page, reference, ".party-portrait", ".dash-party-portrait", [
-      "width",
-      "height",
-      "border-radius",
-    ]);
-    await compare(page, reference, ".party-member-copy strong", ".dash-party-name", [
-      "font-family",
-      "font-size",
-      "color",
-    ]);
-    await compare(page, reference, ".party-member-copy > span", ".dash-party-title", [
-      "font-family",
-      "font-size",
-      "color",
-    ]);
+    const design = classicDesign(name as "desktop" | "mobile");
+    for (const selector of [
+      "body",
+      ".campaign-content",
+      ".campaign-sidebar",
+      "#campaign-title",
+      ".campaign-title-page",
+      ".campaign-identity-pen",
+      ".party-add",
+      ".section-heading h2",
+      ".party-member",
+      ".party-portrait",
+      ".party-member-copy strong",
+      ".party-member-copy > span",
+    ])
+      await expectDesign(page, design, selector);
     const sections = await page.locator(".chronicle-section").evaluateAll((nodes) =>
       nodes.map((node) => {
         const r = node.getBoundingClientRect();
@@ -226,24 +236,11 @@ for (const [name, viewport] of Object.entries({
       path: `${artifacts}${name}-dashboard.png`,
       fullPage: true,
     });
-    await reference.screenshot({
-      animations: "disabled",
-      path: `${artifacts}${name}-reference.png`,
-      fullPage: true,
-    });
 
     await page.goto(`${origin}/#/characters`);
     await page.locator(".record-row").first().waitFor();
-    await compare(page, reference, ".record-row", ".char-card", [
-      "background-color",
-      "border-radius",
-      "border-top-color",
-    ]);
-    await compare(page, reference, ".record-row-copy strong", ".char-card-name", [
-      "font-family",
-      "font-size",
-      "color",
-    ]);
+    await expectDesign(page, design, ".record-row");
+    await expectDesign(page, design, ".record-row-copy strong");
     const card = await page.locator(".record-row-mark").first().boundingBox().then(required);
     assert.ok(
       Math.abs(card.width / card.height - 0.75) < 0.01,
