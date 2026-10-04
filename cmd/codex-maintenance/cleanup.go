@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"database/sql"
 	"github.com/pjunak/ttrpg-codex/internal/addons/githubsource"
@@ -123,10 +124,7 @@ func backupBeforeCleanup(ctx context.Context, db *sql.DB, directory, output stri
 	if err != nil {
 		return err
 	}
-	token := os.Getenv("CODEX_GITHUB_TOKEN")
-	if token == "" {
-		token = os.Getenv("GITHUB_TOKEN")
-	}
+	token := strings.TrimSpace(os.Getenv("CODEX_GITHUB_TOKEN"))
 	fetch, err := githubsource.NewPackageFetcher(githubsource.Config{DB: db, DataDirectory: directory, Inspector: inspector, EnvironmentToken: token})
 	if err != nil {
 		return err

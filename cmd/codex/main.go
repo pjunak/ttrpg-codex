@@ -338,9 +338,6 @@ func composeHost(
 		}
 	}
 	githubToken := strings.TrimSpace(os.Getenv("CODEX_GITHUB_TOKEN"))
-	if githubToken == "" {
-		githubToken = os.Getenv("GITHUB_TOKEN")
-	}
 	githubAddons, err := githubsource.New(githubsource.Config{DB: db, DataDirectory: dataDirectory, Lifecycle: addons, Inspector: inspector, EnvironmentToken: githubToken})
 	if err != nil {
 		_ = addons.Shutdown(context.Background())

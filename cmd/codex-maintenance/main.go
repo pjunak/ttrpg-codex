@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/githubsource"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
@@ -75,10 +76,7 @@ func runBackup(ctx context.Context, arguments []string, stdout, stderr io.Writer
 		database.Close()
 		return err
 	}
-	token := os.Getenv("CODEX_GITHUB_TOKEN")
-	if token == "" {
-		token = os.Getenv("GITHUB_TOKEN")
-	}
+	token := strings.TrimSpace(os.Getenv("CODEX_GITHUB_TOKEN"))
 	fetch, err := githubsource.NewPackageFetcher(githubsource.Config{DB: database, DataDirectory: *dataDirectory, Inspector: inspector, EnvironmentToken: token})
 	if err != nil {
 		database.Close()

@@ -172,8 +172,8 @@ Existing linked sources keep their selected channel until you edit them.
 
 The collapsed **GitHub access tokens** section provides default-token management
 and lets you replace or remove saved repository tokens. Repository tokens take
-precedence over the stored default, followed by `CODEX_GITHUB_TOKEN` and
-`GITHUB_TOKEN`. Token values stay on the server in `<data-dir>/credentials/github.db`
+precedence over the stored default, followed by `CODEX_GITHUB_TOKEN`. Token
+values stay on the server in `<data-dir>/credentials/github.db`
 and are excluded from campaign backups and recovery points. Protect that
 folder like other server credentials and configure access again after restoring
 to a new server. The UI shows which access is configured without returning tokens.
