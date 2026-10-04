@@ -8,15 +8,11 @@ and concrete; delete them when done (Git keeps the history).
 - **Check the first nightly smoke test.** The **Installed add-on smoke test**
   workflow runs at 02:41 UTC; confirm it passes and that the `ADDON_SUITE_TOKEN`
   secret still grants read access to the compendium repository.
-- **Roll out the native-data release, in this order.** (1) Push the add-on
-  branches so Compendium 3.2.0, Engine 4.1.0 and Sheets 4.1.0 publish. (2) On
-  Asurai, download a backup, then update those three in Settings → Add-ons; the
-  current host accepts them. (3) Merge and deploy the host; migration 0024
-  converts both sites' remaining v1 names on startup. (4) Download fresh backups
-  from both sites: ZIPs taken before step 2 contain the old Compendium build,
-  which the new host refuses, so they restore only on the previous host image.
-  If DM Tools reports dangling consequence targets, fix those planner entries by
-  hand (it only reports them).
+- **Finish the native-data rollout.** Confirm Compendium 3.2.0, Engine 4.1.0
+  and Sheets 4.1.0 are active on Asurai (Settings → Add-ons; the host refuses
+  the old Compendium build), then download fresh backups from both sites. If DM
+  Tools reports dangling consequence targets, fix those planner entries by hand
+  (it only reports them).
 - **Asurai characters.** The players are rebuilding Bloodvell, Kael Vor, Ines
   and Talia in the new sheet builder. The September reconstructions and their
   review notes are archived with the backups for reference.
@@ -25,12 +21,6 @@ and concrete; delete them when done (Git keeps the history).
 
 ## Later
 
-- **Retire the v1 layout on the servers.** Archive each site's v1 `data`,
-  `data-snapshots` and `rewrite-v2` evidence to the owner's backups, move
-  `rewrite-v2/data` to `data`, deploy the infra change that mounts `./data`,
-  then remove the temporary `rewrite-v2/data` link. The local copies are already
-  archived. Tiamat's conversion skipped one unreferenced 17 KB image; it stays
-  in the archive. The old app is tagged `v1-final` in every repository.
 - **Tag host versions.** Add-ons currently require the host by Go
   pseudo-version. Real tags (for example `v0.1.0`) would read better and let
   the add-ons reference the publish action by tag instead of commit SHA.
