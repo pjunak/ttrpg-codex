@@ -42,15 +42,13 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/recoverystore"
 	"github.com/pjunak/ttrpg-codex/internal/transport/httpapi"
+	"github.com/pjunak/ttrpg-codex/internal/version"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
 )
 
-const version = "2.0.0-dev"
-
 const (
-	hostCompatibilityVersion = "2.0.0"
-	addonAPIVersion          = "3.0.0"
-	workerProtocolVersion    = "1.0.0"
+	addonAPIVersion       = "3.0.0"
+	workerProtocolVersion = "1.0.0"
 )
 
 type hostRuntime struct {
@@ -79,7 +77,7 @@ func main() {
 
 func run() error {
 	listenAddress := flag.String("listen", "127.0.0.1:3001", "HTTP listen address")
-	dataDirectory := flag.String("data-dir", filepath.Join("data", "rewrite"), "rewrite data directory")
+	dataDirectory := flag.String("data-dir", "data", "data directory")
 	webDirectory := flag.String("web-dir", filepath.Join("frontend", "dist"), "built TypeScript frontend directory")
 	secureCookies := flag.Bool("secure-cookies", false, "mark session cookies Secure (required behind production TLS)")
 	locale := flag.String("locale", "en", "BCP 47 locale reported to add-on workers")
@@ -146,7 +144,7 @@ func run() error {
 	server.RegisterOnShutdown(runtime.stopping)
 	serveErrors := make(chan error, 1)
 	go func() {
-		logger.Info("rewrite host listening", "address", server.Addr, "version", version)
+		logger.Info("host listening", "address", server.Addr, "version", version.Host)
 		serveErrors <- server.ListenAndServe()
 	}()
 
@@ -261,7 +259,7 @@ func composeHost(
 		return nil, fmt.Errorf("configure media service: %w", err)
 	}
 	backupArchives := &backuparchive.Creator{
-		Database: db, DataDirectory: dataDirectory, HostVersion: version,
+		Database: db, DataDirectory: dataDirectory, HostVersion: version.Host,
 	}
 	restores := stagedRestores{dataDirectory: dataDirectory, restarts: make(chan struct{}, 1)}
 	stopping := make(chan struct{})
@@ -285,7 +283,7 @@ func composeHost(
 	}
 	runtimeFactory, err := packagemanager.NewSupervisorFactory(packagemanager.SupervisorFactoryConfig{
 		Host: workersupervisor.HostInfo{
-			Version: version, Locale: locale, TimeZone: timeZone,
+			Version: version.Host, Locale: locale, TimeZone: timeZone,
 		},
 		ProtocolVersion: workerProtocolVersion,
 		HandlerFactory: packagemanager.WorkerHandlerFactoryFunc(func(
@@ -313,7 +311,7 @@ func composeHost(
 		DB: db, PackageDirectory: filepath.Join(dataDirectory, "addons"),
 		Inspector: inspector, Broker: serviceBroker, DataLifecycle: addonData,
 		RuntimeFactory: runtimeFactory,
-		HostVersion:    hostCompatibilityVersion, AddonAPIVersion: addonAPIVersion,
+		HostVersion:    version.Host, AddonAPIVersion: addonAPIVersion,
 		WorkerProtocolVersion: workerProtocolVersion,
 		AvailableCapabilities: []string{"data.history", "data.transactions", "ui.contributions", "ui.controls.v1", "ui.markdown", "ui.rule-details", "worker.native"},
 		EventPublisher:        eventBroker, Logger: logger,
@@ -379,7 +377,7 @@ func composeHost(
 	}
 	handler, err := httpapi.New(httpapi.Config{
 		AddonGitHub: githubAddons,
-		Version:     version, DB: db, Logger: logger,
+		Version:     version.Host, DB: db, Logger: logger,
 		Authentication: authentication, SecureCookies: secureCookies,
 		CampaignData:             campaignData,
 		CampaignMutations:        campaignData,

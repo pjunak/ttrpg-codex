@@ -4,8 +4,9 @@
 - Date: 2026-08-31
 - Decider: Project owner
 
-**Outcome:** Implemented. The Go/TypeScript host has run both campaign sites
-since September 2026.
+**Outcome:** Complete. The Go/TypeScript host has run both campaign sites since
+September 2026. In October 2026 the converted data moved onto native names and
+formats, and the last v1 compatibility handlers and tools were removed.
 
 ## Context
 

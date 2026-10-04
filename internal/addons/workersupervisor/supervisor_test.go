@@ -412,7 +412,7 @@ func validTestConfig(t *testing.T, mode string) Config {
 			Generation: "generation-42",
 		},
 		Host: HostInfo{
-			Version:  "2.0.0-dev",
+			Version:  "2.0.0",
 			Locale:   "en",
 			TimeZone: "Europe/Prague",
 		},

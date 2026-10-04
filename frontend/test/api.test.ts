@@ -9,9 +9,9 @@ import {
 
 describe("parseHealth", () => {
   it("accepts the reviewed boundary shape", () => {
-    expect(parseHealth({ status: "ok", version: "2.0.0-dev" })).toEqual({
+    expect(parseHealth({ status: "ok", version: "2.0.0" })).toEqual({
       status: "ok",
-      version: "2.0.0-dev",
+      version: "2.0.0",
     });
   });
 

@@ -33,7 +33,10 @@ and concrete; delete them when done (Git keeps the history).
   sites first. Tiamat's conversion skipped one image (17 KB) that no record
   referenced; look at it in the v1 data before deleting anything. The
   converter is in Git history before the October cleanup and the old app is
-  tagged `v1-final` in every repository.
+  tagged `v1-final` in every repository. Once the server's v1 directories are
+  gone, stop each site, move `rewrite-v2/data` to `data`, change the volume in
+  the infra stack's Compose file and READMEs in the same deploy, and remove the
+  `rewrite-v2` notes from the infra guide.
 - **Tag host versions.** Add-ons currently require the host by Go
   pseudo-version. Real tags (for example `v0.1.0`) would read better and let
   the add-ons reference the publish action by tag instead of commit SHA.
@@ -43,8 +46,8 @@ and concrete; delete them when done (Git keeps the history).
 
 ## Ideas (only with a concrete need)
 
-- **Update all add-ons at once.** The old app had an "Update all" button; now
-  each add-on is updated through its own review.
+- **Update all add-ons at once.** Each add-on is updated through its own review;
+  one combined review could update several.
 
 - **Cloud backup add-on.** Workers have no network access and cannot read backup
   archives today; it would need both as new, reviewed host capabilities.

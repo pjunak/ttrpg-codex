@@ -1,6 +1,6 @@
 {
   "name": "ttrpg-codex",
-  "version": "2.0.0-dev",
+  "version": "2.0.0",
   "description": "Self-hostable web codex for D&D and other TTRPGs",
   "license": "MIT",
   "private": true,

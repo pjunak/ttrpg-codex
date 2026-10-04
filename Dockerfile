@@ -25,8 +25,7 @@ FROM debian:bookworm-slim
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates \
   && rm -rf /var/lib/apt/lists/*
-# Production bind mounts were already owned by UID/GID 1000 for the Node host.
-# Keep that durable ownership contract across the runtime replacement.
+# Production bind mounts are owned by UID/GID 1000.
 RUN groupadd --gid 1000 codex \
   && useradd --uid 1000 --gid codex --home-dir /app --no-create-home --shell /usr/sbin/nologin codex
 WORKDIR /app

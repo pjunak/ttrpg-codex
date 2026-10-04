@@ -100,7 +100,7 @@ The transport registers browser add-on routes only when both a
 `BrowserAddonSource` and `BrowserAuthorizer` are supplied. Partial
 configuration fails at startup, and authorization runs before query, ID, or
 asset-path validation. The implemented session authorizer accepts either
-authenticated effective role, and the rewrite executable composes it with the
+authenticated effective role, and the host executable composes it with the
 recovered package manager.
 
 | Method and path | Cache contract |

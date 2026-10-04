@@ -1,8 +1,8 @@
-# Rewrite authentication
+# Authentication
 
-The rewrite authentication boundary deliberately starts smaller than the v1
-account surface, but it is a real authorization boundary rather than a
-development bypass. The Go host owns credentials, sessions, effective roles,
+Authentication is deliberately small: one DM and one optional player password,
+with no accounts. It is a real authorization boundary, not a development
+bypass. The Go host owns credentials, sessions, effective roles,
 and CSRF checks. TypeScript may render the current authority but cannot create
 or upgrade it.
 

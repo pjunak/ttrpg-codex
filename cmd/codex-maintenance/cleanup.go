@@ -19,6 +19,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/maintenance/processlock"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
+	"github.com/pjunak/ttrpg-codex/internal/version"
 )
 
 func runCleanup(ctx context.Context, kind string, arguments []string, stdout, stderr io.Writer) error {
@@ -131,7 +132,7 @@ func backupBeforeCleanup(ctx context.Context, db *sql.DB, directory, output stri
 		return err
 	}
 	if _, err = backuparchive.Create(ctx, backuparchive.CreateConfig{
-		Database: db, DataDirectory: directory, OutputPath: output, HostVersion: hostVersion,
+		Database: db, DataDirectory: directory, OutputPath: output, HostVersion: version.Host,
 		MaterializePackages: func(ctx context.Context, databasePath, stageRoot string) error {
 			return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(directory, "addons"), stageRoot, inspector, fetch)
 		},

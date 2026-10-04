@@ -16,9 +16,8 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/maintenance/processlock"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
+	"github.com/pjunak/ttrpg-codex/internal/version"
 )
-
-const hostVersion = "2.0.0-dev"
 
 func main() {
 	if err := run(context.Background(), os.Args[1:], os.Stdout, os.Stderr); err != nil {
@@ -48,7 +47,7 @@ func run(ctx context.Context, arguments []string, stdout, stderr io.Writer) erro
 func runBackup(ctx context.Context, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("backup", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	dataDirectory := flags.String("data-dir", filepath.Join("data", "rewrite"), "rewrite data directory")
+	dataDirectory := flags.String("data-dir", "data", "data directory")
 	output := flags.String("out", "", "new backup ZIP path")
 	if err := flags.Parse(arguments); err != nil {
 		return err
@@ -90,7 +89,7 @@ func runBackup(ctx context.Context, arguments []string, stdout, stderr io.Writer
 			return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(*dataDirectory, "addons"), stageRoot, inspector, fetch)
 		},
 		Database: database, DataDirectory: *dataDirectory,
-		OutputPath: *output, HostVersion: hostVersion,
+		OutputPath: *output, HostVersion: version.Host,
 	})
 	closeErr := database.Close()
 	if createErr != nil || closeErr != nil {
@@ -124,7 +123,7 @@ func runVerify(ctx context.Context, arguments []string, stdout, stderr io.Writer
 func runRestore(ctx context.Context, arguments []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("restore", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	dataDirectory := flags.String("data-dir", filepath.Join("data", "rewrite"), "rewrite data directory")
+	dataDirectory := flags.String("data-dir", "data", "data directory")
 	input := flags.String("in", "", "backup ZIP path")
 	if err := flags.Parse(arguments); err != nil {
 		return err
