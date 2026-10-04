@@ -315,7 +315,7 @@ for (const mobile of [false, true])
     assert.equal(setting("branding").value.logoUrl, "");
     assert.match(
       await page.locator(".campaign-sigil").getAttribute("src").then(required),
-      /logo-default/,
+      /\/logo\.svg$/,
     );
     assert.equal(uploads.length, 1);
   });

@@ -3,9 +3,8 @@ import { isRecord } from "../core/boundary.js";
 import { uiText } from "./ui-localization.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import type { CampaignMutation } from "../core/campaign-mutations.js";
-import defaultLogo from "../assets/logo-default.svg";
-
-export { defaultLogo };
+// A stable public path, so external catalogs can link the default logo.
+export const defaultLogo = "/logo.svg";
 export interface CampaignBranding {
   readonly title: string;
   readonly subtitle: string;

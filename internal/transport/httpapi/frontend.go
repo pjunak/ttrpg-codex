@@ -45,14 +45,16 @@ func newFrontendHandler(files fs.FS) (http.Handler, error) {
 				}
 			}
 			assets.ServeHTTP(w, r)
-		case strings.HasPrefix(r.URL.Path, "/icons-defaults/") && strings.HasSuffix(r.URL.Path, ".svg"):
+		case r.URL.Path == "/logo.svg" ||
+			strings.HasPrefix(r.URL.Path, "/icons-defaults/") && strings.HasSuffix(r.URL.Path, ".svg"):
 			name := strings.TrimPrefix(r.URL.Path, "/")
 			info, err := fs.Stat(files, name)
 			if err != nil || !info.Mode().IsRegular() {
 				http.NotFound(w, r)
 				return
 			}
-			// Marker filenames are stable across builds, unlike hashed assets.
+			// The default logo and marker filenames are stable across builds,
+			// unlike hashed assets, so favicons and catalogs can link them.
 			w.Header().Set("Cache-Control", "no-cache")
 			assets.ServeHTTP(w, r)
 		default:

@@ -451,7 +451,8 @@ logo/favicon. The Appearance panel retains the original branding section and
 `branding-logo/main` media upload precedes the optimistic settings transaction.
 An upload or settings failure keeps both text and the file for retry. Resetting
 the logo clears only its reference, preserving immutable old media and unrelated
-fields. Raw or external image URLs never enter the shell. Theme and branding
+fields. Without a custom logo the shell uses `/logo.svg`, a stable address that
+external catalogs such as the owner portal can link. Raw or external image URLs never enter the shell. Theme and branding
 forms cannot save over each other's pending drafts.
 
 `settings/sidebarLayout` stores ordered sections and their page routes plus a
