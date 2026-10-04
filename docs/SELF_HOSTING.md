@@ -62,7 +62,7 @@ docker compose up -d ttrpg-codex
 ```
 
 For a native checkout, use
-`go run ./cmd/codex -data-dir data/rewrite -reset-passwords`
+`go run ./cmd/codex -data-dir data -reset-passwords`
 with the replacement values set in the current environment.
 The command acquires the host's exclusive lock, changes only credential hashes,
 and exits. It refuses to reset a directory in use by the running host.
@@ -244,7 +244,8 @@ site: campaign, files, add-ons, passwords and recovery points. Download a ZIP
 of the current state first. Choose the backup, confirm, and the host verifies
 it while the site keeps running. A rejected file changes nothing and the page
 says why. An accepted one makes the host restart; the page reloads when it is
-back and everyone signs in again with the passwords saved in that backup.
+back and everyone signs in again with the passwords saved in that backup. Saved
+GitHub tokens stay with the server.
 
 The restart relies on the process supervisor: the supplied Compose file's
 `restart: unless-stopped` starts the container again. A native installation
@@ -333,9 +334,9 @@ They are separate from uninstall and saved-package cleanup in Settings.
 1. Stop the host and run a preview. Choose exactly one operation:
 
    ```console
-   codex-maintenance delete-addon-data -data-dir ./data/rewrite -addon retired-addon
-   codex-maintenance collect-blobs -data-dir ./data/rewrite
-   codex-maintenance prune-logs -data-dir ./data/rewrite -keep-events 10000 -keep-lifecycle 10000 -keep-audit 10000
+   codex-maintenance delete-addon-data -data-dir ./data -addon retired-addon
+   codex-maintenance collect-blobs -data-dir ./data
+   codex-maintenance prune-logs -data-dir ./data -keep-events 10000 -keep-lifecycle 10000 -keep-audit 10000
    ```
 
 2. Read the counts, byte estimates, recovery implications and `reviewSHA256`.
@@ -350,7 +351,7 @@ They are separate from uninstall and saved-package cleanup in Settings.
    are materialized through their normal verified sources for the backup;
    unavailable package bytes prevent cleanup.
 4. If blob unlinking was interrupted after its intent committed, run
-   `codex-maintenance collect-blobs -data-dir ./data/rewrite -resume`.
+   `codex-maintenance collect-blobs -data-dir ./data -resume`.
    This completes only previously reviewed removal intent. It never chooses
    additional objects or requires deleting recovery points.
 5. Restart and check representative campaign records, media and add-ons. Keep
@@ -427,7 +428,7 @@ still has its own result:
   the repository variables, token permissions and infrastructure workflow state.
 - A completed deployment must identify the selected instance and pass its
   infrastructure health check. Verify the served frontend and the intended
-  feature afterward; HTTP 200 and the generic `2.0.0-dev` health version do not
+  feature afterward; HTTP 200 and the release health version (`2.0.0`) do not
   identify the source commit.
 
 The host supplies add-on management, GitHub access, sourcebook/provider controls

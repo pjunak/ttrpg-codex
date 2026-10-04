@@ -18,6 +18,11 @@ func TestStagedRestoreInstallsOnNextStartInsideTheDataDirectory(t *testing.T) {
 	root := t.TempDir()
 	archive := markedArchive(t, root, "backup")
 	data := markedDataDirectory(t, root, "live")
+	tokens := filepath.Join(data, serverCredentials, "github.db")
+	mustMkdir(t, filepath.Dir(tokens))
+	if err := os.WriteFile(tokens, []byte("server token"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	result, err := Stage(ctx, StageConfig{ArchivePath: archive, DataDirectory: data, Migrations: migrations.FS})
 	if err != nil {
@@ -37,6 +42,9 @@ func TestStagedRestoreInstallsOnNextStartInsideTheDataDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertInstalledBackup(t, data)
+	if body, err := os.ReadFile(tokens); err != nil || string(body) != "server token" {
+		t.Fatalf("restore dropped the server's GitHub tokens: %q, %v", body, err)
+	}
 }
 
 func TestStagedRestoreResumesEveryInterruptedPhase(t *testing.T) {

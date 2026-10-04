@@ -21,6 +21,8 @@ const (
 	stagedJournalVersion = "codex-staged-restore.v1"
 	stagedStagePrefix    = ".restore-stage-"
 	stagedPreviousPrefix = ".restore-previous-"
+	// Saved GitHub tokens belong to this server and are never in a backup.
+	serverCredentials = "credentials"
 
 	phaseStaged    = "staged"
 	phaseMovingOut = "moving-out"
@@ -125,6 +127,7 @@ func finishStagedRestore(ctx context.Context, dataDirectory string, migrations f
 	reserved := map[string]bool{
 		stagedJournalName: true, stagedJournalName + ".next": true,
 		journal.StageName: true, journal.PreviousName: true,
+		serverCredentials: true,
 	}
 	switch journal.Phase {
 	case phaseStaged:

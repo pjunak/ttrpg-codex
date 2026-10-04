@@ -28,9 +28,6 @@ the backup allowlist, and are never included or restored. Configure GitHub
 access again after moving a campaign backup to a new server. Campaign recovery
 points do not change repository links or tokens.
 
-Normal verification and restore accept only `codex-backup.v2`. Retired
-formats require their separate offline conversion procedure.
-
 Creation, verification and restore share a manifest size limit of 64 MiB by
 default, alongside the 100,000-file, 1 GiB archive and 4 GiB expanded-data
 limits. Creation refuses to publish an archive whose manifest exceeds that
@@ -45,7 +42,7 @@ outside the live data directory:
 
 ```powershell
 go run ./cmd/codex-maintenance backup `
-  -data-dir data/rewrite `
+  -data-dir data `
   -out C:/backups/codex-2026-09-01.zip
 ```
 
@@ -108,7 +105,7 @@ Restore only while the host is stopped:
 
 ```powershell
 go run ./cmd/codex-maintenance restore `
-  -data-dir data/rewrite `
+  -data-dir data `
   -in C:/backups/codex-2026-09-01.zip
 ```
 
@@ -133,8 +130,9 @@ endpoint answer `202` with `backup-restore.v1` (`createdAt`, `hostVersion`,
 `appliedMigrations`) and the host shuts down with exit code 75.
 
 The supervisor (Docker's `restart: unless-stopped`) starts the host again.
-Before SQLite opens, startup moves every current entry into
-`.restore-previous-*`, publishes the staged entries, validates the installed
+Before SQLite opens, startup moves every current entry except `credentials/`
+(this server's GitHub tokens) into `.restore-previous-*`, publishes the staged
+entries, validates the installed
 database and only then deletes the previous copy and the journal. The journal
 records each phase, so an interruption resumes where it stopped. If the staged
 files are missing or the installed database fails validation, startup refuses
@@ -148,12 +146,7 @@ restored passwords are the ones saved in the archive.
 
 ## Deliberate boundary
 
-Only `codex-backup.v2` archives are accepted. The original v1 site backups were
-converted once in September 2026 by a separate offline tool, since removed (it
-is in Git history before the October 2026 cleanup). Startup and restore contain
-no legacy-format handling.
-
-Settings → Backup & recovery downloads this same full archive, restores one
+Only `codex-backup.v2` archives are accepted. Settings → Backup & recovery downloads this same full archive, restores one
 (above) and links the [operator procedure](../SELF_HOSTING.md#verify-and-restore-a-full-backup)
 in both English and Czech. Campaign recovery points below work without a
 restart.
