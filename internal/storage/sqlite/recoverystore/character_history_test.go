@@ -31,15 +31,16 @@ func TestRecoveryAppendsRetainedHeadsAndPreservesOldEvidence(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	registerPackage(t, recovery, "sheets", strings.Repeat("b", 64))
 	write(0, "before-recovery", `{"build":{"level":1},"evidence":{"formula":"original"}}`)
 	if err = recovery.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
 	point := listing(t, recovery).Points[0]
 	write(1, "after-recovery", `{"build":{"level":2},"evidence":{"formula":"changed"}}`)
-	restore(t, recovery, point.ID)
+	restoreScope(t, recovery, point.ID, Scope{Scope: "addon", AddonID: "sheets"})
 	entries, err := store.History(ctx, "sheets", datacontract.RecordExtension, "sheet", "hero", 0, 100)
-	if err != nil || len(entries) != 3 || entries[0].Revision != 3 || entries[0].Operation != "campaign.restore" {
+	if err != nil || len(entries) != 3 || entries[0].Revision != 3 || entries[0].Operation != "addon.restore" {
 		t.Fatalf("recovery journal: %+v %v", entries, err)
 	}
 	first, err := store.Revision(ctx, "sheets", datacontract.RecordExtension, "sheet", "hero", 1)

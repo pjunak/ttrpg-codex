@@ -116,7 +116,7 @@ func TestCleanupProtectsRecoveryAndLastInstalledPackage(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if e = recovery.Delete(ctx, list.Points[0].ID, list.Revision); e != nil {
+	if e = recovery.DeleteContext(ctx, recoverystore.DeleteRequest{Scope: recoverystore.Scope{Scope: "addon", AddonID: "example"}, ID: list.Points[0].ID, ExpectedRevision: list.Revision}); e != nil {
 		t.Fatal(e)
 	}
 	if _, e = m.Cleanup(ctx, r.Scope, r.ReviewSHA256); !errors.Is(e, ErrReviewStale) {

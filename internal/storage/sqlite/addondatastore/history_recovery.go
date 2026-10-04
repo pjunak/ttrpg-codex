@@ -8,30 +8,28 @@ import (
 	"time"
 )
 
-// RetainRecovery appends fresh heads for the selected owner, or all owners when
-// addonID is empty for a legacy combined restore. The
-// recovery transaction keeps its original journal; reverting never erases it.
+// RetainRecovery appends fresh heads for the restored add-on. The recovery
+// transaction keeps its original journal; reverting never erases it.
 // An explicit current-state worker declaration also applies during recovery,
 // including while that last-activated package is disabled.
 func RetainRecovery(ctx context.Context, tx *sql.Tx, actorID, operationID, addonID string) error {
 	rows, err := tx.QueryContext(ctx, `WITH latest AS (
  SELECT addon_id,data_kind,data_id,document_key,MAX(revision) AS revision FROM addon_history_revisions GROUP BY addon_id,data_kind,data_id,document_key)
- SELECT h.addon_id,h.data_kind,h.data_id,h.document_key,v.revision,COALESCE(d.target_created_at,h.target_created_at),h.generation_id,v.deleted,COALESCE(d.body_json,'{}'),v.updated_at
+ SELECT h.data_kind,h.data_id,h.document_key,v.revision,COALESCE(d.target_created_at,h.target_created_at),h.generation_id,v.deleted,COALESCE(d.body_json,'{}'),v.updated_at
  FROM latest AS l JOIN addon_history_revisions AS h USING(addon_id,data_kind,data_id,document_key,revision)
  JOIN addon_document_versions AS v USING(addon_id,data_kind,data_id,document_key)
  LEFT JOIN addon_documents AS d USING(addon_id,data_kind,data_id,document_key)
- WHERE (? = '' OR h.addon_id = ?) AND v.revision>h.revision AND NOT EXISTS (
+ WHERE h.addon_id = ? AND v.revision>h.revision AND NOT EXISTS (
  SELECT 1 FROM addon_package_generations AS g, json_each(g.manifest_json, '$.recordExtensions') AS definition
  WHERE g.addon_id=h.addon_id AND g.generation_id=COALESCE(
   (SELECT active_generation_id FROM addon_package_states WHERE addon_id=h.addon_id),
   (SELECT generation_id FROM addon_package_generations WHERE addon_id=h.addon_id AND last_activated_at IS NOT NULL ORDER BY last_activated_at DESC,generation_id LIMIT 1))
  AND definition.value ->> 'id'=h.data_id AND definition.value ->> 'workerOnly'=1
- AND COALESCE(definition.value ->> 'retained',0)=0)`, addonID, addonID)
+ AND COALESCE(definition.value ->> 'retained',0)=0)`, addonID)
 	if err != nil {
 		return err
 	}
 	type restored struct {
-		addonID               string
 		mutation              preparedMutation
 		revision              int64
 		generation, timestamp string
@@ -42,7 +40,7 @@ func RetainRecovery(ctx context.Context, tx *sql.Tx, actorID, operationID, addon
 		var kind datacontract.Kind
 		var dataID, key, target, body string
 		var deleted bool
-		if err = rows.Scan(&r.addonID, &kind, &dataID, &key, &r.revision, &target, &r.generation, &deleted, &body, &r.timestamp); err != nil {
+		if err = rows.Scan(&kind, &dataID, &key, &r.revision, &target, &r.generation, &deleted, &body, &r.timestamp); err != nil {
 			rows.Close()
 			return err
 		}
@@ -63,10 +61,7 @@ func RetainRecovery(ctx context.Context, tx *sql.Tx, actorID, operationID, addon
 		return err
 	}
 	for _, r := range changes {
-		input := Transaction{AddonID: r.addonID, GenerationID: r.generation, ActorID: actorID, OperationID: operationID, Operation: "campaign.restore", Summary: "Restored campaign recovery point"}
-		if addonID != "" {
-			input.Operation, input.Summary = "addon.restore", "Restored add-on recovery point"
-		}
+		input := Transaction{AddonID: addonID, GenerationID: r.generation, ActorID: actorID, OperationID: operationID, Operation: "addon.restore", Summary: "Restored add-on recovery point"}
 		if err = retainRevision(ctx, tx, input, r.mutation, r.revision, r.timestamp); err != nil {
 			return err
 		}

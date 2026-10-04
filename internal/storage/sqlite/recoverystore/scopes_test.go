@@ -129,9 +129,6 @@ func TestRetiringAndDeletingContextsPreservesOtherRecovery(t *testing.T) {
 		t.Fatalf("wrong context retirement: %+v", point)
 	}
 	assertOwnedRecovery(t, s, "sheets", "future", 1, 0)
-	if err := s.Restore(ctx, RestoreRequest{ID: id, ExpectedRevision: listing(t, s).Revision}, "dm"); !errors.Is(err, ErrCompatibility) {
-		t.Fatal("legacy restore accepted partial snapshot", err)
-	}
 	restoreScope(t, s, id, Scope{Scope: "campaign"})
 	if err := s.DeleteContext(ctx, DeleteRequest{Scope: Scope{Scope: "campaign"}, ID: id, ExpectedRevision: listing(t, s).Revision}); err != nil {
 		t.Fatal(err)

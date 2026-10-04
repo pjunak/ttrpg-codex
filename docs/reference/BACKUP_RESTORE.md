@@ -1,7 +1,7 @@
 # Native backup and restore
 
-The rewrite backup is a versioned recovery archive, not a directory copy and
-not the legacy JSON/ZIP restore format. `codex-backup.v2` contains:
+A backup is a versioned recovery archive, not a directory copy.
+`codex-backup.v2` contains:
 
 - one online SQLite image at `codex.db`, including committed WAL state;
 - every published immutable add-on generation under `addons/`;
@@ -193,11 +193,9 @@ The HTTP surface requires a real and effective DM, plus CSRF for writes:
 | `POST /api/recovery/restore` | `scope: "campaign"` or `scope: "addon"` with `addonId`; `expectedRevision` plus either positive `id` or `count` (1–50) |
 | `POST /api/recovery/delete` | Same explicit scope, positive `id` and `expectedRevision` |
 
-For existing clients, an omitted scope retains the original combined operation.
-Combined restore requires the exact complete package set and refuses snapshots
-whose contexts have been retired. New clients always send a scope. Original
-version-1 snapshot envelopes remain readable; context retirement marks them
-partial without rewriting unknown record fields.
+Every request names exactly one scope; a point's campaign and add-on contexts
+are restored and deleted independently. Deleting the last context removes the
+point.
 
 All responses are no-store. A changed campaign/list returns `RECOVERY_CONFLICT`;
 incompatible add-on packages, definitions or linked records return `RECOVERY_COMPATIBILITY`. Missing

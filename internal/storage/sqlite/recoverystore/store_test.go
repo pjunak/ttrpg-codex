@@ -59,9 +59,15 @@ func put(t *testing.T, records *campaignstore.Store, key, name string, revision 
 		t.Fatal(err)
 	}
 }
+func registerPackage(t *testing.T, store *Store, addonID, generation string) {
+	t.Helper()
+	execute(t, store.DB, `INSERT INTO addon_package_generations(addon_id,generation_id,addon_version,archive_sha256,manifest_json,installed_at) VALUES(?,?,'1.0.0',?,'{}','now')`, addonID, generation, generation)
+	execute(t, store.DB, `INSERT INTO addon_package_states(addon_id,active_generation_id,updated_at) VALUES(?,?,'now')`, addonID, generation)
+}
+
 func restore(t *testing.T, store *Store, id int64) {
 	t.Helper()
-	if err := store.Restore(context.Background(), RestoreRequest{ID: id, ExpectedRevision: listing(t, store).Revision}, "dm"); err != nil {
+	if err := store.Restore(context.Background(), RestoreRequest{Scope: Scope{Scope: "campaign"}, ID: id, ExpectedRevision: listing(t, store).Revision}, "dm"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -77,6 +83,7 @@ func TestRestorePreservesDataAndAdvancesRevisions(t *testing.T) {
         SELECT 'sheets','record-extension','sheet','keeper',0,'{"notes":"before"}','1.0.0',?,1,created_at,created_at,created_at FROM campaign_records WHERE record_key='keeper'`, digest)
 	execute(t, store.DB, `INSERT INTO addon_document_versions VALUES ('sheets','record-extension','sheet','keeper',1,0,'now')`)
 	execute(t, store.DB, `INSERT INTO host_credentials VALUES (1,7,'{}')`)
+	registerPackage(t, store, "sheets", strings.Repeat("a", 64))
 	if err := store.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +94,8 @@ func TestRestorePreservesDataAndAdvancesRevisions(t *testing.T) {
 	execute(t, store.DB, `UPDATE addon_document_versions SET revision=2`)
 	stale := listing(t, store).Revision
 	restore(t, store, point.ID)
+	safety := listing(t, store).Points[0]
+	restoreScope(t, store, point.ID, Scope{Scope: "addon", AddonID: "sheets"})
 	got, err := records.Get(ctx, campaign.Characters, "keeper")
 	if err != nil {
 		t.Fatal(err)
@@ -112,10 +121,9 @@ func TestRestorePreservesDataAndAdvancesRevisions(t *testing.T) {
 	if err := store.DB.QueryRow(`SELECT revision FROM host_credentials`).Scan(&revision); err != nil || revision != 7 {
 		t.Fatal("credentials changed")
 	}
-	if err := store.Restore(ctx, RestoreRequest{ID: point.ID, ExpectedRevision: stale}, "dm"); !errors.Is(err, ErrConflict) {
+	if err := store.Restore(ctx, RestoreRequest{Scope: Scope{Scope: "campaign"}, ID: point.ID, ExpectedRevision: stale}, "dm"); !errors.Is(err, ErrConflict) {
 		t.Fatalf("accepted stale review: %v", err)
 	}
-	safety := listing(t, store).Points[0]
 	if safety.Reason != "pre-restore" {
 		t.Fatal("missing safety point")
 	}
@@ -125,7 +133,7 @@ func TestRestorePreservesDataAndAdvancesRevisions(t *testing.T) {
 		t.Fatalf("safety restore failed: %+v %v", got, err)
 	}
 	var audits int
-	if err := store.DB.QueryRow(`SELECT count(*) FROM recovery_restores`).Scan(&audits); err != nil || audits != 2 {
+	if err := store.DB.QueryRow(`SELECT count(*) FROM recovery_restores`).Scan(&audits); err != nil || audits != 3 {
 		t.Fatal("missing restore audit")
 	}
 	var topic, audience string
@@ -169,7 +177,7 @@ func TestAutomaticPointsCoalesceAndRollbackWithWrites(t *testing.T) {
 	if len(points.Points) != 2 || points.Points[0].Records != 1 {
 		t.Fatal("second edit group missing")
 	}
-	if err := store.Restore(context.Background(), RestoreRequest{Count: 1, ExpectedRevision: points.Revision}, "dm"); err != nil {
+	if err := store.Restore(context.Background(), RestoreRequest{Scope: Scope{Scope: "campaign"}, Count: 1, ExpectedRevision: points.Revision}, "dm"); err != nil {
 		t.Fatal(err)
 	}
 	record, err := records.Get(context.Background(), campaign.Characters, "keeper")
@@ -231,14 +239,14 @@ func TestRetentionAndCompatibilityFailureAreAtomic(t *testing.T) {
 		t.Fatal("retention not bounded")
 	}
 	execute(t, store.DB, `UPDATE recovery_points SET image_json=json_set(image_json,'$.packages',json('[{"addon_id":"different","active_generation_id":"generation"}]')) WHERE point_id=?`, points.Points[0].ID)
-	err := store.Restore(ctx, RestoreRequest{ID: points.Points[0].ID, ExpectedRevision: points.Revision}, "dm")
+	err := store.Restore(ctx, RestoreRequest{Scope: Scope{Scope: "addon", AddonID: "different"}, ID: points.Points[0].ID, ExpectedRevision: points.Revision}, "dm")
 	if !errors.Is(err, ErrCompatibility) {
 		t.Fatalf("accepted changed packages: %v", err)
 	}
 	if got := listing(t, store); got.Revision != points.Revision || len(got.Points) != 50 {
 		t.Fatal("failed restore changed state")
 	}
-	if err := store.Delete(ctx, points.Points[0].ID, points.Revision); err != nil {
+	if err := store.DeleteContext(ctx, DeleteRequest{Scope: Scope{Scope: "campaign"}, ID: points.Points[1].ID, ExpectedRevision: points.Revision}); err != nil {
 		t.Fatal(err)
 	}
 	if len(listing(t, store).Points) != 49 {
@@ -262,7 +270,7 @@ func TestFailedRestoreRollsBackDataRevisionsAndSafetyPoint(t *testing.T) {
 	put(t, records, "keeper", "After", 1)
 	before := listing(t, store)
 	store.Events = failingJournal{store.Events}
-	if err := store.Restore(context.Background(), RestoreRequest{ID: point.ID, ExpectedRevision: before.Revision}, "dm"); err == nil {
+	if err := store.Restore(context.Background(), RestoreRequest{Scope: Scope{Scope: "campaign"}, ID: point.ID, ExpectedRevision: before.Revision}, "dm"); err == nil {
 		t.Fatal("failed event was ignored")
 	}
 	after := listing(t, store)
@@ -287,7 +295,7 @@ func TestConcurrentRestoreHasOneWinner(t *testing.T) {
 	}
 	point := listing(t, store).Points[0]
 	put(t, records, "keeper", "After", 1)
-	request := RestoreRequest{ID: point.ID, ExpectedRevision: listing(t, store).Revision}
+	request := RestoreRequest{Scope: Scope{Scope: "campaign"}, ID: point.ID, ExpectedRevision: listing(t, store).Revision}
 	var wait sync.WaitGroup
 	results := make(chan error, 2)
 	for i := 0; i < 2; i++ {

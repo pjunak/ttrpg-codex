@@ -111,8 +111,8 @@ Lookup order is exact repository, stored default, `CODEX_GITHUB_TOKEN`, then
 `GITHUB_TOKEN`. Responses expose configuration/source and repository names only.
 Token inputs are cleared on submission, including uncertain responses; refresh
 reads configured state before an explicit retry. Environment tokens are changed
-through server configuration. Credentials are not imported from v1 or restored
-with campaign backups.
+through server configuration. Credentials are not restored with campaign
+backups.
 
 All routes require real and effective DM authority; POST also requires CSRF:
 
@@ -456,8 +456,7 @@ documents, dataset definitions, file references and package reference from
 snapshots requiring that exact build. Core campaign data and every other
 add-on's recovery context remain. Current campaign records, current add-on
 saves, retained character history, schema-upgrade evidence and full backup ZIPs
-are untouched. A partial snapshot cannot be restored through the old combined
-API; the independently scoped campaign restore stays available.
+are untouched; the campaign context of such a snapshot stays restorable.
 
 The exact cleanup inventory is journaled before any file removal. Automatic
 retention includes previously evicted generations' metadata. Valid pending

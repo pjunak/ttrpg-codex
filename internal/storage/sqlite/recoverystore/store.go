@@ -111,31 +111,6 @@ func (s *Store) Create(ctx context.Context) error {
 	return err
 }
 
-func (s *Store) Delete(ctx context.Context, id, expected int64) error {
-	if id < 1 || expected < 0 {
-		return ErrInvalid
-	}
-	tx, err := s.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err := claim(ctx, tx, expected); err != nil {
-		return err
-	}
-	result, err := tx.ExecContext(ctx, `DELETE FROM recovery_points WHERE point_id = ?`, id)
-	if err != nil {
-		return err
-	}
-	if count, _ := result.RowsAffected(); count != 1 {
-		return ErrNotFound
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE recovery_control SET suppressed = 0, revision = revision + 1 WHERE singleton = 1`); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
 func claim(ctx context.Context, tx *sql.Tx, revision int64) error {
 	result, err := tx.ExecContext(ctx, `UPDATE recovery_control SET suppressed = 1 WHERE singleton = 1 AND revision = ? AND suppressed = 0`, revision)
 	if err != nil {
@@ -209,23 +184,22 @@ func (s *Store) Restore(ctx context.Context, request RestoreRequest, actorID str
 	if err != nil {
 		return err
 	}
+	campaign := request.Scope.Scope == "campaign"
 	var statements []string
-	if request.Scope.Scope != "addon" {
+	if campaign {
 		statements = append(statements, campaignRestoreStatements...)
-	}
-	if request.Scope.Scope != "campaign" {
-		statements = append(statements, addonRestoreStatements...)
-	}
-	statements = append(statements, blobRestoreStatement)
-	if request.Scope.Scope != "addon" {
+		statements = append(statements, blobRestoreStatement)
 		statements = append(statements, campaignMediaRestoreStatements...)
+	} else {
+		statements = append(statements, addonRestoreStatements...)
+		statements = append(statements, blobRestoreStatement)
 	}
 	for index, statement := range statements {
 		if _, err := tx.ExecContext(ctx, statement, sql.Named("image", image), sql.Named("addon", request.AddonID), sql.Named("scope", request.Scope.Scope)); err != nil {
-			return fmt.Errorf("restore campaign step %d: %w", index, err)
+			return fmt.Errorf("restore %s step %d: %w", request.Scope.Scope, index, err)
 		}
 	}
-	if request.Scope.Scope != "campaign" {
+	if !campaign {
 		if err := addondatastore.RetainRecovery(ctx, tx, actorID, fmt.Sprintf("recovery-%d", safetyID), request.AddonID); err != nil {
 			return err
 		}
