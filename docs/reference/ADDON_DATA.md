@@ -272,11 +272,10 @@ an applied `resolution`; standalone schema reviews omit them. Review responses c
 or document keys. These are host administration endpoints, not add-on-granted
 permissions or public worker methods.
 
-## Remaining public surface
+## Limits
 
 The package/storage/application contract and package lifecycle integration
-are implemented. The following still sits above this boundary:
-
-- reviewed value-transforming migration orchestration. The reserved worker
-  `addon/migration.plan` and `addon/migration.apply` methods are not implemented;
-  the compatible schema-only workflow above does not implement them.
+are implemented. Value-transforming migrations are not: the reserved worker
+methods `addon/migration.plan` and `addon/migration.apply` have no
+implementation, and the compatible schema-only workflow above does not use
+them. They are a [backlog idea](../BACKLOG.md#ideas).

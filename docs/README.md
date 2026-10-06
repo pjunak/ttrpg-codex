@@ -1,7 +1,7 @@
 # Documentation
 
 Start with the guide for your task. References describe how things work now;
-the backlog lists future work. Links to add-on repositories assume they are
+the backlog lists future work; design notes hold open questions. Links to add-on repositories assume they are
 checked out next to this one.
 
 ## Run a campaign site
@@ -33,8 +33,16 @@ then the [API reference](../examples/addons/API_V3.md) and the
 | Add-on data, content and services | [Add-on data](reference/ADDON_DATA.md), [content](reference/CONTENT.md), [service broker](reference/SERVICE_BROKER.md), [retained history](reference/RETAINED_ADDON_HISTORY.md), [rule details](reference/RULE_DETAILS.md) |
 | Native workers | [Supervision](reference/WORKER_SUPERVISION.md), [worker broker](reference/WORKER_BROKER.md) |
 
-## Decisions and plans
+## Planning, decisions and open questions
 
-[Architecture decisions](decisions/) explain why the system is shaped the way
-it is. [BACKLOG.md](BACKLOG.md) is the only task list for the host and the
-first-party add-ons.
+| Kind | Where | Lifetime |
+| --- | --- | --- |
+| Future work for all five repositories | [BACKLOG.md](BACKLOG.md): owner checks, next, undecided, later, ideas, watch-for | Entry deleted when done |
+| Problems the owner has not decided yet | [design/](design/), marked **Undecided** | Until a decision becomes an ADR |
+| Accepted design decisions and their reasons | [decisions/](decisions/) ([template](decisions/TEMPLATE.md)) | Permanent; superseded, not deleted |
+| A plan for the change in progress | `plans/` (git-ignored) | Deleted when the change lands |
+
+Currently undecided: the
+[knowledge and investigation model](design/knowledge-and-investigation.md)
+(knowledge levels, mystery clues, character facts and open questions, Mind
+Palace). Leave that area as it is until the owner decides.

@@ -678,7 +678,7 @@ already exist. A restored or stale activation proposal requires a fresh review;
 the UI offers that path directly. Private snapshots survive package cleanup and
 are included in full backups. No manual disable or second activation is needed.
 
-## Remaining lifecycle work
+## Limits
 
 Current review, activation, configuration, coordinated disable/uninstall, basic diagnostics and
 browser calls to an add-on's own service are implemented. Browser self-calls
@@ -686,6 +686,6 @@ use explicit `includeOwn` and do not imply planned self-binding during native
 worker initialization.
 
 Value-transforming migrations, native self-binding, new worker capabilities and
-OS resource limits are [backlog ideas](../BACKLOG.md#ideas-only-with-a-concrete-need).
+OS resource limits are [backlog ideas](../BACKLOG.md#ideas).
 Build them on the existing coordinator and keep exact generations, optimistic
 revisions, broker authority and stored approval.

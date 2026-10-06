@@ -493,7 +493,7 @@ transaction with deferred event notifications. These policies remain above the
 generic record store.
 
 Value-transforming add-on collection migrations and extra relational query
-indexes are [backlog ideas](../BACKLOG.md#ideas-only-with-a-concrete-need). Domain
+indexes are [backlog ideas](../BACKLOG.md#ideas). Domain
 policies belong above the storage layer, not in transport-handler SQL.
 
 Native whole-host recovery archives and offline journaled restore are

@@ -245,8 +245,8 @@ private drafts.
 Fixtures revoke real sessions through logout; clock-based expiration is covered
 by Go session tests.
 
-## Authentication follow-ups
+## Limits
 
-- Persistent sessions and individual session-management UI remain optional.
-- Add request/correlation IDs and security-event diagnostics without recording
-  credentials or tokens.
+Sessions do not survive a restart and cannot be listed or revoked one by one.
+Requests carry no correlation IDs and there are no security-event diagnostics.
+These are [backlog ideas](../BACKLOG.md#ideas) under Operations.

@@ -154,12 +154,22 @@ frontend modules. See [Architecture](docs/ARCHITECTURE.md).
 
 ## Write useful documentation
 
-Lead with the reader's task. Put setup and everyday use in the README, how
-things work in the owning reference under [docs/reference/](docs/reference/),
-design rationale in an [architecture decision](docs/decisions/), and future
-work only in [BACKLOG.md](docs/BACKLOG.md). Describe current behaviour in the
-present tense; history belongs in Git, not in documents. Update the owning
-document in the same change as the behaviour.
+Lead with the reader's task. Each kind of text has one home:
+
+| Text | Home |
+| --- | --- |
+| Setup and everyday use | The repository README |
+| How something works now | The owning reference under [docs/reference/](docs/reference/) (add-ons: their `docs/`) |
+| Why it is built this way | An [architecture decision](docs/decisions/) (copy the [template](docs/decisions/TEMPLATE.md)) |
+| A problem that is not decided yet | A [design note](docs/design/) marked **Undecided** |
+| Future work, for every repository | [BACKLOG.md](docs/BACKLOG.md), in its documented entry format |
+| A plan for the change in progress | The ignored `docs/plans/`; delete it when done |
+
+References end with a short **Limits** section that links backlog entries
+instead of keeping their own task lists. Do not leave TODO comments in code;
+add a backlog entry. Describe current behaviour in the present tense; history
+belongs in Git, not in documents. Update the owning document in the same
+change as the behaviour.
 
 ## Commit and hand off
 

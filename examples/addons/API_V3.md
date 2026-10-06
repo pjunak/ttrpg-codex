@@ -31,7 +31,7 @@ Not available: WASI workers, worker blob/event/network/progress calls, HTTP
 endpoints, record renderers, custom graph node kinds, enum injection,
 value-transforming data migrations, package signatures and OS resource limits.
 The manifest schema rejects the unavailable surfaces and worker types; others
-are listed as [backlog ideas](../../docs/BACKLOG.md#ideas-only-with-a-concrete-need).
+are listed as [backlog ideas](../../docs/BACKLOG.md#ideas).
 
 The runtime composition in [cmd/codex](../../cmd/codex/main.go),
 [browser SDK](../../frontend/src/addons/browser-sdk.ts), and

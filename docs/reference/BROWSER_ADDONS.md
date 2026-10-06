@@ -624,7 +624,7 @@ the implementation/test inventory. Host views and all three visual companion
 add-ons use this implementation. Isolated frames retain their own DOM and the
 existing serializable bridge; no host DOM access is introduced.
 
-## Remaining integration
+## Limits
 
 The browser SDK already supplies data, content, services and UI handles.
 Contribution contexts supply navigation, host settings context and edit guards;
@@ -641,4 +641,4 @@ health and request diagnostics use the separate DM-only administrative snapshot.
 
 Separate editor panels, settings panels and graph models are implemented.
 Broader editor integration, graph extensions and further SDK handles are
-[backlog ideas](../BACKLOG.md#ideas-only-with-a-concrete-need).
+[backlog ideas](../BACKLOG.md#ideas).
