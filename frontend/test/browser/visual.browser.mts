@@ -485,7 +485,7 @@ async function assertCardAction(card: Locator, page: Page) {
     const b = required(await badge.boundingBox());
     assert.ok(
       b.x + b.width <= action.x || b.y >= action.y + action.height,
-      "visibility never overlaps edit",
+      `visibility never overlaps edit: ${JSON.stringify({ badge: b, action })}`,
     );
   }
   await primary.focus();
@@ -566,17 +566,20 @@ for (const scenario of [
       await image.evaluate((node: HTMLImageElement) => node.decode());
       const art = required(await image.boundingBox()),
         mark = required(await fallback.boundingBox());
-      assert.ok(Math.abs(mark.width - art.width) < 1, route + " fallback has full card width");
-      assert.ok(
-        Math.abs(mark.height - art.height) < 1,
-        route + " fallback has full artwork height",
-      );
-      const first = required(await cards.nth(0).boundingBox()),
-        second = required(await cards.nth(1).boundingBox());
-      assert.ok(
-        Math.abs(first.height - second.height) < 1,
-        route + " equal content has equal card height",
-      );
+      if (route === "characters") {
+        assert.ok(Math.abs(mark.width - art.width) < 1, route + " fallback has full card width");
+        assert.ok(
+          Math.abs(mark.height - art.height) < 1,
+          route + " fallback has full artwork height",
+        );
+        const first = required(await cards.nth(0).boundingBox()),
+          second = required(await cards.nth(1).boundingBox());
+        assert.ok(
+          Math.abs(first.height - second.height) < 1,
+          route + " equal content has equal card height",
+        );
+      } else
+        assert.ok(mark.width < art.width / 2, route + " entries without artwork are compact tiles");
       for (const card of await cards.all()) await assertCardAction(card, page);
       await fits(page);
       if (route === "characters")

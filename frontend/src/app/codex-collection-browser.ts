@@ -1,4 +1,5 @@
 import { LitElement, html, nothing, type TemplateResult } from "lit";
+import { live } from "lit/directives/live.js";
 import { UIControlsController } from "../ui/controller.js";
 import { repeat } from "lit/directives/repeat.js";
 import type { EntitySummary } from "./campaign-projection.js";
@@ -16,203 +17,212 @@ import { uiText, UiLocalizationController } from "./ui-localization.js";
 import { selectOptions } from "./select-options.js";
 let browserId = 0;
 
+/** One-line browse toolbar: every change applies immediately, as in the original codex. */
 export class CodexCollectionBrowser extends LitElement {
   static override properties = {
     model: { attribute: false },
     view: { attribute: false },
+    quickFacet: { attribute: false },
     renderEntry: { attribute: false },
     storageUnavailable: { type: Boolean },
-    pending: { state: true },
     facetKey: { state: true },
-    choice: { state: true },
   };
   declare model: CollectionModel;
   declare view: CollectionView;
+  declare quickFacet: string;
   declare renderEntry: (entity: EntitySummary) => TemplateResult;
   declare storageUnavailable: boolean;
-  declare private pending: CollectionView;
   declare private facetKey: string;
-  declare private choice: string;
   readonly #ui = new UiLocalizationController(this);
   readonly #id = `collection-browser-${++browserId}`;
   constructor() {
     super();
     new UIControlsController(this);
     this.view = defaultCollectionView;
-    this.pending = this.view;
+    this.quickFacet = "";
     this.facetKey = "";
-    this.choice = "";
     this.storageUnavailable = false;
   }
   protected override createRenderRoot() {
     return this;
   }
-  protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (changed.has("view")) this.pending = this.view;
+  override connectedCallback(): void {
+    super.connectedCallback();
+    document.addEventListener("pointerdown", this.#closeFilterMenu);
+  }
+  override disconnectedCallback(): void {
+    document.removeEventListener("pointerdown", this.#closeFilterMenu);
+    super.disconnectedCallback();
+  }
+  protected override willUpdate(): void {
     if (!this.model) return;
     if (!this.model.facets.some((facet) => facet.key === this.facetKey))
       this.facetKey = this.model.facets[0]?.key ?? "";
-    const choices = this.model.facets.find((facet) => facet.key === this.facetKey)?.choices ?? [];
-    if (!choices.some((choice) => choice.value === this.choice))
-      this.choice = choices[0]?.value ?? "";
   }
   protected override render() {
     if (!this.model) return nothing;
-    const result = queryCollection(this.model, this.view);
+    const view = this.view;
+    const result = queryCollection(this.model, view);
     const facet = this.model.facets.find((facet) => facet.key === this.facetKey);
-    const choices = facet ? collectionFacetChoices(this.model, this.pending, facet.key) : [];
-    const group = this.model.facets.find((facet) => facet.key === this.view.group);
+    const choices = facet ? collectionFacetChoices(this.model, view, facet.key) : [];
+    const group = this.model.facets.find((facet) => facet.key === view.group);
+    const clearable = view.query !== "" || view.filters.length > 0;
+    const sort = this.model.sorts.some((sort) => sort.key === view.sort) ? view.sort : "name";
     return html`<form class="collection-controls" lang=${this.#ui.locale} @submit=${(
       event: SubmitEvent,
-    ) => {
-      event.preventDefault();
-      this.#apply();
-    }}>
-      <div class="collection-control-row" data-ui-toolbar>
-        <div class="collection-query" data-ui-field><label for=${`${this.#id}-query`}>${uiText("browse.search")}</label><input id=${`${this.#id}-query`} aria-describedby=${`${this.#id}-hint`} type="search" data-ui="search" maxlength="512" .value=${this.pending.query}
-          @codex-query=${(event: Event) => {
-            this.pending = { ...this.pending, query: (event.target as HTMLInputElement).value };
-          }} />
-          <small id=${`${this.#id}-hint`}>${uiText("browse.searchHint")}</small></div>
-      </div>
-      ${
-        this.model.facets.some((facet) => facet.key === "roster")
-          ? html`<div class="collection-roster" role="group" aria-label=${uiText("browse.roster")}>
-        ${["all", "npc", "party"].map(
-          (scope) => html`<button type="button" class="record-action"
-          aria-pressed=${scope === "all" ? !this.pending.filters.some((filter) => filter.field === "roster") : this.pending.filters.some((filter) => filter.field === "roster" && filter.value === scope)}
-          @click=${() => {
-            this.pending = {
-              ...this.pending,
-              filters: [
-                ...this.pending.filters.filter((filter) => filter.field !== "roster"),
-                ...(scope === "all" ? [] : [{ field: "roster", value: scope }]),
-              ],
-            };
-            this.#apply();
-          }}
-          >${uiText(scope === "all" ? "browse.rosterAll" : scope === "npc" ? "browse.rosterNPC" : "browse.rosterParty")}</button>`,
-        )}
-      </div>`
-          : nothing
-      }
-      <details class="collection-view-options" ?open=${this.view.sort !== "name" || this.view.direction !== "asc" || this.view.group !== ""}>
-        <summary>${uiText("browse.viewOptions")} <span>${this.model.sorts.find((sort) => sort.key === this.view.sort)?.label ?? uiText("Name")} · ${uiText(this.view.direction === "desc" ? "browse.descending" : "browse.ascending")}${group ? ` · ${group.label}` : ""}</span></summary>
-        <div class="collection-control-row" data-ui-toolbar>
-        <label data-ui-field><span>${uiText("browse.sort")}</span><select .value=${this.model.sorts.some((sort) => sort.key === this.pending.sort) ? this.pending.sort : "name"}
-          @change=${(event: Event) => {
-            this.pending = { ...this.pending, sort: (event.target as HTMLSelectElement).value };
-          }}>
-          ${selectOptions(
-            this.model.sorts.map((sort) => ({ value: sort.key, label: sort.label })),
-            this.model.sorts.some((sort) => sort.key === this.pending.sort)
-              ? this.pending.sort
-              : "name",
-          )}</select></label>
-        <label data-ui-field><span>${uiText("browse.direction")}</span><select .value=${this.pending.direction}
-          @change=${(event: Event) => {
-            this.pending = {
-              ...this.pending,
+    ) => event.preventDefault()}>
+      ${this.#quickChips()}
+      <div class="collection-toolbar">
+        <div class="collection-query">
+          <label class="visually-hidden" for=${`${this.#id}-query`}>${uiText("browse.search")}</label>
+          <input id=${`${this.#id}-query`} type="search" data-ui="search" maxlength="512"
+            placeholder=${uiText("browse.placeholder")} title=${uiText("browse.searchHint")}
+            .value=${live(view.query)}
+            @codex-query=${(event: Event) =>
+              this.#apply({ ...this.view, query: (event.target as HTMLInputElement).value })} />
+        </div>
+        <label class="collection-select"><span aria-hidden="true">${uiText("browse.sortShort")}</span>
+          <select aria-label=${uiText("browse.sort")} .value=${live(sort)}
+            @change=${(event: Event) =>
+              this.#apply({ ...this.view, sort: (event.target as HTMLSelectElement).value })}>
+            ${selectOptions(
+              this.model.sorts.map((sort) => ({ value: sort.key, label: sort.label })),
+              sort,
+            )}</select></label>
+        <select class="collection-direction" aria-label=${uiText("browse.direction")} .value=${live(view.direction)}
+          @change=${(event: Event) =>
+            this.#apply({
+              ...this.view,
               direction: (event.target as HTMLSelectElement).value === "desc" ? "desc" : "asc",
-            };
-          }}>
+            })}>
           ${selectOptions(
             [
               { value: "asc", label: uiText("browse.ascending") },
               { value: "desc", label: uiText("browse.descending") },
             ],
-            this.pending.direction,
-          )}</select></label>
-        <label data-ui-field><span>${uiText("browse.group")}</span><select .value=${this.model.facets.some((facet) => facet.key === this.pending.group) ? this.pending.group : ""}
-          @change=${(event: Event) => {
-            this.pending = { ...this.pending, group: (event.target as HTMLSelectElement).value };
-          }}>
-          ${selectOptions([{ value: "", label: uiText("browse.ungrouped") }, ...this.model.facets.map((facet) => ({ value: facet.key, label: facet.label }))], this.pending.group)}</select></label>
-        </div>
-      </details>
-      ${
-        this.model.facets.length
-          ? html`<details class="collection-filter-picker"><summary>${uiText("browse.filters")} (${this.pending.filters.length})</summary>
-        <p class="field-help">${uiText("browse.logic")}</p>
-        <div class="collection-control-row" data-ui-toolbar>
-          <label data-ui-field><span>${uiText("browse.filterBy")}</span><select .value=${this.facetKey} @change=${(
-            event: Event,
-          ) => {
-            this.facetKey = (event.target as HTMLSelectElement).value;
-          }}>
+            view.direction,
+          )}</select>
+        ${
+          this.model.facets.length
+            ? html`<label class="collection-select"><span aria-hidden="true">${uiText("browse.groupShort")}</span>
+          <select aria-label=${uiText("browse.group")} .value=${live(group ? group.key : "")}
+            @change=${(event: Event) =>
+              this.#apply({ ...this.view, group: (event.target as HTMLSelectElement).value })}>
             ${selectOptions(
-              this.model.facets.map((facet) => ({ value: facet.key, label: facet.label })),
-              this.facetKey,
+              [
+                { value: "", label: uiText("browse.ungrouped") },
+                ...this.model.facets.map((facet) => ({ value: facet.key, label: facet.label })),
+              ],
+              group ? group.key : "",
             )}</select></label>
-          <div class="collection-filter-value" data-ui-field><label for=${`${this.#id}-filter-value`}>${uiText("browse.value")}</label><select id=${`${this.#id}-filter-value`} data-ui=${choices.length >= 12 ? "combobox" : nothing} .value=${this.choice} @change=${(
-            event: Event,
-          ) => {
-            this.choice = (event.target as HTMLSelectElement).value;
-          }}>
-            ${selectOptions(
-              choices.map((choice) => ({
-                value: choice.value,
-                label: `${choice.label} (${choice.count})`,
-              })),
-              this.choice,
-            )}</select></div>
-          <button type="button" class="record-action" ?disabled=${!facet?.choices.length || this.pending.filters.length >= 32 || this.pending.filters.some((filter) => filter.field === this.facetKey && filter.value === this.choice)}
-            @click=${() => {
-              this.pending = {
-                ...this.pending,
-                filters: [...this.pending.filters, { field: this.facetKey, value: this.choice }],
-              };
-            }}>${uiText("browse.add")}</button>
-        </div>
-      </details>`
-          : nothing
-      }
-      ${
-        this.pending.filters.length
-          ? html`<ul class="collection-filter-chips" aria-label=${uiText("browse.filters")}>
-        ${this.pending.filters.map(
-          (
-            filter,
-          ) => html`<li><button type="button" class="record-action" aria-label=${uiText("browse.remove", this.#filterLabel(filter))}
-          @click=${() => {
-            this.pending = {
-              ...this.pending,
-              filters: this.pending.filters.filter((item) => item !== filter),
-            };
-            this.#apply();
-          }}>
-          ${this.#filterLabel(filter).field}: ${this.#filterLabel(filter).value} <span aria-hidden="true">×</span></button></li>`,
-        )}
-      </ul>`
-          : nothing
-      }
-      <div class="collection-view-actions" data-ui-actions><button type="submit" data-ui-variant="primary" class="record-action primary-record-action">${uiText("browse.apply")}</button>
-        <button type="button" class="record-action" ?disabled=${!this.pending.query && !this.pending.filters.length && !this.view.query && !this.view.filters.length}
-          @click=${() => {
-            this.pending = { ...this.pending, query: "", filters: [] };
-            this.#apply();
-          }}>${uiText("browse.clear")}</button></div>
+        <details class="collection-filter-picker" @keydown=${this.#filterMenuKey}>
+          <summary>${uiText("browse.filters")}${view.filters.length ? ` (${view.filters.length})` : ""}</summary>
+          <div class="collection-filter-menu">
+            <p class="field-help">${uiText("browse.logic")}</p>
+            <label data-ui-field><span>${uiText("browse.filterBy")}</span><select .value=${live(this.facetKey)} @change=${(
+              event: Event,
+            ) => {
+              this.facetKey = (event.target as HTMLSelectElement).value;
+            }}>
+              ${selectOptions(
+                this.model.facets.map((facet) => ({ value: facet.key, label: facet.label })),
+                this.facetKey,
+              )}</select></label>
+            <label class="collection-filter-value" data-ui-field><span>${uiText("browse.value")}</span>
+              <select multiple data-ui="chips" @change=${(event: Event) => {
+                const values = [...(event.target as HTMLSelectElement).selectedOptions].map(
+                  (option) => option.value,
+                );
+                this.#apply({
+                  ...this.view,
+                  filters: [
+                    ...this.view.filters.filter((filter) => filter.field !== this.facetKey),
+                    ...values.map((value) => ({ field: this.facetKey, value })),
+                  ].slice(0, 32),
+                });
+              }}>
+                ${choices.map(
+                  (choice) =>
+                    html`<option value=${choice.value} ?selected=${view.filters.some((filter) => filter.field === this.facetKey && filter.value === choice.value)}>${choice.label} (${choice.count})</option>`,
+                )}</select></label>
+          </div>
+        </details>`
+            : nothing
+        }
+      </div>
+      <div class="collection-status">
+        ${
+          view.filters.length
+            ? html`<ul class="collection-filter-chips" aria-label=${uiText("browse.filters")}>
+          ${view.filters.map(
+            (
+              filter,
+            ) => html`<li><button type="button" aria-label=${uiText("browse.remove", this.#filterLabel(filter))}
+              @click=${() =>
+                this.#apply({
+                  ...this.view,
+                  filters: this.view.filters.filter((item) => item !== filter),
+                })}>
+              ${this.#filterLabel(filter).field}: ${this.#filterLabel(filter).value} <span aria-hidden="true">×</span></button></li>`,
+          )}
+        </ul>`
+            : nothing
+        }
+        <p class="collection-result-count" role="status" aria-atomic="true">${this.#ui.plural("browse.count", this.model.entries.length, { shown: result.count, total: this.model.entries.length })}</p>
+        ${
+          clearable
+            ? html`<button type="button" class="collection-clear"
+          @click=${() => this.#apply({ ...this.view, query: "", filters: [] })}>${uiText("browse.clear")}</button>`
+            : nothing
+        }
+      </div>
     </form>
     ${this.storageUnavailable ? html`<p role="status">${uiText("browse.storageUnavailable")}</p>` : nothing}
-    <p class="collection-result-count" role="status" aria-atomic="true">${this.#ui.plural("browse.count", this.model.entries.length, { shown: result.count, total: this.model.entries.length })}</p>
-    ${group?.multiple ? html`<p class="field-help">${uiText("browse.multipleGroups")}</p>` : nothing}
+    ${group?.multiple && result.groups.length > 1 ? html`<p class="field-help">${uiText("browse.multipleGroups")}</p>` : nothing}
     ${
       result.count === 0
         ? html`<p class="empty-state">${uiText(this.model.entries.length ? "browse.noMatches" : "browse.empty")}</p>`
-        : repeat(
+        : html`<div class=${`collection-results${result.groups.length > 1 ? " is-grouped" : ""}`}>${repeat(
             result.groups,
             (group) => group.key,
             (group) => html`<section class="collection-result-group">
-        ${group.label ? html`<h2 class="record-section-title">${group.label} <span>(${group.entries.length})</span></h2>` : nothing}
+        ${group.label && result.groups.length > 1 ? html`<h2 class="collection-group-title">${group.label} <span>${group.entries.length}</span></h2>` : nothing}
         <div class="record-ledger">${repeat(
           group.entries,
           (entity) => entity.key,
           (entity) => this.renderEntry(entity),
         )}</div>
       </section>`,
-          )
+          )}</div>`
     }
     `;
+  }
+  #quickChips() {
+    const facet = this.model.facets.find((facet) => facet.key === this.quickFacet);
+    if (!facet) return nothing;
+    // Chips come from the whole collection so they stay put while the search narrows.
+    const choices = facet.choices.filter((choice) => choice.value !== "" && choice.count > 0);
+    if (choices.length < 2 || choices.length > 12) return nothing;
+    const active = this.view.filters.filter((filter) => filter.field === facet.key);
+    const counts = collectionFacetChoices(this.model, this.view, facet.key);
+    const select = (value: string) =>
+      this.#apply({
+        ...this.view,
+        filters: [
+          ...this.view.filters.filter((filter) => filter.field !== facet.key),
+          ...(value === "" ? [] : [{ field: facet.key, value }]),
+        ],
+      });
+    return html`<div class="collection-quick" role="group" aria-label=${facet.key === "roster" ? uiText("browse.roster") : facet.label}>
+      <button type="button" aria-pressed=${active.length === 0} @click=${() => select("")}>${uiText(facet.key === "roster" ? "browse.rosterAll" : "browse.all")}</button>
+      ${choices.map(
+        (
+          choice,
+        ) => html`<button type="button" aria-pressed=${active.length === 1 && active[0]!.value === choice.value}
+        @click=${() => select(active.length === 1 && active[0]!.value === choice.value ? "" : choice.value)}>${choice.label}
+        <span class="collection-quick-count" aria-hidden="true">${counts.find((item) => item.value === choice.value)?.count ?? 0}</span></button>`,
+      )}
+    </div>`;
   }
   #filterLabel(filter: CollectionFilter): { field: string; value: string } {
     const facet = this.model.facets.find((facet) => facet.key === filter.field);
@@ -223,16 +233,26 @@ export class CodexCollectionBrowser extends LitElement {
         uiText("browse.unavailable"),
     };
   }
-  #apply(): void {
+  readonly #filterMenuKey = (event: KeyboardEvent): void => {
+    if (event.key !== "Escape") return;
+    const menu = event.currentTarget as HTMLDetailsElement;
+    if (!menu.open) return;
+    event.stopPropagation();
+    menu.open = false;
+    menu.querySelector("summary")?.focus();
+  };
+  readonly #closeFilterMenu = (event: PointerEvent): void => {
+    const menu = this.querySelector<HTMLDetailsElement>(".collection-filter-picker");
+    // Native select and combobox popups render outside the menu in the top layer.
+    if (menu?.open && !event.composedPath().some((node) => node === menu || isPopup(node)))
+      menu.open = false;
+  };
+  #apply(next: CollectionView): void {
     const view = {
-      ...this.pending,
-      sort: this.model.sorts.some((sort) => sort.key === this.pending.sort)
-        ? this.pending.sort
-        : "name",
-      group: this.model.facets.some((facet) => facet.key === this.pending.group)
-        ? this.pending.group
-        : "",
-      filters: this.pending.filters.filter((filter) =>
+      ...next,
+      sort: this.model.sorts.some((sort) => sort.key === next.sort) ? next.sort : "name",
+      group: this.model.facets.some((facet) => facet.key === next.group) ? next.group : "",
+      filters: next.filters.filter((filter) =>
         this.model.facets.some((facet) => facet.key === filter.field),
       ),
     };
@@ -244,6 +264,10 @@ export class CodexCollectionBrowser extends LitElement {
       }),
     );
   }
+}
+
+function isPopup(node: EventTarget): boolean {
+  return node instanceof HTMLElement && node.classList.contains("ui-popup");
 }
 
 customElements.define("codex-collection-browser", CodexCollectionBrowser);

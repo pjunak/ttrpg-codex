@@ -977,7 +977,7 @@ void test("card and article glows surround portraits and follow icon silhouettes
     "the card background must not cast the icon glow",
   );
   const iconGlow = await location
-    .locator(".record-visual-glyph")
+    .locator(".record-visual-glyph, .record-marker-icon")
     .evaluate((node) => getComputedStyle(node).filter);
   assert.match(iconGlow, /rgba\(64, 208, 128, 0.7\) 0px 0px 10px/);
   assert.match(iconGlow, /rgb\(237, 66, 100\) 0px 0px 4px/);
@@ -985,7 +985,9 @@ void test("card and article glows surround portraits and follow icon silhouettes
   await page.locator(".record-portrait-placeholder").waitFor();
   assert.equal(
     await page
-      .locator(".record-portrait-placeholder .record-visual-glyph")
+      .locator(
+        ".record-portrait-placeholder .record-visual-glyph, .record-portrait-placeholder .record-marker-icon",
+      )
       .evaluate((node) => getComputedStyle(node).filter),
     iconGlow,
   );

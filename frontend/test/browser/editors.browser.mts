@@ -334,26 +334,28 @@ void test("collection views apply compound filters and persist sorting/grouping 
   const page = await fixture(t, data, "#/characters");
   await page.getByRole("button", { name: "Add character", exact: true }).click();
   await page.locator('.record-editor [name="name"]').fill("Unsubmitted character");
-  await page
-    .getByRole("searchbox", { name: "Search this collection", exact: true })
-    .fill("zar strazce");
-  assert.equal(await page.locator(".record-row").count(), 2);
+  const search = page.getByRole("searchbox", { name: "Search this collection", exact: true });
+  await search.fill("zar strazce");
+  // Searching applies while typing and keeps focus in the field.
+  await page.getByText("1 of 2 entries", { exact: true }).waitFor();
+  assert.equal(await search.evaluate((node) => node === document.activeElement), true);
+  await search.fill("");
+  await page.getByText("2 of 2 entries", { exact: true }).waitFor();
+  await search.fill("zar strazce");
   await page.locator(".collection-filter-picker > summary").click();
   await page.getByRole("combobox", { name: "Filter by", exact: true }).selectOption("faction");
-  await page.getByRole("combobox", { name: "Value", exact: true }).selectOption("watch");
-  await page.getByRole("button", { name: "Add filter", exact: true }).click();
-  await page.locator(".collection-view-options > summary").click();
+  // Filter values are a chip picker: type to narrow, choose with the keyboard.
+  const value = page.getByRole("combobox", { name: "Value", exact: true });
+  await value.fill("hlídka");
+  await value.press("ArrowDown");
+  await value.press("Enter");
+  await page.locator(".collection-filter-chips").getByText("Noční hlídka").waitFor();
   await page.getByRole("combobox", { name: "Group by", exact: true }).selectOption("faction");
   await page.getByRole("combobox", { name: "Sort direction", exact: true }).selectOption("desc");
-  await page.getByRole("button", { name: "Apply view", exact: true }).click();
   await page.getByText("1 of 2 entries", { exact: true }).waitFor();
   assert.equal(
     await page.locator('.record-editor [name="name"]').inputValue(),
     "Unsubmitted character",
-  );
-  assert.equal(
-    await page.evaluate(() => document.activeElement?.textContent?.trim()),
-    "Apply view",
   );
   assert.match(page.url(), /q=zar\+strazce/);
   await reloadFixture(page, data, "#/characters");
@@ -382,7 +384,6 @@ void test("Czech phone collection controls remain usable and announce zero resul
   await page
     .getByRole("searchbox", { name: "Prohledat tuto sbírku", exact: true })
     .fill("nenalezeno");
-  await page.getByRole("button", { name: "Použít zobrazení", exact: true }).click();
   await page.getByText("0 z 1 záznamu", { exact: true }).waitFor();
   assert.ok(await page.getByRole("button", { name: "Vymazat filtry", exact: true }).isEnabled());
   assert.equal(
@@ -487,8 +488,9 @@ void test("a deleted record's draft remains downloadable from its collection wit
   assert.equal(content, "Text for an entry removed elsewhere");
   assert.equal(await page.evaluate(() => window.editorFixture.submissions.length), 0);
   await page.evaluate(() => window.editorFixture.role("player"));
-  await page.locator(".collection-local-drafts > summary").click();
-  await page.getByText("No local drafts for this collection.", { exact: true }).waitFor();
+  await page.locator(".collection-result-count").waitFor();
+  // Another role's drafts stay separate, so the player sees no draft library at all.
+  assert.equal(await page.locator(".collection-local-drafts").count(), 0);
 });
 
 void test("direct character edits confirm with Enter, cancel with Escape and preserve the article", async (t) => {

@@ -196,6 +196,24 @@ export function campaignEnumDisplayLabel(
   return typeof label === "string" && label.trim() !== "" ? label.trim() : id;
 }
 
+/** A configured hex colour for one enum value, when the category stores colours. */
+export function campaignEnumColor(
+  campaign: CampaignDataset,
+  category: CampaignEnumCategory,
+  value: unknown,
+): string | undefined {
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+  const record = campaignEnumRecord(campaign, category);
+  if (!Array.isArray(record?.value)) return undefined;
+  const definition = record.value.find(
+    (candidate) => isRecord(candidate) && candidate["id"] === value.trim(),
+  );
+  const color = isRecord(definition) ? definition["color"] : undefined;
+  return typeof color === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/iu.test(color)
+    ? color
+    : undefined;
+}
+
 export function prepareCampaignEnumSave(
   campaign: CampaignDataset,
   detail: CampaignEnumSaveDetail,

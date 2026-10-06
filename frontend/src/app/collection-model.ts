@@ -82,14 +82,10 @@ export function collectionModel(
     { key: "updatedAt", label: uiText("browse.updated") },
     ...sortFields.map((field) => ({ key: field.key, label: field.label })),
   ];
-  const memberCounts = new Map<string, number>();
-  if (page.collection === "factions") {
-    for (const record of groupTwinRecords(campaignCollection(dataset, "characters").records)) {
-      const faction = text(recordValue(record)["faction"]);
-      memberCounts.set(faction, (memberCounts.get(faction) ?? 0) + 1);
-    }
+  const memberCounts =
+    page.collection === "factions" ? factionMemberCounts(dataset) : new Map<string, number>();
+  if (page.collection === "factions")
     sorts.push({ key: "members", label: uiText("browse.members") });
-  }
   const entries = projectEntities(dataset, page).map((original) => {
     const entity =
       page.collection === "characters"
@@ -206,6 +202,16 @@ export function collectionModel(
   return result;
 }
 
+/** Characters per faction key, counting DM/player twins once. */
+export function factionMemberCounts(dataset: CampaignDataset): ReadonlyMap<string, number> {
+  const counts = new Map<string, number>();
+  for (const record of groupTwinRecords(campaignCollection(dataset, "characters").records)) {
+    const faction = text(recordValue(record)["faction"]);
+    counts.set(faction, (counts.get(faction) ?? 0) + 1);
+  }
+  return counts;
+}
+
 function facetValues(field: CampaignEditorField, entity: EntitySummary): readonly string[] {
   const raw = entity.raw[field.key];
   if (field.kind === "attitudes")
@@ -317,6 +323,12 @@ export function queryCollection(
           uiText("browse.unavailable"),
         entries,
       }))
-      .sort((a, b) => collator.compare(a.label, b.label) || a.key.localeCompare(b.key)),
+      // Entries without a value form the last group.
+      .sort(
+        (a, b) =>
+          Number(a.key === "") - Number(b.key === "") ||
+          collator.compare(a.label, b.label) ||
+          a.key.localeCompare(b.key),
+      ),
   };
 }

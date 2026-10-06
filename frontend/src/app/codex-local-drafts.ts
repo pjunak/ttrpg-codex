@@ -61,8 +61,12 @@ export class CodexLocalDrafts extends LitElement {
       this.loading = false;
     }
   }
+  protected override updated(changed: Map<PropertyKey, unknown>): void {
+    // The library only appears when this browser holds drafts for the collection.
+    if (changed.has("actorRole") || changed.has("page")) void this.#refresh();
+  }
   readonly #refresh = async (): Promise<void> => {
-    if (!this.open || !this.actorRole || !this.page) return;
+    if (!this.actorRole || !this.page) return;
     const epoch = ++this.#epoch;
     this.loading = true;
     try {
@@ -79,13 +83,14 @@ export class CodexLocalDrafts extends LitElement {
   };
   protected override render() {
     if (!this.actorRole || !this.page || !this.campaign) return nothing;
+    if (!this.open && !this.failed && !this.drafts.length) return nothing;
     return html`<details class="collection-local-drafts" ?open=${this.open} @toggle=${(
       event: Event,
     ) => {
       this.open = (event.target as HTMLDetailsElement).open;
       if (this.open) void this.#refresh();
     }}>
-      <summary>${uiText("draft.library")}</summary><p>${uiText("draft.libraryIntro")}</p>
+      <summary>${uiText("draft.library")}${this.drafts.length ? ` (${this.drafts.length})` : ""}</summary><p>${uiText("draft.libraryIntro")}</p>
       <button class="record-action" type="button" ?disabled=${this.loading} @click=${this.#refresh}>${uiText("draft.refresh")}</button>
       ${
         this.failed

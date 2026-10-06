@@ -176,42 +176,64 @@ export function mapMarkerScale(zoom: number, ratio: number): number {
     ? 2 ** (zoom * Math.max(0, Math.min(1, ratio)))
     : 1;
 }
+export interface LocationMarker {
+  readonly markerIcon: string;
+  readonly markerGlyph: string;
+  readonly markerSize: number;
+}
+
+/** Marker artwork for one location, shared by the map and location cards. */
+export function locationMarker(
+  campaign: CampaignDataset,
+  key: string,
+  value: Readonly<Record<string, unknown>>,
+): LocationMarker {
+  return markerFor(pinTypeDefinitions(campaign), key, value);
+}
+
+function pinTypeDefinitions(campaign: CampaignDataset): unknown {
+  return campaignCollection(campaign, "settings").records.find(({ key }) => key === "pinTypes")
+    ?.value;
+}
+
+function markerFor(
+  definitions: unknown,
+  key: string,
+  value: Readonly<Record<string, unknown>>,
+): LocationMarker {
+  const type = text(value["pinType"]) || "custom";
+  const definition = Array.isArray(definitions)
+    ? definitions.find((item) => isRecord(item) && item["id"] === type)
+    : undefined;
+  const size = value["size"] ?? definition?.size ?? defaultSizes[type] ?? 28;
+  let icon = "";
+  if (isRecord(definition?.iconConfig) && Array.isArray(definition.iconConfig["files"])) {
+    const files = definition.iconConfig["files"].filter(isRecord);
+    const selected =
+      files[definition.iconConfig["strategy"] === "random" ? hash(key) % files.length : 0];
+    icon = safeMediaURL(selected?.["url"]) ?? "";
+  }
+  const bundled = text(definition?.defaultIconId) || type;
+  if (icon === "" && Object.hasOwn(defaultSizes, bundled)) icon = `/icons-defaults/${bundled}.svg`;
+  return {
+    markerIcon: icon,
+    markerGlyph: text(definition?.icon) || "📍",
+    markerSize:
+      typeof size === "number" && Number.isFinite(size) ? Math.min(64, Math.max(14, size)) : 28,
+  };
+}
+
 export function mapLocations(
   campaign: CampaignDataset,
   parentId: string | null,
 ): readonly MapLocation[] {
-  const definitions = campaignCollection(campaign, "settings").records.find(
-    ({ key }) => key === "pinTypes",
-  )?.value;
+  const definitions = pinTypeDefinitions(campaign);
   return projectEntities(campaign, locationPage).flatMap((entity) => {
     const value = entity.raw;
     if (mapParent(value) !== parentId || !mapCoordinate(value["x"]) || !mapCoordinate(value["y"]))
       return [];
-    const type = text(value["pinType"]) || "custom";
-    const definition = Array.isArray(definitions)
-      ? definitions.find((item) => isRecord(item) && item["id"] === type)
-      : undefined;
-    const size = value["size"] ?? definition?.size ?? defaultSizes[type] ?? 28;
-    let icon = "";
-    if (isRecord(definition?.iconConfig) && Array.isArray(definition.iconConfig["files"])) {
-      const files = definition.iconConfig["files"].filter(isRecord);
-      const selected =
-        files[definition.iconConfig["strategy"] === "random" ? hash(entity.key) % files.length : 0];
-      icon = safeMediaURL(selected?.["url"]) ?? "";
-    }
-    const bundled = text(definition?.defaultIconId) || type;
-    if (icon === "" && Object.hasOwn(defaultSizes, bundled))
-      icon = `/icons-defaults/${bundled}.svg`;
     return [
-      {
-        ...entity,
-        x: value["x"],
-        y: value["y"],
-        markerIcon: icon,
-        markerGlyph: text(definition?.icon) || "📍",
-        markerSize:
-          typeof size === "number" && Number.isFinite(size) ? Math.min(64, Math.max(14, size)) : 28,
-      },
+      { ...entity, x: value["x"], y: value["y"], ...markerFor(definitions, entity.key, value) },
     ];
   });
 }

@@ -7,7 +7,10 @@ import {
 } from "../src/app/collection-model.js";
 import {
   defaultCollectionView,
+  defaultCollectionViewFor,
   parseCollectionView,
+  quickFacetFor,
+  readCollectionView,
   serializeCollectionView,
 } from "../src/app/collection-view.js";
 import { campaignPages, parseAppRoute } from "../src/app/routes.js";
@@ -257,4 +260,51 @@ it("does not infer unrevealed party membership in restricted roster filters", ()
       queryCollection(hidden, { ...defaultCollectionView, filters: [{ field: "roster", value }] })
         .count,
     ).toBe(0);
+});
+
+it("groups characters by faction and locations by kind until a view is saved", () => {
+  expect(defaultCollectionViewFor("characters").group).toBe("faction");
+  expect(defaultCollectionViewFor("locations").group).toBe("type");
+  expect(defaultCollectionViewFor("factions")).toEqual(defaultCollectionView);
+  expect(quickFacetFor("characters")).toBe("roster");
+  expect(quickFacetFor("companions")).toBe("");
+  const storage = new Map<string, string>();
+  const previous = globalThis.localStorage;
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    },
+  });
+  try {
+    expect(readCollectionView("characters", "dm").group).toBe("faction");
+    // A saved ungrouped view stays ungrouped.
+    storage.set(
+      "codex:collection-view:dm:characters",
+      serializeCollectionView(defaultCollectionView),
+    );
+    expect(readCollectionView("characters", "dm").group).toBe("");
+  } finally {
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: previous });
+  }
+});
+
+it("lists the group of entries without a value last", () => {
+  const locations = campaignPages.find((page) => page.id === "locations")!;
+  const model = collectionModel(
+    dataset({
+      locations: [
+        record("a", { name: "A" }),
+        record("b", { name: "B", type: "Town" }),
+        record("c", { name: "C", type: "Abbey" }),
+      ],
+    }),
+    locations,
+  );
+  expect(
+    queryCollection(model, { ...defaultCollectionView, group: "type" }).groups.map(
+      (group) => group.key,
+    ),
+  ).toEqual(["Abbey", "Town", ""]);
 });

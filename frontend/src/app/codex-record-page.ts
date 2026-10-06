@@ -8,7 +8,7 @@ import { contextualCreationFields, creationSource, creationBackHash } from "./co
 import { articleContext, articleOwner, articleReferences } from "./article-context.js";
 import { renderArticleContext, renderArticleReferences } from "./article-context-view.js";
 import { editorValue, recordFieldControl } from "./record-field-controls.js";
-import { uiText, uiSourceLabel } from "./ui-localization.js";
+import { uiPlural, uiText, uiSourceLabel } from "./ui-localization.js";
 import "./codex-portrait-editor.js";
 import { artwork } from "../ui/artwork.js";
 import "./codex-record-twins.js";
@@ -33,7 +33,7 @@ import {
   type CampaignRecordDeleteDetail,
   type CampaignRecordSaveDetail,
 } from "./campaign-record-editor.js";
-import { campaignEnumDisplayLabel } from "./campaign-settings.js";
+import { campaignEnumColor, campaignEnumDisplayLabel } from "./campaign-settings.js";
 import {
   factionRankChains,
   type CampaignRelationshipEditorElement,
@@ -62,10 +62,17 @@ import {
   mapHash,
   eventMapHash,
   locationMapHash,
+  type CampaignPageDefinition,
   type ContextCreationAction,
   type AppRoute,
 } from "./routes.js";
-import { eventMapParent, hasEventPin, mapParent, mapCoordinate } from "./campaign-map.js";
+import {
+  eventMapParent,
+  hasEventPin,
+  locationMarker,
+  mapParent,
+  mapCoordinate,
+} from "./campaign-map.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
@@ -75,10 +82,11 @@ import { bindRuleDetails } from "./codex-addon-rule-details.js";
 import "./codex-collection-browser.js";
 import "./codex-local-drafts.js";
 import "./codex-record-contributions.js";
-import { collectionModel } from "./collection-model.js";
+import { collectionModel, factionMemberCounts } from "./collection-model.js";
 import {
   defaultCollectionView,
   parseCollectionView,
+  quickFacetFor,
   readCollectionView,
   rememberCollectionView,
   serializeCollectionView,
@@ -276,6 +284,8 @@ export class CodexRecordPage extends LitElement {
   }
 
   #collection(route: Extract<RecordRoute, { kind: "collection" }>) {
+    const members =
+      route.page.collection === "factions" ? factionMemberCounts(this.campaign!) : undefined;
     return html`
       <article class="collection-page" data-collection=${route.page.collection} aria-labelledby="collection-title">
         <header class="page-heading collection-heading">
@@ -286,7 +296,7 @@ export class CodexRecordPage extends LitElement {
             this.canEdit
               ? html`
             <button class="record-action primary-record-action" type="button" @click=${this.#startCreate} ?disabled=${this.saving || this.editor !== "closed"}>
-              ${uiText("Add {0}", { "0": route.page.singular.toLocaleLowerCase() })}
+              <span aria-hidden="true">+</span>${uiText("Add {0}", { "0": route.page.singular.toLocaleLowerCase() })}
             </button>
           `
               : nothing
@@ -302,8 +312,8 @@ export class CodexRecordPage extends LitElement {
               }}>${uiText("investigation.queue")}</button>`
             : nothing
         }
-        <codex-collection-browser .model=${collectionModel(this.campaign!, route.page)} .view=${this.collectionView}
-          .renderEntry=${(entity: EntitySummary) => recordRow(entity, route.page.icon, this.canEdit ? recordEditHash(route.page, entity.key, route.view === undefined ? collectionHash(route.page) : `${collectionHash(route.page)}?${route.view}`) : undefined)} .storageUnavailable=${this.viewStorageUnavailable}
+        <codex-collection-browser .model=${collectionModel(this.campaign!, route.page)} .view=${this.collectionView} .quickFacet=${quickFacetFor(route.page.id)}
+          .renderEntry=${(entity: EntitySummary) => recordRow(this.campaign!, entity, route.page, this.canEdit ? recordEditHash(route.page, entity.key, route.view === undefined ? collectionHash(route.page) : `${collectionHash(route.page)}?${route.view}`) : undefined, members?.get(entity.key))} .storageUnavailable=${this.viewStorageUnavailable}
           @collection-view-change=${this.#changeCollectionView}></codex-collection-browser>
         ${route.page.collection === "mysteries" ? html`<codex-investigation-queue .campaign=${this.campaign} .canEdit=${this.canEdit}></codex-investigation-queue>` : nothing}
         ${this.canEdit ? html`<codex-local-drafts .campaign=${this.campaign} .page=${route.page} .actorRole=${this.actorRole}></codex-local-drafts>` : nothing}
@@ -1049,17 +1059,31 @@ export class CodexRecordPage extends LitElement {
   };
 }
 
-function recordRow(entity: EntitySummary, fallback: string, editHref?: string) {
+function recordRow(
+  campaign: CampaignDataset,
+  entity: EntitySummary,
+  page: CampaignPageDefinition,
+  editHref?: string,
+  memberCount?: number,
+) {
+  const character = page.collection === "characters";
+  const compact = !character && entity.portrait === undefined;
+  const statusColor = character
+    ? campaignEnumColor(campaign, "characterStatuses", entity.status)
+    : undefined;
+  const factionColor = page.collection === "factions" ? hexColor(entity.raw["color"]) : undefined;
   return html`<div class="record-row-shell ui-card">
-    <a class=${`record-row${entity.portrait ? "" : " no-artwork"}`} href=${entity.route}>
-      ${recordArtwork(entity, fallback, "record-row-mark", "lazy")}
+    <a class=${`record-row${entity.portrait ? "" : " no-artwork"}${compact ? " is-compact" : ""}`} href=${entity.route}
+      style=${factionColor ? `--entity-color: ${factionColor}` : nothing}>
+      ${recordArtwork(entity, page.icon, "record-row-mark", "lazy", page.collection === "locations" ? campaign : undefined)}
       <span class="record-row-copy">
         <strong>${entity.name}</strong>
         ${entity.title === "" ? nothing : html`<span>${entity.title}</span>`}
-        ${entity.route.startsWith("#/mysteries/") ? investigationBadge(entity.raw) : nothing}
-        ${entity.route.startsWith("#/characters/") && entity.statusLabel ? html`<span>${entity.statusLabel}</span>` : nothing}
+        ${page.collection === "mysteries" ? html`<span class="record-row-meta">${investigationBadge(entity.raw)}</span>` : nothing}
+        ${character && entity.statusLabel ? html`<span class="record-status" style=${statusColor ? `--status-color: ${statusColor}` : nothing}>${entity.statusLabel}</span>` : nothing}
         ${entity.partyIdentity ? html`<span class="party-identity-badge">${entity.partyIdentity.badge} ${entity.partyIdentity.name}</span>` : nothing}
-        ${entity.excerpt === "" ? nothing : html`<small>${entity.excerpt}</small>`}
+        ${memberCount === undefined ? nothing : html`<span class="record-row-meta">${uiPlural("browse.memberCount", memberCount)}</span>`}
+        ${entity.excerpt === "" || character ? nothing : html`<small>${entity.excerpt}</small>`}
       </span>
       ${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
     </a>${editHref ? cardEditLink(editHref, uiText("Edit {0}", { "0": entity.name })) : nothing}
@@ -1071,8 +1095,13 @@ function recordArtwork(
   fallback: string,
   className: string,
   loading: "lazy" | "eager" = "eager",
+  locationCampaign?: CampaignDataset,
 ) {
   const portrait = entity.route.startsWith("#/characters/");
+  const marker =
+    locationCampaign && entity.portrait === undefined && entity.icon === undefined
+      ? locationMarker(locationCampaign, entity.key, entity.raw)
+      : undefined;
   return artwork({
     source: previewResourceURL(entity.portrait),
     className,
@@ -1081,10 +1110,19 @@ function recordArtwork(
       (portrait || entity.portrait !== undefined) && entity.attitudeRing !== undefined
         ? `--attitude-ring: ${entity.attitudeRing}`
         : undefined,
-    fallback: html`<span class="record-visual-glyph"
-      style=${!portrait && entity.attitudeFilter !== undefined ? `--attitude-filter: ${entity.attitudeFilter}` : nothing}>${entity.icon ?? fallback}</span>
+    fallback: marker?.markerIcon
+      ? html`<img class="record-marker-icon" src=${marker.markerIcon} alt="" loading=${loading}
+        style=${entity.attitudeFilter !== undefined ? `--attitude-filter: ${entity.attitudeFilter}` : nothing} />`
+      : html`<span class="record-visual-glyph"
+      style=${!portrait && entity.attitudeFilter !== undefined ? `--attitude-filter: ${entity.attitudeFilter}` : nothing}>${entity.icon ?? marker?.markerGlyph ?? fallback}</span>
     `,
   });
+}
+
+function hexColor(value: unknown): string | undefined {
+  return typeof value === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/iu.test(value)
+    ? value
+    : undefined;
 }
 
 interface ArticleSection {

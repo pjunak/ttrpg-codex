@@ -438,7 +438,7 @@ const excerptFields: Readonly<
   characters: ["description", "known", "circumstances"],
   locations: ["description", "history", "mapNotes"],
   events: ["short", "description"],
-  mysteries: ["clues", "questions"],
+  mysteries: ["description", "questions"],
   factions: ["description"],
   pantheon: ["description"],
   artifacts: ["description"],

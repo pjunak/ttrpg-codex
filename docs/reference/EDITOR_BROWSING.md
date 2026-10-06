@@ -149,10 +149,10 @@ other facets. Unrevealed character membership is not used by either restricted
 roster filter; those entries remain available under All characters. Source
 records and the dedicated Party page are unchanged.
 
-Search and filter access stay visible. Sort/direction/group controls are inside
-**Sort and group**, whose summary describes the applied view and opens for a
-saved nondefault view. Applying preserves focus and open record drafts. Mysteries
-also has a keyboard-accessible shortcut to the combined question queue.
+Search, sort, direction, grouping and the **Filters** menu share one toolbar
+line, and every change applies immediately while keeping focus and open record
+drafts. Mysteries also has a keyboard-accessible shortcut to the combined
+question queue.
 
 Host forms label unsaved changes, pending saves and failures near Save/Cancel;
 a confirmed record transaction shows a campaign-save confirmation at its return
@@ -245,14 +245,16 @@ draft formats are not read or deleted.
 ## Shared collection views
 
 All nine core record collections use one browsing component. The default is
-all accessible entries, name ascending, with no grouping or filters. A native
-search input, sort and direction menus, and optional group menu form the common
-toolbar; sort, direction and grouping are disclosed under **Sort and group**.
-Additional filters are collapsed initially. Users choose a category
-and value, add visible removable chips, then **Apply view**. Applying preserves
-keyboard focus and an open new-entry form. Removing a chip or clearing filters
-applies that change immediately. Clear removes query and filters while keeping
-the chosen sort and grouping.
+all accessible entries, name ascending, with no filters; characters are grouped
+by faction and locations by kind until a view is saved, as in the original
+codex. One toolbar line holds the search field, sort and direction, grouping
+and a **Filters** menu where users pick a category and add or remove its values
+in a searchable chip field. Collections with a natural quick choice (character roster,
+location attitudes, priorities, pantheon alignment) show it as one-click chips
+above the toolbar. Every change applies immediately and preserves keyboard focus
+and an open new-entry form. **Clear filters** removes query and filters while
+keeping the chosen sort and grouping. Grouped tile collections flow their groups
+into columns; the group of entries without a value comes last.
 
 - Search matches every entered word against declared record fields, including
   full Markdown text and resolved reference labels. It shares accent folding

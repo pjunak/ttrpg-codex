@@ -1409,9 +1409,10 @@ for (const mobile of [false, true])
     const filters = player.page.locator(".collection-filter-picker");
     await filters.locator("summary").click();
     await filters.getByRole("combobox", { name: "Filter by", exact: true }).selectOption("solved");
-    await filters.getByRole("combobox", { name: "Value", exact: true }).selectOption("true");
-    await filters.getByRole("button", { name: "Add filter", exact: true }).click();
-    await player.page.getByRole("button", { name: "Apply view", exact: true }).click();
+    const value = filters.getByRole("combobox", { name: "Value", exact: true });
+    await value.fill("Yes");
+    await value.press("ArrowDown");
+    await value.press("Enter");
     assert.equal(
       await player.page.locator('a.record-row[href="#/mysteries/' + key + '-open"]').count(),
       0,
@@ -1563,13 +1564,12 @@ for (const mobile of [false, true])
           assert.ok(emblem && emblem.height <= 48);
           await dm.page.goto("/#/characters?q=" + encodeURIComponent(suffix));
           const list = dm.page.locator("codex-collection-browser");
-          const roster = list.locator(".collection-roster");
+          const roster = list.locator(".collection-quick");
           await roster.waitFor();
           assert.equal(
-            await roster.locator('[aria-pressed="true"]').textContent(),
+            (await roster.locator('[aria-pressed="true"]').textContent())?.trim(),
             locale === "en" ? "All characters" : "Všechny postavy",
           );
-          assert.equal(await list.locator(".collection-view-options").getAttribute("open"), null);
           assert.equal(await list.locator("a.record-row").count(), 2);
           await roster
             .getByRole("button", { name: locale === "en" ? "NPCs" : "Cizí postavy", exact: true })
@@ -1591,23 +1591,15 @@ for (const mobile of [false, true])
             await dm.page.screenshot({
               path: resolve(output, "compact-collection-default-" + suffix + ".png"),
             });
-          const options = list.locator(".collection-view-options");
-          await options.locator("summary").focus();
-          await dm.page.keyboard.press("Enter");
-          await options.getByRole("combobox").first().selectOption("updatedAt");
-          await list
-            .getByRole("button", {
-              name: locale === "en" ? "Apply view" : "Použít zobrazení",
-              exact: true,
-            })
-            .click();
-          assert.equal(
-            await dm.page.evaluate(() => document.activeElement?.textContent?.trim()),
-            locale === "en" ? "Apply view" : "Použít zobrazení",
-          );
+          const sort = list.getByRole("combobox", {
+            name: locale === "en" ? "Sort by" : "Řadit podle",
+            exact: true,
+          });
+          await sort.selectOption("updatedAt");
+          await dm.page.waitForFunction(() => location.hash.includes("sort=updatedAt"));
           await dm.page.reload();
-          await options.getByRole("combobox").first().waitFor();
-          assert.equal(await options.getByRole("combobox").first().inputValue(), "updatedAt");
+          await sort.waitFor();
+          assert.equal(await sort.inputValue(), "updatedAt");
           if (process.env["CODEX_UI_SCREENSHOTS"] === "1")
             await dm.page.screenshot({
               path: resolve(output, "compact-collection-" + suffix + ".png"),

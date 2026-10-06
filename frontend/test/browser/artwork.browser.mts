@@ -147,6 +147,14 @@ for (const scenario of [
           const mark = page.locator(`.record-row[href="#/${route}/${key}"] .record-row-mark`);
           await fallback(mark);
           const box = required(await mark.boundingBox());
+          if (key === "empty" && route !== "characters") {
+            // Entries that never had artwork read as compact tiles with a small emblem.
+            assert.ok(
+              box.width < goodBounds.width / 2,
+              "an entry without artwork is a compact tile",
+            );
+            continue;
+          }
           assert.ok(Math.abs(box.width - goodBounds.width) < 1);
           assert.ok(Math.abs(box.height - goodBounds.height) < 1);
         }

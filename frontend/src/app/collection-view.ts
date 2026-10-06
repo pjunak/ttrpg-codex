@@ -18,6 +18,30 @@ export const defaultCollectionView: CollectionView = Object.freeze({
   filters: [],
 });
 
+/** First-visit grouping per page; a saved or linked view always wins. */
+const pageGroups: Readonly<Record<string, string>> = Object.freeze({
+  characters: "faction",
+  locations: "type",
+});
+
+/** The facet offered as one-click chips above the search field. */
+const pageQuickFacets: Readonly<Record<string, string>> = Object.freeze({
+  characters: "roster",
+  locations: "attitudes",
+  events: "priority",
+  mysteries: "priority",
+  pantheon: "alignment",
+});
+
+export function defaultCollectionViewFor(page: string): CollectionView {
+  const group = pageGroups[page];
+  return group ? Object.freeze({ ...defaultCollectionView, group }) : defaultCollectionView;
+}
+
+export function quickFacetFor(page: string): string {
+  return pageQuickFacets[page] ?? "";
+}
+
 export function parseCollectionView(query: string): CollectionView {
   if (query.length > 64_000) return defaultCollectionView;
   const parameters = new URLSearchParams(query);
@@ -62,11 +86,10 @@ function collectionPreferenceKey(page: string, role: string): string {
 
 export function readCollectionView(page: string, role: string): CollectionView {
   try {
-    return parseCollectionView(
-      globalThis.localStorage.getItem(collectionPreferenceKey(page, role)) ?? "",
-    );
+    const saved = globalThis.localStorage.getItem(collectionPreferenceKey(page, role));
+    return saved === null ? defaultCollectionViewFor(page) : parseCollectionView(saved);
   } catch {
-    return defaultCollectionView;
+    return defaultCollectionViewFor(page);
   }
 }
 
