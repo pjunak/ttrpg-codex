@@ -1614,6 +1614,7 @@ export class CodexApp extends LitElement {
   ): Promise<void> => {
     event.preventDefault();
     const { respond, ...patch } = event.detail;
+    const collection = patch.collection ?? "characters";
     if (
       this.busy ||
       this.#request === undefined ||
@@ -1641,7 +1642,7 @@ export class CodexApp extends LitElement {
       prepared = await attachCharacterPortrait(
         prepared,
         {
-          collection: "characters",
+          collection,
           key: patch.base.key,
           expectedRevision: patch.base.revision,
           creating: false,
@@ -1662,11 +1663,11 @@ export class CodexApp extends LitElement {
         this.campaignState.state === "ready" ? this.campaignState.campaign : undefined;
       const record =
         campaign &&
-        campaignCollection(campaign, "characters").records.find(
+        campaignCollection(campaign, collection).records.find(
           (item) => item.key === patch.base.key,
         );
       const committed = receipt.results.find(
-        (item) => item.collection === "characters" && item.key === patch.base.key,
+        (item) => item.collection === collection && item.key === patch.base.key,
       );
       if (
         !campaign ||
@@ -1689,6 +1690,7 @@ export class CodexApp extends LitElement {
         prepareCharacterPatch(
           campaign,
           {
+            collection,
             base: { ...record, value: written.value },
             fields: patch.fields,
             ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),

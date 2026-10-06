@@ -528,6 +528,57 @@ void test("direct character edits confirm with Enter, cancel with Escape and pre
   assert.equal(required(await submission(page)).mutation?.mutations[0].expectedRevision, 2);
 });
 
+void test("location facts edit in place: Enter saves the location, Escape keeps the saved value", async (t) => {
+  const page = await fixture(
+    t,
+    dataset({ locations: [{ key: "gate", revision: 1, value: { name: "Gate", type: "Town" } }] }),
+    "#/locations/gate",
+  );
+  await page.getByRole("button", { name: "Edit Kind", exact: true }).click();
+  const kind = page.getByRole("textbox", { name: "Kind", exact: true });
+  await kind.fill("City");
+  await kind.press("Enter");
+  await page
+    .getByRole("button", { name: "Edit Kind", exact: true })
+    .filter({ hasText: "City" })
+    .waitFor();
+  const saved = required(await submission(page)).mutation?.mutations[0];
+  assert.equal(saved?.collection, "locations");
+  assert.equal(saved?.value.type, "City");
+  await page.getByRole("button", { name: "Edit Kind", exact: true }).click();
+  await kind.fill("Not kept");
+  await kind.press("Escape");
+  assert.equal(
+    (await page.getByRole("button", { name: "Edit Kind", exact: true }).textContent())?.trim(),
+    "City",
+  );
+  assert.equal(await page.evaluate(() => window.editorFixture.submissions.length), 1);
+});
+
+void test("multi-value location fields edit in place with the chip picker", async (t) => {
+  const page = await fixture(
+    t,
+    dataset({
+      locations: [
+        { key: "gate", revision: 1, value: { name: "Gate" } },
+        { key: "vale", revision: 1, value: { name: "Vale" } },
+      ],
+    }),
+    "#/locations/gate",
+  );
+  await page.locator(".record-more-details > summary").click();
+  await page.getByRole("button", { name: "Edit Connected locations", exact: true }).click();
+  const picker = page.getByRole("combobox", { name: "Connected locations", exact: true });
+  await picker.fill("val");
+  await picker.press("ArrowDown");
+  await picker.press("Enter");
+  await picker.press("Enter");
+  await page.getByRole("button", { name: "Edit Connected locations", exact: true }).waitFor();
+  const saved = required(await submission(page)).mutation?.mutations[0];
+  assert.equal(saved?.collection, "locations");
+  assert.deepEqual(saved?.value.connections, ["vale"]);
+});
+
 void test("circumstances autosave while wiki text remains an explicit draft, and Undo affects only the quick edit", async (t) => {
   const page = await fixture(t, dataset({ characters: [character()] }), "#/characters/ryn");
   await page.getByRole("button", { name: "Edit wiki", exact: true }).click();

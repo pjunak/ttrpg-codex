@@ -13,6 +13,7 @@ import { uiPlural, uiText, uiSourceLabel } from "./ui-localization.js";
 import "./codex-portrait-editor.js";
 import { artwork } from "../ui/artwork.js";
 import "./codex-record-twins.js";
+import { inlineFieldKinds } from "./codex-inline-field.js";
 import { CodexCharacterProfile } from "./codex-character-profile.js";
 import { CodexMarkdownEditor } from "./codex-markdown-editor.js";
 import type { CodexPortraitEditor } from "./codex-portrait-editor.js";
@@ -371,6 +372,12 @@ export class CodexRecordPage extends LitElement {
       .campaign=${dataset} .record=${record} .page=${route.page} .disabled=${this.saving}></codex-record-twins>`
         : nothing;
     const facts = articleFacts(dataset, route.page.collection, value);
+    const editable = this.canEdit
+      ? editorFieldsFor(route.page.collection, this.canManageVisibility).filter(
+          (field) => inlineFieldKinds.has(field.kind) && field.key !== "name",
+        )
+      : [];
+    const extraFields = editable.filter((field) => !facts.some((fact) => fact[2] === field.key));
     const sections = [
       ...articleSections(
         route.page.collection === "mysteries"
@@ -410,7 +417,17 @@ export class CodexRecordPage extends LitElement {
               ${recordArtwork(entity, route.page.icon, `record-portrait${entity.portrait ? "" : " record-portrait-placeholder"}`, "eager", route.page.collection === "locations" ? dataset : undefined)}
               <div>
                 <span class="record-kind">${route.page.singular}</span>
-                <h1 id="record-title">${entity.name}</h1>
+                <h1 id="record-title" aria-label=${entity.name}>${
+                  this.canEdit
+                    ? this.#inlineField(
+                        record,
+                        route,
+                        editorFieldsFor(route.page.collection).find(
+                          (field) => field.key === "name",
+                        )!,
+                      )
+                    : entity.name
+                }</h1>
                 ${entity.title === "" ? nothing : html`<p>${entity.title}</p>`}
                 <div class="record-badges">
                   ${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
@@ -440,9 +457,19 @@ export class CodexRecordPage extends LitElement {
                 ? nothing
                 : html`
               <dl class="record-facts">
-                ${facts.map(([label, fact]) => html`<div><dt>${label}</dt><dd>${fact}</dd></div>`)}
+                ${facts.map(([label, fact, key]) => {
+                  const field = editable.find((field) => field.key === key);
+                  return html`<div><dt>${label}</dt><dd>${field ? this.#inlineField(record, route, field, label) : fact}</dd></div>`;
+                })}
               </dl>
             `
+            }
+            ${
+              extraFields.length
+                ? html`<details class="character-empty-details record-more-details"><summary>${uiText("details.add")}</summary>
+              <dl class="record-facts">${extraFields.map((field) => html`<div><dt>${field.label}</dt><dd>${this.#inlineField(record, route, field)}</dd></div>`)}</dl>
+            </details>`
+                : nothing
             }
             ${
               outline.length === 0
@@ -490,6 +517,16 @@ export class CodexRecordPage extends LitElement {
         </div>
       </article>
     `;
+  }
+
+  #inlineField(
+    record: CampaignRecord,
+    route: Extract<RecordRoute, { kind: "record" }>,
+    field: CampaignEditorField,
+    label?: string,
+  ) {
+    return html`<codex-inline-field .campaign=${this.campaign} .record=${record} .collection=${route.page.collection}
+      .field=${field} .label=${label} .canEdit=${this.canEdit && !this.saving}></codex-inline-field>`;
   }
 
   #mastheadActions(
@@ -1183,9 +1220,9 @@ function articleFacts(
   dataset: CampaignDataset,
   collection: string,
   value: Readonly<Record<string, unknown>>,
-): readonly (readonly [string, string | TemplateResult])[] {
+): readonly (readonly [string, string | TemplateResult, string?])[] {
   const fields = factDefinitions[collection] ?? [];
-  const facts: Array<readonly [string, string | TemplateResult]> = [];
+  const facts: Array<readonly [string, string | TemplateResult, string?]> = [];
   for (const [label, field, referenceCollection] of fields) {
     const raw =
       collection === "mysteries" && field === "solved"
@@ -1200,7 +1237,7 @@ function articleFacts(
           : articleReferences(dataset, referenceCollection, raw).length
             ? renderArticleReferences(articleReferences(dataset, referenceCollection, raw))
             : "";
-    if (result !== "") facts.push([uiSourceLabel(label), result]);
+    if (result !== "") facts.push([uiSourceLabel(label), result, field]);
   }
   if (collection === "companions") {
     const owner = articleOwner(dataset, value);

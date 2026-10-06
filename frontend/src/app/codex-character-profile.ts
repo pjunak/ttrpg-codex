@@ -16,6 +16,7 @@ import {
   editorFieldsFor,
   editorOptionsFor,
   relationshipBaseFor,
+  relationshipEditorRowsFor,
   sameCampaignValue,
   type CampaignEditorField,
   type CampaignCharacterPatch,
@@ -31,6 +32,7 @@ import {
 } from "./campaign-projection.js";
 import {
   factionRankChains,
+  locationRoleDrafts,
   type CampaignStructuredFieldElement,
   type CampaignRelationshipEditorElement,
 } from "./campaign-structured-editors.js";
@@ -44,6 +46,7 @@ import { CodexMarkdownEditor } from "./codex-markdown-editor.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { CodexPortraitEditor } from "./codex-portrait-editor.js";
 import { artwork } from "../ui/artwork.js";
+import { pencilIcon } from "./edit-icon.js";
 
 interface FieldDraft {
   readonly key: string;
@@ -158,6 +161,10 @@ export class CodexCharacterProfile extends LitElement {
         )
       : this.entity;
     const wiki = parseCampaignMarkdown(text(value["description"]));
+    const hasRelationships =
+      relationshipEditorRowsFor(this.campaign, this.record.key, this.canManageVisibility).length >
+      0;
+    const hasLocationRoles = locationRoleDrafts(value["locationRoles"]).length > 0;
     return html`<article class=${`record-article character-profile direct-character${entity.portrait ? "" : " no-artwork"}${revealed ? "" : " knowledge-limited"}`} aria-labelledby="record-title">
       <div class="character-page-heading"><a href="#/characters" class="breadcrumb-link">${uiText("Characters")}</a>
         <div class="character-heading-tools">
@@ -262,12 +269,26 @@ export class CodexCharacterProfile extends LitElement {
           <p class="investigation-count">${uiText("investigation.count", { open: investigationQuestions(value["unknown"]).filter((question) => !question.answer).length, total: investigationQuestions(value["unknown"]).length })}</p>
           <div class="character-questions">${this.#questions().map((_item, index) => html`<div>${this.#inline("unknown", index, "text")}<div class="character-answer">${this.#inline("unknown", index, "answer")}</div></div>`)}</div>
           ${this.canEdit ? html`<button class="character-add" type="button" @click=${() => this.#addItem("unknown")}>+ ${uiText("Add question")}</button>` : nothing}</section></div>
-        <section class="record-structured-section"><h2 class="record-section-title">${uiText("Relationships")}</h2>
-          ${renderCharacterRelationships(this.campaign, this.record.key, this.canManageVisibility)}
-          ${this.#referenceEdit("relationships", uiText("Relationships"))}</section>
-        <section class="record-structured-section"><h2 class="record-section-title">${uiText("Other location roles")}</h2>
-          ${renderCharacterLocationRoles(this.campaign, value["locationRoles"])}
-          ${this.#referenceEdit("locationRoles", uiText("Other location roles"))}</section>
+        ${
+          hasRelationships
+            ? html`<section class="record-structured-section">${this.#sectionHeading("relationships", uiText("Relationships"))}
+          ${renderCharacterRelationships(this.campaign, this.record.key, this.canManageVisibility)}</section>`
+            : nothing
+        }
+        ${
+          hasLocationRoles
+            ? html`<section class="record-structured-section">${this.#sectionHeading("locationRoles", uiText("Other location roles"))}
+          ${renderCharacterLocationRoles(this.campaign, value["locationRoles"])}</section>`
+            : nothing
+        }
+        ${
+          this.canEdit && (!hasRelationships || !hasLocationRoles)
+            ? html`<div class="character-structured-add">
+          ${hasRelationships ? nothing : html`<button class="character-add" type="button" @click=${() => this.#openPanel("relationships")}>+ ${uiText("Relationships")}</button>`}
+          ${hasLocationRoles ? nothing : html`<button class="character-add" type="button" @click=${() => this.#openPanel("locationRoles")}>+ ${uiText("Other location roles")}</button>`}
+        </div>`
+            : nothing
+        }
         ${renderArticleContext(articleContext(this.campaign, "characters", this.record.key))}
         ${this.extraSections?.map((section) => html`<section class="record-structured-section"><h2 class="record-section-title">${section.heading}</h2>${renderCampaignMarkdown(parseCampaignMarkdown(section.body), this.context)}</section>`)}
         `
@@ -341,17 +362,21 @@ export class CodexCharacterProfile extends LitElement {
         ? html`${renderArticleReferences(articleReferences(this.campaign, reference, recordValue(this.record)[key]))}
         ${
           this.canEdit
-            ? html`<button type="button" class="record-action article-reference-edit" aria-label=${uiText("Edit {0}", { "0": field.label })}
-          @click=${() => this.#begin(key)}>${uiText("Edit")}</button>`
+            ? html`<button type="button" class="inline-edit-button" aria-label=${uiText("Edit {0}", { "0": field.label })}
+          title=${uiText("Edit {0}", { "0": field.label })} @click=${() => this.#begin(key)}>${pencilIcon()}</button>`
             : nothing
         }`
         : this.#inline(key)
     }</dd></div>`;
   }
-  #referenceEdit(panel: string, label: string) {
-    return this.canEdit
-      ? html`<button type="button" class="record-action" @click=${() => this.#openPanel(panel)}>${uiText("Edit {0}", { "0": label })}</button>`
-      : nothing;
+  #sectionHeading(panel: string, label: string) {
+    return html`<div class="character-section-heading"><h2 class="record-section-title">${label}</h2>
+      ${
+        this.canEdit
+          ? html`<button type="button" class="inline-edit-button" aria-label=${uiText("Edit {0}", { "0": label })}
+        title=${uiText("Edit {0}", { "0": label })} @click=${() => this.#openPanel(panel)}>${pencilIcon()}</button>`
+          : nothing
+      }</div>`;
   }
   #display(key: string, value: unknown): string {
     if (key === "tags") return (value as string[]).join(", ");
@@ -384,14 +409,28 @@ export class CodexCharacterProfile extends LitElement {
       key === "unknown" ? uiText(part === "answer" ? "Answer" : "Question") : field.label;
     if (!this.canEdit) return html`<span>${value || "—"}</span>`;
     if (!active)
-      return html`<button type="button" class="character-edit-value" data-edit-field=${key} aria-label=${uiText("Edit {0}", { "0": label })}
+      return html`<button type="button" class=${`character-edit-value${value ? "" : " is-empty"}`} data-edit-field=${key} aria-label=${uiText("Edit {0}", { "0": label })}
       @click=${() => this.#begin(key, row, part)}>${value || uiText(part === "answer" ? "Add answer" : "Add {0}", { "0": label.toLocaleLowerCase() })}</button>`;
     const options = editorOptionsFor(this.campaign, field, this.record.key);
     const auto = key === "circumstances" || part === "answer";
-    return html`<span class="character-inline-editor" data-field=${key}>
-      ${
-        field.kind === "enum" || field.kind === "reference"
-          ? html`<select aria-label=${label} .value=${fieldText(whole)} ?disabled=${draft.pending}
+    const choice = field.kind === "enum" || field.kind === "reference";
+    const searchable = choice && options.length >= 12;
+    return html`<span class=${`character-inline-editor${draft.pending ? " is-pending" : ""}`} data-field=${key}
+      @focusout=${searchable ? (event: FocusEvent) => this.#leaveSearchable(event, key) : nothing}
+      @keydown=${
+        searchable
+          ? (event: KeyboardEvent) => {
+              // The combobox consumes the first Escape to close its list.
+              if (event.key !== "Escape" || event.isComposing) return;
+              event.preventDefault();
+              event.stopPropagation();
+              this.#cancelField(key);
+            }
+          : nothing
+      }>
+      <span class="inline-edit-row">${
+        choice
+          ? html`<select aria-label=${label} .value=${fieldText(whole)} ?disabled=${draft.pending} data-ui=${searchable ? "combobox" : nothing}
         @change=${(e: Event) => {
           this.#input(key, (e.target as HTMLSelectElement).value);
           void this.#saveField(key, true);
@@ -412,12 +451,22 @@ export class CodexCharacterProfile extends LitElement {
             @input=${(e: Event) => this.#input(key, (e.target as HTMLInputElement).value)} @blur=${() => {
               if (!draft.error) void this.#saveField(key, true);
             }}
+            title=${uiText("Enter to confirm · Esc to cancel")}
             @keydown=${(e: KeyboardEvent) => this.#fieldKey(e, key, false)} />`
-      }
-      <small class="character-edit-hint">${draft.pending ? uiText("Saving…") : auto ? uiText("Saves after a short pause") : uiText("Enter to confirm · Esc to cancel")}</small>
+      }${
+        choice || auto
+          ? nothing
+          : html`<span class="inline-edit-actions">
+        <button type="button" class="inline-edit-confirm" aria-label=${uiText("inlineEdit.save", { "0": label })} title=${uiText("inlineEdit.save", { "0": label })}
+          ?disabled=${draft.pending} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => this.#saveField(key, true)}>✓</button>
+        <button type="button" class="inline-edit-cancel" aria-label=${uiText("inlineEdit.cancel", { "0": label })} title=${uiText("inlineEdit.cancel", { "0": label })}
+          ?disabled=${draft.pending} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => this.#cancelField(key)}>✕</button>
+      </span>`
+      }</span>
+      ${draft.pending ? html`<small class="character-edit-hint">${uiText("Saving…")}</small>` : auto ? html`<small class="character-edit-hint">${uiText("Saves after a short pause")}</small>` : nothing}
       ${
         row !== undefined
-          ? html`<button type="button" ?disabled=${draft.pending} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => {
+          ? html`<button type="button" class="inline-edit-remove" ?disabled=${draft.pending} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => {
               (draft.value as unknown[]).splice(row, 1);
               void this.#saveField(key, true);
             }}>${uiText("Remove")}</button>`
@@ -465,11 +514,23 @@ export class CodexCharacterProfile extends LitElement {
     else delete draft.part;
     this.requestUpdate();
     await this.updateComplete;
-    const control = this.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
-      `[data-field="${key}"] input,[data-field="${key}"] textarea,[data-field="${key}"] select`,
-    );
+    // Searchable selects are enhanced by the page's shared controls after this render.
+    if (this.querySelector(`[data-field="${key}"] select[data-ui="combobox"]`))
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    const control =
+      this.querySelector<HTMLInputElement>(`[data-field="${key}"] .ui-combobox input`) ??
+      this.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+        `[data-field="${key}"] input,[data-field="${key}"] textarea,[data-field="${key}"] select`,
+      );
     control?.focus();
     if (control instanceof HTMLInputElement) control.select();
+  }
+  #leaveSearchable(event: FocusEvent, key: string): void {
+    const next = event.relatedTarget;
+    const editor = event.currentTarget as HTMLElement;
+    if (next instanceof Element && (editor.contains(next) || next.closest(".ui-popup"))) return;
+    const draft = this.#drafts.get(key);
+    if (draft && !draft.error && !draft.pending) void this.#saveField(key, true);
   }
   #input(key: string, value: string, auto = false): void {
     const draft = this.#drafts.get(key);
@@ -756,7 +817,7 @@ export class CodexCharacterProfile extends LitElement {
 
   #panelValue(panel: string, label: string) {
     return this.canEdit
-      ? html`<button type="button" class="character-edit-value" @click=${() => this.#openPanel(panel)}>${label || uiText("Add {0}", { "0": panel === "relationships" ? uiText("Relationships").toLocaleLowerCase() : this.#field(panel).label.toLocaleLowerCase() })}</button>`
+      ? html`<button type="button" class=${`character-edit-value${label ? "" : " is-empty"}`} @click=${() => this.#openPanel(panel)}>${label || uiText("Add {0}", { "0": panel === "relationships" ? uiText("Relationships").toLocaleLowerCase() : this.#field(panel).label.toLocaleLowerCase() })}</button>`
       : html`<span>${label || "—"}</span>`;
   }
   #openPanel(panel: string): void {

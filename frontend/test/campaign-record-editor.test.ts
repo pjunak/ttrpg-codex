@@ -19,6 +19,57 @@ import type {
   CampaignDataset,
 } from "../src/core/campaign-data.js";
 
+describe("in-place record patches", () => {
+  it("edits one field of any collection and moves a re-parented location off its old map", () => {
+    const base = {
+      key: "gate",
+      revision: 3,
+      value: { name: "Gate", type: "Town", parentId: "", x: 0.2, y: 0.4, keep: { a: 1 } },
+    };
+    const campaign = dataset({
+      locations: [base, { key: "vale", revision: 1, value: { name: "Vale" } }],
+    });
+    expect(
+      prepareCharacterPatch(
+        campaign,
+        { collection: "locations", base, fields: { type: "City" } },
+        false,
+      ).mutations[0],
+    ).toEqual({
+      operation: "put",
+      collection: "locations",
+      key: "gate",
+      expectedRevision: 3,
+      value: { ...base.value, type: "City" },
+    });
+    const moved = prepareCharacterPatch(
+      campaign,
+      { collection: "locations", base, fields: { parentId: "vale" } },
+      false,
+    ).mutations[0];
+    expect(moved?.operation === "put" && moved.value).toEqual({
+      name: "Gate",
+      type: "Town",
+      parentId: "vale",
+      keep: { a: 1 },
+    });
+    expect(() =>
+      prepareCharacterPatch(
+        campaign,
+        { collection: "locations", base, fields: { type: "City" }, portrait: null },
+        false,
+      ),
+    ).toThrow();
+    expect(() =>
+      prepareCharacterPatch(
+        campaign,
+        { collection: "locations", base, fields: { notes: "Secret" } },
+        false,
+      ),
+    ).toThrow();
+  });
+});
+
 describe("campaign record editing", () => {
   it("rebases independent character fields without normalizing unrelated authored data", () => {
     const base = {

@@ -214,8 +214,10 @@ and requires their final values without an active transition.
 
 ## Consumers and boundaries
 
-- **Host:** collection search/filter/sort, campaign search, common record fields,
-  and existing modal focus helpers use the same implementation.
+- **Host:** collection search/filter/sort, campaign search, common record fields
+  (multi-value references and attitudes use chips in the full editor, in place
+  on record pages and in the map's location panel), and existing modal focus
+  helpers use the same implementation.
 - **DM Tools:** planner forms, long parent/target lists, actions, tabs, dialog
   containment and notices; Import Center fields/actions/notices. Canvas geometry,
   dirty guards, transactions and Markdown remain DM-owned.

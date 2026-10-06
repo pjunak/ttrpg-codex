@@ -109,7 +109,7 @@ const fixture: EditorFixtureApi = {
           };
           editor.campaign = campaign;
           const record = campaign.collections
-            .find((collection) => collection.name === "characters")!
+            .find((collection) => collection.name === (detail.collection ?? "characters"))!
             .records.find((record) => record.key === detail.base.key)!;
           respond({ ok: true, campaign, record });
         } catch (cause) {

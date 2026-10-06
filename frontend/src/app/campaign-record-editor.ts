@@ -96,7 +96,9 @@ export interface PreparedCampaignRecordTransaction {
   readonly mutations: readonly CampaignMutation[];
 }
 
+/** An in-place edit of chosen fields. Characters are the default collection. */
 export interface CampaignCharacterPatch {
+  readonly collection?: CampaignCollectionName;
   readonly base: CampaignRecord;
   readonly fields: Readonly<Record<string, unknown>>;
   readonly visibility?: "public" | "dm";
@@ -119,9 +121,14 @@ export function prepareCharacterPatch(
   patch: CampaignCharacterPatch,
   canManageVisibility: boolean,
 ): PreparedCampaignRecordTransaction {
-  const current = campaignCollection(campaign, "characters").records.find(
-    (record) => record.key === patch.base.key,
-  );
+  const collection = patch.collection ?? "characters";
+  const character = collection === "characters";
+  const page = campaignPages.find((page) => page.collection === collection);
+  const current = page
+    ? campaignCollection(campaign, collection).records.find(
+        (record) => record.key === patch.base.key,
+      )
+    : undefined;
   if (
     !current ||
     !validRevision(patch.base.revision, true) ||
@@ -132,14 +139,18 @@ export function prepareCharacterPatch(
     throw new CampaignRecordEditError("stale", "record revision is stale");
   const value = isRecord(current.value) ? { ...current.value } : {};
   const baseline = patch.base.value;
-  const fields = editorFieldsFor("characters");
+  const fields = character
+    ? editorFieldsFor(collection)
+    : editorFieldsFor(collection, canManageVisibility);
   const selected = fields.filter((field) => Object.hasOwn(patch.fields, field.key));
   if (selected.length !== Object.keys(patch.fields).length) throw invalidEdit();
+  if (!character && (patch.portrait !== undefined || patch.relationships !== undefined))
+    throw invalidEdit();
   const keys = new Set(
     selected.flatMap((field) =>
-      field.key === "rankAssignment"
+      character && field.key === "rankAssignment"
         ? ["rankChain", "rank", "faction"]
-        : field.key === "faction"
+        : character && field.key === "faction"
           ? ["faction", "rankChain", "rank", "attitudes"]
           : [field.key],
     ),
@@ -162,7 +173,20 @@ export function prepareCharacterPatch(
       patch.fields[field.key],
       current.key,
     );
-  if (Object.hasOwn(patch.fields, "faction") && value["faction"] !== baseline["faction"]) {
+  if (
+    collection === "locations" &&
+    Object.hasOwn(patch.fields, "parentId") &&
+    line(value["parentId"]) !== line(baseline["parentId"])
+  ) {
+    // Coordinates belong to the old image's frame; a different parent needs a new placement.
+    delete value["x"];
+    delete value["y"];
+  }
+  if (
+    character &&
+    Object.hasOwn(patch.fields, "faction") &&
+    value["faction"] !== baseline["faction"]
+  ) {
     if (!Object.hasOwn(patch.fields, "rankAssignment")) {
       value["rankChain"] = "";
       value["rank"] = "";
@@ -170,7 +194,12 @@ export function prepareCharacterPatch(
     if (value["faction"] === "party") value["attitudes"] = [];
   }
   if (patch.visibility !== undefined) {
-    if (!canManageVisibility || !["public", "dm"].includes(patch.visibility)) throw invalidEdit();
+    if (
+      !canManageVisibility ||
+      !collectionManagesVisibility(collection) ||
+      !["public", "dm"].includes(patch.visibility)
+    )
+      throw invalidEdit();
     value["visibility"] = patch.visibility;
   }
   if (patch.portrait !== undefined) {
@@ -193,7 +222,7 @@ export function prepareCharacterPatch(
   const mutations: CampaignMutation[] = [
     {
       operation: "put",
-      collection: "characters",
+      collection,
       key: current.key,
       expectedRevision: current.revision,
       value,
@@ -224,7 +253,7 @@ export function prepareCharacterPatch(
       ),
     );
   } else if (patch.relationshipBase !== undefined) throw invalidEdit();
-  return { page: campaignPages.find((page) => page.collection === "characters")!, mutations };
+  return { page: page!, mutations };
 }
 
 export function sameCampaignValue(left: unknown, right: unknown): boolean {

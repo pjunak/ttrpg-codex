@@ -281,3 +281,268 @@ codex-character-profile {
     max-width: 100%;
   }
 }
+
+/* In-place editing: values read as text, reveal a pencil on hover or focus,
+   and turn into a control with the same typography when activated. */
+.direct-character .character-edit-value {
+  position: relative;
+  padding: 0.1rem 0.3rem;
+  margin: -0.1rem -0.3rem;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.direct-character .character-edit-value::after {
+  content: "";
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  margin-inline-start: 0.4em;
+  vertical-align: -0.04em;
+  background-color: var(--accent-gold);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m15 5 4 4M4 20l1-5L16 4a2.83 2.83 0 0 1 4 4L9 19l-5 1Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.direct-character .character-edit-value:is(:hover, :focus-visible) {
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  border-color: rgba(var(--accent-gold-rgb), 0.25);
+}
+.direct-character .character-edit-value:is(:hover, :focus-visible)::after {
+  opacity: 0.85;
+}
+.direct-character .character-edit-value.is-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.inline-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.inline-edit-row > :is(input, textarea, select, .ui-combobox) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.inline-field-editor :is(input, select),
+.character-inline-editor :is(input, textarea, select) {
+  padding: 0.15rem 0.4rem;
+  border-color: rgba(var(--accent-gold-rgb), 0.7);
+  box-shadow: 0 0 0 3px rgba(var(--accent-gold-rgb), 0.12);
+}
+.inline-field-editor select,
+.character-inline-editor select {
+  min-height: 2rem;
+}
+.inline-field-editor.is-pending :is(input, select),
+.character-inline-editor.is-pending :is(input, textarea, select) {
+  opacity: 0.65;
+}
+.character-inline-editor .ui-combobox input {
+  font: 0.85rem var(--font-ui);
+}
+codex-inline-field .inline-edit-actions,
+.direct-character .inline-edit-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.2rem;
+}
+codex-inline-field .inline-edit-actions button,
+.direct-character .inline-edit-actions button {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid var(--chrome-field-border);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font: 0.85rem/1 var(--font-ui);
+}
+codex-inline-field .inline-edit-actions .inline-edit-confirm,
+.direct-character .inline-edit-actions .inline-edit-confirm {
+  border-color: rgba(var(--accent-gold-rgb), 0.6);
+  color: var(--accent-gold);
+}
+codex-inline-field .inline-edit-actions button:hover:enabled,
+.direct-character .inline-edit-actions button:hover:enabled {
+  background: var(--bg-raised);
+  color: var(--text-parchment);
+}
+.character-inline-editor small.character-edit-hint {
+  margin-top: 0.25rem;
+  font-size: 0.66rem;
+}
+.direct-character .character-inline-editor .inline-edit-remove {
+  margin-top: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 0.72rem;
+}
+codex-inline-field .inline-edit-button,
+.direct-character .inline-edit-button {
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-inline-start: 0.25rem;
+  padding: 0;
+  vertical-align: middle;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+codex-inline-field .inline-edit-button:hover,
+.direct-character .inline-edit-button:hover {
+  border-color: rgba(var(--accent-gold-rgb), 0.35);
+  color: var(--accent-gold);
+}
+.direct-character .character-section-heading {
+  justify-content: flex-start;
+  gap: 0.3rem;
+}
+.direct-character .character-wiki .character-section-heading {
+  justify-content: space-between;
+}
+.direct-character
+  :is(.character-knowledge-grid, .character-connections, .character-circumstances)
+  .record-section-title {
+  margin: 0 0 0.6rem;
+  padding: 0;
+  border: 0;
+  color: var(--accent-gold);
+  font: 500 0.74rem/1.4 var(--font-title);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.character-knowledge-grid {
+  gap: 1.25rem 2rem;
+  margin: 1.5rem 0;
+}
+.character-fact-list li {
+  padding: 0.2rem 0;
+}
+.character-questions > div {
+  padding: 0.25rem 0 0.5rem;
+}
+.character-answer {
+  margin-top: 0.25rem;
+}
+.character-structured-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0.5rem 0;
+}
+@media (pointer: coarse) {
+  codex-inline-field .inline-edit-actions button,
+  .direct-character .inline-edit-actions button,
+  codex-inline-field .inline-edit-button,
+  .direct-character .inline-edit-button {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+}
+
+/* Generic in-place fields on other record pages share the character profile's look. */
+codex-inline-field {
+  display: inline;
+  min-width: 0;
+}
+codex-inline-field:has(.inline-field-editor) {
+  display: block;
+}
+.inline-field-value {
+  display: inline;
+  max-width: 100%;
+  padding: 0.1rem 0.3rem;
+  margin: -0.1rem -0.3rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: text;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.inline-field-value::after {
+  content: "";
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  margin-inline-start: 0.4em;
+  vertical-align: -0.04em;
+  background-color: var(--accent-gold);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m15 5 4 4M4 20l1-5L16 4a2.83 2.83 0 0 1 4 4L9 19l-5 1Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.inline-field-value:is(:hover, :focus-visible) {
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  border-color: rgba(var(--accent-gold-rgb), 0.25);
+}
+.inline-field-value:is(:hover, :focus-visible)::after {
+  opacity: 0.85;
+}
+.inline-field-value:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+.inline-field-value.is-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.inline-field-editor {
+  display: block;
+}
+.inline-field-editor :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  border-radius: 4px;
+  background: var(--bg-base);
+  color: var(--text-parchment);
+  font: inherit;
+}
+.inline-edit-hint {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  font: 0.66rem/1.4 var(--font-ui);
+}
+.inline-edit-error {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--text-parchment);
+  font: 0.78rem/1.5 var(--font-ui);
+}
+.inline-edit-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+.inline-edit-recovery button {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--chrome-field-border);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-parchment);
+  font: 0.75rem var(--font-ui);
+  cursor: pointer;
+}
+.record-more-details {
+  margin-top: -0.25rem;
+}

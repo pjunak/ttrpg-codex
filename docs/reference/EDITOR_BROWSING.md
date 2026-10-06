@@ -135,13 +135,23 @@ and Cancel, manual overrides, answers, role filtering and Czech labels.
 
 ## Compact reading and save feedback
 
-Missing artwork uses a compact identity mark in article mastheads. Collection
-cards reserve the same artwork area for images and fallback marks; character
-cards retain their 3:4 presentation in either case. Character cards show their authored
-summary, status and visible party identity. Filled profile facts stay directly
-editable; missing facts and connections are grouped under **Add details and
-connections**. They keep their opening snapshots while editing and return focus
-to their field control after Save or Escape.
+Missing artwork uses a compact identity mark in article mastheads. Character
+cards keep their 3:4 portrait area whether or not an image loads. Other records
+with artwork use an image card; records that never had artwork are compact
+tiles with their emblem beside the text (locations use their map-marker icon,
+factions their colour and member count). Character cards show status and
+visible party identity.
+
+Facts edit in place on every record page. A value reads as text and shows a
+pencil on hover or focus; activating it turns it into a control with the same
+typography. Text and numbers confirm with Enter or ✓ and cancel with Escape or
+✕; choices save when picked, and lists of twelve or more become a searchable
+combobox. Multi-value references (connections, event characters and locations)
+and attitudes use the shared chip picker and save with Enter or ✓. Linked values keep their link with a separate pencil. Missing facts
+are grouped under **Add details and connections**. Long text and structured
+fields still open the full editor. Edits keep their
+opening snapshots, report conflicts beside the field and return focus to the
+value after Save or Escape.
 
 The character collection intentionally defaults to **All characters**. Explicit
 **NPCs** and **Party members** controls use the same saved filter state as the
