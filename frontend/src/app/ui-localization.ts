@@ -494,6 +494,10 @@ const enCatalog = {
   "settings.intro":
     "Choose your reading language and manage the campaign’s shared presentation and vocabulary.",
   "settings.categories": "Settings categories",
+  "settings.groupPersonal": "This browser",
+  "settings.groupCampaign": "Campaign",
+  "settings.groupVocabulary": "Vocabulary",
+  "settings.groupSystem": "Server",
   "settings.language": "Language",
   "settings.languageIntro":
     "Choose the language used by this browser. It does not change campaign data or another player’s preference.",
@@ -1059,6 +1063,10 @@ const csCatalog = {
   "settings.title": "Kniha nastavení",
   "settings.intro": "Vyber jazyk rozhraní a spravuj společný vzhled a pojmy kampaně.",
   "settings.categories": "Kategorie nastavení",
+  "settings.groupPersonal": "Tento prohlížeč",
+  "settings.groupCampaign": "Kampaň",
+  "settings.groupVocabulary": "Slovník",
+  "settings.groupSystem": "Server",
   "settings.language": "Jazyk",
   "settings.languageIntro":
     "Vyber jazyk pro tento prohlížeč. Data kampaně ani volbu jiného hráče to nezmění.",

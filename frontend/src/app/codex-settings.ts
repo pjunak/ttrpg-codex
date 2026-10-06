@@ -230,33 +230,87 @@ export class CodexSettings extends LitElement {
   }
 
   #shell(content: unknown) {
+    type Group = "personal" | "campaign" | "vocabulary" | "system";
     const categories: readonly {
       readonly id: SettingsCategory;
       readonly label: string;
       readonly icon: string;
+      readonly group: Group;
     }[] = [
-      { id: "language", label: this.#ui.t("settings.language"), icon: "文" },
+      { id: "language", label: this.#ui.t("settings.language"), icon: "文", group: "personal" },
       ...(!this.canManageCampaign &&
       (this.#contributions.list("settings").length > 0 || this.activeCategory === "addons")
-        ? [{ id: "addons" as const, label: this.#ui.t("addons.title"), icon: "🧩" }]
+        ? [
+            {
+              id: "addons" as const,
+              label: this.#ui.t("addons.title"),
+              icon: "🧩",
+              group: "system" as const,
+            },
+          ]
         : []),
       ...(this.canManageCampaign
         ? [
-            { id: "appearance" as const, label: this.#ui.t("settings.appearance"), icon: "◐" },
-            { id: "maps" as const, label: this.#ui.t("map.settings"), icon: "🗺" },
-            { id: "playerParty" as const, label: this.#ui.t("settings.playerParty"), icon: "🛡" },
-            { id: "sidebar" as const, label: this.#ui.t("sidebar.title"), icon: "🧭" },
-            { id: "addons" as const, label: this.#ui.t("addons.title"), icon: "🧩" },
-            { id: "account" as const, label: this.#ui.t("credentials.title"), icon: "🖥" },
-            { id: "backup" as const, label: this.#ui.t("recovery.title"), icon: "💾" },
+            {
+              id: "appearance" as const,
+              label: this.#ui.t("settings.appearance"),
+              icon: "◐",
+              group: "campaign" as const,
+            },
+            {
+              id: "maps" as const,
+              label: this.#ui.t("map.settings"),
+              icon: "🗺",
+              group: "campaign" as const,
+            },
+            {
+              id: "playerParty" as const,
+              label: this.#ui.t("settings.playerParty"),
+              icon: "🛡",
+              group: "campaign" as const,
+            },
+            {
+              id: "sidebar" as const,
+              label: this.#ui.t("sidebar.title"),
+              icon: "🧭",
+              group: "campaign" as const,
+            },
             ...campaignEnumDescriptors.map((descriptor) => ({
               id: descriptor.category as SettingsCategory,
               label: descriptor.label,
               icon: descriptor.icon,
+              group: "vocabulary" as const,
             })),
+            {
+              id: "addons" as const,
+              label: this.#ui.t("addons.title"),
+              icon: "🧩",
+              group: "system" as const,
+            },
+            {
+              id: "account" as const,
+              label: this.#ui.t("credentials.title"),
+              icon: "🖥",
+              group: "system" as const,
+            },
+            {
+              id: "backup" as const,
+              label: this.#ui.t("recovery.title"),
+              icon: "💾",
+              group: "system" as const,
+            },
           ]
         : []),
     ];
+    const groups = (["personal", "campaign", "vocabulary", "system"] as const)
+      .map((group) => ({ group, items: categories.filter((category) => category.group === group) }))
+      .filter(({ items }) => items.length);
+    const groupLabels = {
+      personal: "settings.groupPersonal",
+      campaign: "settings.groupCampaign",
+      vocabulary: "settings.groupVocabulary",
+      system: "settings.groupSystem",
+    } as const;
     return html`
       <section class="settings-page">
         <header class="settings-page-heading">
@@ -266,15 +320,19 @@ export class CodexSettings extends LitElement {
         </header>
         <div class="settings-workspace">
           <nav class="settings-index" aria-label=${this.#ui.t("settings.categories")}>
-            ${categories.map(
-              (category) => html`
-              <button type="button" data-category=${category.id}
-                aria-current=${category.id === this.activeCategory ? "page" : nothing}
-                @click=${this.#selectCategory} ?disabled=${this.saving || this.#credentialsSaving}>
-                <span aria-hidden="true">${category.icon}</span>
-                <span>${category.label}</span>
-              </button>
-            `,
+            ${groups.map(
+              ({ group, items }) => html`
+              ${groups.length > 1 ? html`<p class="settings-index-group" aria-hidden="true">${this.#ui.t(groupLabels[group])}</p>` : nothing}
+              ${items.map(
+                (category) => html`
+                <button type="button" data-category=${category.id}
+                  aria-current=${category.id === this.activeCategory ? "page" : nothing}
+                  @click=${this.#selectCategory} ?disabled=${this.saving || this.#credentialsSaving}>
+                  <span aria-hidden="true">${category.icon}</span>
+                  <span>${category.label}</span>
+                </button>
+              `,
+              )}`,
             )}
           </nav>
           ${content}

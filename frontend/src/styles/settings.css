@@ -33,14 +33,14 @@ codex-recovery-settings {
   display: flex;
 }
 .settings-recovery-panel .inline-create-btn {
-  min-height: var(--ui-target);
+  min-height: 2rem;
   box-sizing: border-box;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  color: var(--ui-text);
-  background: var(--ui-field);
-  font: 1rem/1.4 var(--ui-font);
+  padding: 0.3rem 0.8rem;
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
+  border-radius: var(--radius);
+  color: var(--text-light);
+  background: transparent;
+  font: 500 0.8rem/1.3 var(--font-ui);
   cursor: pointer;
 }
 .settings-recovery-panel .inline-create-btn {
@@ -48,8 +48,8 @@ codex-recovery-settings {
   align-items: center;
 }
 .settings-recovery-panel .settings-snapshot-row button {
-  min-height: var(--ui-target);
-  width: var(--ui-target);
+  min-height: 2rem;
+  width: 2rem;
   padding: 0;
   background: transparent;
 }
@@ -511,12 +511,13 @@ codex-addon-manager {
 }
 .addon-manager button {
   cursor: pointer;
-  border: 1px solid var(--chrome-field-border);
+  min-height: 2rem;
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: var(--radius);
   color: var(--gold);
-  background: var(--bg-raised);
-  padding: 0.5rem 0.7rem;
-  font: inherit;
+  background: transparent;
+  padding: 0.3rem 0.8rem;
+  font: 500 0.8rem/1.3 var(--font-ui);
 }
 .addon-manager button:disabled {
   opacity: 0.5;
@@ -578,6 +579,7 @@ codex-addon-manager {
   color: var(--gold);
   cursor: pointer;
   margin: 0.5rem 0;
+  font-size: 0.85rem;
 }
 .addon-manager ul {
   list-style: none;
@@ -760,8 +762,10 @@ codex-addon-settings {
   align-items: center;
   margin: 0;
 }
-.addon-manager button {
-  min-height: 44px;
+@media (pointer: coarse) {
+  .addon-manager button {
+    min-height: 44px;
+  }
 }
 .addon-manager .addon-primary {
   background: var(--gold);
@@ -908,13 +912,13 @@ codex-addon-settings {
 }
 
 .settings-page-heading {
-  padding: 0 0 1rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 3px double var(--chrome-field-border);
+  padding: 0 0 0.75rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--chrome-divider-strong);
 }
 
 .settings-page-heading h1 {
-  margin: 0.25rem 0 0.35rem;
+  margin: 0 0 0.2rem;
   font-family: var(--font-title);
   font-size: 2rem;
   font-weight: 600;
@@ -922,38 +926,54 @@ codex-addon-settings {
 }
 
 .settings-page-heading > p:last-child {
-  max-width: 42rem;
+  max-width: 48rem;
   margin: 0;
   color: var(--text-muted);
-  font-family: var(--font-ui);
-  line-height: 1.55;
+  font: 0.85rem/1.5 var(--font-ui);
 }
 
 .settings-workspace {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  min-height: 36rem;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  align-items: start;
+  min-height: 30rem;
 }
 
 .settings-index {
-  padding: 1.1rem 0;
+  position: sticky;
+  top: 1rem;
+  padding: 0.5rem 0 0.75rem;
   border-right: 1px solid var(--chrome-field-border);
   background: rgb(121 93 48 / 7%);
+}
+
+.settings-index-group {
+  margin: 0.75rem 0 0.2rem;
+  padding: 0 0.9rem;
+  color: var(--text-muted);
+  font: 600 0.62rem/1.4 var(--font-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.settings-index-group:first-child {
+  margin-top: 0.25rem;
 }
 
 .settings-index button {
   display: grid;
   width: 100%;
-  min-height: 3rem;
-  grid-template-columns: 1.5rem minmax(0, 1fr);
-  gap: 0.65rem;
+  min-height: 2rem;
+  grid-template-columns: 1.2rem minmax(0, 1fr);
+  gap: 0.5rem;
   align-items: center;
-  padding: 0.65rem 1rem;
+  padding: 0.3rem 0.9rem;
   color: var(--text-light);
   border: 0;
   border-right: 3px solid transparent;
+  border-radius: 0;
   background: transparent;
-  font-weight: 650;
+  font: 500 0.84rem/1.3 var(--font-ui);
   text-align: left;
   cursor: pointer;
 }
@@ -971,36 +991,37 @@ codex-addon-settings {
 
 .settings-index button > span:first-child {
   color: var(--text-light);
-  font-family: var(--font-title);
-  font-size: 1.15rem;
+  font-size: 0.95rem;
   text-align: center;
 }
 
 .settings-ledger,
 .settings-invalid {
   min-width: 0;
-  padding: 1.4rem clamp(1rem, 3vw, 2.4rem) 2.5rem;
+  padding: 0.75rem clamp(1rem, 2.5vw, 2rem) 2rem;
 }
 
 .settings-ledger-heading {
   display: flex;
   gap: 1rem;
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
-  padding-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
   border-bottom: 1px solid var(--chrome-field-border);
 }
 
 .settings-ledger-heading > div {
   display: grid;
-  grid-template-columns: 2.4rem minmax(0, 1fr);
-  gap: 0.65rem;
+  grid-template-columns: 1.8rem minmax(0, 1fr);
+  gap: 0.15rem 0.5rem;
+  align-items: center;
 }
 
 .settings-category-mark {
   color: var(--gold);
   font-family: var(--font-title);
-  font-size: 1.8rem;
+  font-size: 1.3rem;
   line-height: 1.2;
   text-align: center;
 }
@@ -1009,32 +1030,79 @@ codex-addon-settings {
 .settings-invalid h2 {
   margin: 0;
   font-family: var(--font-title);
-  font-size: 1.4rem;
-  font-weight: 550;
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 
 .settings-ledger-heading p,
 .settings-invalid p {
-  max-width: 42rem;
-  margin: 0.25rem 0 0;
+  grid-column: 2;
+  max-width: 48rem;
+  margin: 0;
   color: var(--text-muted);
-  font-family: var(--font-ui);
-  line-height: 1.45;
+  font: 0.8rem/1.45 var(--font-ui);
 }
 
 .settings-account-panel button,
 .settings-ledger-heading > button,
 .settings-edit-actions button,
 .settings-delete-actions button {
-  min-height: 2.65rem;
-  padding: 0.55rem 0.8rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.8rem;
   color: var(--text-light);
-  border: 1px solid var(--chrome-field-border);
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: var(--radius);
-  background: var(--bg-raised);
-  font-size: 0.74rem;
-  font-weight: 750;
+  background: transparent;
+  font: 500 0.8rem/1.3 var(--font-ui);
   cursor: pointer;
+}
+
+/* Consistent compact controls in every settings section; any class rule still wins. */
+:where(.settings-ledger) :where(button:not([role="tab"]), a.record-action) {
+  min-height: 2rem;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-light);
+  font: 500 0.8rem/1.3 var(--font-ui);
+  cursor: pointer;
+}
+:where(.settings-ledger) :where(button:not([role="tab"])):hover:enabled {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+:where(.settings-ledger)
+  :where(button):where([data-ui-variant="primary"], .primary, .primary-record-action) {
+  border-color: var(--accent-gold);
+  background: var(--accent-gold);
+  color: var(--color-on-accent);
+  font-weight: 600;
+}
+:where(.settings-ledger)
+  :where(button):where(
+    [data-ui-variant="primary"],
+    .primary,
+    .primary-record-action
+  ):hover:enabled {
+  color: var(--color-on-accent);
+  filter: brightness(1.08);
+}
+:where(.settings-ledger) :where(button):where([data-ui-variant="danger"], .danger) {
+  color: var(--color-danger);
+}
+:where(.settings-ledger)
+  :where(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"]), select) {
+  min-height: 2.1rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+}
+@media (pointer: coarse) {
+  :where(.settings-ledger) :where(button:not([role="tab"]), a.record-action),
+  :where(.settings-ledger) :where(input, select),
+  .settings-index button {
+    min-height: 2.75rem;
+  }
 }
 
 .settings-ledger button:disabled {
