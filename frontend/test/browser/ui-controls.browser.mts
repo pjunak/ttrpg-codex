@@ -95,6 +95,52 @@ void test("chip picker mirrors a native multiple select for forms, keyboard and 
   assert.equal(await picker.isDisabled(), true);
 });
 
+void test("context menus nest, filter and return focus with the keyboard", async (t) => {
+  const page = await fixture(t),
+    target = page.getByRole("button", { name: "Menu target", exact: true });
+  await target.click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "Menu target" });
+  await menu.waitFor();
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.textContent),
+    "1First",
+    "the first available row takes focus",
+  );
+  await page.keyboard.press("ArrowDown");
+  assert.match(
+    (await page.evaluate(() => document.activeElement?.textContent)) ?? "",
+    /Places/,
+    "disabled rows are skipped",
+  );
+  await page.keyboard.press("ArrowRight");
+  const places = page.getByRole("menu", { name: "Places" });
+  await places.waitFor();
+  const scan = await new AxeBuilder({ page })
+    .include(".ui-menu")
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  assert.deepEqual(scan.violations, [], JSON.stringify(scan.violations, null, 2));
+  assert.equal(
+    await places.getByRole("menuitemcheckbox", { name: /Keep/ }).getAttribute("aria-checked"),
+    "true",
+  );
+  await page.keyboard.type("har");
+  assert.equal(await places.getByRole("menuitemcheckbox").filter({ visible: true }).count(), 1);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Escape");
+  assert.equal(await places.count(), 0, "Escape closes only the submenu");
+  await page.keyboard.press("Escape");
+  assert.equal(await menu.count(), 0);
+  assert.equal(await target.evaluate((node) => node === document.activeElement), true);
+  await target.click({ button: "right" });
+  await page.getByRole("menuitem", { name: /Places/ }).click();
+  await page.getByRole("menuitemcheckbox", { name: /Bridge/ }).click();
+  assert.deepEqual(await page.evaluate(() => window.uiControlsFixture.menuRuns), ["Bridge"]);
+  assert.equal(await page.locator(".ui-menu").count(), 0);
+});
+
 void test("combo separates editing from native selection and skips disabled choices", async (t) => {
   const page = await fixture(t),
     combo = page.getByRole("combobox", { name: "Origin", exact: true });

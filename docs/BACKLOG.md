@@ -35,13 +35,12 @@ not obvious. Move an entry between sections instead of duplicating it.
 
 ## Next
 
-- **Context menus** `ttrpg-codex` — Explore right-click (and long-press) menus,
-  nested by context, for linking, adding records into others and similar
-  actions that would otherwise need extra buttons. Start with a shared,
-  keyboard-accessible menu control in `frontend/src/ui/`, then a few high-value
-  record and card actions. **Done when** the control is documented in
-  [shared UI](reference/UI_FOUNDATIONS.md) and at least cards and record facts
-  use it.
+- **More context-menu targets** `ttrpg-codex` — Record menus exist
+  ([editing and browsing](reference/EDITOR_BROWSING.md#record-context-menus)).
+  Candidates the owner has not chosen between yet: map pins and empty map
+  space, timeline cards and session columns, relationships ("add relationship
+  to…"), faction ranks, the wiki writer (insert a campaign link at the cursor),
+  and lending the menu to add-ons through the SDK (a contract change).
 - **Character sheet UI pass** `addon-dnd-character-sheets` — Review the sheet
   for the same compactness and consistency problems fixed in the host
   (October 2026 compact pass), together with the owner.

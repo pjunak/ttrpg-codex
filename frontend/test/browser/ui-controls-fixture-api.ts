@@ -3,6 +3,7 @@ export interface UIControlsFixture {
   readonly submissions: Record<string, FormDataEntryValue>[];
   readonly changes: number;
   readonly chipChanges: number;
+  readonly menuRuns: string[];
   readonly pendingClicks: number;
   refresh(): void;
   dispose(): void;

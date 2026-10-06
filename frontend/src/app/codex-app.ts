@@ -1,4 +1,6 @@
 import { formText } from "../core/forms.js";
+import { bindLongPress, openContextMenu } from "../ui/context-menu.js";
+import { recordContextMenu } from "./record-context-menu.js";
 import { waitForSignal } from "../core/abort-signal.js";
 import type { CampaignTwinRequest } from "./codex-record-twins.js";
 import { uiText } from "./ui-localization.js";
@@ -191,6 +193,7 @@ export class CodexApp extends LitElement {
     sessionRecovery: { state: true },
     sessionRecoveryError: { state: true },
     sessionRestored: { state: true },
+    contextNotice: { state: true },
   };
 
   declare private readiness: Readiness;
@@ -202,6 +205,8 @@ export class CodexApp extends LitElement {
   declare private busy: boolean;
   declare private errorMessage: string;
   declare private recordSaveState: "idle" | "saved" | "failed";
+  declare private contextNotice: string;
+  #contextNoticeTimer: ReturnType<typeof setTimeout> | undefined;
   #recordSaveDestination = "";
   declare private contributionCount: number;
   declare private navigationCount: number;
@@ -261,6 +266,7 @@ export class CodexApp extends LitElement {
     this.characterView = preferredCharacterView(window.location.hash);
     this.editCompletion = 0;
     this.recordSaveState = "idle";
+    this.contextNotice = "";
     this.menuOpen = false;
     this.quickSearchOpen = false;
     this.sessionRecovery = false;
@@ -293,10 +299,21 @@ export class CodexApp extends LitElement {
     window.addEventListener(authorityRejectedEvent, this.#onAuthorityRejected, {
       signal: this.#request.signal,
     });
+    this.addEventListener("contextmenu", this.#onContextMenu, { signal: this.#request.signal });
+    bindLongPress(
+      this,
+      (target, point) => {
+        const opened = this.#openRecordMenu(target, point);
+        if (opened) this.#longPressAt = Date.now();
+        return opened;
+      },
+      this.#request.signal,
+    );
     void this.#bootstrap(this.#request.signal);
   }
 
   override disconnectedCallback(): void {
+    clearTimeout(this.#contextNoticeTimer);
     this.#disposeRuleDetails?.();
     this.#disposeRuleDetails = undefined;
     this.#request?.abort("component-disconnected");
@@ -376,6 +393,7 @@ export class CodexApp extends LitElement {
           `
           }
           ${this.recordSaveState === "saved" && this.#canEdit() ? html`<p class="record-save-confirmation" role="status">${uiText("save.entrySaved")}</p>` : nothing}
+          <p class="context-notice" role="status" ?hidden=${this.contextNotice === ""}>${this.contextNotice}</p>
           ${this.#characterTabs()}
           <div id="character-profile-panel" role=${this.#hasCharacterTabs ? "tabpanel" : nothing}
             aria-labelledby=${this.#hasCharacterTabs ? "character-view-profile" : nothing}
@@ -1607,6 +1625,95 @@ export class CodexApp extends LitElement {
       this.authority.auth.authenticated &&
       this.authority.auth.role === "dm"
     );
+  }
+
+  #longPressAt = 0;
+
+  readonly #onContextMenu = (event: MouseEvent): void => {
+    // Shift keeps the browser's own menu for copying, inspecting and the like.
+    if (event.shiftKey || event.defaultPrevented) return;
+    // Touch long-press can also fire a native contextmenu; the menu is already open.
+    if (Date.now() - this.#longPressAt < 700) {
+      event.preventDefault();
+      return;
+    }
+    const keyboard = event.clientX === 0 && event.clientY === 0;
+    const target = event.target as Element;
+    const anchor = keyboard ? target.getBoundingClientRect() : undefined;
+    if (
+      this.#openRecordMenu(
+        target,
+        anchor ? { x: anchor.left, y: anchor.bottom } : { x: event.clientX, y: event.clientY },
+      )
+    )
+      event.preventDefault();
+  };
+
+  /** Opens the record menu for a record link or the current record's header. */
+  #openRecordMenu(target: Element, point: { x: number; y: number }): boolean {
+    if (this.campaignState.state !== "ready") return false;
+    if (target.closest("input, textarea, select, [contenteditable], .ui-menu, dialog"))
+      return false;
+    const link = target.closest<HTMLAnchorElement>("a[href^='#/']");
+    let route = link ? parseAppRoute(link.getAttribute("href") ?? "") : undefined;
+    if (
+      route?.kind !== "record" &&
+      this.route.kind === "record" &&
+      target.closest(".record-masthead, .character-page-heading")
+    )
+      route = this.route;
+    if (route?.kind !== "record") return false;
+    const editing = this.#addons?.contributions.edits.state();
+    const menu = recordContextMenu(this.campaignState.campaign, route.page, route.key, {
+      canEdit: this.#canEdit(),
+      current:
+        this.route.kind === "record" &&
+        this.route.page.id === route.page.id &&
+        this.route.key === route.key,
+      writeBlocked:
+        this.busy || this.#editDirty || this.#editSaving || editing?.dirty || editing?.saving
+          ? uiText("menu.blocked")
+          : "",
+      navigate: (hash) => {
+        window.location.hash = hash;
+      },
+      openInNewTab: (hash) => {
+        window.open(new URL(hash, window.location.href).href, "_blank", "noopener");
+      },
+      copy: (text, done) => {
+        navigator.clipboard.writeText(text).then(
+          () => this.#notify(done),
+          () => this.#notify(uiText("menu.copyFailed")),
+        );
+      },
+      patch: (collection, record, fields, done) => {
+        void this.#saveCharacterPatch(
+          new CustomEvent<CampaignCharacterSaveRequest>("campaign-character-save", {
+            cancelable: true,
+            detail: {
+              collection,
+              base: record,
+              fields,
+              respond: (result) => this.#notify(result.ok ? done : result.message),
+            },
+          }),
+        );
+      },
+    });
+    if (!menu) return false;
+    openContextMenu(document, point, menu.items, {
+      title: menu.title,
+      returnFocus: link ?? target.closest<HTMLElement>("[tabindex], button, a"),
+    });
+    return true;
+  }
+
+  #notify(message: string): void {
+    clearTimeout(this.#contextNoticeTimer);
+    this.contextNotice = message;
+    this.#contextNoticeTimer = setTimeout(() => {
+      this.contextNotice = "";
+    }, 4000);
   }
 
   readonly #saveCharacterPatch = async (

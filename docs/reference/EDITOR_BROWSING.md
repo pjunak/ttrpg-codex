@@ -133,6 +133,32 @@ shapes, source immutability, effective facet counts, Czech search, knowledge and
 twin links. Real-host desktop/phone tests cover articles, cards, source editing
 and Cancel, manual overrides, answers, role filtering and Czech labels.
 
+## Record context menus
+
+Right-clicking any link to a record (cards, related chips, wiki links, search
+results, the questions list) or a record page's header opens a menu for that
+record. The keyboard menu key and Shift+F10 open it on the focused link, and a
+touch long-press does the same. Shift+right-click and text fields keep the
+browser's own menu.
+
+Everyone gets Open, Open in new tab, Copy link and Copy wiki link (`[[Name]]`).
+Editors also get Edit and actions that use the same field rules as the editor:
+
+| Record | Actions |
+| --- | --- |
+| Character | Status, faction, current location, attitudes, add to an event, link to a mystery |
+| Location | Add a character, event or sub-location here; show or place on map; contained in; connected locations; attitudes; add to an event |
+| Faction | Add or remove members, new member |
+| Event | Characters, locations, show or place on map |
+| Mystery, history | Characters, locations |
+
+Long lists are searchable submenus; current values show as check marks or a
+trailing detail. Writes go through the in-place patch path (one field, current
+revision, conflicts reported) and confirm with a short notice. While another
+edit is open or saving, write actions are disabled with the reason. The menu
+leaves clues, knowledge and questions alone while that model is
+[undecided](../design/knowledge-and-investigation.md).
+
 ## Compact reading and save feedback
 
 Missing artwork uses a compact identity mark in article mastheads. Character

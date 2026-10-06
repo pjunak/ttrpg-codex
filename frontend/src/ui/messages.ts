@@ -7,6 +7,8 @@ const english = {
   required: "Choose an option.",
   add: "Add…",
   remove: "Remove {0}",
+  filter: "Filter…",
+  menu: "Actions",
 };
 const czech: typeof english = {
   clear: "Vymazat hledání",
@@ -17,6 +19,8 @@ const czech: typeof english = {
   required: "Vyberte možnost.",
   add: "Přidat…",
   remove: "Odebrat {0}",
+  filter: "Filtrovat…",
+  menu: "Akce",
 };
 export function messages(element: Element): typeof english {
   return (

@@ -179,6 +179,25 @@ remain text editing; Up/Down navigate, Alt+Up dismisses, Enter selects, Escape
 restores the committed label, Tab closes without forcing a selection. Popups use
 the browser top layer and recompute viewport placement on scroll/resize.
 
+## Context menus
+
+`openContextMenu(document, point, items, { title, returnFocus })` in
+[context-menu.ts](../../frontend/src/ui/context-menu.ts) opens one menu at a
+time in the top layer. Items are plain data: label, optional icon and trailing
+detail, `checked` for toggles (`menuitemcheckbox`), `disabled` (a string becomes
+the reason tooltip), `separator`, `danger`, a `run` callback, or `children` for
+a submenu (a function is evaluated when it opens; `searchable` adds a filter
+field). The caller keeps all authority in `run`.
+
+Keyboard: arrows move (disabled rows are skipped), Right/Enter/Space open a
+submenu, Left/Escape close one level, Escape at the top closes and returns
+focus, Tab closes, and a letter jumps to the next matching row. Hover opens
+submenus only after the pointer moves, so a menu opened by keyboard under a
+resting pointer stays put. The user's own wheel or touch scrolling outside the
+menu, resize and window blur close it. `bindLongPress` opens the same menu
+after a 550 ms touch hold and suppresses the following click. Menus are host UI
+for now; lending them to add-ons would be a contract change.
+
 ## Theme contract
 
 [Control CSS](../../frontend/src/ui/controls.css) supplies defaults from the host's

@@ -414,3 +414,25 @@ codex-app,
     color: var(--gold);
   }
 }
+
+/* Short confirmations for actions taken from context menus. */
+.context-notice {
+  position: fixed;
+  z-index: 50;
+  right: 1rem;
+  bottom: 1rem;
+  max-width: min(24rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.45);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-md);
+  color: var(--text-parchment);
+  font: 0.82rem/1.4 var(--font-ui);
+}
+@media (max-width: 768px) {
+  .context-notice {
+    bottom: calc(var(--bottom-nav-h) + 1rem);
+  }
+}

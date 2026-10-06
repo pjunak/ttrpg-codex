@@ -1,6 +1,7 @@
 import "../../src/styles.css";
 import type { UIControlsFixture } from "./ui-controls-fixture-api.js";
 import { enhanceControls } from "../../src/ui/controls.js";
+import { openContextMenu } from "../../src/ui/context-menu.js";
 import { BrowserContributionRegistry } from "../../src/addons/browser-sdk.js";
 import { GenerationScope } from "../../src/addons/generation-scope.js";
 const root = document.querySelector<HTMLElement>("#fixture")!;
@@ -18,9 +19,35 @@ root.innerHTML = `<h1>Shared UI</h1><form id="controls-form">
 <form id="chips-form"><label data-ui-field><span>Companions</span><select name="companions" multiple data-ui="chips">
 <option value="cat">Cat</option><option value="hound" selected>Hound</option><option value="owl">Owl</option><option value="raven" disabled>Raven</option></select><small data-ui-help>Pick any number.</small></label>
 <button type="reset">Reset companions</button></form>
+<button type="button" id="menu-target">Menu target</button>
 <dialog data-ui-dialog aria-label="Review choices"><h2>Review choices</h2><div data-ui-field><label for="nested-choice">Nested choice</label><select id="nested-choice" data-ui="combobox"><option>First</option><option>Second</option></select></div><button type="button" id="close-dialog">Close</button></dialog>
 <div role="tablist" data-ui-tabs aria-label="Views"><button type="button" role="tab" id="view-one" aria-controls="panel-one" aria-selected="true">First view</button><button type="button" role="tab" id="view-two" aria-controls="panel-two" aria-selected="false" tabindex="-1">Second view</button></div>
 <section id="panel-one" role="tabpanel" aria-labelledby="view-one">First content</section><section id="panel-two" role="tabpanel" aria-labelledby="view-two" hidden>Second content</section>`;
+const menuRuns: string[] = [];
+const menuTarget = root.querySelector<HTMLButtonElement>("#menu-target")!;
+menuTarget.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+  openContextMenu(
+    document,
+    { x: event.clientX, y: event.clientY },
+    [
+      { label: "First", icon: "1", run: () => menuRuns.push("first") },
+      { label: "Unavailable", disabled: "Not now", run: () => menuRuns.push("disabled") },
+      {
+        label: "Places",
+        separator: true,
+        searchable: true,
+        children: () =>
+          ["Abbey", "Bridge", "Harbour", "Keep"].map((place) => ({
+            label: place,
+            checked: place === "Keep",
+            run: () => menuRuns.push(place),
+          })),
+      },
+    ],
+    { title: "Menu target", returnFocus: menuTarget },
+  );
+});
 const queries: string[] = [],
   submissions: Record<string, FormDataEntryValue>[] = [];
 let changes = 0,
@@ -58,6 +85,7 @@ const fixture: UIControlsFixture = {
   get changes() {
     return changes;
   },
+  menuRuns,
   get chipChanges() {
     return chipChanges;
   },
