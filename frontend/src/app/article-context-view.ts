@@ -19,6 +19,12 @@ export function renderArticleReferences(references: readonly ArticleReference[])
     ? html`<span class="article-reference-list">${references.map(renderArticleReference)}</span>`
     : html`<span>—</span>`;
 }
+export function renderArticleChip(reference: ArticleReference) {
+  const content = html`${reference.icon ? html`<span class="article-chip-icon" aria-hidden="true">${reference.icon}</span>` : nothing}${reference.label}`;
+  return reference.href
+    ? html`<a class="article-chip" href=${reference.href}>${content}</a>`
+    : html`<span class="article-chip is-unavailable">${content}</span>`;
+}
 export function renderArticleContext(sections: readonly ArticleContextSection[]) {
   return sections.map((section) =>
     section.id === "ancestors"
@@ -28,7 +34,13 @@ export function renderArticleContext(sections: readonly ArticleContextSection[])
       <div class="article-context-groups">${section.groups.map(
         (group) => html`<div>
         ${group.title ? html`<h3>${group.title}</h3>` : nothing}
-        ${group.entries.length ? html`<ul>${group.entries.map((entry) => html`<li>${renderArticleReference(entry)}</li>`)}</ul>` : html`<p class="field-help">${uiText("None")}</p>`}
+        ${
+          !group.entries.length
+            ? html`<p class="field-help">${uiText("None")}</p>`
+            : section.id === "events"
+              ? html`<ul class="article-event-list">${group.entries.map((entry) => html`<li>${renderArticleReference(entry)}${entry.detail ? html`<span class="article-event-detail"> — ${entry.detail}</span>` : nothing}</li>`)}</ul>`
+              : html`<ul class="article-chip-list">${group.entries.map((entry) => html`<li>${renderArticleChip(entry)}</li>`)}</ul>`
+        }
       </div>`,
       )}</div></section>`,
   );

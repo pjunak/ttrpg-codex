@@ -6,26 +6,32 @@ codex-character-profile {
   aspect-ratio: auto;
 }
 .knowledge-inspection {
+  margin: -0.4rem 0 1rem;
+  color: var(--text-muted);
+  font: italic 0.78rem/1.5 var(--font-ui);
+}
+.knowledge-toggle {
+  min-height: 1.8rem;
+  padding: 0.15rem 0.65rem;
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
+  border-radius: var(--radius);
+  color: var(--text-light);
+  background: transparent;
+  font: 0.75rem var(--font-ui);
+  cursor: pointer;
+}
+.knowledge-toggle[aria-pressed="true"] {
+  border-color: var(--color-mystery);
+  color: var(--color-mystery);
+  background: rgb(206 147 216 / 10%);
+}
+.character-heading-tools {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.6rem 1rem;
-  margin-bottom: 1rem;
-  color: var(--text-muted);
-  font: 0.8rem/1.5 var(--font-ui);
-}
-.knowledge-inspection button {
-  min-height: 44px;
-  padding: 0.5rem 0.8rem;
-  border: 1px solid var(--chrome-field-border);
-  border-radius: 4px;
-  color: var(--text-parchment);
-  background: var(--bg-surface);
-  font: inherit;
-  cursor: pointer;
-}
-.knowledge-inspection button[aria-pressed="true"] {
-  border-color: var(--accent-gold);
+  justify-content: flex-end;
+  gap: 0.5rem 0.75rem;
+  margin-inline-start: auto;
 }
 .character-page-heading,
 .character-save-status,

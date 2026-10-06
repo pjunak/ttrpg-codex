@@ -67,6 +67,7 @@ export class CodexCharacterProfile extends LitElement {
     entity: { attribute: false },
     context: { attribute: false },
     extraSections: { attribute: false },
+    headerExtras: { attribute: false },
     canEdit: { type: Boolean },
     canManageVisibility: { type: Boolean },
     actorRole: { attribute: false },
@@ -81,6 +82,8 @@ export class CodexCharacterProfile extends LitElement {
   declare entity: EntitySummary;
   declare context: CampaignMarkdownContext;
   declare extraSections: readonly { heading: string; body: string }[] | undefined;
+  /** Host-owned controls (DM/player versions) shown beside the breadcrumb. */
+  declare headerExtras: unknown;
   declare canEdit: boolean;
   declare canManageVisibility: boolean;
   declare actorRole: BrowserRole | undefined;
@@ -157,6 +160,16 @@ export class CodexCharacterProfile extends LitElement {
     const wiki = parseCampaignMarkdown(text(value["description"]));
     return html`<article class=${`record-article character-profile direct-character${entity.portrait ? "" : " no-artwork"}${revealed ? "" : " knowledge-limited"}`} aria-labelledby="record-title">
       <div class="character-page-heading"><a href="#/characters" class="breadcrumb-link">${uiText("Characters")}</a>
+        <div class="character-heading-tools">
+        ${
+          this.actorRole === "dm"
+            ? html`<button type="button" class="knowledge-toggle" aria-pressed=${inspecting} ?disabled=${this.hasDraft}
+          @click=${() => {
+            this.inspect = !this.inspect;
+          }}>${uiText(inspecting ? "knowledge.read" : "knowledge.inspect")}</button>`
+            : nothing
+        }
+        ${this.headerExtras ?? nothing}
         ${
           this.canEdit
             ? html`<div class="character-save-status"><span role="status">${this.#feedback()}</span>${this.#undo ? html`<button type="button" ?disabled=${this.#saves > 0} @click=${this.#undoSave}>${uiText("Undo")}</button>` : nothing}
@@ -166,16 +179,8 @@ export class CodexCharacterProfile extends LitElement {
           ${this.canManageVisibility ? html`<button type="button" @click=${() => this.#openPanel("visibility")}>${uiText("Visibility")}</button>` : nothing}
         </div></details></div>`
             : nothing
-        }</div>
-      ${
-        this.actorRole === "dm"
-          ? html`<div class="knowledge-inspection"><button type="button" aria-pressed=${inspecting} ?disabled=${this.hasDraft}
-        @click=${() => {
-          this.inspect = !this.inspect;
-        }}>${uiText(inspecting ? "knowledge.read" : "knowledge.inspect")}</button>
-        ${inspecting ? html`<span>${uiText("knowledge.inspectHint")}</span>` : nothing}</div>`
-          : nothing
-      }
+        }</div></div>
+      ${inspecting ? html`<p class="knowledge-inspection">${uiText("knowledge.inspectHint")}</p>` : nothing}
       <div class="record-reading-layout">
         <aside class="record-side"><header class="record-masthead">
           ${artwork({

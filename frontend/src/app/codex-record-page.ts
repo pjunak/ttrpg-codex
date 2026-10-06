@@ -2,6 +2,7 @@ import { formText, formTextValues } from "../core/forms.js";
 import "./codex-investigation-queue.js";
 import { UIControlsController } from "../ui/controller.js";
 import { cardEditLink } from "../ui/card-actions.js";
+import { pencilIcon } from "./edit-icon.js";
 import { investigationStatus } from "./campaign-investigation.js";
 import { investigationBadge, investigationAnswers } from "./investigation-view.js";
 import { contextualCreationFields, creationSource, creationBackHash } from "./context-creation.js";
@@ -54,6 +55,7 @@ import {
   type EntitySummary,
 } from "./campaign-projection.js";
 import {
+  campaignPages,
   contextCreationActions,
   contextualCreateHash,
   recordEditHash,
@@ -371,7 +373,9 @@ export class CodexRecordPage extends LitElement {
     const facts = articleFacts(dataset, route.page.collection, value);
     const sections = [
       ...articleSections(
-        route.page.collection === "mysteries" ? { ...value, questions: undefined } : value,
+        route.page.collection === "mysteries"
+          ? { ...value, questions: undefined, clues: clueLinks(dataset, value["clues"]) }
+          : value,
       ),
     ];
     if (route.page.collection === "locations" && this.actorRole === "dm" && text(value["notes"])) {
@@ -387,8 +391,8 @@ export class CodexRecordPage extends LitElement {
       addonWiki: this.#links.wiki,
     };
     if (route.page.collection === "characters")
-      return html`${this.#linkFailure()}${twins}<codex-character-profile
-      .campaign=${dataset} .record=${record} .entity=${entity} .context=${markdownContext}
+      return html`${this.#linkFailure()}<codex-character-profile
+      .campaign=${dataset} .record=${record} .entity=${entity} .context=${markdownContext} .headerExtras=${twins}
       .actorRole=${this.actorRole}
       .extraSections=${articleSections({ ...value, description: undefined, known: undefined, unknown: undefined })}
       .canEdit=${this.canEdit} .canManageVisibility=${this.canManageVisibility}
@@ -396,13 +400,14 @@ export class CodexRecordPage extends LitElement {
     return html`
       <article class=${`record-article${entity.portrait ? "" : " no-artwork"}`} aria-labelledby="record-title">
         ${this.#linkFailure()}
-        ${twins}
-        <a href=${route.returnTo ?? (route.page.collection === "events" ? "#/timeline" : collectionHash(route.page))} class="breadcrumb-link">${route.returnTo ? uiText("creation.backPage") : route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
-        ${this.#contextCreationLinks(route)}
+        <div class="record-topbar">
+          <a href=${route.returnTo ?? (route.page.collection === "events" ? "#/timeline" : collectionHash(route.page))} class="breadcrumb-link">${route.returnTo ? uiText("creation.backPage") : route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
+          ${twins}
+        </div>
         <div class="record-reading-layout">
           <aside class="record-side">
             <header class="record-masthead">
-              ${recordArtwork(entity, route.page.icon, `record-portrait${entity.portrait ? "" : " record-portrait-placeholder"}`)}
+              ${recordArtwork(entity, route.page.icon, `record-portrait${entity.portrait ? "" : " record-portrait-placeholder"}`, "eager", route.page.collection === "locations" ? dataset : undefined)}
               <div>
                 <span class="record-kind">${route.page.singular}</span>
                 <h1 id="record-title">${entity.name}</h1>
@@ -428,29 +433,7 @@ export class CodexRecordPage extends LitElement {
                   ${entity.tags.map((tag) => html`<span>${tag}</span>`)}
                 </div>
               </div>
-              ${
-                this.canEdit
-                  ? html`
-                <button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.saving}>${uiText("Edit")}</button>
-              `
-                  : nothing
-              }
-              ${
-                route.page.collection === "locations"
-                  ? html`
-                ${this.#locationPlacementLinks(record)}
-                ${value["localMap"] || this.canEdit ? html`<a class="record-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>` : nothing}
-              `
-                  : nothing
-              }
-              ${
-                route.page.collection === "events"
-                  ? html`
-                ${hasEventPin(value) ? html`<a class="record-action" href=${eventMapHash(eventMapParent(value), record.key, "show")}>${this.#ui.t("map.show")}</a>` : nothing}
-                ${this.canEdit ? html`<a class="record-action" href=${eventMapHash(eventMapParent(value), record.key, "place")}>${this.#ui.t(hasEventPin(value) ? "map.moveEvent" : "map.placeEvent")}</a>` : nothing}
-              `
-                  : nothing
-              }
+              ${this.#mastheadActions(route, record, value)}
             </header>
             ${
               facts.length === 0
@@ -461,7 +444,6 @@ export class CodexRecordPage extends LitElement {
               </dl>
             `
             }
-
             ${
               outline.length === 0
                 ? nothing
@@ -485,9 +467,10 @@ export class CodexRecordPage extends LitElement {
             ${route.page.collection === "mysteries" ? investigationAnswers(value) : nothing}
             ${
               sections.length === 0 && contextSections.length === 0
-                ? html`<p class="empty-state">${uiText("This entry does not have article text yet.")}</p>`
+                ? html`<p class="empty-state">${uiText("This entry does not have article text yet.")}</p>${this.#contextCreationLinks(route)}`
                 : html`<div class="record-prose">
                   ${renderArticleContext(contextSections)}
+                  ${this.#contextCreationLinks(route)}
                   ${sections.map(
                     (section, index) => html`
                     <section class=${section.heading === uiText("What is known") || section.heading === uiText("Open questions") ? "character-knowledge-section" : ""}>
@@ -509,6 +492,33 @@ export class CodexRecordPage extends LitElement {
     `;
   }
 
+  #mastheadActions(
+    route: Extract<RecordRoute, { kind: "record" }>,
+    record: CampaignRecord,
+    value: Readonly<Record<string, unknown>>,
+  ) {
+    const location = route.page.collection === "locations",
+      event = route.page.collection === "events";
+    const actions = [
+      this.canEdit
+        ? html`<button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.saving}>${pencilIcon()} ${uiText("Edit")}</button>`
+        : nothing,
+      location ? this.#locationPlacementLinks(record) : nothing,
+      location && (value["localMap"] || this.canEdit)
+        ? html`<a class="record-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>`
+        : nothing,
+      event && hasEventPin(value)
+        ? html`<a class="record-action" href=${eventMapHash(eventMapParent(value), record.key, "show")}>${this.#ui.t("map.show")}</a>`
+        : nothing,
+      event && this.canEdit
+        ? html`<a class="record-action" href=${eventMapHash(eventMapParent(value), record.key, "place")}>${this.#ui.t(hasEventPin(value) ? "map.moveEvent" : "map.placeEvent")}</a>`
+        : nothing,
+    ];
+    return this.canEdit || location || (event && hasEventPin(value))
+      ? html`<div class="record-masthead-actions">${actions}</div>`
+      : nothing;
+  }
+
   #contextCreationLinks(route: Extract<RecordRoute, { kind: "record" }>) {
     const labels = {
       "character-here": "creation.character",
@@ -522,7 +532,7 @@ export class CodexRecordPage extends LitElement {
     return actions.length
       ? html`<nav class="context-create-actions" aria-label=${uiText("creation.related")}>${actions.map(
           (action) =>
-            html`<a class="record-action" href=${contextualCreateHash(action, route.key)}>${uiText(labels[action])}</a>`,
+            html`<a class="record-action" href=${contextualCreateHash(action, route.key)}><span aria-hidden="true">+</span> ${uiText(labels[action])}</a>`,
         )}</nav>`
       : nothing;
   }
@@ -1116,6 +1126,22 @@ function recordArtwork(
       : html`<span class="record-visual-glyph"
       style=${!portrait && entity.attitudeFilter !== undefined ? `--attitude-filter: ${entity.attitudeFilter}` : nothing}>${entity.icon ?? marker?.markerGlyph ?? fallback}</span>
     `,
+  });
+}
+
+/** Older mysteries store clues as event keys; show those as links to the events. */
+function clueLinks(dataset: CampaignDataset, value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  const events = campaignCollection(dataset, "events").records;
+  return value.map((clue) => {
+    const event =
+      typeof clue === "string" ? events.find((record) => record.key === clue) : undefined;
+    if (!event) return clue;
+    const name = (text(recordValue(event)["name"]) || event.key).replace(/[[\]\\]/gu, "");
+    return `[${name}](${recordHash(
+      campaignPages.find((page) => page.collection === "events")!,
+      event.key,
+    )})`;
   });
 }
 

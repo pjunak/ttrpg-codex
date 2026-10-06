@@ -13,6 +13,10 @@ import { uiText } from "./ui-localization.js";
 export interface ArticleReference {
   readonly label: string;
   readonly href?: string;
+  /** Short emblem (emoji or badge) shown on reference chips. */
+  readonly icon?: string;
+  /** One-line summary shown beside event references. */
+  readonly detail?: string;
 }
 export interface ArticleContextGroup {
   readonly title?: string;
@@ -38,7 +42,26 @@ export function articleReference(
     campaignCollection(campaign, page.collection).records.find((record) => record.key === key);
   if (!page || !record) return { label: uiText("context.unavailable") };
   const entity = projectEntity(campaign, record, page);
-  return { label: entity.name, href: entity.route };
+  const icon =
+    entity.icon ??
+    (collection === "characters" ? factionBadge(campaign, entity.raw["faction"]) : undefined);
+  const detail = collection === "events" ? text(entity.raw["short"]) : "";
+  return {
+    label: entity.name,
+    href: entity.route,
+    ...(icon ? { icon } : {}),
+    ...(detail ? { detail } : {}),
+  };
+}
+
+function factionBadge(campaign: CampaignDataset, faction: unknown): string | undefined {
+  if (typeof faction !== "string" || faction === "" || faction === "neutral") return undefined;
+  if (faction === "party") return campaignPartyIdentity(campaign).badge || undefined;
+  const record = campaignCollection(campaign, "factions").records.find(
+    (item) => item.key === faction,
+  );
+  const badge = record ? text(recordValue(record)["badge"]) : "";
+  return badge !== "" && Array.from(badge).length <= 4 ? badge : undefined;
 }
 
 export function articleReferences(
