@@ -344,4 +344,77 @@
     height: 0.85rem;
     pointer-events: none;
   }
+
+  /* Multiple selects marked data-ui="chips". */
+  .ui-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+    min-height: var(--ui-target);
+    padding: 0.2rem;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius);
+    background: var(--ui-field);
+    cursor: text;
+  }
+  .ui-chips:focus-within {
+    outline: 3px solid var(--ui-focus);
+    outline-offset: 3px;
+  }
+  .ui-chip-list {
+    display: contents;
+    list-style: none;
+  }
+  .ui-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    max-width: 100%;
+    padding: 0.05rem 0.1rem 0.05rem 0.55rem;
+    border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
+    border-radius: 100px;
+    background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+    color: var(--ui-text);
+    font: calc(var(--ui-font-size) * 0.92) / 1.4 var(--ui-font);
+    overflow-wrap: anywhere;
+  }
+  [data-codex-ui] .ui-chip-remove {
+    min-width: 1.4rem;
+    min-height: 1.4rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ui-muted);
+    font-size: 1rem;
+    line-height: 1;
+  }
+  [data-codex-ui] .ui-chip-remove:hover:enabled {
+    background: color-mix(in srgb, var(--ui-accent) 20%, transparent);
+    color: var(--ui-text);
+  }
+  [data-codex-ui] .ui-chips .ui-chip-input {
+    flex: 1 1 8rem;
+    min-width: 6rem;
+    min-height: calc(var(--ui-target) - 0.5rem);
+    padding: 0.1rem 0.4rem;
+    border: 0;
+    background: transparent;
+  }
+  [data-codex-ui] .ui-chips .ui-chip-input:focus-visible {
+    outline: 0;
+  }
+  @media (pointer: coarse) {
+    [data-codex-ui] .ui-chip-remove {
+      min-width: 2rem;
+      min-height: 2rem;
+    }
+  }
+  @media (forced-colors: active) {
+    .ui-chip {
+      border-color: ButtonText;
+    }
+  }
 }

@@ -15,12 +15,16 @@ root.innerHTML = `<h1>Shared UI</h1><form id="controls-form">
 <fieldset><legend>Sources</legend><label data-ui-field><input type="checkbox" name="source" value="one">One</label><label data-ui-field><input type="checkbox" name="source" value="two">Two</label></fieldset>
 <div data-ui-actions><button type="submit" data-ui-variant="primary">Apply filters</button><button type="reset">Reset</button><button type="button" id="pending" aria-busy="true">Saving…</button><button type="button" id="open-dialog">Open dialog</button></div>
 <p id="result" data-ui-state="empty">Enter a query or select a filter.</p></form>
+<form id="chips-form"><label data-ui-field><span>Companions</span><select name="companions" multiple data-ui="chips">
+<option value="cat">Cat</option><option value="hound" selected>Hound</option><option value="owl">Owl</option><option value="raven" disabled>Raven</option></select><small data-ui-help>Pick any number.</small></label>
+<button type="reset">Reset companions</button></form>
 <dialog data-ui-dialog aria-label="Review choices"><h2>Review choices</h2><div data-ui-field><label for="nested-choice">Nested choice</label><select id="nested-choice" data-ui="combobox"><option>First</option><option>Second</option></select></div><button type="button" id="close-dialog">Close</button></dialog>
 <div role="tablist" data-ui-tabs aria-label="Views"><button type="button" role="tab" id="view-one" aria-controls="panel-one" aria-selected="true">First view</button><button type="button" role="tab" id="view-two" aria-controls="panel-two" aria-selected="false" tabindex="-1">Second view</button></div>
 <section id="panel-one" role="tabpanel" aria-labelledby="view-one">First content</section><section id="panel-two" role="tabpanel" aria-labelledby="view-two" hidden>Second content</section>`;
 const queries: string[] = [],
   submissions: Record<string, FormDataEntryValue>[] = [];
 let changes = 0,
+  chipChanges = 0,
   pendingClicks = 0;
 const form = root.querySelector<HTMLFormElement>("form")!,
   select = form.querySelector<HTMLSelectElement>('[name="origin"]')!;
@@ -30,6 +34,7 @@ root.addEventListener("codex-query", (event) =>
   queries.push((event as CustomEvent<{ value: string }>).detail.value),
 );
 select.addEventListener("change", () => changes++);
+root.querySelector('[name="companions"]')!.addEventListener("change", () => chipChanges++);
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   submissions.push(Object.fromEntries(new FormData(form)));
@@ -52,6 +57,9 @@ const fixture: UIControlsFixture = {
   submissions,
   get changes() {
     return changes;
+  },
+  get chipChanges() {
+    return chipChanges;
   },
   get pendingClicks() {
     return pendingClicks;

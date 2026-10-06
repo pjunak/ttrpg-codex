@@ -57,6 +57,44 @@ for (const width of [1100, 320])
     await page.getByRole("button", { name: "Open dialog", exact: true }).click();
     await assertAccessible();
   });
+void test("chip picker mirrors a native multiple select for forms, keyboard and reset", async (t) => {
+  const page = await fixture(t),
+    picker = page.getByRole("combobox", { name: "Companions", exact: true });
+  const values = () =>
+    page
+      .locator("[name=companions]")
+      .evaluate((node: HTMLSelectElement) =>
+        [...node.selectedOptions].map((option) => option.value),
+      );
+  assert.deepEqual(await values(), ["hound"]);
+  await picker.click();
+  assert.deepEqual(
+    await page.getByRole("listbox").getByRole("option").allTextContents(),
+    ["Cat", "Owl"],
+    "disabled and chosen options are not offered",
+  );
+  await picker.press("Enter");
+  assert.deepEqual(await values(), ["hound"], "Enter adds nothing until an option is highlighted");
+  await picker.fill("ow");
+  await picker.press("ArrowDown");
+  await picker.press("Enter");
+  assert.deepEqual(await values(), ["hound", "owl"]);
+  assert.equal(await picker.inputValue(), "");
+  await page.getByRole("button", { name: "Remove Hound", exact: true }).click();
+  assert.deepEqual(await values(), ["owl"]);
+  await picker.press("Backspace");
+  assert.deepEqual(await values(), []);
+  assert.equal(await page.evaluate(() => window.uiControlsFixture.chipChanges), 3);
+  await picker.press("Escape");
+  await page.getByRole("button", { name: "Reset companions", exact: true }).click();
+  await page.locator(".ui-chip").filter({ hasText: "Hound" }).waitFor();
+  await page.locator("[name=companions]").evaluate((node: HTMLSelectElement) => {
+    node.disabled = true;
+  });
+  await page.locator(".ui-chip-remove:disabled").waitFor();
+  assert.equal(await picker.isDisabled(), true);
+});
+
 void test("combo separates editing from native selection and skips disabled choices", async (t) => {
   const page = await fixture(t),
     combo = page.getByRole("combobox", { name: "Origin", exact: true });

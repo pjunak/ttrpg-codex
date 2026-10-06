@@ -1,3 +1,4 @@
+import { enhanceChips } from "./chips.js";
 import { enhanceCombobox } from "./combobox.js";
 import { enhanceField } from "./fields.js";
 import { containDialogTab, navigateTabs } from "./focus.js";
@@ -85,7 +86,8 @@ export function enhanceControls(
           fieldControls.has(node) &&
           (!node.hasAttribute("data-ui-field") || fieldControls.get(node) !== fieldControl(node));
         const retiredSelect =
-          node instanceof HTMLSelectElement && (node.multiple || node.dataset["ui"] !== "combobox");
+          node instanceof HTMLSelectElement &&
+          (node.multiple ? node.dataset["ui"] !== "chips" : node.dataset["ui"] !== "combobox");
         const retiredSearch =
           node instanceof HTMLInputElement &&
           (node.type !== "search" || node.dataset["ui"] !== "search");
@@ -124,6 +126,13 @@ export function enhanceControls(
           !controls.has(node)
         )
           controls.set(node, enhanceCombobox(node));
+        if (
+          node instanceof HTMLSelectElement &&
+          node.dataset["ui"] === "chips" &&
+          node.multiple &&
+          !controls.has(node)
+        )
+          controls.set(node, enhanceChips(node));
         if (
           node instanceof HTMLInputElement &&
           node.type === "search" &&

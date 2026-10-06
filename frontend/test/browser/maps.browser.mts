@@ -325,7 +325,12 @@ for (const mobile of [false, true])
     const imageBefore = await page.locator(".leaflet-image-layer").boundingBox().then(required);
     const form = page.locator(".sc-panel form");
     await form.locator('[name="pinType"]').selectOption("town");
-    await form.locator('[name="attitudes"]').selectOption("ally");
+    const attitudes = form.getByRole("combobox", { name: "Attitudes", exact: true });
+    await attitudes.fill("Ally");
+    await attitudes.press("ArrowDown");
+    await attitudes.press("Enter");
+    await form.locator(".ui-chip").filter({ hasText: "Ally" }).waitFor();
+    await attitudes.press("Escape");
     await form.locator('[name="mapNotes"]').fill("Watch the eastern road.");
     await form.locator("summary").filter({ hasText: "Marker details" }).click();
     await form.locator('[name="size"]').fill("40");

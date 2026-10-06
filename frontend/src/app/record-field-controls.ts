@@ -70,18 +70,14 @@ export function recordFieldControl(
     return html`
         <label data-ui-field class="wide-field structured-picker">
           <span>${field.label}</span>
-          <select name=${field.key} multiple size=${Math.min(8, Math.max(3, options.length))}>
+          <select name=${field.key} multiple data-ui="chips">
             ${options.map(
               (option) => html`
               <option value=${option.value} ?selected=${selected.has(option.value)}>${option.label}</option>
             `,
             )}
           </select>
-          ${
-            field.help === undefined
-              ? html`<small data-ui-help class="field-help">${uiText("Use Ctrl or Command to select more than one entry.")}</small>`
-              : help
-          }
+          ${help}
         </label>
       `;
   }

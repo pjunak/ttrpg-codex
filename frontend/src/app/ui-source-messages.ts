@@ -172,8 +172,7 @@ export const sourceCs = {
   "Record recurring duties or ties outside the character's current location.":
     "Zaznamenejte pravidelné povinnosti nebo vazby mimo současnou lokaci postavy.",
   "Attitudes toward the party": "Postoje k družině",
-  "Use Ctrl or Command to select more than one attitude. Party members always use the party palette.":
-    "Více postojů vyberete pomocí Ctrl nebo Command. Členové družiny vždy používají její paletu.",
+  "Party members always use the party palette.": "Členové družiny vždy používají její paletu.",
   Tags: "Štítky",
   "Known facts": "Známá fakta",
   "Write one fact per line.": "Každý fakt napište na samostatný řádek.",
@@ -366,8 +365,6 @@ export const sourceCs = {
   "Nothing to preview yet.": "Zatím není co zobrazit v náhledu.",
   "Not set": "Nenastaveno",
   "{0} (stored)": "{0} (uloženo)",
-  "Use Ctrl or Command to select more than one entry.":
-    "Více záznamů vyberete pomocí Ctrl nebo Command.",
   "Delete this {0}? This cannot be undone from this page.":
     "Odstranit záznam typu „{0}“? Z této stránky nelze odstranění vrátit.",
   Overview: "Přehled",

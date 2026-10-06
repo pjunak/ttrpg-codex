@@ -764,10 +764,17 @@ export class CodexCharacterProfile extends LitElement {
     this.#panelError = "";
     this.panel = panel;
     this.#dirty();
-    void this.updateComplete.then(() => {
+    void this.updateComplete.then(async () => {
       const section = this.querySelector<HTMLElement>(".character-section-editor");
       section?.scrollIntoView({ block: "nearest" });
-      section?.querySelector<HTMLElement>("input,select,button")?.focus();
+      // Chip pickers are enhanced by the page's shared controls after this render.
+      if (section?.querySelector('select[data-ui="chips"]'))
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      section
+        ?.querySelector<HTMLElement>(
+          ".ui-chip-input, input:not([hidden]), select:not([hidden]), button",
+        )
+        ?.focus();
     });
   }
   #panelContent() {
@@ -782,7 +789,8 @@ export class CodexCharacterProfile extends LitElement {
             : this.panel === "relationships"
               ? html`<campaign-relationship-editor .campaign=${this.#panelCampaign} .character=${base} .canManageVisibility=${this.canManageVisibility} .recordIdentity=${`${base.key}:${base.revision}:relationships`}></campaign-relationship-editor>`
               : this.panel === "attitudes"
-                ? html`<h2>${uiText("Attitudes toward the party")}</h2>${editorOptionsFor(this.campaign, this.#field("attitudes"), this.record.key).map((option) => html`<label class="character-checkbox"><input name="attitude" type="checkbox" value=${option.value} ?checked=${Array.isArray(value["attitudes"]) && value["attitudes"].some((item) => isRecord(item) && item["id"] === option.value)} />${option.label}</label>`)}`
+                ? html`<label class="character-panel-field"><span>${uiText("Attitudes toward the party")}</span>
+                <select name="attitude" multiple data-ui="chips">${editorOptionsFor(this.campaign, this.#field("attitudes"), this.record.key).map((option) => html`<option value=${option.value} ?selected=${Array.isArray(value["attitudes"]) && value["attitudes"].some((item) => isRecord(item) && item["id"] === option.value)}>${option.label}</option>`)}</select></label>`
                 : html`<campaign-structured-field .campaign=${this.#panelCampaign} .field=${this.#field(this.panel)} .record=${value} .factionId=${text(value["faction"])} .recordIdentity=${`${base.key}:${base.revision}:${this.panel}`}></campaign-structured-field>`
       }
       ${this.#panelError ? html`<p role="alert">${this.#panelError}</p>` : nothing}
@@ -830,9 +838,10 @@ export class CodexCharacterProfile extends LitElement {
         relationshipBase: relationshipBaseFor(this.#panelCampaign!, this.record.key),
       };
     else if (this.panel === "attitudes")
-      fields["attitudes"] = [...section.querySelectorAll<HTMLInputElement>("input:checked")].map(
-        (input) => input.value,
-      );
+      fields["attitudes"] = [
+        ...(section.querySelector<HTMLSelectElement>('select[name="attitude"]')?.selectedOptions ??
+          []),
+      ].map((option) => option.value);
     else
       fields[this.panel] = section
         .querySelector<CampaignStructuredFieldElement>("campaign-structured-field")!

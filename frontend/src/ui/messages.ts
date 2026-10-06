@@ -5,6 +5,8 @@ const english = {
   loading: "Loading options…",
   narrow: "Showing the first 100 matches. Type more to narrow the list.",
   required: "Choose an option.",
+  add: "Add…",
+  remove: "Remove {0}",
 };
 const czech: typeof english = {
   clear: "Vymazat hledání",
@@ -13,6 +15,8 @@ const czech: typeof english = {
   loading: "Načítání možností…",
   narrow: "Zobrazeno prvních 100 výsledků. Upřesněte hledání.",
   required: "Vyberte možnost.",
+  add: "Přidat…",
+  remove: "Odebrat {0}",
 };
 export function messages(element: Element): typeof english {
   return (

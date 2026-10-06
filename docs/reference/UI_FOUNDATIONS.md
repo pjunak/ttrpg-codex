@@ -163,6 +163,7 @@ select remains present for FormData and constraints.
 | Option `title`, `data-ui-keywords` | Plain-text explanation and additional filter terms. Labels and values stay distinct; disabled options/groups cannot commit. |
 | `data-ui-options-state="loading\|error"` and `data-ui-options-message` | Temporarily prevent selection and explain why. Owner handles async fetch, epoch checks, abort and retry; the UI library never fetches. Clear the state after publishing the latest options. |
 | `data-ui="search"` | Native search input plus shared clear/query behavior. |
+| `data-ui="chips"` | Multiple select only. Selected options show as removable chips beside a searchable "add" field; the native select keeps options, selection, FormData, reset, disabled state and its input/change events. Nothing is highlighted until the user types or presses an arrow key, so Enter in an empty field adds nothing; Backspace in an empty field removes the last chip. |
 | `data-ui-actions`, `data-ui-toolbar` | Responsive action and field composition; these are layout groups, not ARIA toolbars with a different keyboard model. |
 | `data-ui-variant="primary\|danger\|quiet"` | Native button presentation. Default is secondary; ordinary submit/button/link behavior remains native. |
 | `data-ui-state="loading\|empty\|unavailable\|info\|success\|error"` | Shared notice presentation and appropriate status/alert/note semantics. Keep content meaningful; the library supplies no domain-specific messages. |

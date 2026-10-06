@@ -13,6 +13,7 @@ import {
   projectEffectiveAttitudes,
 } from "./campaign-projection.js";
 import { recordFieldControl } from "./record-field-controls.js";
+import { enhanceControls, type UIControlsHandle } from "../ui/controls.js";
 import { searchable, searchTokens } from "./campaign-search.js";
 import {
   mapLocationRecord,
@@ -149,8 +150,18 @@ export class CodexMap extends LitElement {
     return this;
   }
   override disconnectedCallback(): void {
+    this.#panelControls?.handle.dispose();
+    this.#panelControls = undefined;
     this.#dispose();
     super.disconnectedCallback();
+  }
+  // Only the location form borrows the shared controls; the map canvas keeps its own widgets.
+  #panelControls: { readonly root: HTMLElement; readonly handle: UIControlsHandle } | undefined;
+  #syncPanelControls(): void {
+    const form = this.querySelector<HTMLElement>(".sc-location-editor form");
+    if (form === this.#panelControls?.root) return;
+    this.#panelControls?.handle.dispose();
+    this.#panelControls = form ? { root: form, handle: enhanceControls(form) } : undefined;
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
     if (
@@ -187,6 +198,7 @@ export class CodexMap extends LitElement {
     }
   }
   protected override updated(changed: Map<PropertyKey, unknown>): void {
+    this.#syncPanelControls();
     if (
       changed.has("route") ||
       changed.has("editCompletion") ||

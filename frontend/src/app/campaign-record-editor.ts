@@ -593,9 +593,7 @@ const editorFields: Readonly<
       kind: "attitudes",
       maximumItems: 32,
       get help() {
-        return uiText(
-          "Use Ctrl or Command to select more than one attitude. Party members always use the party palette.",
-        );
+        return uiText("Party members always use the party palette.");
       },
     }),
     field("tags", "Tags", { kind: "tags", maximumLength: 100, maximumItems: 100 }),
