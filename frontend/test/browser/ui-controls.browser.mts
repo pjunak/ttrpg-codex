@@ -308,8 +308,8 @@ void test("reduced motion applies text enlargement and control changes immediate
         .filter((animation) => animation instanceof CSSTransition).length,
     };
   });
-  assert.deepEqual(state.before, { font: "16px", transform: "none" });
-  assert.equal(state.font, "32px");
+  assert.equal(state.before.transform, "none");
+  assert.equal(parseFloat(state.font), parseFloat(state.before.font) * 2);
   assert.equal(state.transform, "matrix(1, 0, 0, 1, 2, 0)");
   assert.equal(state.transitions, 0);
 });

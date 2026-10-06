@@ -189,7 +189,14 @@ existing theme tokens. A skin overrides these public variables at its container:
 | `--ui-text`, `--ui-muted` | Main and secondary text |
 | `--ui-border`, `--ui-focus` | Visible boundaries and focus indicator |
 | `--ui-accent`, `--ui-on-accent`, `--ui-danger` | Selected/primary action, its foreground, and error/destructive emphasis |
-| `--ui-font`, `--ui-radius`, `--ui-gap`, `--ui-target` | UI font, corners, composition spacing and minimum control height |
+| `--ui-font`, `--ui-font-size`, `--ui-radius`, `--ui-gap`, `--ui-target` | UI font and control text size, corners, composition spacing and minimum control height |
+
+The control defaults sit in the `ui-controls` cascade layer (below unlayered
+styles; element resets sit lower still, in `base`). Any ordinary host or add-on
+class therefore overrides a default without extra specificity, so domain styles
+such as inline-edit values, record actions and the writer toolbar keep their
+own look on enhanced controls. Fine pointers get compact 2.25rem controls;
+coarse pointers keep 2.75rem touch targets.
 
 `data-ui-tone="paper"` is a supported reading-surface variant. The dark/default
 variant inherits Classic/Moonlit. Typography and spacing use relative units.
