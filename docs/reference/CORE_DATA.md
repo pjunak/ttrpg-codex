@@ -282,7 +282,10 @@ one profile are queued; saving one section does not reset another section's
 draft or its navigation guard.
 
 The shared Markdown writer has formatted, editable Markdown, and preview views,
-a single-row toolbar, and an expanded side-by-side dialog. ProseMirror edits a
+a single-row toolbar (with the full-screen button at its end) and a quiet
+recovery-status line beneath the text. Full screen opens a modal window with a
+title bar, a readable centred column for formatted text, and source beside its
+preview when opened from the Markdown view. ProseMirror edits a
 bounded document model; storage remains Markdown. The existing safe renderer
 accepts only registered semantic color, highlight, effect, size, font and
 alignment tokens. Arbitrary HTML remains inert. Unsupported blocks (including

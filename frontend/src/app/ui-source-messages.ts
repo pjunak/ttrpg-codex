@@ -36,7 +36,6 @@ export const sourceCs = {
   "Finish or cancel the open edits first.": "Nejprve dokončete nebo zrušte rozpracované úpravy.",
   "Wiki text": "Text wiki",
   "The text is too long.": "Text je příliš dlouhý.",
-  "Back to character": "Zpět k záznamu",
   "Expand writer": "Rozšířit editor",
   "Text formatting": "Formátování textu",
   Redo: "Znovu",

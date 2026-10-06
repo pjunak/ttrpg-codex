@@ -840,7 +840,7 @@ export class CodexRecordPage extends LitElement {
         ...(this.route === undefined ? {} : { currentCollection: this.route.page.collection }),
         ...(currentKey === "" ? {} : { currentKey }),
       };
-      return html`<section class="markdown-editor wide-field"><codex-markdown-editor
+      return html`<section class="markdown-editor wide-field"><span class="markdown-editor-label" aria-hidden="true">${field.label}</span><codex-markdown-editor
         .name=${field.key} .label=${field.label} .value=${source} .identity=${currentKey + ":" + field.key + ":" + this.editCompletion}
         .context=${context} .disabled=${this.saving} .maximumLength=${field.maximumLength}
         .draftContext=${

@@ -490,8 +490,9 @@ void test("DM location notes round-trip privately through the real editor and pu
   await dm.page.getByRole("heading", { name: "Hidden arrangement", exact: true }).waitFor();
   await dm.page.getByRole("button", { name: "Edit", exact: true }).click();
   const writer = dm.page
-    .locator("codex-markdown-editor")
-    .filter({ has: dm.page.getByText("DM notes", { exact: true }) });
+    .locator(".markdown-editor")
+    .filter({ has: dm.page.getByText("DM notes", { exact: true }) })
+    .locator("codex-markdown-editor");
   await writer.getByRole("combobox", { name: "Editor view", exact: true }).selectOption("markdown");
   await writer.locator(".writer-source").fill(secret + "\n\nEdited by DM.");
   await dm.page.getByRole("button", { name: "Save entry", exact: true }).last().click();

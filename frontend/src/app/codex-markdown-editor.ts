@@ -219,12 +219,10 @@ export class CodexMarkdownEditor extends LitElement {
   }
 
   #recovery() {
-    if (!this.draftContext) return nothing;
+    if (!this.draftContext || !this.#drafts.candidates.length) return nothing;
     const selected = this.#drafts.selected;
     return html`<section class="writer-recovery" aria-label=${uiText("draft.review")}>
-      ${
-        this.#drafts.candidates.length
-          ? html`<details class="writer-recovery-review">
+      ${html`<details class="writer-recovery-review">
         <summary>${uiText("draft.available", { count: this.#drafts.candidates.length })}</summary>
         <p>${uiText("draft.intro")}</p>
         <label>${uiText("draft.choose")}<select .value=${selected?.id ?? ""} ?disabled=${this.recoveryBusy}
@@ -265,14 +263,16 @@ export class CodexMarkdownEditor extends LitElement {
           </div>`
             : nothing
         }
-      </details>`
-          : nothing
-      }
-      <p class="writer-recovery-status" role=${this.#drafts.status === "unavailable" ? "alert" : nothing}>
+      </details>`}
+    </section>`;
+  }
+
+  #recoveryStatus() {
+    if (!this.draftContext) return nothing;
+    return html`<p class="writer-recovery-status" role=${this.#drafts.status === "unavailable" ? "alert" : nothing}>
         ${uiText(({ idle: "draft.enabled", saving: "draft.saving", saved: "draft.saved", unavailable: "draft.unavailable" } as const)[this.#drafts.status])}
         ${this.#drafts.status === "unavailable" ? html`<a download="draft.md" href=${`data:text/markdown;charset=utf-8,${encodeURIComponent(this.value)}`}>${uiText("draft.download")}</a>` : nothing}
-      </p><span class="visually-hidden" role="status">${this.recoveryMessage}</span>
-    </section>`;
+      </p><span class="visually-hidden" role="status">${this.recoveryMessage}</span>`;
   }
 
   async #recover(draft: MarkdownDraft): Promise<void> {
@@ -290,10 +290,15 @@ export class CodexMarkdownEditor extends LitElement {
   }
 
   protected override render() {
-    return html`<dialog class=${`writer-dialog ${this.expanded ? "writer-expanded" : "writer-inline"}`}
+    return html`<dialog class=${`writer-dialog ${this.expanded ? "writer-expanded" : "writer-inline"}${this.split ? " is-split" : ""}`}
       aria-label=${this.label || uiText("Wiki text")} @cancel=${this.#cancelDialog} @keydown=${this.#keyDown}>
-      <div class="writer-heading"><span>${this.label}</span><button type="button" class="writer-expand" ?disabled=${this.disabled}
-        @click=${this.#expand}>${this.expanded ? uiText("Back to character") : uiText("Expand writer")}</button></div>
+      ${
+        this.expanded
+          ? html`<div class="writer-heading"><span class="writer-title">${this.label || uiText("Wiki text")}</span>
+        <button type="button" class="writer-expand" aria-label=${uiText("writer.collapse")} title=${uiText("writer.collapse")}
+          @click=${this.#expand}>✕</button></div>`
+          : nothing
+      }
       ${this.#recovery()}
       <div class="writer-tools-wrap" @focusout=${this.#menuBlur}>
         <div class="writer-toolbar" role="group" aria-label=${uiText("Text formatting")} @pointerdown=${this.#rememberSource}>
@@ -329,6 +334,12 @@ export class CodexMarkdownEditor extends LitElement {
               this.split = !this.split;
               if (this.split && this.mode === "preview") this.#setMode("formatted");
             }}>◫</button>
+          ${
+            this.expanded
+              ? nothing
+              : html`<button type="button" class="writer-expand" aria-label=${uiText("Expand writer")} title=${uiText("Expand writer")}
+            ?disabled=${this.disabled} @click=${this.#expand}>⤢</button>`
+          }
         </div>
         ${
           this.menu
@@ -353,9 +364,10 @@ export class CodexMarkdownEditor extends LitElement {
       ${this.issue ? html`<p class="writer-issue" role="alert">${this.issue}</p>` : nothing}
       ${
         this.expanded
-          ? html`<footer class="writer-expanded-actions"><button type="button" @click=${this.#expand}>${uiText("Back to character")}</button>
+          ? html`<footer class="writer-expanded-actions">${this.#recoveryStatus()}<span class="writer-toolbar-space"></span>
+        <button type="button" @click=${this.#expand}>${uiText("writer.collapse")}</button>
         <button type="button" class="primary-record-action" ?disabled=${this.disabled} @click=${this.#requestSave}>${this.saveLabel || uiText("Save text")}</button></footer>`
-          : nothing
+          : html`<div class="writer-footer">${this.#recoveryStatus()}</div>`
       }
     </dialog>`;
   }
@@ -723,8 +735,8 @@ export class CodexMarkdownEditor extends LitElement {
         document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
     this.expanded = expanding;
     this.menu = "";
-    if (expanding) this.split = true;
     if (expanding && this.mode === "preview") this.#setMode("formatted");
+    if (expanding) this.split = this.mode === "markdown";
     dialog.close();
     await this.updateComplete;
     if (!this.isConnected) return;

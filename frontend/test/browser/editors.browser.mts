@@ -909,10 +909,7 @@ for (const mobile of [false, true])
     await page.getByLabel("Editor view", { exact: true }).selectOption("preview");
     assert.equal(await textarea.isVisible(), false);
     await sourceView(page);
-    await page
-      .locator(".writer-heading")
-      .getByRole("button", { name: "Back to character" })
-      .click();
+    await page.locator(".writer-heading").getByRole("button", { name: "Exit full screen" }).click();
     assert.match(await textarea.inputValue(), /More\.$/);
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),

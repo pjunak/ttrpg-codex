@@ -36,6 +36,7 @@ export const editingEn = {
   "draft.preserveCurrent":
     "Your unsaved text will be kept as a separate local draft before this text is loaded.",
   "draft.tooLong": "This draft exceeds this field's limit. Download it to keep the full text.",
+  "writer.collapse": "Exit full screen",
   "browse.search": "Search this collection",
   "browse.searchHint": "All words must match. Accents are optional.",
   "browse.sort": "Sort by",
@@ -105,6 +106,7 @@ export const editingCs: Record<keyof typeof editingEn, Message> = {
   "draft.preserveCurrent":
     "Před načtením tohoto textu se vaše neuložené úpravy uchovají jako samostatný místní koncept.",
   "draft.tooLong": "Tento koncept přesahuje limit pole. Stáhněte jej, abyste zachovali celý text.",
+  "writer.collapse": "Zavřít celou obrazovku",
   "browse.search": "Prohledat tuto sbírku",
   "browse.searchHint": "Musí odpovídat všechna slova. Diakritika není nutná.",
   "browse.sort": "Řadit podle",
