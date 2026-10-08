@@ -328,7 +328,8 @@ for verification limits and interrupted-restore recovery.
 Use the maintenance binary built from the same commit as the host. These
 commands require a database already migrated by that host, and refuse while
 the host or another maintenance operation holds the data-directory lock.
-They are separate from uninstall and saved-package cleanup in Settings.
+They are separate from uninstalling an add-on in Settings and from the automatic
+saved-package cleanup.
 
 1. Stop the host and run a preview. Choose exactly one operation:
 

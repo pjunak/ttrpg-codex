@@ -1,12 +1,5 @@
 import { parseSchemaReview, type SchemaReview } from "./addon-schema-upgrade.js";
 import { parseWorkerDiagnostics, type WorkerDiagnostics } from "./worker-diagnostics.js";
-import {
-  cleanupScope,
-  parseCleanupReview,
-  parseCleanupResult,
-  type CleanupScope,
-  type CleanupReview,
-} from "./addon-cleanup.js";
 import { BoundaryValidationError, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 import { waitForSignal } from "./abort-signal.js";
@@ -263,50 +256,6 @@ export class AddonAdminClient {
       ),
     );
     if (result["cancelled"] !== true) fail();
-  }
-  async reviewSchema(target: { addonId: string; generationId: string }): Promise<SchemaReview> {
-    return parseSchemaReview(
-      await this.#request(`addons/${id(target.addonId)}/schema-reviews`, {
-        generationId: hash(target.generationId),
-      }),
-      target,
-    );
-  }
-  async checkSchema(review: SchemaReview): Promise<SchemaReview> {
-    return parseSchemaReview(
-      await this.#request(`addon-schema-reviews/${encodeURIComponent(review.reviewId)}`),
-      review,
-      review,
-    );
-  }
-  async applySchema(review: SchemaReview): Promise<SchemaReview> {
-    const result = parseSchemaReview(
-      await this.#request(`addon-schema-reviews/${encodeURIComponent(review.reviewId)}/apply`, {
-        reviewSha256: hash(review.reviewSha256),
-      }),
-      review,
-      review,
-    );
-    if (result.status !== "applied") fail();
-    return result;
-  }
-  async reviewCleanup(scope: CleanupScope) {
-    return parseCleanupReview(
-      await this.#request("addon-package-cleanup/review", cleanupScope(scope)),
-      scope,
-    );
-  }
-  async cleanup(review: CleanupReview) {
-    return parseCleanupResult(
-      await this.#request("addon-package-cleanup/apply", {
-        scope: cleanupScope(review.scope),
-        reviewSha256: hash(review.reviewSha256),
-      }),
-      review,
-    );
-  }
-  async retryCleanups() {
-    return parseCleanupResult(await this.#request("addon-package-cleanup/retry", {}));
   }
   async reviewDisable(addonId: string): Promise<AddonDisableReview> {
     return parseAddonDisableReview(

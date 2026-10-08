@@ -279,8 +279,19 @@ export async function waitForHostRestart(
   signal: AbortSignal,
   { delay = 3000, interval = 2000, deadline = 5 * 60_000 } = {},
 ): Promise<boolean> {
-  const sleep = (ms: number) =>
-    waitForSignal(new Promise<void>((resolve) => setTimeout(resolve, ms)), signal);
+  const sleep = async (ms: number) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await waitForSignal(
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, ms);
+        }),
+        signal,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  };
   const started = Date.now();
   await sleep(delay);
   while (Date.now() - started < deadline) {

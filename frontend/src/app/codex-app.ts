@@ -100,7 +100,7 @@ import { bindRuleDetails } from "./codex-addon-rule-details.js";
 import "./codex-search.js";
 import { rememberRecentRecord } from "./recent-records.js";
 import { creationBackHash, creationSource } from "./context-creation.js";
-import { containDialogTab } from "./dialog-focus.js";
+import { containDialogTab } from "../ui/focus.js";
 import "./codex-settings.js";
 import "./codex-addon-markdown.js";
 import {
