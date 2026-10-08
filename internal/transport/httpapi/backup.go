@@ -123,12 +123,9 @@ func (s *server) restoreBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	defer s.restoreBusy.Unlock()
 	// Uploading and verifying a large archive outlasts the server's default deadlines.
-	controller := http.NewResponseController(w)
-	for _, extend := range []func(time.Time) error{controller.SetReadDeadline, controller.SetWriteDeadline} {
-		if err := extend(time.Now().Add(30 * time.Minute)); err != nil && !errors.Is(err, http.ErrNotSupported) {
-			s.writeRestoreFailure(w, r, err)
-			return
-		}
+	if err := extendDeadlines(w, 30*time.Minute); err != nil {
+		s.writeRestoreFailure(w, r, err)
+		return
 	}
 	upload, err := os.CreateTemp("", "codex-restore-*.zip")
 	if err != nil {

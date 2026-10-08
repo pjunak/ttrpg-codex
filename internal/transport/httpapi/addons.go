@@ -96,6 +96,10 @@ func (s *server) stageAddonGeneration(w http.ResponseWriter, r *http.Request) {
 		writeAddonPackageTooLarge(w)
 		return
 	}
+	if err := extendDeadlines(w, largeTransferTimeout); err != nil {
+		s.writeLifecycleError(w, r, err)
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxAddonPackageBytes)
 	generation, err := s.addonLifecycle.StageArchive(r.Context(), r.Body)
 	if err != nil {

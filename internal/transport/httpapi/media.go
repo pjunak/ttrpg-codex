@@ -83,6 +83,10 @@ func (s *server) uploadMedia(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if err := extendDeadlines(w, largeTransferTimeout); err != nil {
+		s.writeMediaError(w, err)
+		return
+	}
 	asset, err := s.media.Upload(r.Context(), authority, applicationmedia.UploadRequest{
 		Kind: applicationmedia.Kind(r.PathValue("kind")), TargetKey: r.PathValue("target"),
 		Content: r.Body, Bytes: uint64(r.ContentLength), MediaType: r.Header.Get("Content-Type"),
@@ -132,6 +136,10 @@ func (s *server) readMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+	if err := extendDeadlines(w, largeTransferTimeout); err != nil {
+		s.writeMediaError(w, err)
+		return
+	}
 	filename := asset.Blob.OriginalName
 	if filename == "" {
 		filename = asset.Blob.ID

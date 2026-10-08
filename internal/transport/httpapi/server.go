@@ -187,7 +187,7 @@ func New(config Config) (http.Handler, error) {
 	if s.authentication != nil {
 		handler = s.attachSession(handler)
 	}
-	return requestLog(config.Logger, handler), nil
+	return handler, nil
 }
 
 func (s *server) health(w http.ResponseWriter, r *http.Request) {
@@ -218,10 +218,19 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
-func requestLog(logger *slog.Logger, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		started := time.Now()
-		next.ServeHTTP(w, r)
-		logger.Debug("HTTP request", "method", r.Method, "path", r.URL.Path, "duration", time.Since(started))
-	})
+// largeTransferTimeout bounds media and add-on package transfers, which can
+// outlast the server-wide read and write timeouts on a slow connection.
+const largeTransferTimeout = 15 * time.Minute
+
+// extendDeadlines lifts the server-wide read and write timeouts for one
+// request. Recorders without deadline support are left as they are.
+func extendDeadlines(w http.ResponseWriter, duration time.Duration) error {
+	controller := http.NewResponseController(w)
+	until := time.Now().Add(duration)
+	for _, extend := range []func(time.Time) error{controller.SetReadDeadline, controller.SetWriteDeadline} {
+		if err := extend(until); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			return err
+		}
+	}
+	return nil
 }
