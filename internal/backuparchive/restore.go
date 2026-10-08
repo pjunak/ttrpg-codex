@@ -2,7 +2,6 @@ package backuparchive
 
 import (
 	"archive/zip"
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -206,9 +205,7 @@ func recoverOfflineRestore(ctx context.Context, absolute string, migrations fs.F
 		return fmt.Errorf("read restore journal: %w", err)
 	}
 	var journal restoreJournal
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&journal); err != nil || decoder.Decode(&struct{}{}) != io.EOF {
+	if err := decodeStrict(body, &journal); err != nil {
 		return fmt.Errorf("%w: restore journal is invalid", ErrRestorePending)
 	}
 	parent := filepath.Dir(absolute)
@@ -310,9 +307,7 @@ func decodeManifest(file *zip.File, limits Limits) (Manifest, error) {
 		return Manifest{}, fmt.Errorf("%w: read manifest", ErrInvalidArchive)
 	}
 	var manifest Manifest
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&manifest); err != nil || decoder.Decode(&struct{}{}) != io.EOF {
+	if err := decodeStrict(body, &manifest); err != nil {
 		return Manifest{}, fmt.Errorf("%w: manifest JSON is invalid", ErrInvalidArchive)
 	}
 	if manifest.ContractVersion != ContractVersion ||

@@ -162,10 +162,7 @@ func (planner *mutationPlanner) applyDerivedPolicies() error {
 }
 
 func (planner *mutationPlanner) validatePlayerReferences() error {
-	ids, err := planner.visibleIdentityIDs()
-	if err != nil {
-		return err
-	}
+	ids := planner.visibleIdentityIDs()
 	targetKinds, err := planner.relationshipTargetKinds()
 	if err != nil {
 		return err
@@ -257,10 +254,7 @@ func (planner *mutationPlanner) preserveUnavailablePlayerReferences(
 	if err != nil {
 		return nil, err
 	}
-	ids, err := planner.visibleIdentityIDs()
-	if err != nil {
-		return nil, err
-	}
+	ids := planner.visibleIdentityIDs()
 
 	switch existing.Collection {
 	case campaign.Characters:
@@ -290,17 +284,9 @@ func (planner *mutationPlanner) preserveUnavailablePlayerReferences(
 	return body, nil
 }
 
-func (planner *mutationPlanner) visibleIdentityIDs() (
-	map[campaign.Collection]map[string]struct{},
-	error,
-) {
-	collections := []campaign.Collection{
-		campaign.Characters, campaign.Locations, campaign.Events,
-		campaign.Mysteries, campaign.Factions, campaign.Pantheon,
-		campaign.Artifacts, campaign.HistoricalEvents,
-	}
-	result := make(map[campaign.Collection]map[string]struct{}, len(collections))
-	for _, collection := range collections {
+func (planner *mutationPlanner) visibleIdentityIDs() map[campaign.Collection]map[string]struct{} {
+	result := make(map[campaign.Collection]map[string]struct{}, len(identityCollections))
+	for _, collection := range identityCollections {
 		result[collection] = make(map[string]struct{})
 		for _, record := range planner.records(collection) {
 			if record.Visibility != campaign.VisibilityPublic {
@@ -309,7 +295,7 @@ func (planner *mutationPlanner) visibleIdentityIDs() (
 			result[collection][record.Key] = struct{}{}
 		}
 	}
-	return result, nil
+	return result
 }
 
 func (planner *mutationPlanner) transaction(actorID string) (campaign.Transaction, error) {
@@ -402,7 +388,7 @@ func (planner *mutationPlanner) markDerived(target string) {
 func (planner *mutationPlanner) clearTwin(deleted campaign.Record) error {
 	value, err := objectValue(deleted.Value)
 	if err != nil {
-		return nil
+		return err
 	}
 	twinID, ok := value["linkedTwinId"].(string)
 	if !ok || twinID == "" {
@@ -663,31 +649,7 @@ func (planner *mutationPlanner) removeLocationSettings(id string) error {
 }
 
 func (planner *mutationPlanner) relationshipTargetKinds() (map[string]campaign.Collection, error) {
-	result := map[string]campaign.Collection{"mission": campaign.Locations}
-	record, exists := planner.record(campaign.Settings, "relationshipTypes")
-	if !exists {
-		return result, nil
-	}
-	var values []any
-	if err := json.Unmarshal(record.Value, &values); err != nil {
-		return nil, fmt.Errorf("settings:relationshipTypes is invalid")
-	}
-	for _, candidate := range values {
-		value, ok := candidate.(map[string]any)
-		if !ok {
-			continue
-		}
-		id, _ := value["id"].(string)
-		if id == "" {
-			continue
-		}
-		if value["target"] == "location" {
-			result[id] = campaign.Locations
-		} else {
-			result[id] = campaign.Characters
-		}
-	}
-	return result, nil
+	return relationshipTargetKinds(planner.records(campaign.Settings))
 }
 
 func (planner *mutationPlanner) updateEachObject(
@@ -764,28 +726,12 @@ func (planner *mutationPlanner) record(
 
 func (planner *mutationPlanner) records(collection campaign.Collection) []campaign.Record {
 	result := make([]campaign.Record, 0)
-	seen := make(map[string]struct{})
 	for _, target := range planner.recordOrder {
 		record, exists := planner.current[target]
 		if !exists || record.Collection != collection {
 			continue
 		}
 		result = append(result, record)
-		seen[target] = struct{}{}
-	}
-	// Defensive determinism if a future derived policy creates a record without
-	// first appending it to recordOrder.
-	extra := make([]string, 0)
-	for target, record := range planner.current {
-		if record.Collection == collection {
-			if _, exists := seen[target]; !exists {
-				extra = append(extra, target)
-			}
-		}
-	}
-	sort.Strings(extra)
-	for _, target := range extra {
-		result = append(result, planner.current[target])
 	}
 	return result
 }
