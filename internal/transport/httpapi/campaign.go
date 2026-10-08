@@ -67,7 +67,9 @@ func (s *server) registerCampaignRoutes(mux *http.ServeMux) {
 	}
 }
 
-func SessionCampaignTwinAuthorizer(service *sessionauth.Service) CampaignMutationAuthorizer {
+// SessionCampaignDMAuthorizer allows only an unpreviewed DM session, for
+// DM-only commands such as twin creation and enum deletion.
+func SessionCampaignDMAuthorizer(service *sessionauth.Service) CampaignMutationAuthorizer {
 	return func(r *http.Request) (campaigndata.MutationAuthority, error) {
 		actor, ok := sessionauth.ActorFromContext(r.Context())
 		if !ok || actor.RealRole != sessionauth.RoleDM || actor.Role != sessionauth.RoleDM ||

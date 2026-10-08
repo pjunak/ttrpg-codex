@@ -209,7 +209,7 @@ func TestSessionCampaignMutationAuthorizerRequiresBoundCSRFAndUsesEffectiveRole(
 		authority.ActorID != "session:"+session.Actor.SessionID {
 		t.Fatalf("DM authority = %+v, %v", authority, err)
 	}
-	twinAuthorize := SessionCampaignTwinAuthorizer(service)
+	twinAuthorize := SessionCampaignDMAuthorizer(service)
 	if twinAuthority, err := twinAuthorize(request); err != nil || twinAuthority.Role != campaigndata.WriteDM {
 		t.Fatalf("DM twin authority = %+v, %v", twinAuthority, err)
 	}

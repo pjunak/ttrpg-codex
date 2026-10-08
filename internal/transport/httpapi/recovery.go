@@ -103,6 +103,7 @@ func (s *server) recoveryError(w http.ResponseWriter, err error) {
 	case errors.Is(err, recoverystore.ErrInvalid):
 		writeAPIError(w, http.StatusBadRequest, "INVALID_RECOVERY", "select a point or one to fifty edit groups")
 	default:
+		s.logger.Error("recovery request failed", "error", err)
 		writeAPIError(w, http.StatusServiceUnavailable, "RECOVERY_UNAVAILABLE", "could not complete the recovery request")
 	}
 }

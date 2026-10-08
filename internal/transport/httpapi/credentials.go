@@ -49,6 +49,7 @@ func (s *server) changePassword(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, sessionauth.ErrRoleTransition):
 			writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "DM authorization is required")
 		default:
+			s.logger.Error("save password settings", "error", err)
 			writeAPIError(w, http.StatusServiceUnavailable, "AUTH_UNAVAILABLE", "could not save password settings")
 		}
 		return
