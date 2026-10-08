@@ -39,6 +39,10 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 	query.Set("_foreign_keys", "true")
 	query.Set("_journal_mode", "WAL")
 	query.Set("_synchronous", "FULL")
+	// Stores read before they write. Writers take the lock at BEGIN so they
+	// wait on busy_timeout instead of failing when upgrading a stale snapshot.
+	// Read-only transactions still begin deferred.
+	query.Set("_txlock", "immediate")
 	dsn.RawQuery = query.Encode()
 
 	connector, err := moderncsqlite.NewConnector(dsn.String())

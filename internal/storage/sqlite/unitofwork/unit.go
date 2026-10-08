@@ -20,7 +20,7 @@ func Run(ctx context.Context, db *sql.DB, apply func(context.Context, *sql.Tx) e
 	if ctx.Value(key{}) != nil {
 		return errors.New("nested host transactions are forbidden")
 	}
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func Begin(ctx context.Context, db *sql.DB) (*sql.Tx, func(), error) {
 		}
 		return owner.tx, func() {}, nil
 	}
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, func() {}, err
 	}
