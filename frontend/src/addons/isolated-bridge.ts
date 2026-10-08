@@ -11,7 +11,7 @@ import {
 } from "./data-client.js";
 import type { BrowserContributionDescriptor } from "./generation-manager.js";
 import { parseContributionEditState, type BrowserContributionEditHandle } from "./edit-state.js";
-import type { BrowserServiceHandle } from "./service-client.js";
+import { AddonServiceHTTPError, type BrowserServiceHandle } from "./service-client.js";
 import {
   AddonContentHTTPError,
   type AddonContentQueryOptions,
@@ -929,6 +929,12 @@ function isolatedSDKError(
     return Object.freeze({
       code: `ADDON_CONTENT_${cause.status}`,
       message: `The add-on content request failed with status ${cause.status}.`,
+    });
+  }
+  if (cause instanceof AddonServiceHTTPError) {
+    return Object.freeze({
+      code: cause.code,
+      message: `The add-on service request failed with status ${cause.status}.`,
     });
   }
   if (cause instanceof DOMException && cause.name === "AbortError") {

@@ -393,7 +393,11 @@ export class AddonAdminClient {
       ...(archive ? { body: archive } : body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
     this.signal.throwIfAborted();
-    const value: unknown = await waitForSignal(response.json(), this.signal);
+    // Proxies can answer errors with non-JSON pages; keep their HTTP status.
+    const value: unknown = await waitForSignal(
+      response.ok ? response.json() : response.json().catch(() => undefined),
+      this.signal,
+    );
     this.signal.throwIfAborted();
     if (!response.ok) {
       const error = isRecord(value) && isRecord(value["error"]) ? value["error"] : undefined;

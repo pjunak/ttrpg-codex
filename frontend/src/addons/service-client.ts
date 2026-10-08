@@ -230,6 +230,9 @@ export class BrowserAddonServiceClient {
     try {
       value = JSON.parse(text) as unknown;
     } catch {
+      if (!response.ok) {
+        throw new AddonServiceHTTPError(response.status, "HTTP_ERROR");
+      }
       throw new BoundaryValidationError(
         `add-on service ${operation}`,
         "response must be valid JSON",

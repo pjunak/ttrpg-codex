@@ -27,10 +27,11 @@ import type {
   AddonContentSet,
   BrowserContentAPI,
 } from "../src/addons/content-client.js";
-import type {
-  BrowserServiceAPI,
-  BrowserServiceCallOptions,
-  BrowserServiceHandle,
+import {
+  AddonServiceHTTPError,
+  type BrowserServiceAPI,
+  type BrowserServiceCallOptions,
+  type BrowserServiceHandle,
 } from "../src/addons/service-client.js";
 
 const generationId = "a".repeat(64);
@@ -281,6 +282,22 @@ describe("IsolatedFrameBridge", () => {
       "hydrate",
       { character: { id: "c1" } },
       { deadlineMs: 2000, signal: expect.any(AbortSignal) },
+    );
+
+    call.mockRejectedValueOnce(new AddonServiceHTTPError(503, "SERVICE_UNAVAILABLE"));
+    port.receive(
+      request("unavailable", "services.call", {
+        serviceId: "service-1",
+        method: "hydrate",
+        params: {},
+        options: {},
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(response(port, "unavailable")).toMatchObject({
+        ok: false,
+        error: { code: "SERVICE_UNAVAILABLE" },
+      }),
     );
     bridge.close();
   });

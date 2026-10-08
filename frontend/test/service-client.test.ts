@@ -206,6 +206,20 @@ describe("BrowserAddonServiceClient", () => {
         cardinality: "one",
       }),
     ).rejects.toEqual(new AddonServiceHTTPError(409, "STALE_BINDING"));
+
+    const proxyPage = createClient(
+      async () =>
+        new Response("<html>Bad Gateway</html>", {
+          status: 502,
+          headers: { "Content-Type": "text/html" },
+        }),
+    );
+    await expect(
+      proxyPage.api().connect("dnd5e.rules-engine", {
+        range: "^3.0.0",
+        cardinality: "one",
+      }),
+    ).rejects.toEqual(new AddonServiceHTTPError(502, "HTTP_ERROR"));
   });
 });
 
