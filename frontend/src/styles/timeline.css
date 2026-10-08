@@ -4,10 +4,6 @@
 
 /* Shell: fills viewport like a map view */
 .tl-shell {
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --space-5: 1.25rem;
-  --radius-pill: 999px;
   position: fixed;
   top: 0;
   left: var(--sidebar-width);
@@ -204,16 +200,6 @@ codex-timeline-slot {
   border-color: rgba(var(--accent-gold-rgb), 0.28);
 }
 
-.tl-col-phantom {
-  background: repeating-linear-gradient(
-    135deg,
-    rgba(var(--accent-gold-rgb), 0.04) 0 8px,
-    transparent 8px 16px
-  );
-  border-style: dashed;
-  border-color: rgba(var(--accent-gold-rgb), 0.22);
-}
-
 /* Column header */
 .tl-col-header {
   display: flex;
@@ -296,10 +282,6 @@ codex-timeline-slot {
 .tl-card:focus-within {
   outline: 2px solid var(--accent-gold);
   outline-offset: 2px;
-}
-.tl-col-phantom .tl-col-title {
-  color: var(--text-muted);
-  font-style: italic;
 }
 .tl-col-count {
   font-family: var(--font-ui);

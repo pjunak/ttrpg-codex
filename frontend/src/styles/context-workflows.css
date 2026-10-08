@@ -110,7 +110,7 @@
   min-height: 2.75rem;
 }
 .quick-search-dialog .search-heading h2 {
-  font: 1.6rem var(--font-heading);
+  font: 1.6rem var(--font-title);
   margin: 0.75rem 0;
 }
 .quick-search-dialog .search-heading p {

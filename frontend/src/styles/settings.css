@@ -624,7 +624,7 @@ codex-addon-manager {
   display: block;
 }
 .addon-manager [role="alert"] {
-  color: var(--danger, #f4a6a6);
+  color: var(--color-danger);
 }
 .addon-settings-tabs {
   display: flex;

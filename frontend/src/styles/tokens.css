@@ -47,11 +47,18 @@
   --radius: 6px;
   --radius-lg: 12px;
   --shadow-card: 0 2px 12px rgb(0 0 0 / 50%), 0 1px 3px rgb(0 0 0 / 40%);
+  --shadow-sm: 0 1px 4px rgb(0 0 0 / 35%);
   --shadow-md: 0 6px 20px rgb(0 0 0 / 40%);
+  --radius-pill: 999px;
+  --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --text-xs: 0.75rem;
   --text-sm: 0.85rem;
+  --text-lg: 1.15rem;
   --text-2xl: 2rem;
   --text-3xl: 2.6rem;
   --ui-font: var(--font-ui);
