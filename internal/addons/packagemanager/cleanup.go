@@ -368,6 +368,7 @@ func (manager *Manager) finishCleanupLocked(ctx context.Context, review CleanupR
 		// Never resume against a generation that has reappeared in metadata.
 		var present int
 		if err := manager.store.db.QueryRowContext(ctx, "SELECT count(*) FROM addon_package_generations WHERE addon_id=? AND generation_id=?", generation.AddonID, generation.GenerationID).Scan(&present); err != nil {
+			manager.logger.Error("approved package cleanup could not check generation metadata", "addonId", generation.AddonID, "generationId", generation.GenerationID, "error", err)
 			return result, nil
 		}
 		if present != 0 {
@@ -380,6 +381,7 @@ func (manager *Manager) finishCleanupLocked(ctx context.Context, review CleanupR
 		delete(manager.contentCache, generation.AddonID+":"+generation.GenerationID)
 	}
 	if _, err := manager.store.db.ExecContext(ctx, `UPDATE addon_package_cleanups SET status='complete', completed_at=? WHERE review_sha256=? AND status='pending'`, manager.store.now().UTC().Format(time.RFC3339Nano), review.ReviewSHA256); err != nil {
+		manager.logger.Error("approved package cleanup could not be marked complete", "reviewSha256", review.ReviewSHA256, "error", err)
 		return result, nil
 	}
 	return cleanupResult(review, true), nil

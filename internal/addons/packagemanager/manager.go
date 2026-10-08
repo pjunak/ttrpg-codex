@@ -716,7 +716,6 @@ func (manager *Manager) createRuntime(
 		Manifest:           report.Manifest,
 		GrantedPermissions: append([]packageinspect.Permission(nil), permissions...),
 		BoundServices:      append([]servicebroker.Handle(nil), services...),
-		ServiceContracts:   report.ServiceRegistry().Descriptions(),
 	})
 	if err != nil {
 		return nil, err

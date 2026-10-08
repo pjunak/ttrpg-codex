@@ -17,7 +17,8 @@ type Issue struct {
 
 // Transition quiesces data calls for one add-on while the package manager
 // changes its durable active-generation pointer. Commit selects the target
-// registry; Rollback retains the previous one. Exactly one must be called.
+// registry; Rollback retains the previous one. The first call decides; later
+// calls are no-ops, so callers may defer Rollback after a Commit.
 type Transition interface {
 	Commit()
 	Rollback()

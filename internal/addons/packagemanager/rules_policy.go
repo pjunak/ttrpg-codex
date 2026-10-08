@@ -1,12 +1,12 @@
 package packagemanager
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"slices"
 	"sort"
 
@@ -319,7 +319,7 @@ func (manager *Manager) SetSourcePolicy(ctx context.Context, plan SourcePolicyPl
 		}
 	}
 	after, _ := json.Marshal(configuration.Sources)
-	if reflect.DeepEqual(before, after) {
+	if bytes.Equal(before, after) {
 		return unchangedConfiguration(), nil
 	}
 	return manager.reconfigureLocked(ctx, func() error { return manager.store.saveSources(ctx, configuration) })

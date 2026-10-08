@@ -11,7 +11,6 @@ import (
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
-	"github.com/pjunak/ttrpg-codex/internal/addons/servicecontract"
 	"github.com/pjunak/ttrpg-codex/internal/addons/workersupervisor"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
 )
@@ -228,7 +227,6 @@ type RuntimeSpec struct {
 	Manifest           packageinspect.Manifest
 	GrantedPermissions []packageinspect.Permission
 	BoundServices      []servicebroker.Handle
-	ServiceContracts   []servicecontract.Description
 }
 
 type Runtime interface {
