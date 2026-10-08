@@ -1708,3 +1708,30 @@ void test("empty profile fields keep keyboard focus when saved or cancelled", as
     0,
   );
 });
+
+void test("a rejected inline field save keeps the draft and shows why", async (t) => {
+  await put(admin, csrf, "inline-conflict-town", { name: "Inline conflict town" });
+  const dm = await open(t, "dm");
+  await dm.page.goto("/#/locations/inline-conflict-town");
+  await dm.page.getByRole("button", { name: "Edit Name", exact: true }).click();
+  const draft = dm.page.getByRole("textbox", { name: "Name", exact: true });
+  await draft.fill("Inline draft name");
+  const current = await record("inline-conflict-town");
+  await put(
+    admin,
+    csrf,
+    "inline-conflict-town",
+    { ...current.value, name: "Inline remote name" },
+    current.revision,
+  );
+  await draft.press("Enter");
+  await dm.page
+    .locator(".inline-edit-error")
+    .getByText(
+      "This field changed elsewhere. Your draft is kept. Review the current value before retrying.",
+      { exact: true },
+    )
+    .waitFor();
+  assert.equal(await draft.inputValue(), "Inline draft name");
+  assert.equal((await record("inline-conflict-town")).value.name, "Inline remote name");
+});

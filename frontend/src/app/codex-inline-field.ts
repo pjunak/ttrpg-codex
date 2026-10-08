@@ -77,7 +77,9 @@ export class CodexInlineField extends LitElement {
     const previous = changed.get("record") as CampaignRecord | undefined;
     if (
       (previous && previous.key !== this.record?.key) ||
-      (changed.has("canEdit") && !this.canEdit)
+      // A save turns the page read-only while it runs; the saving field stays
+      // open so a rejection can show its message next to the kept draft.
+      (changed.has("canEdit") && !this.canEdit && !this.pending)
     )
       this.#close();
   }
