@@ -521,6 +521,12 @@ func (peer *Peer) handleRequest(
 		"result":  result,
 	}, beforeWrite)
 	peer.notifyResponseWritten(request, writeErr)
+	if writeErr != nil && isLocalWriteFailure(writeErr) && peer.ctx.Err() == nil {
+		// Encoding, size and schema failures publish nothing, so the caller can
+		// still get an error and the connection stays usable.
+		peer.writeFailure(request.ID, NewRPCError(JSONRPCInternalError, KindInternal, "The worker RPC result could not be sent.", false, nil))
+		return
+	}
 	if writeErr != nil {
 		peer.stop(writeErr)
 	}

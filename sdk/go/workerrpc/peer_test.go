@@ -486,3 +486,24 @@ func (writer *blockingWriter) Write(body []byte) (int, error) {
 	<-writer.release
 	return len(body), nil
 }
+
+func TestPeerAnswersUnencodableResultWithoutClosing(t *testing.T) {
+	t.Parallel()
+
+	host, _ := newTestPeerPair(t, nil,
+		RequestHandlerFunc(func(_ context.Context, request Request) (any, error) {
+			if request.Method == "addon/service.call" {
+				return map[string]any{"bad": make(chan int)}, nil
+			}
+			return map[string]any{"ok": true}, nil
+		}),
+		nil,
+		nil,
+	)
+
+	_, err := host.Call(context.Background(), "addon/service.call", map[string]any{}, testMeta())
+	assertRPCError(t, err, KindInternal)
+	if _, err := host.Call(context.Background(), "addon/health", map[string]any{}, testMeta()); err != nil {
+		t.Fatalf("peer closed after an unencodable result: %v", err)
+	}
+}
