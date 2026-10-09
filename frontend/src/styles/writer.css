@@ -62,7 +62,7 @@ codex-markdown-editor {
   color: var(--text-parchment);
   background: var(--bg-surface);
   border: 1px solid var(--chrome-field-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font: 0.8rem var(--font-ui);
 }
 .writer-dialog button {

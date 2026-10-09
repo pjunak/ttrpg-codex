@@ -45,6 +45,7 @@
   --sidebar-width: 240px;
   --bottom-nav-h: 60px;
   --radius: 6px;
+  --radius-sm: 4px;
   --radius-lg: 12px;
   --shadow-card: 0 2px 12px rgb(0 0 0 / 50%), 0 1px 3px rgb(0 0 0 / 40%);
   --shadow-sm: 0 1px 4px rgb(0 0 0 / 35%);

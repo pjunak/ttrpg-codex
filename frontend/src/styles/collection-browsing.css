@@ -21,7 +21,7 @@ codex-collection-browser {
   min-height: 1.9rem;
   padding: 0.2rem 0.8rem;
   border: 1px solid var(--border-subtle);
-  border-radius: 100px;
+  border-radius: var(--radius-pill);
   background: var(--bg-raised);
   color: var(--text-muted);
   font: 0.75rem/1.3 var(--font-ui);
@@ -230,7 +230,7 @@ codex-collection-browser {
 }
 .collection-group-title span {
   padding: 0 0.45rem;
-  border-radius: 100px;
+  border-radius: var(--radius-pill);
   background: var(--bg-raised);
   color: var(--text-muted);
   font: 0.7rem/1.6 var(--font-ui);

@@ -65,7 +65,7 @@ codex-character-profile {
   padding: 0.15rem 0.2rem;
   margin: -0.15rem -0.2rem;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: inherit;
   text-align: left;
@@ -99,7 +99,7 @@ codex-character-profile {
   border: 1px solid var(--accent-gold);
   background: var(--bg-base);
   color: var(--text-parchment);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.4rem 0.5rem;
   font: inherit;
 }
@@ -165,7 +165,7 @@ codex-character-profile {
 .character-save-status button,
 .character-add {
   border: 1px solid var(--chrome-field-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-parchment);
   background: var(--bg-surface);
   padding: 0.45rem 0.65rem;
@@ -357,7 +357,7 @@ codex-inline-field .inline-edit-actions button,
   height: 1.75rem;
   padding: 0;
   border: 1px solid var(--chrome-field-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-muted);
   font: 0.85rem/1 var(--font-ui);
@@ -465,7 +465,7 @@ codex-inline-field:has(.inline-field-editor) {
   padding: 0.1rem 0.3rem;
   margin: -0.1rem -0.3rem;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -511,7 +511,7 @@ codex-inline-field:has(.inline-field-editor) {
 .inline-field-editor :is(input, select) {
   width: 100%;
   min-width: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--bg-base);
   color: var(--text-parchment);
   font: inherit;
@@ -537,7 +537,7 @@ codex-inline-field:has(.inline-field-editor) {
 .inline-edit-recovery button {
   padding: 0.2rem 0.55rem;
   border: 1px solid var(--chrome-field-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-parchment);
   font: 0.75rem var(--font-ui);

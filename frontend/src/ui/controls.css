@@ -374,7 +374,7 @@
     max-width: 100%;
     padding: 0.05rem 0.1rem 0.05rem 0.55rem;
     border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
-    border-radius: 100px;
+    border-radius: var(--radius-pill);
     background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
     color: var(--ui-text);
     font: calc(var(--ui-font-size) * 0.92) / 1.4 var(--ui-font);
