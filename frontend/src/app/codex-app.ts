@@ -1972,199 +1972,133 @@ export class CodexApp extends LitElement {
     }
   };
 
-  readonly #deleteCampaignRecord = async (
-    event: CustomEvent<CampaignRecordDeleteDetail>,
-  ): Promise<void> => {
+  /**
+   * The shared path of a campaign save: authority and readiness checks, the
+   * busy state, the write, a reload, and settling the editor that asked.
+   * `run` prepares and commits; any error it throws is shown via `failure`.
+   */
+  async #write(
+    event: Event,
+    access: "edit" | "manage",
+    run: (campaign: CampaignDataset, csrfToken: string, signal: AbortSignal) => Promise<unknown>,
+    failure: (cause: unknown) => string,
+  ): Promise<boolean> {
     const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
-      !this.#canEdit() ||
+      !(access === "manage" ? this.#canManageCampaign() : this.#canEdit()) ||
       this.authority.state !== "known" ||
       !this.authority.auth.authenticated ||
       this.campaignState.state !== "ready"
     )
-      return;
-    let prepared: PreparedCampaignRecordTransaction;
-    try {
-      prepared = prepareCampaignRecordDelete(this.campaignState.campaign, event.detail);
-    } catch (cause: unknown) {
-      this.errorMessage =
-        cause instanceof CampaignRecordEditError && cause.kind === "stale"
-          ? uiText("The entry changed before it could be deleted. Refresh and try again.")
-          : uiText("The delete request is no longer valid.");
-      return;
-    }
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
+      return false;
+    const signal = this.#request.signal,
+      csrfToken = this.authority.auth.csrfToken;
     this.busy = true;
     this.errorMessage = "";
     try {
-      await this.#campaignMutations.commit(prepared.mutations, csrfToken, signal);
+      await run(this.campaignState.campaign, csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
       settle();
       this.editCompletion += 1;
-      window.location.hash =
-        prepared.page.collection === "events" ? "#/timeline" : collectionHash(prepared.page);
+      return true;
     } catch (cause: unknown) {
-      if (!signal.aborted) {
-        this.errorMessage =
-          cause instanceof CampaignMutationHTTPError && cause.status === 409
-            ? uiText("The entry changed while deleting. Reload its current version and try again.")
-            : uiText("The entry could not be deleted: {0}", { "0": errorMessage(cause) });
-      }
+      if (!signal.aborted) this.errorMessage = failure(cause);
+      return false;
     } finally {
       if (!signal.aborted) this.busy = false;
     }
+  }
+
+  readonly #deleteCampaignRecord = async (
+    event: CustomEvent<CampaignRecordDeleteDetail>,
+  ): Promise<void> => {
+    let prepared: PreparedCampaignRecordTransaction | undefined;
+    const deleted = await this.#write(
+      event,
+      "edit",
+      async (campaign, csrfToken, signal) => {
+        prepared = prepareCampaignRecordDelete(campaign, event.detail);
+        await this.#campaignMutations.commit(prepared.mutations, csrfToken, signal);
+      },
+      (cause) =>
+        cause instanceof CampaignRecordEditError
+          ? cause.kind === "stale"
+            ? uiText("The entry changed before it could be deleted. Refresh and try again.")
+            : uiText("The delete request is no longer valid.")
+          : cause instanceof CampaignMutationHTTPError && cause.status === 409
+            ? uiText("The entry changed while deleting. Reload its current version and try again.")
+            : uiText("The entry could not be deleted: {0}", { "0": errorMessage(cause) }),
+    );
+    if (deleted && prepared)
+      window.location.hash =
+        prepared.page.collection === "events" ? "#/timeline" : collectionHash(prepared.page);
   };
 
   readonly #saveCampaignEnum = async (
     event: CustomEvent<CampaignEnumSaveDetail>,
   ): Promise<void> => {
-    const settle = this.#edits.settler(event);
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canManageCampaign() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return;
-    let mutation: CampaignMutation;
-    try {
-      mutation = prepareCampaignEnumSave(this.campaignState.campaign, event.detail);
-    } catch (cause: unknown) {
-      this.errorMessage =
+    await this.#write(
+      event,
+      "manage",
+      async (campaign, csrfToken, signal) => {
+        const mutation = prepareCampaignEnumSave(campaign, event.detail);
+        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      },
+      (cause) =>
         cause instanceof CampaignSettingsEditError
           ? cause.kind === "stale"
             ? uiText(
                 "The definition changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version.",
               )
             : uiText("The definition contains a value that cannot be saved.")
-          : uiText("The definition could not be prepared: {0}", { "0": errorMessage(cause) });
-      return;
-    }
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      await this.#campaignMutations.commit([mutation], csrfToken, signal);
-      await this.#loadCampaign(signal, true);
-      signal.throwIfAborted();
-      settle();
-      this.editCompletion += 1;
-    } catch (cause: unknown) {
-      if (!signal.aborted) {
-        this.errorMessage =
-          cause instanceof CampaignMutationHTTPError && cause.status === 409
+          : cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? uiText("Settings changed while saving. Reload the current definition and try again.")
-            : uiText("The definition could not be saved: {0}", { "0": errorMessage(cause) });
-      }
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
+            : uiText("The definition could not be saved: {0}", { "0": errorMessage(cause) }),
+    );
   };
 
   readonly #deleteCampaignEnum = async (
     event: CustomEvent<CampaignEnumDeleteMutation>,
   ): Promise<void> => {
-    const settle = this.#edits.settler(event);
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canManageCampaign() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return;
-    let mutation: CampaignEnumDeleteMutation;
-    try {
-      mutation = prepareCampaignEnumDelete(this.campaignState.campaign, event.detail);
-    } catch (cause: unknown) {
-      this.errorMessage =
+    await this.#write(
+      event,
+      "manage",
+      async (campaign, csrfToken, signal) => {
+        const mutation = prepareCampaignEnumDelete(campaign, event.detail);
+        await this.#campaignMutations.deleteEnumItem(mutation, csrfToken, signal);
+      },
+      (cause) =>
         cause instanceof CampaignSettingsEditError
           ? uiText("The definition changed before it could be deleted.")
-          : uiText("The deletion could not be prepared: {0}", { "0": errorMessage(cause) });
-      return;
-    }
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      await this.#campaignMutations.deleteEnumItem(mutation, csrfToken, signal);
-      await this.#loadCampaign(signal, true);
-      signal.throwIfAborted();
-      settle();
-      this.editCompletion += 1;
-    } catch (cause: unknown) {
-      if (!signal.aborted) {
-        this.errorMessage =
-          cause instanceof CampaignMutationHTTPError && cause.status === 409
-            ? mutation.mode === "reject-if-used"
+          : cause instanceof CampaignMutationHTTPError && cause.status === 409
+            ? event.detail.mode === "reject-if-used"
               ? uiText(
                   "The definition is now in use or settings changed. Review the category and try again.",
                 )
               : uiText("Settings changed while deleting. Review the category and try again.")
-            : uiText("The definition could not be deleted: {0}", { "0": errorMessage(cause) });
-      }
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
+            : uiText("The definition could not be deleted: {0}", { "0": errorMessage(cause) }),
+    );
   };
 
   readonly #saveMap = async (event: CustomEvent<MapSaveDetail>): Promise<void> => {
-    const settle = this.#edits.settler(event);
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canEdit() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready" ||
-      ((event.detail.kind === "view" || event.detail.kind === "config") &&
-        !this.#canManageCampaign())
-    )
-      return;
-    let mutation: CampaignMutation;
-    try {
-      mutation = prepareMapSave(this.campaignState.campaign, event.detail);
-    } catch (cause) {
-      this.#mapError(cause);
-      return;
-    }
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      await this.#campaignMutations.commit([mutation], csrfToken, signal);
-      await this.#loadCampaign(signal, true);
-      signal.throwIfAborted();
-      settle();
-      this.editCompletion += 1;
-    } catch (cause) {
-      if (!signal.aborted) this.#mapError(cause);
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
+    // The shared map view and map configuration belong to the campaign owner.
+    const manage = event.detail.kind === "view" || event.detail.kind === "config";
+    await this.#write(
+      event,
+      manage ? "manage" : "edit",
+      async (campaign, csrfToken, signal) => {
+        const mutation = prepareMapSave(campaign, event.detail);
+        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      },
+      (cause) => this.#mapErrorMessage(cause),
+    );
   };
 
   readonly #saveTimeline = async (event: CustomEvent<TimelineDraft>): Promise<void> => {
-    const settle = this.#edits.settler(event);
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canEdit() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return;
+    if (this.campaignState.state !== "ready") return;
     let mutations: readonly CampaignMutation[];
     try {
       mutations = prepareTimelineReorder(this.campaignState.campaign, event.detail);
@@ -2179,30 +2113,22 @@ export class CodexApp extends LitElement {
       return;
     }
     if (mutations.length === 0) {
-      settle();
+      this.#edits.settler(event)();
       this.editCompletion++;
       return;
     }
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      await this.#campaignMutations.commit(mutations, csrfToken, signal);
-      await this.#loadCampaign(signal, true);
-      signal.throwIfAborted();
-      settle();
-      this.editCompletion++;
-    } catch (cause) {
-      if (!signal.aborted)
-        this.errorMessage = this.#ui.t(
+    await this.#write(
+      event,
+      "edit",
+      (_campaign, csrfToken, signal) =>
+        this.#campaignMutations.commit(mutations, csrfToken, signal),
+      (cause) =>
+        this.#ui.t(
           cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? "timeline.stale"
             : "timeline.failed",
-        );
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
+        ),
+    );
   };
 
   readonly #uploadMap = async (event: CustomEvent<MapUploadDetail>): Promise<void> => {
@@ -2258,7 +2184,10 @@ export class CodexApp extends LitElement {
   };
 
   #mapError(cause: unknown): void {
-    this.errorMessage = this.#ui.t(
+    this.errorMessage = this.#mapErrorMessage(cause);
+  }
+  #mapErrorMessage(cause: unknown): string {
+    return this.#ui.t(
       (cause instanceof CampaignMapEditError && cause.kind === "stale") ||
         (cause instanceof CampaignMutationHTTPError && cause.status === 409)
         ? "map.stale"
@@ -2290,240 +2219,123 @@ export class CodexApp extends LitElement {
   readonly #saveCampaignIdentity = async (
     event: CustomEvent<CampaignIdentitySaveDetail>,
   ): Promise<void> => {
-    const settle = this.#edits.settler(event);
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canManageCampaign() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return;
-    let mutation: CampaignMutation;
-    try {
-      mutation = prepareCampaignIdentitySave(this.campaignState.campaign, event.detail);
-    } catch (cause: unknown) {
-      this.errorMessage = this.#ui.t(
-        cause instanceof CampaignIdentityEditError && cause.kind === "stale"
-          ? "dashboard.identityStale"
-          : "dashboard.identityInvalid",
-      );
-      return;
-    }
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      await this.#campaignMutations.commit([mutation], csrfToken, signal);
-      await this.#loadCampaign(signal, true);
-      signal.throwIfAborted();
-      settle();
-      this.editCompletion += 1;
-    } catch (cause: unknown) {
-      if (!signal.aborted) {
-        this.errorMessage = this.#ui.t(
-          cause instanceof CampaignMutationHTTPError && cause.status === 409
+    await this.#write(
+      event,
+      "manage",
+      async (campaign, csrfToken, signal) => {
+        const mutation = prepareCampaignIdentitySave(campaign, event.detail);
+        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      },
+      (cause) =>
+        this.#ui.t(
+          (cause instanceof CampaignIdentityEditError && cause.kind === "stale") ||
+            (cause instanceof CampaignMutationHTTPError && cause.status === 409)
             ? "dashboard.identityStale"
-            : "dashboard.identityFailed",
-        );
-      }
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
+            : cause instanceof CampaignIdentityEditError
+              ? "dashboard.identityInvalid"
+              : "dashboard.identityFailed",
+        ),
+    );
   };
 
   readonly #saveSidebar = async (event: CustomEvent<SidebarSaveDetail>): Promise<void> => {
-    const settle = this.#edits.settler(event);
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canManageCampaign() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return;
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      const mutation = prepareSidebarSave(this.campaignState.campaign, event.detail);
-      const mutations = [mutation];
-      if (event.detail.addonVisibility !== undefined)
-        mutations.push(
-          prepareAddonSidebarSave(this.campaignState.campaign, event.detail.addonVisibility),
-        );
-      await this.#campaignMutations.commit(mutations, csrfToken, signal);
-      await this.#loadCampaign(signal, true);
-      signal.throwIfAborted();
-      settle();
-      this.editCompletion += 1;
-    } catch (cause) {
-      if (!signal.aborted)
-        this.errorMessage = this.#ui.t(
+    await this.#write(
+      event,
+      "manage",
+      async (campaign, csrfToken, signal) => {
+        const mutations = [prepareSidebarSave(campaign, event.detail)];
+        if (event.detail.addonVisibility !== undefined)
+          mutations.push(prepareAddonSidebarSave(campaign, event.detail.addonVisibility));
+        await this.#campaignMutations.commit(mutations, csrfToken, signal);
+      },
+      (cause) =>
+        this.#ui.t(
           (cause instanceof SidebarEditError && cause.kind === "stale") ||
             (cause instanceof CampaignMutationHTTPError && cause.status === 409)
             ? "sidebar.stale"
             : cause instanceof SidebarEditError
               ? "sidebar.invalid"
               : "sidebar.failed",
-        );
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
+        ),
+    );
   };
 
   readonly #saveBranding = async (event: CustomEvent<BrandingSaveDetail>): Promise<void> => {
-    const settle = this.#edits.settler(event);
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canManageCampaign() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return;
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      let mutation = prepareBrandingSave(this.campaignState.campaign, event.detail);
-      if (event.detail.file !== undefined) {
+    await this.#write(
+      event,
+      "manage",
+      async (campaign, csrfToken, signal) => {
+        let mutation = prepareBrandingSave(campaign, event.detail);
         const file = event.detail.file;
-        const media = await new MediaClient().upload(
-          "branding-logo",
-          "main",
-          file,
-          file.name,
-          csrfToken,
-          signal,
-        );
-        signal.throwIfAborted();
-        mutation = prepareBrandingSave(this.campaignState.campaign, {
-          ...event.detail,
-          logoUrl: media.url,
-        });
-      }
-      await this.#campaignMutations.commit([mutation], csrfToken, signal);
-      await this.#loadCampaign(signal, true);
-      signal.throwIfAborted();
-      settle();
-      this.editCompletion += 1;
-    } catch (cause) {
-      if (!signal.aborted)
-        this.errorMessage = this.#ui.t(
+        if (file !== undefined) {
+          const media = await new MediaClient().upload(
+            "branding-logo",
+            "main",
+            file,
+            file.name,
+            csrfToken,
+            signal,
+          );
+          signal.throwIfAborted();
+          mutation = prepareBrandingSave(campaign, { ...event.detail, logoUrl: media.url });
+        }
+        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      },
+      (cause) =>
+        this.#ui.t(
           (cause instanceof BrandingEditError && cause.kind === "stale") ||
             (cause instanceof CampaignMutationHTTPError && cause.status === 409)
             ? "branding.stale"
             : cause instanceof BrandingEditError
               ? "branding.invalid"
               : "branding.failed",
-        );
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
+        ),
+    );
   };
 
   readonly #saveCampaignParty = async (
     event: CustomEvent<CampaignPartySaveDetail>,
   ): Promise<void> => {
-    const settle = this.#edits.settler(event);
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canManageCampaign() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return;
-    let mutation: CampaignMutation;
-    try {
-      mutation = prepareCampaignPartySave(this.campaignState.campaign, event.detail);
-    } catch (cause: unknown) {
-      this.errorMessage = this.#ui.t(
-        cause instanceof CampaignPartyEditError && cause.kind === "stale"
-          ? "settings.partyStale"
-          : "settings.partyInvalid",
-      );
-      return;
-    }
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      await this.#campaignMutations.commit([mutation], csrfToken, signal);
-      await this.#loadCampaign(signal, true);
-      signal.throwIfAborted();
-      settle();
-      this.editCompletion += 1;
-    } catch (cause: unknown) {
-      if (!signal.aborted)
-        this.errorMessage = this.#ui.t(
-          cause instanceof CampaignMutationHTTPError && cause.status === 409
+    await this.#write(
+      event,
+      "manage",
+      async (campaign, csrfToken, signal) => {
+        const mutation = prepareCampaignPartySave(campaign, event.detail);
+        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      },
+      (cause) =>
+        this.#ui.t(
+          (cause instanceof CampaignPartyEditError && cause.kind === "stale") ||
+            (cause instanceof CampaignMutationHTTPError && cause.status === 409)
             ? "settings.partyStale"
-            : "settings.partyFailed",
-        );
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
+            : cause instanceof CampaignPartyEditError
+              ? "settings.partyInvalid"
+              : "settings.partyFailed",
+        ),
+    );
   };
 
   readonly #saveCampaignAppearance = async (
     event: CustomEvent<CampaignAppearanceSaveDetail>,
   ): Promise<void> => {
-    const settle = this.#edits.settler(event);
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canManageCampaign() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return;
-    let mutation: CampaignMutation;
-    try {
-      mutation = prepareCampaignAppearanceSave(this.campaignState.campaign, event.detail);
-    } catch (cause: unknown) {
-      this.errorMessage =
+    await this.#write(
+      event,
+      "manage",
+      async (campaign, csrfToken, signal) => {
+        const mutation = prepareCampaignAppearanceSave(campaign, event.detail);
+        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+      },
+      (cause) =>
         cause instanceof CampaignAppearanceEditError
           ? cause.kind === "stale"
             ? uiText(
                 "Appearance changed. Your choice is kept; reopen Appearance to review the current theme before saving.",
               )
             : uiText("The appearance setting is invalid.")
-          : uiText("The appearance setting could not be prepared: {0}", {
-              "0": errorMessage(cause),
-            });
-      return;
-    }
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      await this.#campaignMutations.commit([mutation], csrfToken, signal);
-      await this.#loadCampaign(signal, true);
-      signal.throwIfAborted();
-      settle();
-      this.editCompletion += 1;
-    } catch (cause: unknown) {
-      if (!signal.aborted) {
-        this.errorMessage =
-          cause instanceof CampaignMutationHTTPError && cause.status === 409
+          : cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? uiText("Appearance changed while saving. Review the current theme and try again.")
-            : uiText("Appearance could not be saved: {0}", { "0": errorMessage(cause) });
-      }
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
+            : uiText("Appearance could not be saved: {0}", { "0": errorMessage(cause) }),
+    );
   };
 
   readonly #onHashChange = (): void => {
