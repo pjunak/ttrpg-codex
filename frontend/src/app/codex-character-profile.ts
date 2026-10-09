@@ -5,6 +5,7 @@ import {
   renderArticleReferences,
   renderCharacterRelationships,
   renderCharacterLocationRoles,
+  renderRecordBadges,
 } from "./article-context-view.js";
 import { characterKnowledge, characterReadingValue } from "./character-reading.js";
 import { campaignPages } from "./routes.js";
@@ -199,9 +200,7 @@ export class CodexCharacterProfile extends LitElement {
           })}
           <div><span class="record-kind">${uiText("Character")}</span><h1 id="record-title" aria-label=${text(value["name"])}>${this.#inline("name")}</h1>
             ${revealed && this.#hasValue("title") ? html`<div class="character-subtitle">${this.#inline("title")}</div>` : nothing}
-            <div class="record-badges">${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
-              ${entity.partyIdentity ? html`<span class="party-identity-badge" style=${`background:${entity.partyIdentity.color};color:${entity.partyIdentity.textColor}`}>${entity.partyIdentity.badge} ${entity.partyIdentity.name}</span>` : nothing}
-              ${entity.attitudes.map((attitude) => html`<span class="attitude-badge" style=${`--attitude-color:${attitude.color}`}>${attitude.label}</span>`)}</div>
+            ${renderRecordBadges(entity)}
           </div></header>
           <dl class="record-facts">${(revealed ? ["species", "gender", "age", "status", "knowledge", "tags"] : ["knowledge"]).filter((key) => this.#hasValue(key)).map((key) => this.#fact(key))}</dl>
           ${

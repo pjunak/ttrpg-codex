@@ -237,6 +237,11 @@ for (const mobile of [false, true])
     const badge = page.locator(".party-identity-badge");
     assert.equal(await badge.textContent().then(required), "🦉 Night Owls");
     assert.deepEqual(
+      await page.locator(".record-badges .attitude-badge").allTextContents(),
+      [],
+      "the party badge replaces the party attitude badge",
+    );
+    assert.deepEqual(
       await badge.evaluate((element) => {
         const style = getComputedStyle(element);
         return [style.backgroundColor, style.color];

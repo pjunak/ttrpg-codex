@@ -5,9 +5,33 @@ import {
   type ArticleReference,
   type ArticleContextSection,
 } from "./article-context.js";
+import type { EntitySummary } from "./campaign-projection.js";
 import { relationshipEditorRowsFor, relationshipTypeOptionsFor } from "./campaign-record-editor.js";
 import { locationRoleDrafts } from "./campaign-structured-editors.js";
 import { uiText } from "./ui-localization.js";
+
+/**
+ * A record's header badges. A party member's party badge stands in for the
+ * "party" attitude, so that attitude is not shown a second time.
+ */
+export function renderRecordBadges(
+  entity: EntitySummary,
+  { status = false, tags = false }: { readonly status?: boolean; readonly tags?: boolean } = {},
+) {
+  const party = entity.partyIdentity;
+  return html`<div class="record-badges">
+    ${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
+    ${status && entity.status !== "" ? html`<span>${entity.statusLabel}</span>` : nothing}
+    ${party === undefined ? nothing : html`<span class="party-identity-badge" style=${`background: ${party.color}; color: ${party.textColor}`}>${party.badge} ${party.name}</span>`}
+    ${entity.attitudes
+      .filter((attitude) => party === undefined || attitude.id !== "party")
+      .map(
+        (attitude) =>
+          html`<span class="attitude-badge" style=${`--attitude-color: ${attitude.color}`}>${attitude.label}</span>`,
+      )}
+    ${tags ? entity.tags.map((tag) => html`<span>${tag}</span>`) : nothing}
+  </div>`;
+}
 
 export function renderArticleReference(reference: ArticleReference) {
   return reference.href

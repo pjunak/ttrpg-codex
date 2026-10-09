@@ -7,7 +7,11 @@ import { investigationStatus } from "./campaign-investigation.js";
 import { investigationBadge, investigationAnswers } from "./investigation-view.js";
 import { contextualCreationFields, creationSource, creationBackHash } from "./context-creation.js";
 import { articleContext, articleOwner, articleReferences } from "./article-context.js";
-import { renderArticleContext, renderArticleReferences } from "./article-context-view.js";
+import {
+  renderArticleContext,
+  renderArticleReferences,
+  renderRecordBadges,
+} from "./article-context-view.js";
 import { editorValue, recordFieldControl } from "./record-field-controls.js";
 import { uiPlural, uiText, uiSourceLabel } from "./ui-localization.js";
 import "./codex-portrait-editor.js";
@@ -429,26 +433,7 @@ export class CodexRecordPage extends LitElement {
                     : entity.name
                 }</h1>
                 ${entity.title === "" ? nothing : html`<p>${entity.title}</p>`}
-                <div class="record-badges">
-                  ${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
-                  ${entity.status === "" ? nothing : html`<span>${entity.statusLabel}</span>`}
-                  ${
-                    entity.partyIdentity === undefined
-                      ? nothing
-                      : html`<span class="party-identity-badge"
-                    style=${`background: ${entity.partyIdentity.color}; color: ${entity.partyIdentity.textColor}`}>${entity.partyIdentity.badge} ${entity.partyIdentity.name}</span>`
-                  }
-                  ${entity.attitudes
-                    .filter(
-                      (attitude) => entity.partyIdentity === undefined || attitude.id !== "party",
-                    )
-                    .map(
-                      (attitude) => html`
-                    <span class="attitude-badge" style=${`--attitude-color: ${attitude.color}`}>${attitude.label}</span>
-                  `,
-                    )}
-                  ${entity.tags.map((tag) => html`<span>${tag}</span>`)}
-                </div>
+                ${renderRecordBadges(entity, { status: true, tags: true })}
               </div>
               ${this.#mastheadActions(route, record, value)}
             </header>
