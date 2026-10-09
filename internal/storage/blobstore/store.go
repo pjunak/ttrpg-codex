@@ -17,6 +17,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/pjunak/ttrpg-codex/internal/ctxio"
 )
 
 const DefaultMaximumBytes = uint64(1 << 30)
@@ -149,9 +151,7 @@ func (store *Store) Create(ctx context.Context, request CreateRequest) (Blob, er
 	}()
 
 	hash := sha256.New()
-	written, copyErr := io.Copy(io.MultiWriter(stage, hash), &contextReader{
-		ctx: ctx, reader: io.LimitReader(request.Content, int64(request.Bytes)+1),
-	})
+	written, copyErr := io.Copy(io.MultiWriter(stage, hash), ctxio.Reader(ctx, io.LimitReader(request.Content, int64(request.Bytes)+1)))
 	if copyErr == nil && uint64(written) != request.Bytes {
 		copyErr = fmt.Errorf("declared %d bytes but received %d", request.Bytes, written)
 	}
@@ -453,18 +453,6 @@ func ensureRealDirectory(directory string) error {
 		return fmt.Errorf("%w: blob path is not a real directory", ErrCorrupt)
 	}
 	return nil
-}
-
-type contextReader struct {
-	ctx    context.Context
-	reader io.Reader
-}
-
-func (reader *contextReader) Read(buffer []byte) (int, error) {
-	if err := reader.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return reader.reader.Read(buffer)
 }
 
 type rowScanner interface {

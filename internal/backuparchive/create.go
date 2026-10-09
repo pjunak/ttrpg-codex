@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/pjunak/ttrpg-codex/internal/ctxio"
 )
 
 type CreateConfig struct {
@@ -386,9 +388,7 @@ func addFile(ctx context.Context, archive *zip.Writer, source sourceFile, limits
 		return Entry{}, fmt.Errorf("create backup file %s: %w", source.archivePath, err)
 	}
 	hash := sha256.New()
-	written, err := io.Copy(io.MultiWriter(writer, hash), &contextReader{
-		ctx: ctx, reader: io.LimitReader(input, int64(limits.MaximumFileBytes)+1),
-	})
+	written, err := io.Copy(io.MultiWriter(writer, hash), ctxio.Reader(ctx, io.LimitReader(input, int64(limits.MaximumFileBytes)+1)))
 	if err != nil {
 		return Entry{}, fmt.Errorf("write backup file %s: %w", source.archivePath, err)
 	}
@@ -418,16 +418,4 @@ func (writer *boundedManifestWriter) Write(body []byte) (int, error) {
 	written, err := writer.writer.Write(body)
 	writer.remaining -= uint64(written)
 	return written, err
-}
-
-type contextReader struct {
-	ctx    context.Context
-	reader io.Reader
-}
-
-func (reader *contextReader) Read(buffer []byte) (int, error) {
-	if err := reader.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return reader.reader.Read(buffer)
 }

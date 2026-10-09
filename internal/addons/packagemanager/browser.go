@@ -19,6 +19,8 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/events"
 
 	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
+
+	"github.com/pjunak/ttrpg-codex/internal/ctxio"
 )
 
 type browserGraphState struct {
@@ -354,7 +356,7 @@ func verifyBrowserAsset(ctx context.Context, file *os.File, expected packageinsp
 	hash := sha256.New()
 	written, err := io.Copy(
 		hash,
-		io.LimitReader(&contextReader{ctx: ctx, reader: file}, int64(expected.Bytes)+1),
+		io.LimitReader(ctxio.Reader(ctx, file), int64(expected.Bytes)+1),
 	)
 	if err != nil {
 		return fmt.Errorf("hash %s: %w", expected.Path, err)

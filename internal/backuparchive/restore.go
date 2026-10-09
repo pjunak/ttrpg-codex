@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
+
+	"github.com/pjunak/ttrpg-codex/internal/ctxio"
 )
 
 type RestoreConfig struct {
@@ -408,9 +410,7 @@ func extractArchive(
 			return fmt.Errorf("create restore entry %s: %w", archivePath, err)
 		}
 		hash := sha256.New()
-		written, copyErr := io.Copy(io.MultiWriter(output, hash), &contextReader{
-			ctx: ctx, reader: io.LimitReader(reader, int64(limits.MaximumFileBytes)+1),
-		})
+		written, copyErr := io.Copy(io.MultiWriter(output, hash), ctxio.Reader(ctx, io.LimitReader(reader, int64(limits.MaximumFileBytes)+1)))
 		if copyErr == nil && uint64(written) != entry.Bytes {
 			copyErr = fmt.Errorf("entry size differs from manifest")
 		}

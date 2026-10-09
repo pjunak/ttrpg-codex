@@ -26,6 +26,8 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 	"github.com/pjunak/ttrpg-codex/internal/addons/workersupervisor"
 	"github.com/pjunak/ttrpg-codex/internal/events"
+
+	"github.com/pjunak/ttrpg-codex/internal/ctxio"
 )
 
 const defaultMaxArchiveBytes int64 = 128 << 20
@@ -884,7 +886,7 @@ func copyBoundedArchive(ctx context.Context, input io.Reader, destination string
 	if err != nil {
 		return fmt.Errorf("create staged package: %w", err)
 	}
-	reader := &contextReader{ctx: ctx, reader: io.LimitReader(input, maximum+1)}
+	reader := ctxio.Reader(ctx, io.LimitReader(input, maximum+1))
 	written, copyErr := io.Copy(output, reader)
 	if copyErr == nil && written > maximum {
 		copyErr = fmt.Errorf("package source exceeds %d bytes", maximum)
@@ -900,18 +902,6 @@ func copyBoundedArchive(ctx context.Context, input io.Reader, destination string
 		return fmt.Errorf("close staged package: %w", closeErr)
 	}
 	return nil
-}
-
-type contextReader struct {
-	ctx    context.Context
-	reader io.Reader
-}
-
-func (reader *contextReader) Read(buffer []byte) (int, error) {
-	if err := reader.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return reader.reader.Read(buffer)
 }
 
 func validStageID(value string) bool {

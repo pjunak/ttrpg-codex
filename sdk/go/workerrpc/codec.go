@@ -14,6 +14,8 @@ import (
 
 	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"github.com/pjunak/ttrpg-codex/internal/ctxio"
 )
 
 type Limits struct {
@@ -102,7 +104,7 @@ func (c *Codec) Read(ctx context.Context) (Message, error) {
 		return Message{}, err
 	}
 	body := make([]byte, length)
-	if _, err := io.ReadFull(&contextReader{ctx: ctx, reader: c.reader}, body); err != nil {
+	if _, err := io.ReadFull(ctxio.Reader(ctx, c.reader), body); err != nil {
 		return Message{}, protocolError(CodeTruncatedFrame, err)
 	}
 	return c.validate(body)
@@ -311,16 +313,4 @@ func writeAll(ctx context.Context, writer io.Writer, body []byte) error {
 		body = body[written:]
 	}
 	return nil
-}
-
-type contextReader struct {
-	ctx    context.Context
-	reader io.Reader
-}
-
-func (r *contextReader) Read(buffer []byte) (int, error) {
-	if err := r.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return r.reader.Read(buffer)
 }

@@ -23,6 +23,8 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicecontract"
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"github.com/pjunak/ttrpg-codex/internal/ctxio"
 )
 
 const (
@@ -841,7 +843,7 @@ func hashFile(ctx context.Context, filename string, maximum int64) (string, erro
 	defer file.Close()
 
 	hash := sha256.New()
-	written, err := io.Copy(hash, io.LimitReader(&contextReader{ctx: ctx, reader: file}, maximum+1))
+	written, err := io.Copy(hash, io.LimitReader(ctxio.Reader(ctx, file), maximum+1))
 	if err != nil {
 		return "", err
 	}
@@ -849,16 +851,4 @@ func hashFile(ctx context.Context, filename string, maximum int64) (string, erro
 		return "", fmt.Errorf("archive exceeds %d bytes", maximum)
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
-}
-
-type contextReader struct {
-	ctx    context.Context
-	reader io.Reader
-}
-
-func (r *contextReader) Read(buffer []byte) (int, error) {
-	if err := r.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return r.reader.Read(buffer)
 }

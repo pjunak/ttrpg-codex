@@ -18,6 +18,8 @@ import (
 
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
+
+	"github.com/pjunak/ttrpg-codex/internal/ctxio"
 )
 
 const TileSize = 256
@@ -97,7 +99,7 @@ func (cache *Cache) Ensure(ctx context.Context, digest string, source io.ReadSee
 	if _, err := source.Seek(0, io.SeekStart); err != nil {
 		return Manifest{}, err
 	}
-	current, _, err := image.Decode(&contextReader{ctx, source})
+	current, _, err := image.Decode(ctxio.Reader(ctx, source))
 	if err != nil {
 		return Manifest{}, errors.Join(ErrUnsupported, err)
 	}
@@ -211,15 +213,3 @@ func readManifest(root *os.Root, digest string) (Manifest, bool) {
 	return manifest, err == nil && manifest.Valid()
 }
 func tileName(level, x, y int) string { return fmt.Sprintf("%d-%d-%d.png", level, x, y) }
-
-type contextReader struct {
-	ctx    context.Context
-	reader io.Reader
-}
-
-func (reader *contextReader) Read(p []byte) (int, error) {
-	if err := reader.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return reader.reader.Read(p)
-}
