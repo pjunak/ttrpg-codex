@@ -453,15 +453,14 @@ export class CodexApp extends LitElement {
       this.quickSearchOpen = false;
   }
 
-  protected override updated(): void {
+  protected override updated(changed: Map<PropertyKey, unknown>): void {
     const searchDialog = this.querySelector<HTMLDialogElement>(".quick-search-dialog");
     if (searchDialog && !searchDialog.open) searchDialog.showModal();
-    if (this.campaignState.state === "ready")
-      rememberRecentRecord(
-        this.campaignState.campaign,
-        this.route,
-        this.authority.state === "known" ? (this.authority.auth.role ?? "public") : "public",
-      );
+    if (
+      this.campaignState.state === "ready" &&
+      (changed.has("route") || changed.has("campaignState") || changed.has("authority"))
+    )
+      rememberRecentRecord(this.campaignState.campaign, this.route, this.#actorRole ?? "public");
     if (this.isConnected && this.#outletLocale !== this.#ui.locale) {
       this.#outletLocale = this.#ui.locale;
       this.#routeOutlet?.refresh();

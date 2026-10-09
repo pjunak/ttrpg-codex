@@ -2,7 +2,6 @@ import type { CampaignDataset } from "../core/campaign-data.js";
 import { campaignCollection } from "../core/campaign-data.js";
 import { twinRepresentatives } from "./campaign-twins.js";
 import {
-  projectEntity,
   projectEntities,
   recentCampaignActivity,
   type EntitySummary,
@@ -33,19 +32,19 @@ export function rememberRecentRecord(
   role: string,
 ): void {
   if (route.kind !== "record") return;
-  const record = campaignCollection(campaign, route.page.collection).records.find(
-    (record) => record.key === route.key,
-  );
-  if (!record) return;
-  const entity = projectEntity(campaign, record, route.page);
+  if (
+    !campaignCollection(campaign, route.page.collection).records.some(
+      ({ key }) => key === route.key,
+    )
+  )
+    return;
+  const path = recordHash(route.page, route.key);
   const previous = readRecent(role);
-  if (previous[0] === entity.route) return;
+  if (previous[0] === path) return;
   try {
     sessionStorage.setItem(
       storageKey(role),
-      JSON.stringify(
-        [entity.route, ...previous.filter((path) => path !== entity.route)].slice(0, maximumRecent),
-      ),
+      JSON.stringify([path, ...previous.filter((item) => item !== path)].slice(0, maximumRecent)),
     );
   } catch {
     /* Recent campaign activity remains available without browser storage. */
