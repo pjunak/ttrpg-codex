@@ -1,3 +1,4 @@
+import { cssHexColor } from "./campaign-projection.js";
 import { formText, formTextValues } from "../core/forms.js";
 import { uiText } from "./ui-localization.js";
 import { LitElement, html, nothing } from "lit";
@@ -504,7 +505,7 @@ export class CodexSettings extends LitElement {
         </fieldset>`;
     }
     const numeric = definition.kind === "integer" || definition.kind === "decimal";
-    const color = definition.kind === "color" ? normalizedColor(raw) : undefined;
+    const color = definition.kind === "color" ? cssHexColor(raw) : undefined;
     return html`
       <label class=${definition.kind === "color" ? "settings-color-field" : ""}>
         <span>${definition.label}</span>
@@ -833,7 +834,7 @@ function newItemDefaults(category: CampaignEnumCategory): Readonly<Record<string
 
 function firstColor(value: Readonly<Record<string, unknown>>): string | undefined {
   for (const key of ["labelColor", "color", "bg"]) {
-    const color = normalizedColor(value[key]);
+    const color = cssHexColor(value[key]);
     if (color !== undefined) return color;
   }
   return undefined;
@@ -842,11 +843,6 @@ function firstColor(value: Readonly<Record<string, unknown>>): string | undefine
 function itemIcon(item: CampaignEnumItem): string {
   const icon = text(item.value["icon"]);
   return icon === "" ? ((item.label || item.id)[0]?.toLocaleUpperCase() ?? "·") : icon;
-}
-
-function normalizedColor(value: unknown): string | undefined {
-  const candidate = text(value).toLowerCase();
-  return /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/u.test(candidate) ? candidate : undefined;
 }
 
 function fieldHelp(field: CampaignSettingField) {

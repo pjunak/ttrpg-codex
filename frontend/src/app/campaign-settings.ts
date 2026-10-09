@@ -1,3 +1,4 @@
+import { cssHexColor } from "./campaign-projection.js";
 import { isRecord } from "../core/boundary.js";
 import { uiSourceLabel } from "./ui-localization.js";
 import {
@@ -209,9 +210,7 @@ export function campaignEnumColor(
     (candidate) => isRecord(candidate) && candidate["id"] === value.trim(),
   );
   const color = isRecord(definition) ? definition["color"] : undefined;
-  return typeof color === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/iu.test(color)
-    ? color
-    : undefined;
+  return cssHexColor(color);
 }
 
 export function prepareCampaignEnumSave(
@@ -297,7 +296,7 @@ function normalizedEnumValue(
       }
       case "color": {
         const color = boundedText(raw, 20).toLowerCase();
-        if (!/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/u.test(color)) throw invalidEdit();
+        if (cssHexColor(color) === undefined) throw invalidEdit();
         value[definition.key] = color;
         break;
       }

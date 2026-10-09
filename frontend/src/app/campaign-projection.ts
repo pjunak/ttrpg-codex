@@ -365,7 +365,7 @@ function attitudeDefinitions(dataset: CampaignDataset): ReadonlyMap<string, Atti
     for (const candidate of attitudeRecord.value) {
       if (!isRecord(candidate)) continue;
       const id = text(candidate["id"]);
-      const color = safeHexColor(candidate["labelColor"] ?? candidate["bg"]);
+      const color = cssHexColor(candidate["labelColor"] ?? candidate["bg"]);
       if (id === "" || color === undefined || result.has(id)) continue;
       result.set(
         id,
@@ -413,7 +413,8 @@ function normalizedStrength(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
 }
 
-function safeHexColor(value: unknown): string | undefined {
+/** A CSS #rgb or #rrggbb colour, lowercased, or undefined. */
+export function cssHexColor(value: unknown): string | undefined {
   const candidate = text(value);
   return /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/iu.test(candidate) ? candidate.toLowerCase() : undefined;
 }

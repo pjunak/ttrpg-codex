@@ -53,6 +53,7 @@ import {
   stringList,
   text,
   type EntitySummary,
+  cssHexColor,
 } from "./campaign-projection.js";
 import {
   campaignPages,
@@ -1111,7 +1112,8 @@ function recordRow(
   const statusColor = character
     ? campaignEnumColor(campaign, "characterStatuses", entity.status)
     : undefined;
-  const factionColor = page.collection === "factions" ? hexColor(entity.raw["color"]) : undefined;
+  const factionColor =
+    page.collection === "factions" ? cssHexColor(entity.raw["color"]) : undefined;
   return html`<div class="record-row-shell ui-card">
     <a class=${`record-row${entity.portrait ? "" : " no-artwork"}${compact ? " is-compact" : ""}`} href=${entity.route}
       style=${factionColor ? `--entity-color: ${factionColor}` : nothing}>
@@ -1173,12 +1175,6 @@ function clueLinks(dataset: CampaignDataset, value: unknown): unknown {
       event.key,
     )})`;
   });
-}
-
-function hexColor(value: unknown): string | undefined {
-  return typeof value === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/iu.test(value)
-    ? value
-    : undefined;
 }
 
 interface ArticleSection {

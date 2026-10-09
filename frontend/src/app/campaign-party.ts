@@ -1,3 +1,4 @@
+import { cssHexColor } from "./campaign-projection.js";
 import { isRecord } from "../core/boundary.js";
 import { uiText } from "./ui-localization.js";
 import {
@@ -103,8 +104,7 @@ function boundedLine(value: unknown, limit: number): string {
 }
 
 function hexColor(value: unknown): string | undefined {
-  if (typeof value !== "string" || !/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/iu.test(value))
-    return undefined;
+  if (cssHexColor(value) === undefined || typeof value !== "string") return undefined;
   return (
     value.length === 4
       ? `#${value
