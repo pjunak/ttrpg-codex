@@ -35,6 +35,10 @@ not obvious. Move an entry between sections instead of duplicating it.
 
 ## Next
 
+- **Compendium translation overlays** `addon-dnd-2024-compendium` — The
+  `data/i18n/` record overlays are specified in `data/SCHEMA.md` but nothing
+  loads or applies them. Implement them (planned for its own session) so the
+  browse UI and the rules-data service can show translated record fields.
 - **More context-menu targets** `ttrpg-codex` — Record menus exist
   ([editing and browsing](reference/EDITOR_BROWSING.md#record-context-menus)).
   Candidates the owner has not chosen between yet: map pins and empty map
