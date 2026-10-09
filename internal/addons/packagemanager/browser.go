@@ -17,6 +17,8 @@ import (
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/events"
+
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 )
 
 type browserGraphState struct {
@@ -279,7 +281,7 @@ func (manager *Manager) OpenBrowserAsset(
 	if err := ctx.Err(); err != nil {
 		return BrowserAsset{}, err
 	}
-	if !validAddonPath(addonID) || !validGenerationID(generationID) ||
+	if !addonv3.ValidAddonID(addonID) || !validGenerationID(generationID) ||
 		!validBrowserAssetPath(packagePath) {
 		return BrowserAsset{}, ErrBrowserAssetNotFound
 	}

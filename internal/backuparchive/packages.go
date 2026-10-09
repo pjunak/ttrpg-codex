@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	codexsqlite "github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 )
@@ -54,10 +55,9 @@ func validatePackageReferences(ctx context.Context, db *sql.DB, packageRoot stri
 	if err != nil {
 		return err
 	}
-	validAddon := regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 	validHash := regexp.MustCompile(`^[a-f0-9]{64}$`)
 	for _, ref := range refs {
-		if len(ref.addon) > 80 || !validAddon.MatchString(ref.addon) || !validHash.MatchString(ref.hash) {
+		if !addonv3.ValidAddonID(ref.addon) || !validHash.MatchString(ref.hash) {
 			return fmt.Errorf("%w: invalid recovery package identity", ErrInvalidArchive)
 		}
 		root := filepath.Join(packageRoot, ref.addon, "generations", ref.hash)

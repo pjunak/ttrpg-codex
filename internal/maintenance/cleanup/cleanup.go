@@ -12,11 +12,11 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-	"regexp"
+
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 )
 
 var ErrStale = errors.New("maintenance preview changed; inspect and review again")
-var addonPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 
 type Options struct {
 	Kind      string `json:"kind"`
@@ -49,7 +49,7 @@ type target struct {
 func targets(options Options) ([]target, error) {
 	switch options.Kind {
 	case "delete-addon-data":
-		if !addonPattern.MatchString(options.AddonID) || len(options.AddonID) > 100 {
+		if !addonv3.ValidAddonID(options.AddonID) {
 			return nil, errors.New("a valid add-on ID is required")
 		}
 		result := []target{}

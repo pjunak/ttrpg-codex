@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 )
 
 // PackageLocator is retained independently of local package-file residency.
@@ -375,7 +377,7 @@ func (manager *Manager) RestorePackage(ctx context.Context, addonID, generationI
 func (manager *Manager) restoreLocal(ctx context.Context, addonID, generationID string) (*PackageReference, Generation, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
-	if !validAddonPath(addonID) || !validGenerationID(generationID) {
+	if !addonv3.ValidAddonID(addonID) || !validGenerationID(generationID) {
 		return nil, Generation{}, ErrInvalidPackage
 	}
 	generation, err := scanGeneration(manager.store.db.QueryRowContext(ctx, "SELECT addon_id,generation_id,addon_version,archive_sha256,installed_at,last_attempt_at,last_activated_at,COALESCE(last_error,''),"+generationManifestColumns+" FROM addon_package_generations WHERE addon_id=? AND generation_id=?", addonID, generationID))

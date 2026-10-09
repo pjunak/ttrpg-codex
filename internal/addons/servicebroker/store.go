@@ -12,6 +12,8 @@ import (
 	"unicode"
 
 	semver "github.com/Masterminds/semver/v3"
+
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 )
 
 type Store struct {
@@ -573,7 +575,7 @@ func validateRequirement(requirement Requirement) (*semver.Constraints, error) {
 }
 
 func validateAddonID(value string) error {
-	if len(value) > 80 || !addonIDPattern.MatchString(value) {
+	if !addonv3.ValidAddonID(value) {
 		return fmt.Errorf("%w: invalid add-on ID %q", ErrInvalidDeclaration, value)
 	}
 	return nil

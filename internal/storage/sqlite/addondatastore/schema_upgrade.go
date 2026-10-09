@@ -13,6 +13,8 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/datalifecycle"
 	"github.com/pjunak/ttrpg-codex/internal/events"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/unitofwork"
+
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 )
 
 const maximumSchemaSnapshotBytes = 16 << 20
@@ -21,7 +23,7 @@ const maximumSchemaDocuments = 10000
 type SchemaPlanner func(Snapshot) ([]datalifecycle.SchemaChange, []datalifecycle.Issue, error)
 
 func (store *Store) PrepareSchemaReview(ctx context.Context, input datalifecycle.SchemaReviewRequest, plan SchemaPlanner) (datalifecycle.SchemaReview, error) {
-	if !validAddonID(input.AddonID) || !validGenerationID(input.GenerationID) || input.ReviewID == "" || len(input.ReviewID) > 128 || input.ExpectedStateRevision < 0 || plan == nil {
+	if !addonv3.ValidAddonID(input.AddonID) || !validGenerationID(input.GenerationID) || input.ReviewID == "" || len(input.ReviewID) > 128 || input.ExpectedStateRevision < 0 || plan == nil {
 		return datalifecycle.SchemaReview{}, ErrInvalidTransaction
 	}
 	tx, cleanup, err := unitofwork.Begin(ctx, store.database)

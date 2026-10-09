@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
 )
 
@@ -22,7 +23,6 @@ var (
 )
 
 var (
-	addonIDPattern     = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 	traceparentPattern = regexp.MustCompile(`^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$`)
 )
 
@@ -138,7 +138,7 @@ func (registry *Registry) Issue(request IssueRequest) (*Lease, error) {
 	}
 	now := registry.now().UTC()
 	request.Deadline = request.Deadline.UTC()
-	if !validAddonID(request.AddonID) || !validIdentifier(request.Generation, 200, true) || request.Deadline.IsZero() ||
+	if !addonv3.ValidAddonID(request.AddonID) || !validIdentifier(request.Generation, 200, true) || request.Deadline.IsZero() ||
 		!request.Deadline.After(now) || request.Deadline.After(now.Add(registry.maxLifetime)) ||
 		!validActor(request.Actor) || !validIdentifier(request.IdempotencyKey, 200, false) ||
 		(request.Traceparent != "" && !traceparentPattern.MatchString(request.Traceparent)) {
@@ -295,10 +295,6 @@ func validActor(actor workerrpc.Actor) bool {
 		return false
 	}
 	return validIdentifier(actor.ID, 200, false)
-}
-
-func validAddonID(value string) bool {
-	return len(value) <= 80 && addonIDPattern.MatchString(value)
 }
 
 func validIdentifier(value string, maximum int, required bool) bool {

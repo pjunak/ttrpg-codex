@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 )
@@ -31,7 +32,6 @@ var (
 	ErrIdentity      = errors.New("downloaded package belongs to a different add-on")
 )
 var repoPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}$`)
-var addonPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 var tokenPattern = regexp.MustCompile(`^[\x21-\x7e]{8,255}$`)
 
 type Source struct {
@@ -143,7 +143,6 @@ func normalizeSource(source Source) (Source, error) {
 	}
 	return source, nil
 }
-func validAddonID(id string) bool { return len(id) <= 80 && addonPattern.MatchString(id) }
 
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	result := Status{ContractVersion: "addon-github.v1", Credentials: TokenStatus{DefaultSource: "none", Repositories: []string{}}}
@@ -194,7 +193,7 @@ func (s *Service) token(ctx context.Context, repo string) (string, error) {
 	return tokens[""], nil
 }
 func (s *Service) SaveSource(ctx context.Context, item LinkedSource, remove bool) error {
-	if !validAddonID(item.AddonID) || item.Revision < 0 {
+	if !addonv3.ValidAddonID(item.AddonID) || item.Revision < 0 {
 		return ErrInvalid
 	}
 	if remove {
@@ -215,7 +214,7 @@ func (s *Service) SaveSource(ctx context.Context, item LinkedSource, remove bool
 	return s.store.saveSource(ctx, item)
 }
 func (s *Service) Discover(ctx context.Context, source Source, addonID string) (Discovery, error) {
-	if addonID != "" && !validAddonID(addonID) {
+	if addonID != "" && !addonv3.ValidAddonID(addonID) {
 		return Discovery{}, ErrInvalid
 	}
 	source, err := normalizeSource(source)

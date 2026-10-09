@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
+
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 )
 
 var (
@@ -60,7 +62,7 @@ func (client *ServiceClient) Call(
 	params, err := json.Marshal(call.Params)
 	if client == nil || client.caller == nil || err != nil ||
 		!validServiceClientContract(call.Contract) ||
-		(call.ProviderAddonID != "" && !validServiceClientAddonID(call.ProviderAddonID)) ||
+		(call.ProviderAddonID != "" && !addonv3.ValidAddonID(call.ProviderAddonID)) ||
 		len(call.Method) > 100 || !serviceClientMethodPattern.MatchString(call.Method) ||
 		!validServiceClientPayload(params) || !validServiceClientIdentifier(call.IdempotencyKey, 200) {
 		return ServiceResult{}, errors.New("bound service call is invalid")
@@ -94,7 +96,7 @@ func (client *ServiceClient) Call(
 	_, versionErr := semver.StrictNewVersion(response.ProviderContractVersion)
 	if response.ContractVersion != "host-service-result.v1" ||
 		response.Contract != call.Contract || !validServiceClientContract(response.Contract) ||
-		!validServiceClientAddonID(response.ProviderAddonID) || versionErr != nil ||
+		!addonv3.ValidAddonID(response.ProviderAddonID) || versionErr != nil ||
 		!validServiceClientGeneration(response.ProviderGeneration) ||
 		!validServiceClientPayload(response.Result) ||
 		(call.ProviderAddonID != "" && response.ProviderAddonID != call.ProviderAddonID) {
@@ -121,25 +123,6 @@ func DecodeServiceResult[T any](result ServiceResult) (T, error) {
 
 func validServiceClientContract(value string) bool {
 	return len(value) <= 120 && serviceClientContractPattern.MatchString(value)
-}
-
-func validServiceClientAddonID(value string) bool {
-	if len(value) < 1 || len(value) > 80 || value[0] < 'a' || value[0] > 'z' {
-		return false
-	}
-	separator := false
-	for _, character := range value[1:] {
-		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' {
-			separator = false
-			continue
-		}
-		if character == '-' && !separator {
-			separator = true
-			continue
-		}
-		return false
-	}
-	return !separator
 }
 
 func validServiceClientGeneration(value string) bool {

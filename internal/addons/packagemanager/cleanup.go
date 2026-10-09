@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/recoverystore"
+
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 )
 
 var ErrCleanupPending = errors.New("approved package cleanup still has pending files")
@@ -67,7 +69,7 @@ type CleanupResult struct {
 }
 
 func (scope CleanupScope) valid() bool {
-	if scope.AddonID != "" && !validAddonPath(scope.AddonID) {
+	if scope.AddonID != "" && !addonv3.ValidAddonID(scope.AddonID) {
 		return false
 	}
 	if scope.GenerationID != "" {
@@ -410,7 +412,7 @@ func validateCleanupReceipt(review CleanupReview, hash string) error {
 	seen := map[string]bool{}
 	for _, g := range review.Generations {
 		key := g.AddonID + ":" + g.GenerationID
-		if !validAddonPath(g.AddonID) || !validGenerationID(g.GenerationID) || seen[key] || g.Bytes < 0 {
+		if !addonv3.ValidAddonID(g.AddonID) || !validGenerationID(g.GenerationID) || seen[key] || g.Bytes < 0 {
 			return ErrInvalidPackage
 		}
 		seen[key] = true
@@ -502,7 +504,7 @@ func (manager *Manager) WithPackageSnapshot(ctx context.Context, snapshot func()
 }
 
 func (manager *Manager) cleanupRoot(addonID, generationID string) (*os.Root, string, error) {
-	if !validAddonPath(addonID) || !validGenerationID(generationID) {
+	if !addonv3.ValidAddonID(addonID) || !validGenerationID(generationID) {
 		return nil, "", ErrInvalidPackage
 	}
 	root, err := os.OpenRoot(manager.directory)

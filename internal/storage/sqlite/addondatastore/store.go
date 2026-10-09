@@ -15,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
 	"github.com/pjunak/ttrpg-codex/internal/events"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/unitofwork"
@@ -34,7 +35,6 @@ var (
 	ErrNotFound           = errors.New("add-on document not found")
 	ErrSchemaMismatch     = errors.New("add-on data schema identity mismatch")
 	ErrStorageInvariant   = errors.New("add-on document storage invariant failed")
-	addonIDPattern        = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 	localIDPattern        = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
 )
 
@@ -248,7 +248,7 @@ func (store *Store) State(
 }
 
 func (store *Store) SnapshotAddon(ctx context.Context, addonID string) (Snapshot, error) {
-	if !validAddonID(addonID) {
+	if !addonv3.ValidAddonID(addonID) {
 		return Snapshot{}, ErrInvalidTransaction
 	}
 	transaction, err := store.database.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
@@ -543,7 +543,7 @@ func (err *ConflictError) Error() string {
 func (err *ConflictError) Unwrap() error { return ErrConflict }
 
 func prepareTransaction(input Transaction) ([]preparedMutation, error) {
-	if !validAddonID(input.AddonID) || !validGenerationID(input.GenerationID) ||
+	if !addonv3.ValidAddonID(input.AddonID) || !validGenerationID(input.GenerationID) ||
 		!validActorID(input.ActorID) || len(input.Mutations) == 0 || len(input.Mutations) > MaximumOperations {
 		return nil, ErrInvalidTransaction
 	}
@@ -637,11 +637,9 @@ func validIdentity(addonID string, kind datacontract.Kind, dataID, key string) b
 }
 
 func validDataIdentity(addonID string, kind datacontract.Kind, dataID string) bool {
-	return validAddonID(addonID) && (kind == datacontract.Collection || kind == datacontract.RecordExtension) &&
+	return addonv3.ValidAddonID(addonID) && (kind == datacontract.Collection || kind == datacontract.RecordExtension) &&
 		localIDPattern.MatchString(dataID) && len(dataID) <= 100
 }
-
-func validAddonID(value string) bool { return len(value) <= 80 && addonIDPattern.MatchString(value) }
 
 func validGenerationID(value string) bool { return len(value) == 64 && lowercaseHex(value) }
 

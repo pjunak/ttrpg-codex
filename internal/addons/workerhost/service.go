@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 	"github.com/pjunak/ttrpg-codex/internal/addons/workerbroker"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
@@ -59,7 +60,7 @@ func compileBoundServices(addonID string, handles []servicebroker.Handle) (bound
 	for _, handle := range handles {
 		_, versionErr := semver.StrictNewVersion(handle.ContractVersion)
 		if handle.ConsumerAddonID != addonID || !validServiceContract(handle.Contract) ||
-			!validAddonID(handle.ProviderAddonID) || versionErr != nil ||
+			!addonv3.ValidAddonID(handle.ProviderAddonID) || versionErr != nil ||
 			!validGeneration(handle.Generation) || handle.BindingRevision < 0 ||
 			(handle.Transport != servicebroker.TransportUI &&
 				handle.Transport != servicebroker.TransportWorker &&
@@ -143,7 +144,7 @@ func serviceCallMethod(services ServiceCaller, bindings boundServices) workerbro
 func validServiceRequest(request serviceCallRequest) bool {
 	return request.ContractVersion == serviceCallVersion &&
 		validServiceContract(request.Contract) &&
-		(request.ProviderAddonID == "" || validAddonID(request.ProviderAddonID)) &&
+		(request.ProviderAddonID == "" || addonv3.ValidAddonID(request.ProviderAddonID)) &&
 		len(request.Method) <= 100 && serviceMethodPattern.MatchString(request.Method) &&
 		validServicePayload(request.Params) && validServiceIdentifier(request.IdempotencyKey, 200)
 }
@@ -151,7 +152,7 @@ func validServiceRequest(request serviceCallRequest) bool {
 func validateServiceResponse(body json.RawMessage) error {
 	response, err := decodeExact[serviceCallResponse](body)
 	if err != nil || response.ContractVersion != serviceResultVersion ||
-		!validServiceContract(response.Contract) || !validAddonID(response.ProviderAddonID) ||
+		!validServiceContract(response.Contract) || !addonv3.ValidAddonID(response.ProviderAddonID) ||
 		!validGeneration(response.ProviderGeneration) || !validServicePayload(response.Result) {
 		return errors.New("invalid host/service.call response")
 	}

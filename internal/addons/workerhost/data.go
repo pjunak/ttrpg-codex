@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
@@ -141,7 +142,7 @@ type commitResponse struct {
 
 func New(config Config) (*workerbroker.Dispatcher, error) {
 	if config.Data == nil || config.ContextResolver == nil || config.Manifest.ID != config.AddonID ||
-		!validAddonID(config.AddonID) || !validGeneration(config.Generation) ||
+		!addonv3.ValidAddonID(config.AddonID) || !validGeneration(config.Generation) ||
 		(len(config.BoundServices) > 0 && config.Services == nil) {
 		return nil, errors.New("worker host data configuration is invalid")
 	}
@@ -536,10 +537,6 @@ func validReference(kind datacontract.Kind, dataID string) bool {
 		validLocalID(dataID)
 }
 
-func validAddonID(value string) bool {
-	return len(value) <= 80 && validDashedID(value)
-}
-
 func validLocalID(value string) bool {
 	if len(value) == 0 || len(value) > 100 || value[0] < 'a' || value[0] > 'z' {
 		return false
@@ -557,10 +554,6 @@ func validLocalID(value string) bool {
 		return false
 	}
 	return !separator
-}
-
-func validDashedID(value string) bool {
-	return validLocalID(value) && !strings.ContainsAny(value, "._")
 }
 
 func validGeneration(value string) bool {

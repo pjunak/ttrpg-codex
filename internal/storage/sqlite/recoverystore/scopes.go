@@ -3,7 +3,8 @@ package recoverystore
 import (
 	"context"
 	"database/sql"
-	"regexp"
+
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 )
 
 // Scope selects the campaign or one add-on inside a recovery point.
@@ -12,10 +13,8 @@ type Scope struct {
 	AddonID string `json:"addonId,omitempty"`
 }
 
-var addonIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
-
 func (scope Scope) valid() bool {
-	return scope.Scope == "campaign" && scope.AddonID == "" || scope.Scope == "addon" && addonIDPattern.MatchString(scope.AddonID)
+	return scope.Scope == "campaign" && scope.AddonID == "" || scope.Scope == "addon" && addonv3.ValidAddonID(scope.AddonID)
 }
 
 type AddonPoint struct {

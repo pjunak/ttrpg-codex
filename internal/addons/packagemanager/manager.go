@@ -12,13 +12,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	semver "github.com/Masterminds/semver/v3"
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 	"github.com/pjunak/ttrpg-codex/internal/addons/contentcontract"
 	"github.com/pjunak/ttrpg-codex/internal/addons/contenttransport"
 	"github.com/pjunak/ttrpg-codex/internal/addons/datalifecycle"
@@ -29,8 +29,6 @@ import (
 )
 
 const defaultMaxArchiveBytes int64 = 128 << 20
-
-var addonIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`)
 
 type Config struct {
 	DB                    *sql.DB
@@ -208,7 +206,7 @@ func (manager *Manager) StageArchive(ctx context.Context, archive io.Reader) (Ge
 // StageUpdateArchive binds a slow remote download to the installation that
 // requested it. Completion after uninstall or another transition cannot reinstall.
 func (manager *Manager) StageUpdateArchive(ctx context.Context, archive io.Reader, addonID string, expectedRevision int64) (Generation, error) {
-	if archive == nil || !validAddonPath(addonID) || expectedRevision < 0 {
+	if archive == nil || !addonv3.ValidAddonID(addonID) || expectedRevision < 0 {
 		return Generation{}, ErrInvalidPackage
 	}
 	return manager.stageArchive(ctx, archive, &State{AddonID: addonID, Revision: expectedRevision})
@@ -255,7 +253,7 @@ func (manager *Manager) stageArchiveLocked(ctx context.Context, archive io.Reade
 	if err != nil {
 		return Generation{}, fmt.Errorf("%w: %v", ErrInvalidPackage, err)
 	}
-	if !validAddonPath(report.Manifest.ID) {
+	if !addonv3.ValidAddonID(report.Manifest.ID) {
 		return Generation{}, fmt.Errorf("%w: add-on id is not a safe package path", ErrInvalidPackage)
 	}
 	if expected != nil && report.Manifest.ID != expected.AddonID {
@@ -845,7 +843,7 @@ func (manager *Manager) activeReport(ctx context.Context, addonID, generationID 
 }
 
 func (manager *Manager) loadPackage(ctx context.Context, addonID, generationID string) (packageinspect.Report, error) {
-	if !validAddonPath(addonID) || !validGenerationID(generationID) {
+	if !addonv3.ValidAddonID(addonID) || !validGenerationID(generationID) {
 		return packageinspect.Report{}, ErrGenerationNotFound
 	}
 	archive := filepath.Join(manager.generationDirectory(addonID, generationID), "package.zip")
@@ -928,10 +926,6 @@ func validStageID(value string) bool {
 		}
 	}
 	return true
-}
-
-func validAddonPath(value string) bool {
-	return len(value) <= 80 && addonIDPattern.MatchString(value)
 }
 
 func validGenerationID(value string) bool {

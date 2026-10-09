@@ -9,6 +9,8 @@ import (
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
+
+	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 )
 
 // MaterializePackageBackup operates only on the isolated database snapshot and
@@ -38,7 +40,7 @@ func MaterializePackageBackup(ctx context.Context, databasePath, liveRoot, stage
 	var expanded uint64
 	entries := 0
 	for _, ref := range refs {
-		if !validAddonPath(ref.AddonID) || !validGenerationID(ref.GenerationID) {
+		if !addonv3.ValidAddonID(ref.AddonID) || !validGenerationID(ref.GenerationID) {
 			return ErrInvalidPackage
 		}
 		dir := filepath.Join(stageRoot, ref.AddonID, "generations", ref.GenerationID)
