@@ -239,7 +239,7 @@ export class CodexApp extends LitElement {
   #addons: BrowserAddonComposition | undefined;
   readonly #links = new AddonLinksController(this, () => ({
     registry: this.#addons?.contributions,
-    role: this.authority.state === "known" ? (this.authority.auth.role ?? undefined) : undefined,
+    role: this.#actorRole,
   }));
   #disposeRuleDetails: (() => void) | undefined;
   #dmAddonHealth: readonly DmAddonHealth[] = [];
@@ -441,7 +441,7 @@ export class CodexApp extends LitElement {
         }}>
         <button type="button" class="record-action quick-search-close" @click=${() => this.#closeQuickSearch()}>${this.#ui.t("jump.close")}</button>
         <codex-search .quick=${true} .campaign=${this.campaignState.campaign} .registry=${this.#addons?.contributions}
-          .actorRole=${this.authority.state === "known" ? (this.authority.auth.role ?? undefined) : undefined}></codex-search>
+          .actorRole=${this.#actorRole}></codex-search>
       </dialog>`
           : nothing
       }
@@ -470,6 +470,11 @@ export class CodexApp extends LitElement {
     }
   }
 
+  /** The signed-in viewer's current role, or undefined before sign-in is known. */
+  get #actorRole(): "dm" | "player" | undefined {
+    return this.authority.state === "known" ? (this.authority.auth.role ?? undefined) : undefined;
+  }
+
   get #hasCharacterTabs(): boolean {
     return (
       this.route.kind === "record" &&
@@ -490,7 +495,7 @@ export class CodexApp extends LitElement {
 
   #characterTabs() {
     if (!this.#hasCharacterTabs) return nothing;
-    const role = this.authority.state === "known" ? this.authority.auth.role : null;
+    const role = this.#actorRole ?? null;
     const contributions = role
       ? (this.#addons?.contributions
           .list("article-section", role)
@@ -1478,10 +1483,10 @@ export class CodexApp extends LitElement {
           @dm-retry-addons=${this.#retryDmAddons}></codex-dm-dashboard>`;
       case "campaign-graph":
         return html`<codex-campaign-graph .campaign=${campaign} .mode=${this.route.mode}
-          .registry=${this.#addons?.contributions} .actorRole=${this.authority.state === "known" ? (this.authority.auth.role ?? undefined) : undefined}></codex-campaign-graph>`;
+          .registry=${this.#addons?.contributions} .actorRole=${this.#actorRole}></codex-campaign-graph>`;
       case "timeline":
         return html`<codex-timeline .campaign=${campaign} .canEdit=${this.#canEdit()} .saving=${this.busy}
-          .registry=${this.#addons?.contributions} .actorRole=${this.authority.state === "known" ? (this.authority.auth.role ?? undefined) : undefined}
+          .registry=${this.#addons?.contributions} .actorRole=${this.#actorRole}
           .editCompletion=${this.editCompletion} .errorMessage=${this.errorMessage}
           @campaign-edit-dirty=${this.#onEditDirty} @campaign-timeline-save=${this.#saveTimeline}
           @campaign-timeline-reset=${() => {
@@ -1490,7 +1495,7 @@ export class CodexApp extends LitElement {
       case "map":
         return html`<codex-map .campaign=${campaign} .route=${this.route} .canEdit=${this.#canEdit()}
           .registry=${this.#addons?.contributions}
-          .actorRole=${this.authority.state === "known" ? (this.authority.auth.role ?? undefined) : undefined}
+          .actorRole=${this.#actorRole}
           .canManageCampaign=${this.#canManageCampaign()} .saving=${this.busy} .editCompletion=${this.editCompletion}
           .errorMessage=${this.errorMessage} @campaign-edit-dirty=${this.#onEditDirty}
           @campaign-map-save=${this.#saveMap} @campaign-map-upload=${this.#uploadMap}></codex-map>`;
@@ -1504,11 +1509,11 @@ export class CodexApp extends LitElement {
         ></codex-dashboard>`;
       case "search":
         return html`<codex-search .campaign=${campaign} .query=${this.route.query ?? ""} .registry=${this.#addons?.contributions}
-          .actorRole=${this.authority.state === "known" ? (this.authority.auth.role ?? undefined) : undefined}></codex-search>`;
+          .actorRole=${this.#actorRole}></codex-search>`;
       case "settings":
         return html`<codex-settings
           .registry=${this.#addons?.contributions}
-          .actorRole=${this.authority.state === "known" ? (this.authority.auth.role ?? undefined) : undefined}
+          .actorRole=${this.#actorRole}
           .addonTarget=${this.route.addonId}
           .addonGeneration=${this.route.generationId}
           .addonPages=${this.#canManageCampaign() && this.#addons !== undefined ? listBrowserNavigation(this.#addons.contributions, "dm", this.#ui.locale) : []}
@@ -1536,7 +1541,7 @@ export class CodexApp extends LitElement {
         return html`<codex-record-page
           .campaign=${campaign}
           .registry=${this.#addons?.contributions}
-          .actorRole=${this.authority.state === "known" ? (this.authority.auth.role ?? undefined) : undefined}
+          .actorRole=${this.#actorRole}
           .route=${this.route}
           .canEdit=${this.#canEdit()}
           .canManageVisibility=${this.#canManageCampaign()}
