@@ -120,11 +120,14 @@ func (service *Service) credentialStatusLocked() CredentialStatus {
 func (service *Service) ChangePassword(ctx context.Context, token, csrf, current string, role Role, password string, revision int64) (CredentialStatus, error) {
 	service.credentialMu.Lock()
 	defer service.credentialMu.Unlock()
-	service.mu.Lock()
-	defer service.mu.Unlock()
 	digest, csrfDigest := sha256.Sum256([]byte(token)), sha256.Sum256([]byte(csrf))
+	// The session lock covers only the session check and the revocation, so
+	// password hashing does not stall every other request's session lookup.
+	service.mu.Lock()
 	session, exists := service.sessions[digest]
-	if !exists || !service.usableLocked(session, service.now()) || session.actor.RealRole != RoleDM || session.actor.Role != RoleDM || subtle.ConstantTimeCompare(csrfDigest[:], session.csrfDigest[:]) != 1 {
+	authorized := exists && service.usableLocked(session, service.now()) && session.actor.RealRole == RoleDM && session.actor.Role == RoleDM && subtle.ConstantTimeCompare(csrfDigest[:], session.csrfDigest[:]) == 1
+	service.mu.Unlock()
+	if !authorized {
 		return CredentialStatus{}, ErrRoleTransition
 	}
 	if revision != service.credentials.Revision {
@@ -155,6 +158,8 @@ func (service *Service) ChangePassword(ctx context.Context, token, csrf, current
 		}
 	}
 	service.credentials = next
+	service.mu.Lock()
+	defer service.mu.Unlock()
 	for key, candidate := range service.sessions {
 		if key != digest && (candidate.actor.RealRole == role || candidate.previewParent != nil) {
 			delete(service.sessions, key)
