@@ -3,7 +3,6 @@ import { bindLongPress, openContextMenu } from "../ui/context-menu.js";
 import { recordContextMenu } from "./record-context-menu.js";
 import { waitForSignal } from "../core/abort-signal.js";
 import type { CampaignTwinRequest } from "./codex-record-twins.js";
-import { uiText } from "./ui-localization.js";
 import { attachCharacterPortrait } from "./character-portrait.js";
 import { uiRequestError } from "./ui-errors.js";
 import { isRecord } from "../core/boundary.js";
@@ -94,7 +93,7 @@ import {
   recordHash,
   type AppRoute,
 } from "./routes.js";
-import { UiLocalizationController, type MessageKey } from "./ui-localization.js";
+import { UiLocalizationController, uiText, type MessageKey } from "./ui-localization.js";
 import "./codex-dashboard.js";
 import { type DmAddonHealth } from "./codex-dm-dashboard.js";
 import "./codex-dm-dashboard.js";
@@ -142,8 +141,10 @@ import {
   SidebarEditError,
   type SidebarSection,
   type SidebarSaveDetail,
+  addonSidebarKey,
+  addonSidebarMode,
+  prepareAddonSidebarSave,
 } from "./campaign-sidebar.js";
-import { addonSidebarKey, addonSidebarMode, prepareAddonSidebarSave } from "./campaign-sidebar.js";
 
 type Readiness =
   | { readonly state: "checking" }
@@ -1717,14 +1718,8 @@ export class CodexApp extends LitElement {
     event.preventDefault();
     const { respond, ...patch } = event.detail;
     const collection = patch.collection ?? "characters";
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canEdit() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    ) {
+    const write = this.#writeAccess("edit");
+    if (!write) {
       respond({
         ok: false,
         message: uiText("The entry cannot be saved right now. Your draft is kept."),
@@ -1732,15 +1727,10 @@ export class CodexApp extends LitElement {
       return;
     }
     this.busy = true;
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
+    const { signal, csrfToken } = write;
     let writeConfirmed = false;
     try {
-      let prepared = prepareCharacterPatch(
-        this.campaignState.campaign,
-        patch,
-        this.#canManageCampaign(),
-      );
+      let prepared = prepareCharacterPatch(write.campaign, patch, this.#canManageCampaign());
       prepared = await attachCharacterPortrait(
         prepared,
         {
@@ -1831,14 +1821,8 @@ export class CodexApp extends LitElement {
   readonly #mutateTwin = async (event: CustomEvent<CampaignTwinRequest>): Promise<void> => {
     event.preventDefault();
     const { mutation, respond } = event.detail;
-    if (
-      this.busy ||
-      !this.#request ||
-      !this.#canManageCampaign() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    ) {
+    const write = this.#writeAccess("manage");
+    if (!write) {
       respond({ ok: false, message: uiText("twins.failed") });
       return;
     }
@@ -1852,8 +1836,7 @@ export class CodexApp extends LitElement {
       return;
     }
     this.busy = true;
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
+    const { signal, csrfToken } = write;
     try {
       const receipt = await this.#campaignMutations.mutateTwin(mutation, csrfToken, signal);
       signal.throwIfAborted();
@@ -1891,32 +1874,21 @@ export class CodexApp extends LitElement {
     event: CustomEvent<CampaignRecordSaveDetail>,
   ): Promise<void> => {
     const settle = this.#edits.settler(event);
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canEdit() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return;
+    const write = this.#writeAccess("edit");
+    if (!write) return;
     this.recordSaveState = "idle";
     const creationRoute =
       this.route.kind === "create" && this.route.context ? this.route : undefined;
     const returnTo =
       this.route.kind === "record" && this.route.editing ? this.route.returnTo : undefined;
-    if (creationRoute && !creationSource(creationRoute, this.campaignState.campaign)?.record) {
+    if (creationRoute && !creationSource(creationRoute, write.campaign)?.record) {
       this.errorMessage = uiText("creation.unavailable");
       this.recordSaveState = "failed";
       return;
     }
     let prepared: PreparedCampaignRecordTransaction;
     try {
-      prepared = prepareCampaignRecordSave(
-        this.campaignState.campaign,
-        event.detail,
-        this.#canManageCampaign(),
-      );
+      prepared = prepareCampaignRecordSave(write.campaign, event.detail, this.#canManageCampaign());
     } catch (cause: unknown) {
       this.errorMessage =
         cause instanceof CampaignRecordEditError && cause.kind === "stale"
@@ -1929,8 +1901,7 @@ export class CodexApp extends LitElement {
       this.recordSaveState = "failed";
       return;
     }
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
+    const { signal, csrfToken } = write;
     this.busy = true;
     this.errorMessage = "";
     try {
@@ -1964,6 +1935,26 @@ export class CodexApp extends LitElement {
     }
   };
 
+  /** What a campaign write needs, or undefined when one cannot start now. */
+  #writeAccess(
+    access: "edit" | "manage",
+  ): { signal: AbortSignal; csrfToken: string; campaign: CampaignDataset } | undefined {
+    if (
+      this.busy ||
+      this.#request === undefined ||
+      !(access === "manage" ? this.#canManageCampaign() : this.#canEdit()) ||
+      this.authority.state !== "known" ||
+      !this.authority.auth.authenticated ||
+      this.campaignState.state !== "ready"
+    )
+      return undefined;
+    return {
+      signal: this.#request.signal,
+      csrfToken: this.authority.auth.csrfToken,
+      campaign: this.campaignState.campaign,
+    };
+  }
+
   /**
    * The shared path of a campaign save: authority and readiness checks, the
    * busy state, the write, a reload, and settling the editor that asked.
@@ -1976,21 +1967,13 @@ export class CodexApp extends LitElement {
     failure: (cause: unknown) => string,
   ): Promise<boolean> {
     const settle = this.#edits.settler(event);
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !(access === "manage" ? this.#canManageCampaign() : this.#canEdit()) ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return false;
-    const signal = this.#request.signal,
-      csrfToken = this.authority.auth.csrfToken;
+    const write = this.#writeAccess(access);
+    if (!write) return false;
+    const { signal, csrfToken } = write;
     this.busy = true;
     this.errorMessage = "";
     try {
-      await run(this.campaignState.campaign, csrfToken, signal);
+      await run(write.campaign, csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
       settle();
@@ -2124,26 +2107,18 @@ export class CodexApp extends LitElement {
   };
 
   readonly #uploadMap = async (event: CustomEvent<MapUploadDetail>): Promise<void> => {
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !this.#canEdit() ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return;
+    const write = this.#writeAccess("edit");
+    if (!write) return;
     const { parentId, expectedRevision, file } = event.detail;
     if (parentId === null && !this.#canManageCampaign()) return;
     if (
       parentId !== null &&
-      mapLocationRecord(this.campaignState.campaign, parentId)?.revision !== expectedRevision
+      mapLocationRecord(write.campaign, parentId)?.revision !== expectedRevision
     ) {
       this.#mapError(new CampaignMapEditError("stale"));
       return;
     }
-    const signal = this.#request.signal;
-    const csrfToken = this.authority.auth.csrfToken;
+    const { signal, csrfToken } = write;
     this.busy = true;
     this.errorMessage = "";
     try {
@@ -2158,7 +2133,7 @@ export class CodexApp extends LitElement {
       signal.throwIfAborted();
       if (parentId !== null) {
         const mutation = prepareLocalMapImage(
-          this.campaignState.campaign,
+          write.campaign,
           parentId,
           expectedRevision,
           media.url,
