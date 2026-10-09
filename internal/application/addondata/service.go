@@ -49,6 +49,7 @@ type Repository interface {
 
 type CoreRecords interface {
 	Get(context.Context, campaign.Collection, string) (campaign.Record, error)
+	List(ctx context.Context, collection campaign.Collection, includeDM bool) ([]campaign.Record, error)
 }
 
 type Role string
@@ -181,17 +182,25 @@ func (service *Service) List(
 	if kind == datacontract.Collection {
 		return documents, nil
 	}
+	// Read the extended collection once instead of one core record per document.
+	collection, err := coreCollection(description)
+	if err != nil {
+		return nil, err
+	}
+	records, err := service.core.List(ctx, collection, true)
+	if err != nil {
+		return nil, err
+	}
+	targets := make(map[string]campaign.Record, len(records))
+	for _, record := range records {
+		targets[record.Key] = record
+	}
 	visible := make([]addondatastore.Document, 0, len(documents))
 	for _, document := range documents {
-		err := service.authorizeDocument(ctx, access.Role, description, document)
-		if errors.Is(err, ErrTargetNotFound) || errors.Is(err, ErrTargetReplaced) ||
-			errors.Is(err, ErrUnauthorized) {
-			continue
+		target, found := targets[document.Key]
+		if found && documentVisible(access.Role, document, target) == nil {
+			visible = append(visible, document)
 		}
-		if err != nil {
-			return nil, err
-		}
-		visible = append(visible, document)
 	}
 	return visible, nil
 }
@@ -532,6 +541,13 @@ func (service *Service) authorizeDocument(
 	if err != nil {
 		return err
 	}
+	return documentVisible(role, document, target)
+}
+
+// documentVisible checks a record extension against its current core record:
+// it must belong to this incarnation of the record, and players see only
+// extensions of public records.
+func documentVisible(role Role, document addondatastore.Document, target campaign.Record) error {
 	if document.TargetCreatedAt == nil || !document.TargetCreatedAt.Equal(target.CreatedAt) {
 		return ErrTargetReplaced
 	}
@@ -541,14 +557,22 @@ func (service *Service) authorizeDocument(
 	return nil
 }
 
+func coreCollection(description datacontract.Description) (campaign.Collection, error) {
+	collection := campaign.Collection(description.Target)
+	if _, exists := campaign.Describe(collection); !exists {
+		return "", fmt.Errorf("%w: invalid core target %q", ErrInvalidRequest, description.Target)
+	}
+	return collection, nil
+}
+
 func (service *Service) coreTarget(
 	ctx context.Context,
 	description datacontract.Description,
 	key string,
 ) (campaign.Record, error) {
-	collection := campaign.Collection(description.Target)
-	if _, exists := campaign.Describe(collection); !exists {
-		return campaign.Record{}, fmt.Errorf("%w: invalid core target %q", ErrInvalidRequest, description.Target)
+	collection, err := coreCollection(description)
+	if err != nil {
+		return campaign.Record{}, err
 	}
 	record, err := service.core.Get(ctx, collection, key)
 	if errors.Is(err, campaign.ErrNotFound) {
