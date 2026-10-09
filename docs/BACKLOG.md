@@ -45,9 +45,14 @@ not obvious. Move an entry between sections instead of duplicating it.
   space, timeline cards and session columns, relationships ("add relationship
   to…"), faction ranks, the wiki writer (insert a campaign link at the cursor),
   and lending the menu to add-ons through the SDK (a contract change).
-- **Character sheet UI pass** `addon-dnd-character-sheets` — Review the sheet
-  for the same compactness and consistency problems fixed in the host
-  (October 2026 compact pass), together with the owner.
+- **Character sheet refinement** `addon-dnd-character-sheets` — Compact has
+  per-tab context bars, pips and floating windows; the owner keeps refining it.
+  Parts of the approved mockup still need contract work first: concentration
+  as a saved play value (with the save DC from the Engine), Engine-computed
+  advantage/disadvantage so conditions can mark the rolls they affect, and item
+  weight with container capacity (a container backed by an item, Bag of Holding
+  contents counting as nothing). The Backpack window still uses the older item
+  rows rather than the mockup's list-and-editor layout.
 - **Shared controls inside installed add-ons** `ttrpg-codex` and the three UI
   add-ons — The compact control size, the `ui-controls` cascade layer and the
   `data-ui="chips"` picker have not been tried in real installed add-ons. Run
