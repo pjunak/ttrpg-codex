@@ -710,14 +710,14 @@ export class CodexRecordPage extends LitElement {
       connections.has(key) ? "connections" : knowledge.has(key) ? "knowledge" : "details";
     return html`<div class="character-editor-layout">
       <div class="character-editor-details">
-        <div class="record-tabs" role="tablist" aria-label=${uiText("Character details")}>
+        <div class="record-tabs" role="tablist" data-ui-tabs aria-label=${uiText("Character details")}>
           ${tabs.map(
             (tab) => html`<button type="button" role="tab" id=${`character-editor-tab-${tab}`}
             aria-controls=${`character-editor-panel-${tab}`} aria-selected=${this.characterEditorTab === tab}
             tabindex=${this.characterEditorTab === tab ? 0 : -1}
             @click=${() => {
               this.characterEditorTab = tab;
-            }} @keydown=${this.#characterEditorTabKey}>${labels[tab]}</button>`,
+            }}>${labels[tab]}</button>`,
           )}
         </div>
         ${tabs.map(
@@ -756,29 +756,6 @@ export class CodexRecordPage extends LitElement {
       </div>
     </div>`;
   }
-
-  readonly #characterEditorTabKey = (event: KeyboardEvent): void => {
-    const tabs = ["details", "connections", "knowledge"] as const;
-    const index = tabs.indexOf(this.characterEditorTab);
-    const next =
-      event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? 2
-          : event.key === "ArrowRight"
-            ? (index + 1) % 3
-            : event.key === "ArrowLeft"
-              ? (index + 2) % 3
-              : -1;
-    if (next < 0) return;
-    event.preventDefault();
-    this.characterEditorTab = tabs[next]!;
-    void this.updateComplete.then(() =>
-      this.querySelector<HTMLButtonElement>(
-        `#character-editor-tab-${this.characterEditorTab}`,
-      )?.focus(),
-    );
-  };
 
   readonly #revealInvalidField = (event: Event): void => {
     const input = event.target;

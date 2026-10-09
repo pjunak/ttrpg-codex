@@ -104,7 +104,7 @@ import { bindRuleDetails } from "./codex-addon-rule-details.js";
 import "./codex-search.js";
 import { rememberRecentRecord } from "./recent-records.js";
 import { creationBackHash, creationSource } from "./context-creation.js";
-import { containDialogTab } from "../ui/focus.js";
+import { containDialogTab, navigateTabs } from "../ui/focus.js";
 import "./codex-settings.js";
 import "./codex-addon-markdown.js";
 import {
@@ -524,20 +524,8 @@ export class CodexApp extends LitElement {
   }
 
   readonly #characterTabKey = (event: KeyboardEvent): void => {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    const view =
-      event.key === "Home"
-        ? "profile"
-        : event.key === "End"
-          ? "addons"
-          : this.characterView === "profile"
-            ? "addons"
-            : "profile";
-    this.#selectCharacterView(view);
-    void this.updateComplete.then(() =>
-      this.querySelector<HTMLButtonElement>(`#character-view-${view}`)?.focus(),
-    );
+    const list = (event.currentTarget as HTMLElement).closest<HTMLElement>('[role="tablist"]');
+    if (list) navigateTabs(list, event);
   };
 
   async #checkHealth(signal: AbortSignal): Promise<void> {

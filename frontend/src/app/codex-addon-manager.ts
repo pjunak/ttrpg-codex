@@ -237,23 +237,6 @@ export class CodexAddonManager extends LitElement {
   #selectTab(id: string): void {
     this.activeTab = id;
   }
-  readonly #tabKey = (event: KeyboardEvent): void => {
-    const buttons = [
-      ...this.querySelectorAll<HTMLButtonElement>(".addon-settings-tabs [role=tab]"),
-    ];
-    const index = buttons.indexOf(event.target as HTMLButtonElement);
-    if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    const next =
-      event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? buttons.length - 1
-          : (index + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
-    const button = buttons[next]!;
-    this.#selectTab(button.dataset["addonTab"]!);
-    button.focus();
-  };
   protected override render() {
     const t = this.#ui.t.bind(this.#ui),
       tabs = this.#tabs(),
@@ -267,7 +250,7 @@ export class CodexAddonManager extends LitElement {
       <header class="settings-ledger-heading"><div><span class="settings-category-mark" aria-hidden="true">🧩</span><div><h2>${t("addons.title")}</h2><p>${t(this.canManage ? "addons.intro" : "addons.settingsIntro")}</p></div></div></header>
       ${
         tabbed
-          ? html`<div class="addon-settings-tabs" role="tablist" aria-label=${t("addons.title")} @keydown=${this.#tabKey}>
+          ? html`<div class="addon-settings-tabs" role="tablist" data-ui-tabs aria-label=${t("addons.title")}>
         ${repeat(
           tabs,
           (tab) => tab.id,
