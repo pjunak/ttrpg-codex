@@ -133,7 +133,7 @@ export class CodexInlineField extends LitElement {
       }</button>`;
     }
     const choice = this.field.kind === "enum" || this.field.kind === "reference";
-    const options = choice ? this.#options() : [];
+    const options = choice || this.#multi ? this.#options() : [];
     return html`<span class=${`inline-field-editor${this.pending ? " is-pending" : ""}`}
       @focusout=${this.#leave} @keydown=${this.#key}>
       <span class="inline-edit-row">${
@@ -146,8 +146,8 @@ export class CodexInlineField extends LitElement {
             this.error = "";
             this.#dirty(!sameCampaignValue(this.#list, this.#savedList()));
           }}>
-          ${this.#list.filter((value) => !this.#options().some((option) => option.value === value)).map((value) => html`<option value=${value} selected>${value}</option>`)}
-          ${this.#options().map((option) => html`<option value=${option.value} ?selected=${this.#list.includes(option.value)}>${option.label}</option>`)}</select>
+          ${this.#list.filter((value) => !options.some((option) => option.value === value)).map((value) => html`<option value=${value} selected>${value}</option>`)}
+          ${options.map((option) => html`<option value=${option.value} ?selected=${this.#list.includes(option.value)}>${option.label}</option>`)}</select>
           ${this.#actions()}`
           : choice
             ? html`<select aria-label=${this.#name} ?disabled=${this.pending} data-ui=${options.length >= 12 ? "combobox" : nothing}
