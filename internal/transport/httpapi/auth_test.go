@@ -136,3 +136,25 @@ func jsonStringField(t *testing.T, body []byte, name string) string {
 	}
 	return string(value[:end])
 }
+
+func TestAuthClientKeyUsesTheProxiedClientOnlyFromPrivatePeers(t *testing.T) {
+	t.Parallel()
+	for _, example := range []struct {
+		remote, forwarded, want string
+	}{
+		{"172.18.0.5:41000", "203.0.113.7", "203.0.113.7"},
+		{"127.0.0.1:41000", "198.51.100.1, 203.0.113.9", "203.0.113.9"},
+		{"203.0.113.50:41000", "198.51.100.1", "203.0.113.50"},
+		{"172.18.0.5:41000", "", "172.18.0.5"},
+		{"172.18.0.5:41000", "not-an-address", "172.18.0.5"},
+	} {
+		request := httptest.NewRequest("POST", "/api/auth/login", nil)
+		request.RemoteAddr = example.remote
+		if example.forwarded != "" {
+			request.Header.Set("X-Forwarded-For", example.forwarded)
+		}
+		if got := authClientKey(request); got != example.want {
+			t.Errorf("authClientKey(%s, %q) = %q, want %q", example.remote, example.forwarded, got, example.want)
+		}
+	}
+}

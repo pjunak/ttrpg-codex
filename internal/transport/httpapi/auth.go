@@ -4,7 +4,9 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -242,13 +244,26 @@ func sessionToken(r *http.Request) string {
 	return cookie.Value
 }
 
+// authClientKey identifies the client for the login limiter. Behind the
+// reverse proxy every request arrives from the proxy's private address, so
+// the proxy-set X-Forwarded-For names the client instead. Caddy replaces any
+// client-supplied value, and only private or loopback peers are trusted.
 func authClientKey(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil && host != "" {
-		return host
+	if err != nil || host == "" {
+		host = r.RemoteAddr
 	}
-	if len(r.RemoteAddr) > 200 {
-		return r.RemoteAddr[:200]
+	if peer, err := netip.ParseAddr(host); err == nil && (peer.IsLoopback() || peer.IsPrivate()) {
+		forwarded := r.Header.Values("X-Forwarded-For")
+		if len(forwarded) > 0 {
+			hops := strings.Split(forwarded[len(forwarded)-1], ",")
+			if client, err := netip.ParseAddr(strings.TrimSpace(hops[len(hops)-1])); err == nil {
+				return client.String()
+			}
+		}
 	}
-	return r.RemoteAddr
+	if len(host) > 200 {
+		return host[:200]
+	}
+	return host
 }

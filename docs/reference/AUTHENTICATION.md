@@ -28,7 +28,10 @@ The `edit_session` cookie is host-only, HttpOnly, SameSite=Lax, and can be
 marked Secure by executable configuration. Deployment must enable Secure
 cookies behind TLS. There is no default password. Login bodies and credential
 lengths are bounded, failures use one public classification, and repeated
-failures are rate limited per direct peer address with bounded bookkeeping.
+failures are rate limited per client address with bounded bookkeeping. Behind
+the reverse proxy, the client address is the last `X-Forwarded-For` entry,
+trusted only from a private or loopback peer (Caddy replaces any value the
+client sent).
 
 ## Authority model
 
