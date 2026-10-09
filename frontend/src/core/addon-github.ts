@@ -1,5 +1,6 @@
+import { isAddonId, responseReaders } from "./validators.js";
 import { readJSONResponse } from "./http.js";
-import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
+import { hasOnlyKeys, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 import { HostRequestError } from "./api.js";
 import { parseInstalledGeneration, type InstalledGeneration } from "./addon-admin.js";
@@ -43,22 +44,14 @@ export interface GitHubDiscovery {
   source: GitHubSource;
   candidates: GitHubCandidate[];
 }
-const fail = (): never => {
-  throw new BoundaryValidationError("GitHub add-ons", "invalid server response");
-};
+const { fail, list, boolean, hash } = responseReaders("GitHub add-ons");
 const record = (value: unknown, keys: string[]): Record<string, unknown> =>
   isRecord(value) && hasOnlyKeys(value, new Set(keys)) ? value : fail();
 const text = (value: unknown, max = 300): string =>
   typeof value === "string" && value.length <= max ? value : fail();
-const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : fail());
-const boolean = (value: unknown): boolean => (typeof value === "boolean" ? value : fail());
 const repo = (value: unknown): string => {
   const result = text(value);
   return /^[a-z0-9][a-z0-9-]{0,38}\/[a-z0-9_.-]{1,100}$/u.test(result) ? result : fail();
-};
-const hash = (value: unknown): string => {
-  const result = text(value);
-  return /^[a-f0-9]{64}$/u.test(result) ? result : fail();
 };
 function parseSource(value: unknown): GitHubSource {
   const r = record(value, ["repo", "channel", "branch", "artifact"]);
@@ -85,7 +78,7 @@ export function parseGitHubStatus(value: unknown): GitHubStatus {
         addonId = text(link["addonId"], 80),
         revision = link["revision"];
       if (
-        !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u.test(addonId) ||
+        !isAddonId(addonId) ||
         typeof revision !== "number" ||
         !Number.isSafeInteger(revision) ||
         revision < 1

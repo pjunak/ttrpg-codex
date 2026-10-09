@@ -1,3 +1,4 @@
+import { addonIdPattern } from "../core/validators.js";
 import { HostRequestError } from "../core/api.js";
 import { readJSONResponse } from "../core/http.js";
 import { sessionFetch } from "../core/player-preview.js";
@@ -5,7 +6,6 @@ import { waitForSignal } from "../core/abort-signal.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 
 const maximumResponseBytes = 2 * 1024 * 1024 + 128 * 1024;
-const addonIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const contractPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
 const methodPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const generationPattern = /^[0-9a-f]{64}$/;

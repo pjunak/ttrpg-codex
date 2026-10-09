@@ -1,4 +1,4 @@
-import { BoundaryValidationError, isRecord } from "./boundary.js";
+import { responseReaders } from "./validators.js";
 
 export interface AddonUninstallReview {
   addonId: string;
@@ -12,21 +12,15 @@ export interface AddonUninstallReview {
   effects: { addonId: string; name: string; disabled: boolean; reasons: string[] }[];
   retainedData: { kind: string; id: string; documents: number }[];
 }
-const fail = (): never => {
-  throw new BoundaryValidationError("Add-on uninstall", "invalid server response");
-};
-const object = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : fail());
-const text = (value: unknown): string => (typeof value === "string" ? value : fail());
-const bool = (value: unknown): boolean => (typeof value === "boolean" ? value : fail());
-const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : fail());
-const id = (value: unknown): string => {
-  const result = text(value);
-  return /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u.test(result) && result.length <= 80 ? result : fail();
-};
-const hash = (value: unknown): string => {
-  const result = text(value);
-  return /^[a-f0-9]{64}$/u.test(result) ? result : fail();
-};
+const {
+  fail,
+  object,
+  text,
+  boolean: bool,
+  list,
+  addonId: id,
+  hash,
+} = responseReaders("Add-on uninstall");
 
 export function parseAddonUninstallReview(value: unknown, addonId: string): AddonUninstallReview {
   const record = object(value);

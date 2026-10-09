@@ -1,3 +1,4 @@
+import { addonIdPattern } from "../core/validators.js";
 import { validContributionLabels } from "./contribution-label.js";
 import {
   GenerationClosedError,
@@ -7,7 +8,6 @@ import {
 } from "./generation-scope.js";
 import type { BrowserAddonContext, BrowserAddonSDKSession } from "./browser-sdk.js";
 
-const addonIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const contractIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
 const routePathPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;

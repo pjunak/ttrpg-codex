@@ -1,4 +1,4 @@
-import { BoundaryValidationError, isRecord } from "./boundary.js";
+import { responseReaders } from "./validators.js";
 
 export interface SchemaChange {
   kind: "collection" | "record-extension";
@@ -26,17 +26,11 @@ export interface SchemaReview {
   changes: SchemaChange[];
   blockers: { code: string; kind: string; dataId: string; message: string }[];
 }
-const fail = (): never => {
-  throw new BoundaryValidationError("Saved-data review", "invalid server response");
-};
-const object = (v: unknown) => (isRecord(v) ? v : fail());
-const text = (v: unknown): string => (typeof v === "string" && v.length <= 1024 ? v : fail());
-const count = (v: unknown): number =>
-  typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : fail();
-const hash = (v: unknown): string => (/^[a-f0-9]{64}$/u.test(text(v)) ? text(v) : fail());
+const read = responseReaders("Saved-data review");
+const { fail, object, count, hash } = read;
+const text = (v: unknown): string => read.text(v, 1024);
 const date = (v: unknown): string => (Number.isFinite(Date.parse(text(v))) ? text(v) : fail());
-const list = (v: unknown, max: number): unknown[] =>
-  Array.isArray(v) && v.length <= max ? v : fail();
+const list = (v: unknown, max: number): unknown[] => read.list(v, max);
 const kind = (v: unknown): SchemaChange["kind"] =>
   v === "collection" || v === "record-extension" ? v : fail();
 const localId = (v: unknown): string =>

@@ -1,3 +1,4 @@
+import { isAddonId, isSha256 } from "./validators.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 import { waitForSignal } from "./abort-signal.js";
@@ -27,10 +28,8 @@ export class PackageStorageError extends HostRequestError {
     super(status, "Package storage");
   }
 }
-const id = (value: unknown): value is string =>
-  typeof value === "string" && value.length <= 80 && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u.test(value);
-const hash = (value: unknown): value is string =>
-  typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
+const id = isAddonId,
+  hash = isSha256;
 const fail = (): never => {
   throw new BoundaryValidationError("Package storage", "invalid response");
 };

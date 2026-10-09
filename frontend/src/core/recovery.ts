@@ -1,3 +1,4 @@
+import { isSha256 } from "./validators.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 import { waitForSignal } from "./abort-signal.js";
@@ -105,7 +106,7 @@ export function parseRecoveryListing(value: unknown): RecoveryListing {
         !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(addon["addonId"]) ||
         addons.some((existing) => existing.addonId === addon["addonId"]) ||
         typeof addon["generationId"] !== "string" ||
-        (addon["generationId"] !== "" && !/^[a-f0-9]{64}$/.test(addon["generationId"])) ||
+        (addon["generationId"] !== "" && !isSha256(addon["generationId"])) ||
         !natural(addon["documents"]) ||
         !natural(addon["media"]) ||
         typeof addon["compatible"] !== "boolean"

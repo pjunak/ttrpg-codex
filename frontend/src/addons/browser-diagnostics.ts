@@ -1,3 +1,4 @@
+import { isSha256 } from "../core/validators.js";
 import { BoundaryValidationError, isRecord } from "../core/boundary.js";
 import { HostRequestError } from "../core/api.js";
 
@@ -47,10 +48,7 @@ export class BrowserDiagnostics {
         phase,
         addonId:
           typeof addonId === "string" && /^[a-z][a-z0-9-]{0,79}$/.test(addonId) ? addonId : "",
-        generationId:
-          typeof generationId === "string" && /^[a-f0-9]{64}$/.test(generationId)
-            ? generationId
-            : "",
+        generationId: isSha256(generationId) ? generationId : "",
         code,
       }),
     );

@@ -1,4 +1,4 @@
-import { BoundaryValidationError, isRecord } from "./boundary.js";
+import { responseReaders } from "./validators.js";
 
 export interface SourceTarget {
   addonId: string;
@@ -66,18 +66,17 @@ export const serviceKey = (service: ServiceSelection): string =>
     service.requirement.contract,
   ]);
 
-const fail = (): never => {
-  throw new BoundaryValidationError("Add-on configuration", "invalid server response");
-};
-const object = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : fail());
-const string = (value: unknown): string => (typeof value === "string" ? value : fail());
-const boolean = (value: unknown): boolean => (typeof value === "boolean" ? value : fail());
-const array = (value: unknown): unknown[] => (Array.isArray(value) ? value : fail());
-const strings = (value: unknown): string[] => array(value).map(string);
+const {
+  fail,
+  object,
+  text: string,
+  boolean,
+  list: array,
+  hash,
+} = responseReaders("Add-on configuration");
+const strings = (value: unknown): string[] => array(value).map((item) => string(item));
 const revision = (value: unknown): number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 1 ? value : fail();
-const hash = (value: unknown): string =>
-  /^[a-f0-9]{64}$/u.test(string(value)) ? string(value) : fail();
 const choice = <T extends string>(value: unknown, allowed: readonly T[]): T =>
   allowed.includes(string(value) as T) ? (value as T) : fail();
 function snapshot(value: Record<string, unknown>): ConfigurationSnapshot {

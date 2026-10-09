@@ -1,7 +1,8 @@
+import { responseReaders } from "./validators.js";
 import { readJSONResponse } from "./http.js";
 import { parseSchemaReview, type SchemaReview } from "./addon-schema-upgrade.js";
 import { parseWorkerDiagnostics, type WorkerDiagnostics } from "./worker-diagnostics.js";
-import { BoundaryValidationError, isRecord } from "./boundary.js";
+import { isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 import { HostRequestError } from "./api.js";
 import {
@@ -67,22 +68,16 @@ export interface AddonReview {
   runtimeChanged: boolean;
   blockers: { code: string; message: string }[];
 }
-const fail = (): never => {
-  throw new BoundaryValidationError("Add-on administration", "invalid server response");
-};
-const object = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : fail());
-const text = (value: unknown): string => (typeof value === "string" ? value : fail());
-const optionalText = (value: unknown): string => (value === undefined ? "" : text(value));
-const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : fail());
-const strings = (value: unknown): string[] => list(value ?? []).map(text);
-const id = (value: unknown): string => {
-  const result = text(value);
-  return /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u.test(result) && result.length <= 80 ? result : fail();
-};
-const hash = (value: unknown): string => {
-  const result = text(value);
-  return /^[a-f0-9]{64}$/u.test(result) ? result : fail();
-};
+const {
+  fail,
+  object,
+  text,
+  optionalText,
+  list,
+  addonId: id,
+  hash,
+} = responseReaders("Add-on administration");
+const strings = (value: unknown): string[] => list(value ?? []).map((item) => text(item));
 
 export function parseInstalledGeneration(value: unknown): InstalledGeneration {
   const record = object(value);
