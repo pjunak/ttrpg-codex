@@ -30,7 +30,6 @@ Copy `.env.example` to `.env` and set:
 | `CODEX_LOCALE` | Locale reported to add-on workers; default `en` |
 | `CODEX_TIME_ZONE` | IANA time zone reported to workers |
 | `CODEX_ADDON_AUTO_CLEANUP` | `true` by default; retain only the selected add-on build after healthy startup and activation. Superseded packages and their add-on recovery contexts are removed; campaign recovery and current saves remain. Set `false` for manual retention. See [package retention](reference/PACKAGE_LIFECYCLE.md#automatic-package-file-retention). |
-| `CODEX_ADDON_KEEP_RECOVERY_PACKAGES` | `false` by default. Set `true` to retain historical add-on recovery contexts and package metadata, evicting only recoverable files. Has no effect while automatic cleanup is disabled. |
 
 The host has no default credential. Password bootstrap values initialize saved
 password hashes once. Later starts use the saved credentials, so editing `.env`
@@ -354,9 +353,8 @@ saved-package cleanup.
 3. Repeat the **same command and options** with
    `-apply <reviewSHA256> -backup <new-backup.zip>`. The CLI creates and fully
    verifies this new backup before applying the exact reviewed operation. A
-   changed preview or failed backup leaves data untouched. Pruned package files
-   are materialized through their normal verified sources for the backup;
-   unavailable package bytes prevent cleanup.
+   changed preview or failed backup leaves data untouched. Package files the
+   backup needs must still be on disk; missing package bytes prevent cleanup.
 4. If blob unlinking was interrupted after its intent committed, run
    `codex-maintenance collect-blobs -data-dir ./data -resume`.
    This completes only previously reviewed removal intent. It never chooses

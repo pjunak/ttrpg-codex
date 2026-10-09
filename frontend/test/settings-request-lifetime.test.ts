@@ -14,9 +14,7 @@ const generation = {
 const storage = {
   contractVersion: "addon-package-storage.v1",
   automatic: true,
-  latestOnly: true,
   pending: 0,
-  packages: [],
 };
 const clients = [
   {
@@ -35,9 +33,9 @@ const clients = [
       ),
   },
   {
-    name: "package housekeeping",
+    name: "package storage status",
     value: storage,
-    run: (signal: AbortSignal) => new AddonStorageClient(csrf, signal).retry(),
+    run: (signal: AbortSignal) => new AddonStorageClient(csrf, signal).status(),
   },
 ];
 

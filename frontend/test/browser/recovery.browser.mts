@@ -386,7 +386,9 @@ for (const mobile of [false, true])
     const storage = page.locator("codex-addon-manager codex-package-storage");
     await storage
       .getByText(
-        mobile ? "Server automaticky" : "The server automatically removes superseded packages",
+        mobile
+          ? "Po úspěšné aktualizaci server odstraní"
+          : "After a successful update the server removes",
         { exact: false },
       )
       .waitFor();

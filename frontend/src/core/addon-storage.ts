@@ -1,24 +1,13 @@
-import { isAddonId, isSha256 } from "./validators.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
-import { waitForSignal } from "./abort-signal.js";
-import { parseInstalledGeneration, type InstalledGeneration } from "./addon-admin.js";
+import { readJSONResponse } from "./http.js";
 import { HostRequestError } from "./api.js";
 
-export interface StoredPackage {
-  addonId: string;
-  generationId: string;
-  version: string;
-  available: boolean;
-  active: boolean;
-  downloadable: boolean;
-}
+/** The server's package cleanup policy and any cleanup it is still retrying. */
 export interface PackageStorage {
   contractVersion: "addon-package-storage.v1";
   automatic: boolean;
-  latestOnly?: boolean;
   pending: number;
-  packages: StoredPackage[];
 }
 export class PackageStorageError extends HostRequestError {
   constructor(
@@ -28,62 +17,21 @@ export class PackageStorageError extends HostRequestError {
     super(status, "Package storage");
   }
 }
-const id = isAddonId,
-  hash = isSha256;
-const fail = (): never => {
-  throw new BoundaryValidationError("Package storage", "invalid response");
-};
+const boundary = "Package storage";
 export function parsePackageStorage(value: unknown): PackageStorage {
   if (
     !isRecord(value) ||
-    !hasOnlyKeys(
-      value,
-      new Set(["contractVersion", "automatic", "latestOnly", "pending", "packages"]),
-    ) ||
+    !hasOnlyKeys(value, new Set(["contractVersion", "automatic", "pending"])) ||
     value["contractVersion"] !== "addon-package-storage.v1" ||
     typeof value["automatic"] !== "boolean" ||
-    (value["latestOnly"] !== undefined && typeof value["latestOnly"] !== "boolean") ||
     !Number.isSafeInteger(value["pending"]) ||
-    Number(value["pending"]) < 0 ||
-    !Array.isArray(value["packages"]) ||
-    value["packages"].length > 512
+    Number(value["pending"]) < 0
   )
-    return fail();
-  const packages = value["packages"].map((item: unknown): StoredPackage => {
-    if (
-      !isRecord(item) ||
-      !hasOnlyKeys(
-        item,
-        new Set(["addonId", "generationId", "version", "available", "active", "downloadable"]),
-      ) ||
-      !id(item["addonId"]) ||
-      !hash(item["generationId"]) ||
-      typeof item["version"] !== "string" ||
-      item["version"].length > 200 ||
-      typeof item["available"] !== "boolean" ||
-      typeof item["active"] !== "boolean" ||
-      typeof item["downloadable"] !== "boolean"
-    )
-      return fail();
-    return {
-      addonId: item["addonId"],
-      generationId: item["generationId"],
-      version: item["version"],
-      available: item["available"],
-      active: item["active"],
-      downloadable: item["downloadable"],
-    };
-  });
-  if (
-    new Set(packages.map((item) => item.addonId + ":" + item.generationId)).size !== packages.length
-  )
-    return fail();
+    throw new BoundaryValidationError(boundary, "invalid response");
   return {
     contractVersion: "addon-package-storage.v1",
     automatic: value["automatic"],
-    ...(typeof value["latestOnly"] === "boolean" ? { latestOnly: value["latestOnly"] } : {}),
     pending: Number(value["pending"]),
-    packages,
   };
 }
 export class AddonStorageClient {
@@ -91,68 +39,25 @@ export class AddonStorageClient {
     readonly csrf: string,
     readonly signal: AbortSignal,
   ) {}
-  async #request(operation = "", body?: unknown): Promise<unknown> {
-    const response = await sessionFetch(
-      "/api/admin/addon-package-storage" + (operation ? "/" + operation : ""),
-      {
-        signal: this.signal,
-        cache: "no-store",
-        method: body === undefined ? "GET" : "POST",
-        headers: {
-          Accept: "application/json",
-          "X-Codex-CSRF": this.csrf,
-          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-        },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      },
-    );
-    this.signal.throwIfAborted();
-    const value: unknown = await waitForSignal(
-      response.json().catch((error: unknown) => {
-        if (response.ok) throw error;
-        return undefined;
-      }),
-      this.signal,
-    );
-    this.signal.throwIfAborted();
-    if (!response.ok)
-      throw new PackageStorageError(
-        response.status,
-        isRecord(value) && isRecord(value["error"]) && typeof value["error"]["kind"] === "string"
-          ? value["error"]["kind"]
-          : "",
-      );
-    return value;
-  }
   async status(): Promise<PackageStorage> {
-    return parsePackageStorage(await this.#request());
-  }
-  async recovery(
-    pointId: number,
-    expectedRevision: number,
-    prepare = false,
-  ): Promise<PackageStorage> {
-    if (
-      !Number.isSafeInteger(pointId) ||
-      pointId < 1 ||
-      !Number.isSafeInteger(expectedRevision) ||
-      expectedRevision < 0
-    )
-      return fail();
+    const response = await sessionFetch("/api/admin/addon-package-storage", {
+      signal: this.signal,
+      cache: "no-store",
+      headers: { Accept: "application/json", "X-Codex-CSRF": this.csrf },
+    });
     return parsePackageStorage(
-      await this.#request(prepare ? "prepare" : "review", { pointId, expectedRevision }),
+      await readJSONResponse(response, {
+        boundary,
+        maxBytes: 64 * 1024,
+        signal: this.signal,
+        httpError: (status, body) =>
+          new PackageStorageError(
+            status,
+            isRecord(body) && isRecord(body["error"]) && typeof body["error"]["kind"] === "string"
+              ? body["error"]["kind"]
+              : "",
+          ),
+      }),
     );
-  }
-  async restore(item: StoredPackage): Promise<InstalledGeneration> {
-    if (!id(item.addonId) || !hash(item.generationId)) return fail();
-    const generation = parseInstalledGeneration(
-      await this.#request("restore", { addonId: item.addonId, generationId: item.generationId }),
-    );
-    if (generation.addonId !== item.addonId || generation.generationId !== item.generationId)
-      return fail();
-    return generation;
-  }
-  async retry(): Promise<PackageStorage> {
-    return parsePackageStorage(await this.#request("retry", {}));
   }
 }

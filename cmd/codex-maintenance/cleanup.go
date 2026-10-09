@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 
 	"database/sql"
-	"github.com/pjunak/ttrpg-codex/internal/addons/githubsource"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
@@ -123,14 +122,10 @@ func backupBeforeCleanup(ctx context.Context, db *sql.DB, directory, output stri
 	if err != nil {
 		return err
 	}
-	fetch, err := githubsource.NewPackageFetcher(githubsource.Config{DB: db, DataDirectory: directory, Inspector: inspector})
-	if err != nil {
-		return err
-	}
 	if _, err = backuparchive.Create(ctx, backuparchive.CreateConfig{
 		Database: db, DataDirectory: directory, OutputPath: output, HostVersion: version.Host,
 		MaterializePackages: func(ctx context.Context, databasePath, stageRoot string) error {
-			return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(directory, "addons"), stageRoot, inspector, fetch)
+			return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(directory, "addons"), stageRoot, inspector)
 		},
 	}); err != nil {
 		return err

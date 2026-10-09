@@ -99,9 +99,7 @@ async function open(t: TestContext, mobile = false) {
       value = {
         contractVersion: "addon-package-storage.v1",
         automatic: true,
-        latestOnly: true,
         pending: 0,
-        packages: [],
       };
     else if (path === "/api/admin/rules-policy")
       value = {

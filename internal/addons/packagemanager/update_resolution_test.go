@@ -127,7 +127,7 @@ func TestUpdateResolutionPreservesValuesOrRemovesOnlySelectedSaves(t *testing.T)
 					t.Fatal("unsafe healing accepted", err)
 				}
 			}
-			if err = f.manager.ConfigureLatestPackageRetention(ctx, true, nil); err != nil {
+			if err = f.manager.ConfigurePackageRetention(ctx, true); err != nil {
 				t.Fatal(err)
 			}
 			result, err := f.manager.ResolveAndActivate(ctx, f.review.ReviewID, f.request(action))
@@ -333,7 +333,7 @@ func TestAutomaticMaintenanceExpiresCancelledFirstInstallation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = f.manager.ConfigureLatestPackageRetention(ctx, true, nil); err != nil {
+	if err = f.manager.ConfigurePackageRetention(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.manager.store.generation(ctx, generation.AddonID, generation.GenerationID); err != nil {
@@ -356,7 +356,7 @@ func TestAutomaticMaintenanceCancelsAndExpiresUnselectedBuilds(t *testing.T) {
 		t.Run(map[bool]string{false: "abandoned", true: "cancelled"}[cancelled], func(t *testing.T) {
 			ctx := context.Background()
 			f := newUpdateFixture(t, false)
-			if err := f.manager.ConfigureLatestPackageRetention(ctx, true, nil); err != nil {
+			if err := f.manager.ConfigurePackageRetention(ctx, true); err != nil {
 				t.Fatal(err)
 			}
 			if cancelled {

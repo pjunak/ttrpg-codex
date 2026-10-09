@@ -57,18 +57,17 @@ of package files and do not prevent cleanup of an inactive live generation.
 Add-on recovery contexts retain exact package identities. Default
 [latest-only retention](PACKAGE_LIFECYCLE.md#automatic-package-file-retention)
 retires only obsolete add-on contexts, preserving their campaign snapshots.
-With `CODEX_ADDON_KEEP_RECOVERY_PACKAGES=true`, superseded files may instead be
-downloaded again when needed. Before publishing a full
-backup, online and offline creators materialize every missing recovery package
-into temporary staging and verify its exact add-on ID and archive SHA-256.
-The snapshot records those files as local; the running installation is unchanged.
-Temporary materialization is bounded to 512 packages, 100,000 files and 4 GiB,
-with a five-minute preparation deadline; the ordinary full-archive limits still
-apply to the combined campaign and package files.
+A database from an older host may still mark a needed build as evicted until
+that cleanup runs. Before publishing a full backup, online and offline creators
+copy such a build from the live package root into temporary staging when its
+files are still there, and verify its exact add-on ID and archive SHA-256. The
+snapshot records those files as local; the running installation is unchanged.
+Temporary staging is bounded to 512 packages, 100,000 files and 4 GiB, with a
+five-minute deadline; the ordinary full-archive limits still apply to the
+combined campaign and package files.
 
-Missing or changed historical packages fail the backup before an output archive
-is published. The web response directs the operator to check GitHub access or
-upload the matching ZIP. Verification and restore also require every active and
+A needed package whose files are missing or changed fails the backup before an
+output archive is published; upload the matching ZIP first. Verification and restore also require every active and
 recovery-referenced package ZIP and its extracted files to be complete and
 correct. A restored full backup can therefore start offline. Default latest-only
 retention also runs after healthy startup of a restored directory; to retain

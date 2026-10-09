@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pjunak/ttrpg-codex/internal/addons/githubsource"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
@@ -75,14 +74,9 @@ func runBackup(ctx context.Context, arguments []string, stdout, stderr io.Writer
 		database.Close()
 		return err
 	}
-	fetch, err := githubsource.NewPackageFetcher(githubsource.Config{DB: database, DataDirectory: *dataDirectory, Inspector: inspector})
-	if err != nil {
-		database.Close()
-		return err
-	}
 	manifest, createErr := backuparchive.Create(ctx, backuparchive.CreateConfig{
 		MaterializePackages: func(ctx context.Context, databasePath, stageRoot string) error {
-			return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(*dataDirectory, "addons"), stageRoot, inspector, fetch)
+			return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(*dataDirectory, "addons"), stageRoot, inspector)
 		},
 		Database: database, DataDirectory: *dataDirectory,
 		OutputPath: *output, HostVersion: version.Host,

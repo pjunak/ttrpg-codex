@@ -65,8 +65,6 @@ type activeRuntime struct {
 
 type Manager struct {
 	automaticCleanup      bool
-	latestPackageOnly     bool
-	packageFetcher        PackageFetcher
 	store                 *store
 	directory             string
 	stagingDirectory      string

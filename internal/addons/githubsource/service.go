@@ -329,14 +329,3 @@ func (s *Service) Stage(ctx context.Context, source Source, addonID, candidateID
 	}
 	return generation, nil
 }
-
-// NewPackageFetcher supports offline backup materialization without constructing
-// a running package manager or exposing staging/activation authority.
-func NewPackageFetcher(config Config) (packagemanager.PackageFetcher, error) {
-	if config.DB == nil || config.DataDirectory == "" || config.Inspector == nil {
-		return nil, ErrInvalid
-	}
-	service := &Service{store: &store{db: config.DB, credentialPath: filepath.Join(config.DataDirectory, "credentials", "github.db")}, inspector: config.Inspector,
-		client: &http.Client{Timeout: 25 * time.Second, CheckRedirect: githubRedirect}}
-	return service.FetchPackage, nil
-}

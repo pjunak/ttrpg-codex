@@ -65,7 +65,6 @@ export class CodexSettings extends LitElement {
     registry: { attribute: false },
     actorRole: { attribute: false },
     addonTarget: { attribute: false },
-    addonGeneration: { attribute: false },
   };
 
   declare campaign: CampaignDataset | undefined;
@@ -81,7 +80,6 @@ export class CodexSettings extends LitElement {
   declare registry: BrowserContributionRegistry | undefined;
   declare actorRole: BrowserRole | undefined;
   declare addonTarget: string | null | undefined;
-  declare addonGeneration: string | undefined;
   readonly #contributions = new AddonContributionsController(this, () => ({
     registry: this.registry,
     role: this.actorRole,
@@ -148,7 +146,6 @@ export class CodexSettings extends LitElement {
       return this.#shell(html`<codex-addon-manager .csrfToken=${this.csrfToken}
       .registry=${this.registry} .actorRole=${this.actorRole} .canManage=${this.canManageCampaign}
       .addonTarget=${this.addonTarget}
-      .addonGeneration=${this.addonGeneration}
       @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
         this.#dirty = event.detail.dirty;
       }}></codex-addon-manager>`);

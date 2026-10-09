@@ -50,7 +50,6 @@ export class CodexAddonManager extends LitElement {
     actorRole: { attribute: false },
     canManage: { attribute: false },
     addonTarget: { attribute: false },
-    addonGeneration: { attribute: false },
     installOpen: { state: true },
     installTarget: { state: true },
     staged: { state: true },
@@ -63,7 +62,6 @@ export class CodexAddonManager extends LitElement {
   declare actorRole: BrowserRole | undefined;
   declare canManage: boolean;
   declare addonTarget: string | null | undefined;
-  declare addonGeneration: string | undefined;
   readonly #contributions = new AddonContributionsController(this, () => ({
     registry: this.registry,
     role: this.actorRole,
@@ -89,16 +87,8 @@ export class CodexAddonManager extends LitElement {
   #opener: HTMLElement | null = null;
   #installBusy = false;
   #configurationBusy = false;
-  #storageBusy = false;
-  #requestedReview = "";
   get #busy(): boolean {
-    return (
-      this.pending ||
-      this.#github.pending ||
-      this.#installBusy ||
-      this.#configurationBusy ||
-      this.#storageBusy
-    );
+    return this.pending || this.#github.pending || this.#installBusy || this.#configurationBusy;
   }
   readonly #ui = new UiLocalizationController(this);
   readonly #github = new AddonGitHubController(
@@ -132,8 +122,6 @@ export class CodexAddonManager extends LitElement {
     this.requestUpdate();
   }
   override disconnectedCallback(): void {
-    this.#requestedReview = "";
-    this.#storageBusy = false;
     this.#request.abort();
     this.#installBusy = false;
     this.#configurationBusy = false;
@@ -146,10 +134,7 @@ export class CodexAddonManager extends LitElement {
     super.disconnectedCallback();
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (changed.has("addonTarget") || changed.has("addonGeneration")) {
-      this.activeTab = this.addonGeneration ? "" : (this.addonTarget ?? "");
-      this.#requestedReview = "";
-    }
+    if (changed.has("addonTarget")) this.activeTab = this.addonTarget ?? "";
     if (changed.has("canManage")) {
       this.configurationAddons = [];
       this.configurationError = "";
@@ -161,8 +146,6 @@ export class CodexAddonManager extends LitElement {
       this.removal = undefined;
       this.disabling = undefined;
       this.pending = false;
-      this.#requestedReview = "";
-      this.#storageBusy = false;
       this.#github.reset();
       this.#installBusy = false;
       this.installOpen = false;
@@ -180,23 +163,6 @@ export class CodexAddonManager extends LitElement {
     }
   }
   protected override updated(changed: Map<PropertyKey, unknown>): void {
-    const requested =
-      this.addonTarget && this.addonGeneration ? this.addonTarget + ":" + this.addonGeneration : "";
-    if (
-      requested &&
-      this.canManage &&
-      this.#inventoryLoaded &&
-      !this.#busy &&
-      requested !== this.#requestedReview
-    ) {
-      this.#requestedReview = requested;
-      this.activeTab = "";
-      const generation = this.snapshots
-        .find((snapshot) => snapshot.state.addonId === this.addonTarget)
-        ?.generations.find((item) => item.generationId === this.addonGeneration);
-      if (generation) this.#prepare(generation.addonId, generation.generationId);
-      else this.error = this.#ui.t("storage.prepareFirst");
-    }
     const selected = this.#selectedTab();
     if (selected !== this.#visibleTab) {
       this.#visibleTab = selected;
@@ -283,24 +249,8 @@ export class CodexAddonManager extends LitElement {
           (snapshot) => snapshot.state.addonId,
           (snapshot) => this.#addonRow(snapshot),
         )}</div>
-        <codex-package-storage .csrfToken=${this.csrfToken} .disabled=${this.#busy}
-          .inventoryRevision=${JSON.stringify(this.snapshots.map((snapshot) => [snapshot.state, snapshot.generations.map((item) => item.generationId)]))}
-          @addon-storage-busy=${(event: CustomEvent<boolean>) => {
-            this.#storageBusy = event.detail;
-            this.requestUpdate();
-            this.dispatchEvent(
-              new CustomEvent("addon-admin-busy", {
-                detail: event.detail,
-                bubbles: true,
-                composed: true,
-              }),
-            );
-          }}
-          @addon-package-restored=${(event: CustomEvent<InstalledGeneration>) => {
-            this.#openInstall();
-            this.staged = event.detail;
-            this.#loadReview();
-          }}></codex-package-storage>
+        <codex-package-storage .csrfToken=${this.csrfToken}
+          .inventoryRevision=${JSON.stringify(this.snapshots.map((snapshot) => [snapshot.state, snapshot.generations.map((item) => item.generationId)]))}></codex-package-storage>
         ${this.#tokens()}
       </div>`
           : nothing
@@ -309,7 +259,7 @@ export class CodexAddonManager extends LitElement {
         ${selected ? html`<h3>${tabs.find((tab) => tab.id === selected)?.name}</h3><a class="addon-settings-link" href=${addonSettingsHash(selected)}>${t("addons.settingsLink")}</a>` : nothing}
         ${
           this.canManage
-            ? html`<codex-addon-configuration .csrfToken=${this.csrfToken} .addonId=${selected} .disabled=${this.pending || this.#github.pending || this.#installBusy || this.#storageBusy}
+            ? html`<codex-addon-configuration .csrfToken=${this.csrfToken} .addonId=${selected} .disabled=${this.pending || this.#github.pending || this.#installBusy}
           @addon-configuration-error=${(event: CustomEvent<string>) => {
             this.configurationError = event.detail;
           }}

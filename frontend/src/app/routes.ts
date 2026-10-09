@@ -56,7 +56,6 @@ export type AppRoute =
       readonly kind: "settings";
       readonly mapParentId?: string | null;
       readonly addonId?: string | null;
-      readonly generationId?: string;
     }
   | { readonly kind: "collection"; readonly page: CampaignPageDefinition; readonly view?: string }
   | {
@@ -179,10 +178,6 @@ export function parseAppRoute(hash: string): AppRoute {
     return { kind: "settings" };
   }
   if (hash === "#/settings/addons") return { kind: "settings", addonId: null };
-  const packageReview =
-    /^#\/settings\/addons\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\/packages\/([a-f0-9]{64})$/u.exec(hash);
-  if (packageReview && packageReview[1]!.length <= 80)
-    return { kind: "settings", addonId: packageReview[1]!, generationId: packageReview[2]! };
   const addonSettings = /^#\/settings\/addons\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)$/u.exec(hash);
   if (addonSettings && addonSettings[1]!.length <= 100)
     return { kind: "settings", addonId: addonSettings[1]! };
@@ -243,10 +238,6 @@ export function parseAppRoute(hash: string): AppRoute {
   } catch {
     return { kind: "not-found", path };
   }
-}
-
-export function addonPackageReviewHash(addonId: string, generationId: string): string {
-  return `#/settings/addons/${encodeURIComponent(addonId)}/packages/${encodeURIComponent(generationId)}`;
 }
 
 export function addonSettingsHash(addonId: string): string {

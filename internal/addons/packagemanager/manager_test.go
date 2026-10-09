@@ -828,7 +828,7 @@ func TestCohortRecoveryFailureKeepsReviewedDurableSelection(t *testing.T) {
 	db := testDatabase(t)
 	factory := &fakeRuntimeFactory{}
 	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), factory)
-	if err := manager.ConfigurePackageRetention(context.Background(), true, nil); err != nil {
+	if err := manager.ConfigurePackageRetention(context.Background(), true); err != nil {
 		t.Fatal(err)
 	}
 	provider := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")

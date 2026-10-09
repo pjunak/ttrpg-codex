@@ -48,7 +48,6 @@ func (s *server) registerAddonAdminRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/admin/addon-schema-reviews/{reviewID}/{operation}", s.requireAdmin(http.HandlerFunc(s.addonSchemaReview)))
 	mux.Handle("POST /api/admin/addon-schema-reviews/{reviewID}/apply", s.requireAdmin(http.HandlerFunc(s.addonSchemaReview)))
 	mux.Handle("GET /api/admin/addon-package-storage", s.requireAdmin(http.HandlerFunc(s.packageStorage)))
-	mux.Handle("POST /api/admin/addon-package-storage/{operation}", s.requireAdmin(http.HandlerFunc(s.packageStorage)))
 	mux.Handle("POST /api/admin/addon-package-cleanup/{operation}", s.requireAdmin(http.HandlerFunc(s.packageCleanup)))
 	mux.Handle("GET /api/admin/rules-policy", s.requireAdmin(http.HandlerFunc(s.rulesPolicy)))
 	mux.Handle("POST /api/admin/rules-policy", s.requireAdmin(http.HandlerFunc(s.setSourcePolicy)))

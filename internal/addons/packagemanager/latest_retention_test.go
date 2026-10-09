@@ -6,9 +6,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
 	"github.com/pjunak/ttrpg-codex/internal/events"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/recoverystore"
 )
 
@@ -42,9 +45,9 @@ func TestLatestRetentionCleansExistingAndFutureBuildsPreservingCampaignRecovery(
 	}
 	id := points.Points[0].ID
 	selected := installUninstallFixture(t, m, packageSpec{ID: "example", Version: "2.0.0"})
-	// An installation which already ran the previous eviction policy must migrate.
+	// An installation which already ran the retired eviction policy must migrate.
 	retentionExec(t, db, `UPDATE addon_package_retention SET initial_cleanup_complete=1`)
-	if err := m.ConfigureLatestPackageRetention(ctx, true, nil); err != nil {
+	if err := m.ConfigurePackageRetention(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 	assertGone := func(g Generation) {
@@ -62,9 +65,8 @@ func TestLatestRetentionCleansExistingAndFutureBuildsPreservingCampaignRecovery(
 	if point.ID != id || !point.CampaignAvailable || point.Records != 1 || len(point.Addons) != 1 || point.Addons[0].AddonID != "other" {
 		t.Fatal("campaign or other add-on recovery lost", point)
 	}
-	refs, err := packageReferences(ctx, db, id)
-	if err != nil || len(refs) != 1 || refs[0].GenerationID != other.GenerationID {
-		t.Fatal("backup contains retired dependency", refs, err)
+	if point.Addons[0].GenerationID != other.GenerationID {
+		t.Fatal("recovery point kept a retired dependency", point.Addons)
 	}
 	var materialized int
 	if err := db.QueryRow(`SELECT materialized FROM addon_data_sets WHERE addon_id='example'`).Scan(&materialized); err != nil || materialized != 1 {
@@ -86,8 +88,8 @@ func TestLatestRetentionCleansExistingAndFutureBuildsPreservingCampaignRecovery(
 	if err != nil || len(snapshot.Generations) != 1 || snapshot.State.ActiveGenerationID != current.GenerationID {
 		t.Fatal("latest selected generation not retained", snapshot, err)
 	}
-	storage, err := m.PackageStorage(ctx, 0, 0)
-	if err != nil || !storage.LatestOnly || !storage.Automatic || storage.Pending != 0 || len(storage.Packages) != 0 {
+	storage, err := m.PackageStorage(ctx)
+	if err != nil || !storage.Automatic || storage.Pending != 0 {
 		t.Fatal("wrong retention status", storage, err)
 	}
 }
@@ -111,7 +113,7 @@ func TestLatestRetentionKeepsDisabledSelectionAndValidPendingReview(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := m.ConfigureLatestPackageRetention(ctx, true, nil); err != nil {
+	if err := m.ConfigurePackageRetention(ctx, true); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err = m.Snapshot(ctx, "example", 10)
@@ -146,7 +148,7 @@ func TestLatestRetentionRollsBackContextRetirementBeforeDeletingFiles(t *testing
 	installUninstallFixture(t, m, packageSpec{ID: "example", Version: "2.0.0"})
 	before, _ := recovery.List(ctx)
 	retentionExec(t, db, `CREATE TRIGGER reject_cleanup BEFORE DELETE ON addon_package_generations BEGIN SELECT RAISE(ABORT,'injected cleanup failure'); END`)
-	if err := m.ConfigureLatestPackageRetention(ctx, true, nil); err == nil {
+	if err := m.ConfigurePackageRetention(ctx, true); err == nil {
 		t.Fatal("accepted failed metadata retirement")
 	}
 	after, _ := recovery.List(ctx)
@@ -157,10 +159,121 @@ func TestLatestRetentionRollsBackContextRetirementBeforeDeletingFiles(t *testing
 		t.Fatal("files removed before commit", err)
 	}
 	retentionExec(t, db, `DROP TRIGGER reject_cleanup`)
-	if err := m.RetryPackageEvictions(ctx); err != nil {
+	if err := m.RetryPackageCleanup(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "example", "generations", old.GenerationID)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("retry did not finish", err)
+	}
+}
+
+func TestAutomaticRetentionLeavesFailedAndCancelledUpdatesUntouched(t *testing.T) {
+	ctx := context.Background()
+	db := testDatabase(t)
+	dir := filepath.Join(t.TempDir(), "addons")
+	factory := &fakeRuntimeFactory{failVersions: map[string]error{"2.0.0": errors.New("failed startup")}}
+	manager, _ := testManager(t, db, dir, factory)
+	if err := manager.ConfigurePackageRetention(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	old := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")
+	if _, err := manager.Activate(ctx, ActivationPlan{AddonID: "engine-addon", GenerationID: old.GenerationID, GrantedPermissionIDs: []string{"core.data.read"}}); err != nil {
+		t.Fatal(err)
+	}
+	target := stageServicePackage(t, manager, "engine-addon", "2.0.0", "3.2.0")
+	if _, err := manager.Activate(ctx, ActivationPlan{AddonID: "engine-addon", GenerationID: target.GenerationID, ExpectedStateRevision: 1, GrantedPermissionIDs: []string{"core.data.read"}}); !errors.Is(err, ErrActivationFailed) {
+		t.Fatal(err)
+	}
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := manager.StageArchive(cancelled, strings.NewReader("cancelled")); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	snap, err := manager.Snapshot(ctx, "engine-addon", 10)
+	if err != nil || snap.State.ActiveGenerationID != old.GenerationID || len(snap.Generations) != 2 {
+		t.Fatalf("failed update altered installation: %+v %v", snap, err)
+	}
+	for _, g := range []Generation{old, target} {
+		if _, err := os.Stat(filepath.Join(dir, "engine-addon", "generations", g.GenerationID, "package.zip")); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestAutomaticCleanupWaitsForPackageSnapshot(t *testing.T) {
+	ctx := context.Background()
+	db := testDatabase(t)
+	dir := filepath.Join(t.TempDir(), "addons")
+	manager, _ := testManager(t, db, dir, &fakeRuntimeFactory{})
+	if err := manager.ConfigurePackageRetention(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	old := installUninstallFixture(t, manager, packageSpec{ID: "example", Version: "1.0.0"})
+	next, err := manager.Stage(ctx, writeAddonPackage(t, packageSpec{ID: "example", Version: "2.0.0"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entered, release, snapshotDone := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	go func() {
+		snapshotDone <- manager.WithPackageSnapshot(ctx, func() error {
+			close(entered)
+			<-release
+			_, err := manager.loadPackage(ctx, "example", old.GenerationID)
+			return err
+		})
+	}()
+	<-entered
+	if manager.mu.TryLock() {
+		manager.mu.Unlock()
+		close(release)
+		t.Fatal("snapshot does not hold lifecycle lock")
+	}
+	activationDone := make(chan error, 1)
+	go func() {
+		_, err := manager.Activate(ctx, ActivationPlan{AddonID: "example", GenerationID: next.GenerationID, ExpectedStateRevision: 1})
+		activationDone <- err
+	}()
+	close(release)
+	if err := <-snapshotDone; err != nil {
+		t.Fatal("snapshot lost old files", err)
+	}
+	if err := <-activationDone; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "example", "generations", old.GenerationID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("post-snapshot cleanup did not finish", err)
+	}
+}
+
+func TestBackupCopiesOrRejectsBuildsLeftNonLocalByTheRetiredPolicy(t *testing.T) {
+	ctx := context.Background()
+	db := testDatabase(t)
+	root := t.TempDir()
+	directory := filepath.Join(root, "addons")
+	m, _ := testManager(t, db, directory, &fakeRuntimeFactory{})
+	installed := installUninstallFixture(t, m, packageSpec{ID: "example", Version: "1.0.0"})
+	// A crash during the retired eviction left the row pending with files intact.
+	retentionExec(t, db, `INSERT INTO addon_package_files(addon_id,generation_id,status,updated_at) VALUES('example',?,'pending','then')`, installed.GenerationID)
+	materialize := func(ctx context.Context, databasePath, stage string) error {
+		return MaterializePackageBackup(ctx, databasePath, directory, stage, m.inspector)
+	}
+	out := filepath.Join(t.TempDir(), "backup.zip")
+	creator := &backuparchive.Creator{Database: db, DataDirectory: root, HostVersion: "test", PackageSnapshot: m.WithPackageSnapshot, MaterializePackages: materialize}
+	if _, err := creator.Create(ctx, out); err != nil {
+		t.Fatal("backup could not copy a build still on disk", err)
+	}
+	if _, err := backuparchive.Verify(ctx, backuparchive.VerifyConfig{ArchivePath: out, Migrations: migrations.FS}); err != nil {
+		t.Fatal(err)
+	}
+	// With the files gone, the backup fails rather than publishing a broken copy.
+	if err := os.RemoveAll(filepath.Join(directory, "example", "generations", installed.GenerationID)); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(t.TempDir(), "missing.zip")
+	if _, err := creator.Create(ctx, missing); !errors.Is(err, ErrPackageUnavailable) {
+		t.Fatal("published a backup without required package files", err)
+	}
+	if _, err := os.Stat(missing); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("failed backup left output", err)
 	}
 }
