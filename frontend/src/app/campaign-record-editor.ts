@@ -110,6 +110,43 @@ export interface CampaignCharacterSaveRequest extends CampaignCharacterPatch {
   readonly respond: (result: CampaignCharacterSaveResult) => void;
 }
 
+// One write at a time keeps optimistic revisions in order across editors.
+let patchQueue: Promise<unknown> = Promise.resolve();
+
+/**
+ * Asks the campaign app to save one record patch. Requests run in order;
+ * `ready` is checked when a request's turn comes, and an unhandled request
+ * keeps the draft.
+ */
+export function requestRecordPatch(
+  source: Element,
+  patch: CampaignCharacterPatch,
+  ready: () => boolean = () => source.isConnected,
+): Promise<CampaignCharacterSaveResult> {
+  const result = patchQueue.then(
+    () =>
+      new Promise<CampaignCharacterSaveResult>((respond) => {
+        const unavailable = {
+          ok: false,
+          message: uiText("The entry cannot be saved right now. Your draft is kept."),
+        } as const;
+        if (!ready()) {
+          respond(unavailable);
+          return;
+        }
+        const event = new CustomEvent<CampaignCharacterSaveRequest>("campaign-character-save", {
+          detail: { ...patch, respond },
+          bubbles: true,
+          composed: true,
+          cancelable: true,
+        });
+        if (source.dispatchEvent(event)) respond(unavailable);
+      }),
+  );
+  patchQueue = result;
+  return result;
+}
+
 /** Rebase only fields untouched since this draft opened, then use the latest optimistic revision. */
 export function prepareCharacterPatch(
   campaign: CampaignDataset,

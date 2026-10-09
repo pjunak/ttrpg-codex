@@ -22,7 +22,7 @@ import {
   type CampaignEditorField,
   type CampaignCharacterPatch,
   type CampaignCharacterSaveResult,
-  type CampaignCharacterSaveRequest,
+  requestRecordPatch,
 } from "./campaign-record-editor.js";
 import {
   projectEntity,
@@ -108,7 +108,6 @@ export class CodexCharacterProfile extends LitElement {
   #panelError = "";
   #panelSaving = false;
   #undo: { base: CampaignRecord; fields: Readonly<Record<string, unknown>> } | undefined;
-  #queue: Promise<void> = Promise.resolve();
   #saves = 0;
   #lastKey = "";
 
@@ -668,46 +667,19 @@ export class CodexCharacterProfile extends LitElement {
       void this.#saveField(key, draft.closeAfter);
     }
   }
-  #send(patch: CampaignCharacterPatch): Promise<CampaignCharacterSaveResult> {
+  async #send(patch: CampaignCharacterPatch): Promise<CampaignCharacterSaveResult> {
     this.#saves++;
     this.#dirty();
-    let finish!: (result: CampaignCharacterSaveResult) => void;
-    const result = new Promise<CampaignCharacterSaveResult>((resolve) => {
-      finish = resolve;
-    });
-    this.#queue = this.#queue.then(async () => {
-      let settled = false;
-      const response = await new Promise<CampaignCharacterSaveResult>((resolve) => {
-        const respond = (value: CampaignCharacterSaveResult) => {
-          if (!settled) {
-            settled = true;
-            resolve(value);
-          }
-        };
-        if (!this.isConnected || !this.canEdit || this.record.key !== patch.base.key) {
-          respond({
-            ok: false,
-            message: uiText("The entry cannot be saved right now. Your draft is kept."),
-          });
-          return;
-        }
-        const event = new CustomEvent<CampaignCharacterSaveRequest>("campaign-character-save", {
-          detail: { ...patch, respond },
-          bubbles: true,
-          composed: true,
-          cancelable: true,
-        });
-        if (this.dispatchEvent(event))
-          respond({
-            ok: false,
-            message: uiText("The entry cannot be saved right now. Your draft is kept."),
-          });
-      });
+    try {
+      return await requestRecordPatch(
+        this,
+        patch,
+        () => this.isConnected && this.canEdit && this.record.key === patch.base.key,
+      );
+    } finally {
       this.#saves--;
-      finish(response);
       this.#dirty();
-    });
-    return result;
+    }
   }
   #accept(result: Extract<CampaignCharacterSaveResult, { ok: true }>): void {
     this.record = result.record;

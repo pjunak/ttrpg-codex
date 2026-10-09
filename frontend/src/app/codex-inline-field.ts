@@ -9,8 +9,7 @@ import { renderArticleReferences } from "./article-context-view.js";
 import {
   editorOptionsFor,
   sameCampaignValue,
-  type CampaignCharacterSaveRequest,
-  type CampaignCharacterSaveResult,
+  requestRecordPatch,
   type CampaignEditorField,
 } from "./campaign-record-editor.js";
 import { recordValue, stringList } from "./campaign-projection.js";
@@ -28,9 +27,6 @@ export const inlineFieldKinds: ReadonlySet<CampaignEditorField["kind"]> = new Se
   "attitudes",
   "tags",
 ]);
-
-// One write at a time keeps optimistic revisions in order across fields.
-let queue: Promise<unknown> = Promise.resolve();
 
 /**
  * One record field edited in place: text and numbers confirm with Enter or ✓,
@@ -266,32 +262,10 @@ export class CodexInlineField extends LitElement {
     }
     this.pending = true;
     const base = this.#base;
-    const result = await new Promise<CampaignCharacterSaveResult>((resolve) => {
-      queue = queue.then(
-        () =>
-          new Promise<void>((done) => {
-            const respond = (outcome: CampaignCharacterSaveResult) => {
-              resolve(outcome);
-              done();
-            };
-            const event = new CustomEvent<CampaignCharacterSaveRequest>("campaign-character-save", {
-              detail: {
-                collection: this.collection,
-                base,
-                fields: { [this.field.key]: value },
-                respond,
-              },
-              bubbles: true,
-              composed: true,
-              cancelable: true,
-            });
-            if (!this.isConnected || this.dispatchEvent(event))
-              respond({
-                ok: false,
-                message: uiText("The entry cannot be saved right now. Your draft is kept."),
-              });
-          }),
-      );
+    const result = await requestRecordPatch(this, {
+      collection: this.collection,
+      base,
+      fields: { [this.field.key]: value },
     });
     this.pending = false;
     if (!this.isConnected) return;
