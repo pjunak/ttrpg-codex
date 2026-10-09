@@ -54,32 +54,46 @@ func (store *Store) Revision(ctx context.Context, addonID string, kind datacontr
 	if !validIdentity(addonID, kind, dataID, key) || revision < 1 {
 		return HistoryEntry{}, ErrInvalidTransaction
 	}
-	row := store.database.QueryRowContext(ctx, `SELECT revision, target_created_at, generation_id, actor_id, occurred_at, operation_id, operation, summary, deleted
+	var body string
+	row := store.database.QueryRowContext(ctx, `SELECT revision, target_created_at, generation_id, actor_id, occurred_at, operation_id, operation, summary, deleted, fields_json
  FROM addon_history_revisions WHERE addon_id=? AND data_kind=? AND data_id=? AND document_key=? AND revision=?`, addonID, kind, dataID, key, revision)
-	entry, err := scanHistory(row)
+	entry, err := scanHistory(row, &body)
 	if errors.Is(err, sql.ErrNoRows) {
 		return entry, ErrNotFound
 	}
 	if err != nil {
 		return entry, err
 	}
-	var body string
-	if err = store.database.QueryRowContext(ctx, `SELECT fields_json FROM addon_history_revisions WHERE addon_id=? AND data_kind=? AND data_id=? AND document_key=? AND revision=?`, addonID, kind, dataID, key, revision).Scan(&body); err != nil {
-		return entry, err
-	}
 	fields := map[string]string{}
 	if json.Unmarshal([]byte(body), &fields) != nil {
 		return entry, ErrStorageInvariant
 	}
-	value := map[string]json.RawMessage{}
-	total := 0
-	for field, hash := range fields {
-		var part string
-		if err = store.database.QueryRowContext(ctx, `SELECT body_json FROM addon_history_payloads WHERE sha256=?`, hash).Scan(&part); err != nil {
+	// Fields share payloads by hash, so read each distinct payload once.
+	rows, err := store.database.QueryContext(ctx, `SELECT sha256, body_json FROM addon_history_payloads WHERE sha256 IN (SELECT DISTINCT value FROM json_each(?))`, body)
+	if err != nil {
+		return entry, err
+	}
+	defer rows.Close()
+	payloads := make(map[string]string, len(fields))
+	for rows.Next() {
+		var hash, part string
+		if err = rows.Scan(&hash, &part); err != nil {
+			return entry, err
+		}
+		if digest([]byte(part)) != hash {
 			return entry, ErrStorageInvariant
 		}
+		payloads[hash] = part
+	}
+	if err = rows.Err(); err != nil {
+		return entry, err
+	}
+	value := make(map[string]json.RawMessage, len(fields))
+	total := 0
+	for field, hash := range fields {
+		part, ok := payloads[hash]
 		total += len(part) + len(field)
-		if total > MaximumDocumentBytes*2 || digest([]byte(part)) != hash {
+		if !ok || total > MaximumDocumentBytes*2 {
 			return entry, ErrStorageInvariant
 		}
 		value[field] = json.RawMessage(part)
@@ -90,10 +104,11 @@ func (store *Store) Revision(ctx context.Context, addonID string, kind datacontr
 	return entry, err
 }
 
-func scanHistory(row rowScanner) (HistoryEntry, error) {
+// scanHistory reads an entry's columns, then any extra columns the query adds.
+func scanHistory(row rowScanner, extra ...any) (HistoryEntry, error) {
 	var entry HistoryEntry
 	var target, occurred string
-	err := row.Scan(&entry.Revision, &target, &entry.Generation, &entry.ActorID, &occurred, &entry.OperationID, &entry.Operation, &entry.Summary, &entry.Deleted)
+	err := row.Scan(append([]any{&entry.Revision, &target, &entry.Generation, &entry.ActorID, &occurred, &entry.OperationID, &entry.Operation, &entry.Summary, &entry.Deleted}, extra...)...)
 	if err != nil {
 		return entry, err
 	}
