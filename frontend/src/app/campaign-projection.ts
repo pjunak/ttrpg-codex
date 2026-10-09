@@ -82,11 +82,12 @@ export function recentCampaignActivity(
     ]),
   );
   const seen = new Set<string>();
+  const project = entityProjector(dataset);
   return campaignPages
     .flatMap((page) =>
       campaignCollection(dataset, page.collection).records.map((record) => ({
         page,
-        entity: projectEntity(dataset, record, page),
+        entity: project(record, page),
       })),
     )
     .map(({ page, entity }) => ({
@@ -113,9 +114,9 @@ export function projectEntities(
   dataset: CampaignDataset,
   page: CampaignPageDefinition,
 ): readonly EntitySummary[] {
-  const context = createAttitudeContext(dataset);
+  const project = entityProjector(dataset);
   return groupTwinRecords(campaignCollection(dataset, page.collection).records).map((record) =>
-    projectEntityWithContext(dataset, record, page, context),
+    project(record, page),
   );
 }
 
@@ -132,6 +133,17 @@ export function projectEntity(
     createAttitudeContext(dataset),
     inspectCharacter,
   );
+}
+
+/**
+ * Projects many records of one dataset with one shared attitude context, so a
+ * loop over the campaign does not rebuild it for every record.
+ */
+export function entityProjector(
+  dataset: CampaignDataset,
+): (record: CampaignRecord, page: CampaignPageDefinition) => EntitySummary {
+  const context = createAttitudeContext(dataset);
+  return (record, page) => projectEntityWithContext(dataset, record, page, context);
 }
 
 function projectEntityWithContext(

@@ -1,7 +1,7 @@
 import { campaignCollection } from "../core/campaign-data.js";
 import { twinRepresentatives } from "./campaign-twins.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
-import { projectEntity, type EntitySummary } from "./campaign-projection.js";
+import { entityProjector, type EntitySummary } from "./campaign-projection.js";
 import { campaignPages, type CampaignPageDefinition } from "./routes.js";
 
 export interface CampaignSearchResult extends EntitySummary {
@@ -24,12 +24,13 @@ export function searchCampaign(
   if (tokens.length === 0 || maximumResults <= 0) return Object.freeze([]);
 
   const matches: CampaignSearchResult[] = [];
+  const project = entityProjector(campaign);
   for (const page of campaignPages) {
     const records = campaignCollection(campaign, page.collection).records;
     const representatives = twinRepresentatives(records),
       grouped = new Map<string, CampaignSearchResult>();
     for (const record of records) {
-      const entity = projectEntity(campaign, record, page),
+      const entity = project(record, page),
         score = searchScore(entity, tokens);
       const identity = representatives.get(entity.key)!;
       if (score > (grouped.get(identity)?.score ?? 0))
