@@ -1,3 +1,5 @@
+import { HostRequestError } from "./api.js";
+import { readJSONResponse } from "./http.js";
 import { sessionFetch } from "./player-preview.js";
 import { waitForSignal } from "./abort-signal.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
@@ -100,14 +102,14 @@ export function parseMapTileManifest(value: unknown): MapTileManifest {
 
 export type MediaFetch = (input: string, init: RequestInit) => Promise<Response>;
 
-export class MediaHTTPError extends Error {
+export class MediaHTTPError extends HostRequestError {
   override readonly name = "MediaHTTPError";
 
   constructor(
-    readonly status: number,
+    status: number,
     readonly endpoint: string,
   ) {
-    super(`${endpoint} returned ${status}`);
+    super(status, endpoint);
   }
 }
 
@@ -294,26 +296,14 @@ async function parseJSONResponse<T>(
   parse: (value: unknown) => T,
   signal: AbortSignal,
 ): Promise<T> {
-  signal.throwIfAborted();
-  if (!response.ok) {
-    throw new MediaHTTPError(response.status, boundary);
-  }
-  const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
-  if (contentType !== "application/json") {
-    throw new BoundaryValidationError(boundary, "response must be application/json");
-  }
-  const body = await waitForSignal(response.text(), signal);
-  signal.throwIfAborted();
-  if (new TextEncoder().encode(body).byteLength > maximumResponseBytes) {
-    throw new BoundaryValidationError(boundary, "response exceeds 64 KiB");
-  }
-  let value: unknown;
-  try {
-    value = JSON.parse(body) as unknown;
-  } catch {
-    throw new BoundaryValidationError(boundary, "response must be valid JSON");
-  }
-  return parse(value);
+  return parse(
+    await readJSONResponse(response, {
+      boundary,
+      maxBytes: maximumResponseBytes,
+      signal,
+      httpError: (status) => new MediaHTTPError(status, boundary),
+    }),
+  );
 }
 
 function validateTarget(kind: MediaKind, target: string, boundary: string): void {

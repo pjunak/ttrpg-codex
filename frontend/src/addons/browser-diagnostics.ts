@@ -1,6 +1,5 @@
 import { BoundaryValidationError, isRecord } from "../core/boundary.js";
 import { HostRequestError } from "../core/api.js";
-import { BrowserGraphHTTPError } from "./browser-graph-client.js";
 
 export type BrowserDiagnosticPhase =
   "activation" | "dependency" | "disposal" | "refresh" | "contribution";
@@ -32,10 +31,7 @@ export class BrowserDiagnostics {
     const cause: unknown = details?.["cause"] ?? failure;
     const addonId = details?.["addonId"],
       generationId = details?.["generationId"];
-    const status =
-      cause instanceof HostRequestError || cause instanceof BrowserGraphHTTPError
-        ? cause.status
-        : undefined;
+    const status = cause instanceof HostRequestError ? cause.status : undefined;
     const code =
       cause instanceof BoundaryValidationError
         ? "INVALID_RESPONSE"

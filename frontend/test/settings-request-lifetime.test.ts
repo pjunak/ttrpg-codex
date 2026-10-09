@@ -114,9 +114,14 @@ describe("Settings request lifetime", () => {
             finished.resolve();
             if (outcome === "failure") throw new Error("retired request failed");
           };
+          // Clients read the body as JSON or as bounded text.
           response.json = async () => {
             if (phase === "body") await hold();
             return client.value;
+          };
+          response.text = async () => {
+            if (phase === "body") await hold();
+            return JSON.stringify(client.value);
           };
           const fetch = vi.fn<typeof globalThis.fetch>(async () => {
             if (phase === "headers") await hold();

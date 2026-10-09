@@ -1,3 +1,5 @@
+import { HostRequestError } from "./api.js";
+import { readJSONResponse } from "./http.js";
 import { sessionFetch } from "./player-preview.js";
 import { waitForSignal } from "./abort-signal.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
@@ -49,11 +51,11 @@ export interface CampaignDataset {
 
 export type CampaignDataFetch = (input: string, init: RequestInit) => Promise<Response>;
 
-export class CampaignDataHTTPError extends Error {
+export class CampaignDataHTTPError extends HostRequestError {
   override readonly name = "CampaignDataHTTPError";
 
-  constructor(readonly status: number) {
-    super(`${boundary} returned ${status}`);
+  constructor(status: number) {
+    super(status, boundary);
   }
 }
 
@@ -127,35 +129,13 @@ export class CampaignDataClient {
       signal,
     );
     this.#assertCurrent(signal, epoch);
-    if (!response.ok) {
-      throw new CampaignDataHTTPError(response.status);
-    }
-    const contentType = response.headers
-      .get("Content-Type")
-      ?.split(";", 1)[0]
-      ?.trim()
-      .toLowerCase();
-    if (contentType !== "application/json") {
-      throw new BoundaryValidationError(boundary, "response must be application/json");
-    }
-    const declaredLength = response.headers.get("Content-Length");
-    if (
-      declaredLength !== null &&
-      (!/^\d+$/.test(declaredLength) || Number(declaredLength) > maximumDatasetBytes)
-    ) {
-      throw new BoundaryValidationError(boundary, "response exceeds 64 MiB");
-    }
-    const body = await waitForSignal(response.text(), signal);
+    const value = await readJSONResponse(response, {
+      boundary,
+      maxBytes: maximumDatasetBytes,
+      signal,
+      httpError: (status) => new CampaignDataHTTPError(status),
+    });
     this.#assertCurrent(signal, epoch);
-    if (new TextEncoder().encode(body).byteLength > maximumDatasetBytes) {
-      throw new BoundaryValidationError(boundary, "response exceeds 64 MiB");
-    }
-    let value: unknown;
-    try {
-      value = JSON.parse(body) as unknown;
-    } catch {
-      throw new BoundaryValidationError(boundary, "response must be valid JSON");
-    }
     const dataset = parseCampaignDataset(value);
     this.#current = dataset;
     return dataset;

@@ -1,3 +1,5 @@
+import { HostRequestError } from "../core/api.js";
+import { readJSONResponse } from "../core/http.js";
 import { sessionFetch } from "../core/player-preview.js";
 import { waitForSignal } from "../core/abort-signal.js";
 import { validContributionLabels } from "./contribution-label.js";
@@ -60,11 +62,11 @@ export interface BrowserGraphRefresh {
   readonly changed: boolean;
 }
 
-export class BrowserGraphHTTPError extends Error {
+export class BrowserGraphHTTPError extends HostRequestError {
   override readonly name = "BrowserGraphHTTPError";
 
-  constructor(readonly status: number) {
-    super(`${boundary} returned ${status}`);
+  constructor(status: number) {
+    super(status, boundary);
   }
 }
 
@@ -149,28 +151,13 @@ export class BrowserGraphClient {
       }
       return { graph: this.#current, changed: false };
     }
-    if (!response.ok) {
-      throw new BrowserGraphHTTPError(response.status);
-    }
-    const contentType = response.headers
-      .get("Content-Type")
-      ?.split(";", 1)[0]
-      ?.trim()
-      .toLowerCase();
-    if (contentType !== "application/json") {
-      throw new BoundaryValidationError(boundary, "response must be application/json");
-    }
-    const body = await waitForSignal(response.text(), signal);
+    const value = await readJSONResponse(response, {
+      boundary,
+      maxBytes: maximumGraphBytes,
+      signal,
+      httpError: (status) => new BrowserGraphHTTPError(status),
+    });
     this.#assertCurrent(signal, epoch);
-    if (new TextEncoder().encode(body).byteLength > maximumGraphBytes) {
-      throw new BoundaryValidationError(boundary, "response exceeds 512 KiB");
-    }
-    let value: unknown;
-    try {
-      value = JSON.parse(body) as unknown;
-    } catch {
-      throw new BoundaryValidationError(boundary, "response must be valid JSON");
-    }
     const graph = validateBrowserGenerationSet(parseBrowserGenerationSet(value));
     const etag = response.headers.get("ETag");
     if (etag !== `"${graph.graphRevision}"`) {

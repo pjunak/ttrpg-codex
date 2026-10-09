@@ -1,3 +1,5 @@
+import { HostRequestError } from "../core/api.js";
+import { readJSONResponse } from "../core/http.js";
 import { sessionFetch } from "../core/player-preview.js";
 import { waitForSignal } from "../core/abort-signal.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
@@ -59,14 +61,14 @@ export interface BrowserServiceAPI {
 
 export type AddonServiceFetch = (input: string, init: RequestInit) => Promise<Response>;
 
-export class AddonServiceHTTPError extends Error {
+export class AddonServiceHTTPError extends HostRequestError {
   override readonly name = "AddonServiceHTTPError";
 
   constructor(
-    readonly status: number,
+    status: number,
     readonly code: string,
   ) {
-    super(`add-on service request returned ${status} (${code})`);
+    super(status, "add-on service request", `add-on service request returned ${status} (${code})`);
   }
 }
 
@@ -217,42 +219,13 @@ export class BrowserAddonServiceClient {
       }),
       combined,
     );
-    combined.throwIfAborted();
-    const text = await waitForSignal(response.text(), combined);
-    combined.throwIfAborted();
-    if (new TextEncoder().encode(text).byteLength > maximumResponseBytes) {
-      throw new BoundaryValidationError(
-        `add-on service ${operation}`,
-        "response exceeds its byte limit",
-      );
-    }
-    let value: unknown;
-    try {
-      value = JSON.parse(text) as unknown;
-    } catch {
-      if (!response.ok) {
-        throw new AddonServiceHTTPError(response.status, "HTTP_ERROR");
-      }
-      throw new BoundaryValidationError(
-        `add-on service ${operation}`,
-        "response must be valid JSON",
-      );
-    }
-    if (!response.ok) {
-      throw new AddonServiceHTTPError(response.status, errorCode(value));
-    }
-    const contentType = response.headers
-      .get("Content-Type")
-      ?.split(";", 1)[0]
-      ?.trim()
-      .toLowerCase();
-    if (contentType !== "application/json") {
-      throw new BoundaryValidationError(
-        `add-on service ${operation}`,
-        "response must be application/json",
-      );
-    }
-    return value;
+    return readJSONResponse(response, {
+      boundary: `add-on service ${operation}`,
+      maxBytes: maximumResponseBytes,
+      signal: combined,
+      httpError: (status, body) =>
+        new AddonServiceHTTPError(status, body === undefined ? "HTTP_ERROR" : errorCode(body)),
+    });
   }
 }
 

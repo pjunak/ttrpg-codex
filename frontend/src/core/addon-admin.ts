@@ -1,8 +1,8 @@
+import { readJSONResponse } from "./http.js";
 import { parseSchemaReview, type SchemaReview } from "./addon-schema-upgrade.js";
 import { parseWorkerDiagnostics, type WorkerDiagnostics } from "./worker-diagnostics.js";
 import { BoundaryValidationError, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
-import { waitForSignal } from "./abort-signal.js";
 import { HostRequestError } from "./api.js";
 import {
   parseRulesPolicy,
@@ -14,6 +14,9 @@ import {
 } from "./addon-configuration.js";
 import { parseAddonDisableReview, type AddonDisableReview } from "./addon-disable.js";
 import { parseAddonUninstallReview, type AddonUninstallReview } from "./addon-uninstall.js";
+
+// Inventories include diagnostics and history; reviews include manifests.
+const maximumAdminResponseBytes = 8 * 1024 * 1024;
 
 export class AddonAdminRequestError extends HostRequestError {
   constructor(
@@ -346,22 +349,19 @@ export class AddonAdminClient {
       },
       ...(archive ? { body: archive } : body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
-    this.signal.throwIfAborted();
-    // Proxies can answer errors with non-JSON pages; keep their HTTP status.
-    const value: unknown = await waitForSignal(
-      response.ok ? response.json() : response.json().catch(() => undefined),
-      this.signal,
-    );
-    this.signal.throwIfAborted();
-    if (!response.ok) {
-      const error = isRecord(value) && isRecord(value["error"]) ? value["error"] : undefined;
-      throw new AddonAdminRequestError(
-        response.status,
-        typeof error?.["kind"] === "string" ? error["kind"] : "",
-        typeof error?.["message"] === "string" ? error["message"] : undefined,
-      );
-    }
-    return value;
+    return readJSONResponse(response, {
+      boundary: "add-on administration",
+      maxBytes: maximumAdminResponseBytes,
+      signal: this.signal,
+      httpError: (status, body) => {
+        const error = isRecord(body) && isRecord(body["error"]) ? body["error"] : undefined;
+        return new AddonAdminRequestError(
+          status,
+          typeof error?.["kind"] === "string" ? error["kind"] : "",
+          typeof error?.["message"] === "string" ? error["message"] : undefined,
+        );
+      },
+    });
   }
   async inventory(): Promise<AddonSnapshot[]> {
     const value = object(await this.#request("addons"));

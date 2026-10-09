@@ -1,6 +1,6 @@
+import { readJSONResponse } from "./http.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
-import { waitForSignal } from "./abort-signal.js";
 import { HostRequestError } from "./api.js";
 import { parseInstalledGeneration, type InstalledGeneration } from "./addon-admin.js";
 
@@ -176,21 +176,18 @@ export class AddonGitHubClient {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-    this.signal.throwIfAborted();
-    // Proxies can answer errors with non-JSON pages; keep their HTTP status.
-    const value: unknown = await waitForSignal(
-      response.ok ? response.json() : response.json().catch(() => undefined),
-      this.signal,
-    );
-    this.signal.throwIfAborted();
-    if (!response.ok) {
-      const error = isRecord(value) && isRecord(value["error"]) ? value["error"] : undefined;
-      throw new GitHubRequestError(
-        response.status,
-        typeof error?.["kind"] === "string" ? error["kind"] : "",
-      );
-    }
-    return value;
+    return readJSONResponse(response, {
+      boundary: "GitHub add-ons",
+      maxBytes: 1024 * 1024,
+      signal: this.signal,
+      httpError: (status, body) => {
+        const error = isRecord(body) && isRecord(body["error"]) ? body["error"] : undefined;
+        return new GitHubRequestError(
+          status,
+          typeof error?.["kind"] === "string" ? error["kind"] : "",
+        );
+      },
+    });
   }
   async status(): Promise<GitHubStatus> {
     return parseGitHubStatus(await this.#request());

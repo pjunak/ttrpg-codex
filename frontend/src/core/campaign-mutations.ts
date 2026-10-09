@@ -1,5 +1,7 @@
+import { HostRequestError } from "./api.js";
 import { sessionFetch } from "./player-preview.js";
 import { waitForSignal } from "./abort-signal.js";
+import { readJSONResponse } from "./http.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { isCampaignCollectionName, type CampaignCollectionName } from "./campaign-data.js";
 
@@ -114,14 +116,14 @@ export interface CampaignEnumDeleteResult extends Omit<CampaignCommitReceipt, "c
 
 export type CampaignMutationFetch = (input: string, init: RequestInit) => Promise<Response>;
 
-export class CampaignMutationHTTPError extends Error {
+export class CampaignMutationHTTPError extends HostRequestError {
   override readonly name = "CampaignMutationHTTPError";
 
   constructor(
-    readonly status: number,
+    status: number,
     readonly endpoint = boundary,
   ) {
-    super(`${endpoint} returned ${status}`);
+    super(status, endpoint);
   }
 }
 
@@ -194,29 +196,12 @@ export class CampaignMutationClient {
       body: JSON.stringify({ contractVersion: "campaign-mutation.v1", mutations }),
       signal,
     });
-    signal.throwIfAborted();
-    if (!response.ok) {
-      throw new CampaignMutationHTTPError(response.status);
-    }
-    const contentType = response.headers
-      .get("Content-Type")
-      ?.split(";", 1)[0]
-      ?.trim()
-      .toLowerCase();
-    if (contentType !== "application/json") {
-      throw new BoundaryValidationError(boundary, "response must be application/json");
-    }
-    const body = await response.text();
-    signal.throwIfAborted();
-    if (new TextEncoder().encode(body).byteLength > maximumReceiptBytes) {
-      throw new BoundaryValidationError(boundary, "response exceeds 1 MiB");
-    }
-    let value: unknown;
-    try {
-      value = JSON.parse(body) as unknown;
-    } catch {
-      throw new BoundaryValidationError(boundary, "response must be valid JSON");
-    }
+    const value = await readJSONResponse(response, {
+      boundary: boundary,
+      maxBytes: maximumReceiptBytes,
+      signal,
+      httpError: (status) => new CampaignMutationHTTPError(status),
+    });
     return parseCampaignCommitReceipt(value);
   }
 
@@ -247,29 +232,12 @@ export class CampaignMutationClient {
       body: JSON.stringify({ contractVersion: "campaign-twin.v1", ...mutation }),
       signal,
     });
-    signal.throwIfAborted();
-    if (!response.ok) {
-      throw new CampaignMutationHTTPError(response.status, twinBoundary);
-    }
-    const contentType = response.headers
-      .get("Content-Type")
-      ?.split(";", 1)[0]
-      ?.trim()
-      .toLowerCase();
-    if (contentType !== "application/json") {
-      throw new BoundaryValidationError(twinBoundary, "response must be application/json");
-    }
-    const body = await response.text();
-    signal.throwIfAborted();
-    if (new TextEncoder().encode(body).byteLength > maximumReceiptBytes) {
-      throw new BoundaryValidationError(twinBoundary, "response exceeds 1 MiB");
-    }
-    let value: unknown;
-    try {
-      value = JSON.parse(body) as unknown;
-    } catch {
-      throw new BoundaryValidationError(twinBoundary, "response must be valid JSON");
-    }
+    const value = await readJSONResponse(response, {
+      boundary: twinBoundary,
+      maxBytes: maximumReceiptBytes,
+      signal,
+      httpError: (status) => new CampaignMutationHTTPError(status, twinBoundary),
+    });
     return parseCampaignTwinResult(value);
   }
 
@@ -300,29 +268,12 @@ export class CampaignMutationClient {
       body: JSON.stringify({ contractVersion: "campaign-enum-delete.v1", ...mutation }),
       signal,
     });
-    signal.throwIfAborted();
-    if (!response.ok) {
-      throw new CampaignMutationHTTPError(response.status, enumBoundary);
-    }
-    const contentType = response.headers
-      .get("Content-Type")
-      ?.split(";", 1)[0]
-      ?.trim()
-      .toLowerCase();
-    if (contentType !== "application/json") {
-      throw new BoundaryValidationError(enumBoundary, "response must be application/json");
-    }
-    const body = await response.text();
-    signal.throwIfAborted();
-    if (new TextEncoder().encode(body).byteLength > maximumReceiptBytes) {
-      throw new BoundaryValidationError(enumBoundary, "response exceeds 1 MiB");
-    }
-    let value: unknown;
-    try {
-      value = JSON.parse(body) as unknown;
-    } catch {
-      throw new BoundaryValidationError(enumBoundary, "response must be valid JSON");
-    }
+    const value = await readJSONResponse(response, {
+      boundary: enumBoundary,
+      maxBytes: maximumReceiptBytes,
+      signal,
+      httpError: (status) => new CampaignMutationHTTPError(status, enumBoundary),
+    });
     return parseCampaignEnumDeleteResult(value);
   }
 }

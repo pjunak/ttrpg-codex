@@ -96,7 +96,7 @@ describe("GitHub add-on boundary", () => {
     }
   });
   it("uses the protected host transport and carries safe error categories", async () => {
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(status), { status: 200 }));
+    const fetch = vi.fn().mockResolvedValue(Response.json(status));
     vi.stubGlobal("fetch", fetch);
     const signal = new AbortController().signal,
       client = new AddonGitHubClient("csrf", signal);
@@ -112,8 +112,8 @@ describe("GitHub add-on boundary", () => {
     );
     fetch.mockImplementation(() =>
       Promise.resolve(
-        new Response(
-          JSON.stringify({ error: { kind: "GITHUB_PACKAGE", message: "untrusted detail" } }),
+        Response.json(
+          { error: { kind: "GITHUB_PACKAGE", message: "untrusted detail" } },
           { status: 422 },
         ),
       ),

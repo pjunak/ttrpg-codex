@@ -1,3 +1,5 @@
+import { HostRequestError } from "../core/api.js";
+import { readJSONResponse } from "../core/http.js";
 import { sessionFetch } from "../core/player-preview.js";
 import { waitForSignal } from "../core/abort-signal.js";
 import type { AddonDataSubscribe } from "./data-changes.js";
@@ -132,14 +134,14 @@ export interface BrowserDataAPI {
 
 export type AddonDataFetch = (input: string, init: RequestInit) => Promise<Response>;
 
-export class AddonDataHTTPError extends Error {
+export class AddonDataHTTPError extends HostRequestError {
   override readonly name = "AddonDataHTTPError";
 
   constructor(
-    readonly status: number,
+    status: number,
     readonly operation: "get" | "query" | "transactions",
   ) {
-    super(`add-on data ${operation} returned ${status}`);
+    super(status, `add-on data ${operation}`);
   }
 }
 
@@ -449,31 +451,12 @@ export class BrowserAddonDataClient {
       }),
       combined,
     );
-    combined.throwIfAborted();
-    if (!response.ok) {
-      throw new AddonDataHTTPError(response.status, operation);
-    }
-    const contentType = response.headers
-      .get("Content-Type")
-      ?.split(";", 1)[0]
-      ?.trim()
-      .toLowerCase();
-    if (contentType !== "application/json") {
-      throw new BoundaryValidationError(
-        `add-on data ${operation}`,
-        "response must be application/json",
-      );
-    }
-    const text = await waitForSignal(response.text(), combined);
-    combined.throwIfAborted();
-    if (new TextEncoder().encode(text).byteLength > maximumResponseBytes) {
-      throw new BoundaryValidationError(`add-on data ${operation}`, "response exceeds 2 MiB");
-    }
-    try {
-      return JSON.parse(text) as unknown;
-    } catch {
-      throw new BoundaryValidationError(`add-on data ${operation}`, "response must be valid JSON");
-    }
+    return readJSONResponse(response, {
+      boundary: `add-on data ${operation}`,
+      maxBytes: maximumResponseBytes,
+      signal: combined,
+      httpError: (status) => new AddonDataHTTPError(status, operation),
+    });
   }
 }
 

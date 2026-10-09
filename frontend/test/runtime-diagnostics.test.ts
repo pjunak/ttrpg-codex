@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { BrowserDiagnostics } from "../src/addons/browser-diagnostics.js";
 import { HostRequestError } from "../src/core/api.js";
 import { parseWorkerDiagnostics } from "../src/core/worker-diagnostics.js";
+import { AddonDataHTTPError } from "../src/addons/data-client.js";
+import { AddonServiceHTTPError } from "../src/addons/service-client.js";
 
 describe("administrative diagnostics", () => {
   it("bounds browser failures, omits raw content and clears at authority loss", () => {
@@ -27,6 +29,18 @@ describe("administrative diagnostics", () => {
     dispose();
     store.enable(false);
     expect(changes).toBe(41);
+  });
+  it("classifies add-on data and service failures by their status", () => {
+    const store = new BrowserDiagnostics();
+    store.enable(true);
+    const failure = (cause: unknown) => ({
+      addonId: "example-addon",
+      generationId: "a".repeat(64),
+      cause,
+    });
+    store.record("refresh", failure(new AddonDataHTTPError(403, "get")));
+    store.record("refresh", failure(new AddonServiceHTTPError(503, "SERVICE_UNAVAILABLE")));
+    expect(store.list().map((entry) => entry.code)).toEqual(["AUTHORIZATION", "UNAVAILABLE"]);
   });
   it("rejects malformed or oversized worker histories before rendering", () => {
     expect(parseWorkerDiagnostics(undefined)).toBeUndefined();

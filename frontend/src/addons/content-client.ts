@@ -1,3 +1,5 @@
+import { HostRequestError } from "../core/api.js";
+import { readJSONResponse } from "../core/http.js";
 import { sessionFetch } from "../core/player-preview.js";
 import { waitForSignal } from "../core/abort-signal.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
@@ -83,14 +85,14 @@ export interface BrowserContentAPI {
 
 export type AddonContentFetch = (input: string, init: RequestInit) => Promise<Response>;
 
-export class AddonContentHTTPError extends Error {
+export class AddonContentHTTPError extends HostRequestError {
   override readonly name = "AddonContentHTTPError";
 
   constructor(
-    readonly status: number,
+    status: number,
     readonly operation: "catalog" | "get" | "query",
   ) {
-    super(`add-on content ${operation} returned ${status}`);
+    super(status, `add-on content ${operation}`);
   }
 }
 
@@ -242,35 +244,12 @@ export class BrowserAddonContentClient {
       }),
       combined,
     );
-    combined.throwIfAborted();
-    if (!response.ok) {
-      throw new AddonContentHTTPError(response.status, operation);
-    }
-    const contentType = response.headers
-      .get("Content-Type")
-      ?.split(";", 1)[0]
-      ?.trim()
-      .toLowerCase();
-    if (contentType !== "application/json") {
-      throw new BoundaryValidationError(
-        `add-on content ${operation}`,
-        "response must be application/json",
-      );
-    }
-    const text = await waitForSignal(response.text(), combined);
-    combined.throwIfAborted();
-    if (new TextEncoder().encode(text).byteLength > maximumResponseBytes) {
-      throw new BoundaryValidationError(`add-on content ${operation}`, "response exceeds 5 MiB");
-    }
-    let value: unknown;
-    try {
-      value = JSON.parse(text) as unknown;
-    } catch {
-      throw new BoundaryValidationError(
-        `add-on content ${operation}`,
-        "response must be valid JSON",
-      );
-    }
+    const value = await readJSONResponse(response, {
+      boundary: `add-on content ${operation}`,
+      maxBytes: maximumResponseBytes,
+      signal: combined,
+      httpError: (status) => new AddonContentHTTPError(status, operation),
+    });
     if (!isRecord(value)) {
       throw new BoundaryValidationError(
         `add-on content ${operation}`,
