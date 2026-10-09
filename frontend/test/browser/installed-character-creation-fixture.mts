@@ -1,5 +1,5 @@
 import { equipmentView } from "./installed-character-navigation-fixture.mts";
-import { expandCharacterDetails } from "./installed-character-navigation-fixture.mts";
+import { expandCharacterDetails, takeRest } from "./installed-character-navigation-fixture.mts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { resolve } from "node:path";
@@ -230,7 +230,7 @@ export function registerCharacterCreationTests(enabled: boolean, fixture: () => 
           .selectOption(wizard ? "classic" : "compact");
         await sheet.locator("#dnd-tab-combat").click();
         await expandCharacterDetails(sheet);
-        await sheet.getByRole("button", { name: text.long, exact: true }).click();
+        await takeRest(sheet, text.long);
         stored = await settled();
         assert.ok(stored.state.inputs.play.hp > 0);
         assert.equal(stored.state.inputs.play.hp, stored.state.projection.sheet.derived.maxHp);
@@ -285,7 +285,7 @@ export function registerCharacterCreationTests(enabled: boolean, fixture: () => 
           assert.equal(stored.state.inputs.play.resourceUses[charge], 1);
           await sheet.locator("#dnd-tab-combat").click();
           await expandCharacterDetails(sheet);
-          await sheet.getByRole("button", { name: text.long, exact: true }).click();
+          await takeRest(sheet, text.long);
           stored = await settled();
           assert.equal(stored.state.inputs.play.resourceUses[slot], 0);
           assert.equal(stored.state.inputs.play.resourceUses[charge], 0);

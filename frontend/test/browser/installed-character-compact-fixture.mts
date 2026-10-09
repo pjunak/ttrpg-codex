@@ -110,21 +110,18 @@ export function registerCompactTests(enabled: boolean, fixture: () => Fixture): 
           .waitFor();
         assert.equal(await sheet.locator(".dse-coins").count(), 0);
         assert.equal(await sheet.locator(".dse-backpack").count(), 0);
-        const boxes = await sheet.locator(".dsc-vitals > *").evaluateAll((nodes) =>
-          nodes.map((node) => {
+        // Sheet and Combat share the hit-point block of the context bar.
+        const health = await sheet.locator(".dsc-health").evaluate((node) => {
+          const r = node.getBoundingClientRect();
+          return [r.x, r.width, r.height];
+        });
+        await sheet.locator("#dnd-tab-combat").click();
+        assert.deepEqual(
+          await sheet.locator(".dsc-health").evaluate((node) => {
             const r = node.getBoundingClientRect();
             return [r.x, r.width, r.height];
           }),
-        );
-        await sheet.locator("#dnd-tab-combat").click();
-        assert.deepEqual(
-          await sheet.locator(".dsc-vitals > *").evaluateAll((nodes) =>
-            nodes.map((node) => {
-              const r = node.getBoundingClientRect();
-              return [r.x, r.width, r.height];
-            }),
-          ),
-          boxes,
+          health,
         );
         assert.equal(await sheet.locator(".dsc-combat-ability").count(), 6);
         assert.equal(await sheet.locator(".dsc-combat-ability .dse-number").count(), 0);
@@ -187,11 +184,13 @@ export function registerCompactTests(enabled: boolean, fixture: () => Fixture): 
           "Visited tabs keep their outer frame: " + JSON.stringify(frames),
         );
         await sheet.locator("#dnd-tab-equipment").click();
-        assert.equal(await sheet.locator(".dsc-body-slot").count(), 10);
         assert.equal(await sheet.getByLabel("GP", { exact: true }).inputValue(), "4");
         await sheet.getByLabel("EP", { exact: true }).fill("17");
         await status.filter({ hasText: text.saved }).waitFor();
+        // The body figure opens in a window at the chosen place.
         await sheet.locator(control("placement/body")).click();
+        assert.equal(await sheet.getByRole("dialog").locator(".dsc-body-slot").count(), 11);
+        await page.screenshot({ path: resolve(f.output, "compact-figure-" + locale + ".png") });
         await sheet.locator(control("placement/stow/armor")).click();
         await status.filter({ hasText: text.saved }).waitFor();
         assert.equal((await read()).state.inputs.play.inventory[0].location, "carried");
@@ -207,6 +206,7 @@ export function registerCompactTests(enabled: boolean, fixture: () => Fixture): 
         );
         await sheet.locator(control("storage/open/pouch")).click();
         let dialog = sheet.getByRole("dialog");
+        await page.screenshot({ path: resolve(f.output, "compact-backpack-" + locale + ".png") });
         await dialog.getByLabel(text.search, { exact: true }).fill("dagger");
         await dialog.getByLabel(text.sort, { exact: true }).selectOption("quantity");
         await dialog.getByRole("button", { name: text.add, exact: true }).click();

@@ -7,6 +7,7 @@ import {
   save,
   type Fixture,
 } from "./installed-character-builder-fixture.mts";
+import { takeRest } from "./installed-character-navigation-fixture.mts";
 
 export async function readyCharacter(f: Fixture, key: string) {
   const inputs = await createCharacter(f, key);
@@ -85,13 +86,13 @@ export function registerRefusalTest(enabled: boolean, fixture: () => Fixture): v
         envelope.result = { ...envelope.result, status: "invalid", message: reason };
         await route.fulfill({ response: read, json: envelope });
       });
-      await sheet.locator("summary", { hasText: "Rest and recovery" }).click();
-      const rest = sheet.getByRole("button", { name: "Long rest", exact: true });
-      await rest.click();
+      // Compact rests open a window; its finish button triggers the rules.
+      await sheet.getByRole("button", { name: "Long rest", exact: true }).click();
+      await sheet.locator('dialog[open] [data-focus-key="rest/finish"]').click();
       await status.filter({ hasText: reason }).waitFor();
       const refused = sheet.locator("[data-rule-issue]");
       assert.equal(await refused.count(), 1);
-      assert.equal(await refused.textContent(), "Long rest");
+      assert.equal(await refused.textContent(), "Finish long rest");
       const note = sheet.locator(".dnd-rule-note");
       await note.getByText("Against the rules", { exact: true }).waitFor();
       const detail = note.locator(".dnd-rule-note-detail");
@@ -106,9 +107,7 @@ export function registerRefusalTest(enabled: boolean, fixture: () => Fixture): v
       if (process.env["CODEX_UI_SCREENSHOTS"] === "1")
         await page.screenshot({ path: resolve(f.output, "refused-action.png") });
       await page.unroute("**/services/call");
-      await saveChange(() =>
-        sheet.getByRole("button", { name: "Short rest", exact: true }).click(),
-      );
+      await saveChange(() => takeRest(sheet, "Short rest"));
       assert.equal(await sheet.locator("[data-rule-issue]").count(), 0);
     },
   );

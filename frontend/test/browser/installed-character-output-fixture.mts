@@ -1,4 +1,4 @@
-import { equipmentView, hpActionsView } from "./installed-character-navigation-fixture.mts";
+import { applyDamage, equipmentView, takeRest } from "./installed-character-navigation-fixture.mts";
 import { expandCharacterDetails } from "./installed-character-navigation-fixture.mts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -212,11 +212,7 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
           await sheet.getByLabel(coin!, { exact: true }).fill(value!);
           await settled();
         }
-        await hpActionsView(sheet);
-        await sheet.getByRole("button", { name: text.damage, exact: true }).click();
-        const damage = sheet.locator(".dse-hp-adjust");
-        await damage.getByLabel(text.amount, { exact: true }).fill("2");
-        await damage.getByRole("button", { name: text.damage, exact: true }).click();
+        await applyDamage(sheet, 2, text);
         next = await settled();
         assert.equal(next.state.inputs.play.hp, stored.state.inputs.play.hp - 2);
         await sheet.locator("#dnd-tab-spells").click();
@@ -230,12 +226,16 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
           .click();
         next = await settled();
         assert.equal(next.state.inputs.play.resourceUses[free], 1);
+        await page.screenshot({
+          path: resolve(f.output, "session-spells-" + locale + ".png"),
+          fullPage: true,
+        });
         await sheet.locator("#dnd-tab-combat").click();
         await expandCharacterDetails(sheet);
-        await sheet.getByRole("button", { name: text.short, exact: true }).click();
+        await takeRest(sheet, text.short);
         next = await settled();
         assert.equal(next.state.inputs.play.resourceUses[free], 1);
-        await sheet.getByRole("button", { name: text.long, exact: true }).click();
+        await takeRest(sheet, text.long);
         next = await settled();
         assert.equal(next.state.inputs.play.resourceUses[free], 0);
         assert.equal(next.state.inputs.play.hp, next.state.projection.sheet.derived.maxHp);
