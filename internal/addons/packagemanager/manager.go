@@ -834,6 +834,16 @@ func (manager *Manager) restoreServices(
 	)
 }
 
+// activeReport returns an active generation's inspected report. A running
+// generation reuses the report it was activated with instead of re-reading,
+// re-hashing and re-verifying its archive under the manager lock.
+func (manager *Manager) activeReport(ctx context.Context, addonID, generationID string) (packageinspect.Report, error) {
+	if live, ok := manager.runtimes[addonID]; ok && live.generation.GenerationID == generationID {
+		return live.report, nil
+	}
+	return manager.loadPackage(ctx, addonID, generationID)
+}
+
 func (manager *Manager) loadPackage(ctx context.Context, addonID, generationID string) (packageinspect.Report, error) {
 	if !validAddonPath(addonID) || !validGenerationID(generationID) {
 		return packageinspect.Report{}, ErrGenerationNotFound

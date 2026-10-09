@@ -345,48 +345,19 @@ func (manager *Manager) fetchPackage(ctx context.Context, ref PackageReference, 
 
 // RestorePackage only stages bytes. It never approves permissions or activates.
 func (manager *Manager) RestorePackage(ctx context.Context, addonID, generationID string) (Generation, error) {
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	if !validAddonPath(addonID) || !validGenerationID(generationID) {
-		return Generation{}, ErrInvalidPackage
+	ref, generation, err := manager.restoreLocal(ctx, addonID, generationID)
+	if err != nil || ref == nil {
+		return generation, err
 	}
-	generation, err := scanGeneration(manager.store.db.QueryRowContext(ctx, "SELECT addon_id,generation_id,addon_version,archive_sha256,installed_at,last_attempt_at,last_activated_at,COALESCE(last_error,''),"+generationManifestColumns+" FROM addon_package_generations WHERE addon_id=? AND generation_id=?", addonID, generationID))
-	if err != nil {
-		return Generation{}, err
-	}
-	var status string
-	err = manager.store.db.QueryRowContext(ctx, `SELECT status FROM addon_package_files WHERE addon_id=? AND generation_id=?`, addonID, generationID).Scan(&status)
-	if errors.Is(err, sql.ErrNoRows) || status == "local" {
-		report, loadErr := manager.loadPackage(ctx, addonID, generationID)
-		if loadErr != nil {
-			return Generation{}, loadErr
-		}
-		return manager.store.recordGeneration(ctx, packageRecord{Manifest: report.Manifest, GenerationID: generationID, ArchiveSHA256: generationID})
-	}
-	if err != nil {
-		return Generation{}, err
-	}
-	if status == "pending" {
-		return Generation{}, ErrCleanupPending
-	}
-	// A crash after publishing verified files but before marking them local is
-	// completed without another network request. Partial directories still fail inspection.
-	if report, loadErr := manager.loadPackage(ctx, addonID, generationID); loadErr == nil {
-		return manager.store.recordGeneration(ctx, packageRecord{Manifest: report.Manifest, GenerationID: generationID, ArchiveSHA256: generationID})
-	}
-	locators, err := packageLocators(ctx, manager.store.db, addonID, generationID)
-	if err != nil {
-		return Generation{}, err
-	}
-	ref := PackageReference{AddonID: addonID, GenerationID: generationID, Version: generation.Version, Locators: locators}
-
+	// Download without the manager lock: a slow transfer must not stall browser
+	// content, service and asset requests. The archive is verified by digest.
 	stage, err := os.MkdirTemp(manager.stagingDirectory, "restore-")
 	if err != nil {
 		return Generation{}, err
 	}
 	defer os.RemoveAll(stage)
 	archive := filepath.Join(stage, "package.zip")
-	if err = manager.fetchPackage(ctx, ref, archive); err != nil {
+	if err = manager.fetchPackage(ctx, *ref, archive); err != nil {
 		return Generation{}, err
 	}
 	input, err := os.Open(archive)
@@ -394,7 +365,50 @@ func (manager *Manager) RestorePackage(ctx context.Context, addonID, generationI
 		return Generation{}, err
 	}
 	defer input.Close()
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
 	return manager.stageArchiveLocked(ctx, input, nil)
+}
+
+// restoreLocal completes a restore from files already on disk. It returns a
+// package reference when the archive must be downloaded instead.
+func (manager *Manager) restoreLocal(ctx context.Context, addonID, generationID string) (*PackageReference, Generation, error) {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if !validAddonPath(addonID) || !validGenerationID(generationID) {
+		return nil, Generation{}, ErrInvalidPackage
+	}
+	generation, err := scanGeneration(manager.store.db.QueryRowContext(ctx, "SELECT addon_id,generation_id,addon_version,archive_sha256,installed_at,last_attempt_at,last_activated_at,COALESCE(last_error,''),"+generationManifestColumns+" FROM addon_package_generations WHERE addon_id=? AND generation_id=?", addonID, generationID))
+	if err != nil {
+		return nil, Generation{}, err
+	}
+	var status string
+	err = manager.store.db.QueryRowContext(ctx, `SELECT status FROM addon_package_files WHERE addon_id=? AND generation_id=?`, addonID, generationID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) || status == "local" {
+		report, loadErr := manager.loadPackage(ctx, addonID, generationID)
+		if loadErr != nil {
+			return nil, Generation{}, loadErr
+		}
+		generation, err = manager.store.recordGeneration(ctx, packageRecord{Manifest: report.Manifest, GenerationID: generationID, ArchiveSHA256: generationID})
+		return nil, generation, err
+	}
+	if err != nil {
+		return nil, Generation{}, err
+	}
+	if status == "pending" {
+		return nil, Generation{}, ErrCleanupPending
+	}
+	// A crash after publishing verified files but before marking them local is
+	// completed without another network request. Partial directories still fail inspection.
+	if report, loadErr := manager.loadPackage(ctx, addonID, generationID); loadErr == nil {
+		generation, err = manager.store.recordGeneration(ctx, packageRecord{Manifest: report.Manifest, GenerationID: generationID, ArchiveSHA256: generationID})
+		return nil, generation, err
+	}
+	locators, err := packageLocators(ctx, manager.store.db, addonID, generationID)
+	if err != nil {
+		return nil, Generation{}, err
+	}
+	return &PackageReference{AddonID: addonID, GenerationID: generationID, Version: generation.Version, Locators: locators}, Generation{}, nil
 }
 
 func (manager *Manager) cleanupAfterActivationLocked(ctx context.Context, result *ActivationResult) {

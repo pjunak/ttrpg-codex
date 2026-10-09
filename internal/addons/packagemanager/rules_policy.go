@@ -66,7 +66,7 @@ func (manager *Manager) rulesPolicyLocked(ctx context.Context) (RulesPolicy, err
 		return result, err
 	}
 	for _, state := range states {
-		report, err := manager.loadPackage(ctx, state.AddonID, state.ActiveGenerationID)
+		report, err := manager.activeReport(ctx, state.AddonID, state.ActiveGenerationID)
 		if err != nil {
 			return result, err
 		}
@@ -304,7 +304,7 @@ func (manager *Manager) SetSourcePolicy(ctx context.Context, plan SourcePolicyPl
 			return ConfigurationResult{}, err
 		}
 		if state.ActiveGenerationID != "" {
-			report, err := manager.loadPackage(ctx, state.AddonID, state.ActiveGenerationID)
+			report, err := manager.activeReport(ctx, state.AddonID, state.ActiveGenerationID)
 			if err != nil {
 				return ConfigurationResult{}, err
 			}
