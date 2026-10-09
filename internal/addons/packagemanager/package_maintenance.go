@@ -64,7 +64,7 @@ func (manager *Manager) MaintainPackages(ctx context.Context) error {
 }
 
 func (manager *Manager) expirePackageReviewsLocked(ctx context.Context) error {
-	cutoff := manager.store.now().UTC().Add(-30 * time.Minute).Format(time.RFC3339Nano)
+	cutoff := manager.store.now().UTC().Add(-reviewLifetime).Format(time.RFC3339Nano)
 	if _, err := manager.store.db.ExecContext(ctx, `DELETE FROM addon_activation_reviews WHERE status IN ('prepared','approved') AND julianday(created_at)<=julianday(?) AND NOT EXISTS(SELECT 1 FROM addon_update_attempts u WHERE u.review_id=addon_activation_reviews.review_id)`, cutoff); err != nil {
 		return err
 	}

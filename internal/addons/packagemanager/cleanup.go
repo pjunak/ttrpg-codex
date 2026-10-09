@@ -160,7 +160,7 @@ func (manager *Manager) cleanupReviewLocked(ctx context.Context, tx *sql.Tx, sco
 			if !pendingReview {
 				// Protect the short gap between a completed download and its review.
 				// Explicit cancellation ends this grace period immediately.
-				if err := tx.QueryRowContext(ctx, `SELECT last_activated_at IS NULL AND julianday(installed_at)>julianday(?) AND NOT EXISTS(SELECT 1 FROM addon_lifecycle_events e WHERE e.addon_id=g.addon_id AND e.generation_id=g.generation_id AND e.kind='review-cancelled') FROM addon_package_generations g WHERE addon_id=? AND generation_id=?`, manager.store.now().UTC().Add(-30*time.Minute).Format(time.RFC3339Nano), generation.AddonID, generation.GenerationID).Scan(&pendingReview); err != nil {
+				if err := tx.QueryRowContext(ctx, `SELECT last_activated_at IS NULL AND julianday(installed_at)>julianday(?) AND NOT EXISTS(SELECT 1 FROM addon_lifecycle_events e WHERE e.addon_id=g.addon_id AND e.generation_id=g.generation_id AND e.kind='review-cancelled') FROM addon_package_generations g WHERE addon_id=? AND generation_id=?`, manager.store.now().UTC().Add(-reviewLifetime).Format(time.RFC3339Nano), generation.AddonID, generation.GenerationID).Scan(&pendingReview); err != nil {
 					return CleanupReview{}, err
 				}
 			}

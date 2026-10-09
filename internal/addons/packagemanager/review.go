@@ -59,7 +59,7 @@ func (manager *Manager) ApproveActivationReview(
 	if review.Status != ReviewPrepared && review.Status != ReviewApproved {
 		return ActivationReview{}, ErrReviewState
 	}
-	if manager.store.now().Sub(review.CreatedAt) >= 30*time.Minute {
+	if manager.reviewExpired(review) {
 		return ActivationReview{}, ErrReviewStale
 	}
 	if review.Status == ReviewApproved {
@@ -78,30 +78,7 @@ func (manager *Manager) ApproveActivationReview(
 		}
 		return ActivationReview{}, ErrReviewState
 	}
-	proposal, err := manager.buildReviewProposal(ctx, review.AddonID, review.GenerationID)
-	if err != nil {
-		return ActivationReview{}, err
-	}
-	proposalHash, err := hashReviewValue(proposal)
-	if err != nil {
-		return ActivationReview{}, err
-	}
-	if proposalHash != review.ProposalSHA256 {
-		return ActivationReview{}, ErrReviewStale
-	}
-	if len(proposal.Blockers) != 0 {
-		return ActivationReview{}, fmt.Errorf("%w: %s", ErrReviewBlocked, proposal.Blockers[0].Message)
-	}
-	_, normalizedGrants, err := approvedPermissions(proposal.TargetManifest.Permissions, grantedPermissionIDs)
-	if err != nil {
-		return ActivationReview{}, err
-	}
-	if proposal.CurrentGenerationID == proposal.GenerationID &&
-		!reflect.DeepEqual(normalizedGrants, proposal.PreviouslyGrantedPermissionIDs) &&
-		len(proposal.AffectedAddonIDs) != 0 {
-		return ActivationReview{}, fmt.Errorf("%w: %v", ErrReviewBlocked, proposal.AffectedAddonIDs)
-	}
-	approvalHash, err := reviewApprovalHash(proposalHash, normalizedGrants)
+	_, proposalHash, normalizedGrants, approvalHash, err := manager.recheckReview(ctx, review, grantedPermissionIDs)
 	if err != nil {
 		return ActivationReview{}, err
 	}
@@ -143,35 +120,15 @@ func (manager *Manager) ActivateReviewed(
 	if review.Status != ReviewApproved {
 		return ActivationResult{}, ErrReviewState
 	}
-	if manager.store.now().Sub(review.CreatedAt) >= 30*time.Minute {
+	if manager.reviewExpired(review) {
 		return ActivationResult{}, ErrReviewStale
 	}
-	proposal, err := manager.buildReviewProposal(ctx, review.AddonID, review.GenerationID)
+	proposal, _, normalizedGrants, approvalHash, err := manager.recheckReview(ctx, review, review.GrantedPermissionIDs)
 	if err != nil {
 		return ActivationResult{}, err
 	}
-	proposalHash, err := hashReviewValue(proposal)
-	if err != nil {
-		return ActivationResult{}, err
-	}
-	if proposalHash != review.ProposalSHA256 || proposal.ExpectedStateRevision != review.ExpectedStateRevision {
+	if proposal.ExpectedStateRevision != review.ExpectedStateRevision {
 		return ActivationResult{}, ErrReviewStale
-	}
-	if len(proposal.Blockers) != 0 {
-		return ActivationResult{}, fmt.Errorf("%w: %s", ErrReviewBlocked, proposal.Blockers[0].Message)
-	}
-	_, normalizedGrants, err := approvedPermissions(proposal.TargetManifest.Permissions, review.GrantedPermissionIDs)
-	if err != nil {
-		return ActivationResult{}, err
-	}
-	if proposal.CurrentGenerationID == proposal.GenerationID &&
-		!reflect.DeepEqual(normalizedGrants, proposal.PreviouslyGrantedPermissionIDs) &&
-		len(proposal.AffectedAddonIDs) != 0 {
-		return ActivationResult{}, fmt.Errorf("%w: %v", ErrReviewBlocked, proposal.AffectedAddonIDs)
-	}
-	approvalHash, err := reviewApprovalHash(proposalHash, normalizedGrants)
-	if err != nil {
-		return ActivationResult{}, err
 	}
 	if approvalHash != review.ApprovalSHA256 {
 		return ActivationResult{}, ErrReviewStale
@@ -184,6 +141,53 @@ func (manager *Manager) ActivateReviewed(
 		ExpectedStateRevision: review.ExpectedStateRevision,
 		GrantedPermissionIDs:  normalizedGrants,
 	}, "activated", reviewID)
+}
+
+// reviewLifetime is how long a prepared or approved activation review stays usable.
+const reviewLifetime = 30 * time.Minute
+
+func (manager *Manager) reviewExpired(review ActivationReview) bool {
+	return manager.store.now().Sub(review.CreatedAt) >= reviewLifetime
+}
+
+// recheckReview rebuilds a review's proposal and fails when anything the
+// owner reviewed has changed or now blocks activation. It returns the
+// proposal, its hash, the normalized grants and their approval hash.
+func (manager *Manager) recheckReview(
+	ctx context.Context,
+	review ActivationReview,
+	grantedPermissionIDs []string,
+) (ReviewProposal, string, []string, string, error) {
+	proposal, err := manager.buildReviewProposal(ctx, review.AddonID, review.GenerationID)
+	if err != nil {
+		return ReviewProposal{}, "", nil, "", err
+	}
+	proposalHash, err := hashReviewValue(proposal)
+	if err != nil {
+		return ReviewProposal{}, "", nil, "", err
+	}
+	if proposalHash != review.ProposalSHA256 {
+		return ReviewProposal{}, "", nil, "", ErrReviewStale
+	}
+	if len(proposal.Blockers) != 0 {
+		return ReviewProposal{}, "", nil, "", fmt.Errorf("%w: %s", ErrReviewBlocked, proposal.Blockers[0].Message)
+	}
+	_, normalizedGrants, err := approvedPermissions(proposal.TargetManifest.Permissions, grantedPermissionIDs)
+	if err != nil {
+		return ReviewProposal{}, "", nil, "", err
+	}
+	// Changing grants on the active generation would silently change what
+	// its dependants were approved against.
+	if proposal.CurrentGenerationID == proposal.GenerationID &&
+		!reflect.DeepEqual(normalizedGrants, proposal.PreviouslyGrantedPermissionIDs) &&
+		len(proposal.AffectedAddonIDs) != 0 {
+		return ReviewProposal{}, "", nil, "", fmt.Errorf("%w: %v", ErrReviewBlocked, proposal.AffectedAddonIDs)
+	}
+	approvalHash, err := reviewApprovalHash(proposalHash, normalizedGrants)
+	if err != nil {
+		return ReviewProposal{}, "", nil, "", err
+	}
+	return proposal, proposalHash, normalizedGrants, approvalHash, nil
 }
 
 func (manager *Manager) buildReviewProposal(

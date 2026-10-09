@@ -47,7 +47,7 @@ func (manager *Manager) currentUpdateReview(ctx context.Context, id string) (Act
 	if err != nil {
 		return review, err
 	}
-	if review.Status != ReviewPrepared || manager.store.now().Sub(review.CreatedAt) >= 30*time.Minute {
+	if review.Status != ReviewPrepared || manager.reviewExpired(review) {
 		return review, ErrReviewStale
 	}
 	proposal, err := manager.buildReviewProposal(ctx, review.AddonID, review.GenerationID)
