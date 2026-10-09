@@ -205,15 +205,8 @@ export function prepareCharacterPatch(
       patch.fields[field.key],
       current.key,
     );
-  if (
-    collection === "locations" &&
-    Object.hasOwn(patch.fields, "parentId") &&
-    line(value["parentId"]) !== line(baseline["parentId"])
-  ) {
-    // Coordinates belong to the old image's frame; a different parent needs a new placement.
-    delete value["x"];
-    delete value["y"];
-  }
+  if (collection === "locations" && Object.hasOwn(patch.fields, "parentId"))
+    dropPlacementIfReparented(value, baseline);
   if (
     character &&
     Object.hasOwn(patch.fields, "faction") &&
@@ -225,32 +218,8 @@ export function prepareCharacterPatch(
     }
     if (value["faction"] === "party") value["attitudes"] = [];
   }
-  if (patch.visibility !== undefined) {
-    if (
-      !canManageVisibility ||
-      !collectionManagesVisibility(collection) ||
-      !["public", "dm"].includes(patch.visibility)
-    )
-      throw invalidEdit();
-    value["visibility"] = patch.visibility;
-  }
-  if (patch.portrait !== undefined) {
-    if (
-      patch.portrait !== null &&
-      (!(patch.portrait instanceof File) || !validPortraitFile(patch.portrait))
-    )
-      throw invalidEdit();
-    if (
-      patch.portrait !== null &&
-      patch.visibility !== undefined &&
-      patch.visibility !== (baseline["visibility"] === "dm" ? "dm" : "public")
-    ) {
-      throw new CampaignRecordEditError(
-        "portrait-visibility",
-        "Save visibility before replacing a portrait",
-      );
-    }
-  }
+  applyVisibility(value, patch.visibility, collection, canManageVisibility);
+  if (patch.portrait !== undefined) checkPortrait(patch.portrait, patch.visibility, baseline);
   const mutations: CampaignMutation[] = [
     {
       operation: "put",
@@ -261,21 +230,7 @@ export function prepareCharacterPatch(
     },
   ];
   if (patch.relationships !== undefined) {
-    const base = patch.relationshipBase;
-    const live = relationshipBaseFor(campaign, current.key);
-    if (
-      !Array.isArray(base) ||
-      base.length !== live.length ||
-      new Set(base.map((item) => item.key)).size !== base.length ||
-      live.some(
-        (item) =>
-          !base.some(
-            (candidate) => candidate.key === item.key && candidate.revision === item.revision,
-          ),
-      )
-    ) {
-      throw new CampaignRecordEditError("stale", "relationships changed");
-    }
+    checkRelationshipBase(campaign, current.key, patch.relationshipBase);
     mutations.push(
       ...prepareRelationshipMutations(
         campaign,
@@ -380,24 +335,8 @@ export function prepareCampaignRecordSave(
 
   const current = isRecord(record?.value) ? record.value : {};
   if (detail.portrait !== undefined) {
-    if (
-      page.collection !== "characters" ||
-      detail.creating ||
-      (detail.portrait !== null &&
-        (!(detail.portrait instanceof File) || !validPortraitFile(detail.portrait)))
-    )
-      throw invalidEdit();
-    // Media visibility is fixed at upload; publish visibility separately first.
-    if (
-      detail.portrait !== null &&
-      detail.visibility !== undefined &&
-      detail.visibility !== (current["visibility"] === "dm" ? "dm" : "public")
-    ) {
-      throw new CampaignRecordEditError(
-        "portrait-visibility",
-        "Save visibility before replacing a portrait",
-      );
-    }
+    if (page.collection !== "characters" || detail.creating) throw invalidEdit();
+    checkPortrait(detail.portrait, detail.visibility, current);
   }
   const value: Record<string, unknown> = { ...current };
   for (const field of fields) {
@@ -410,49 +349,15 @@ export function prepareCampaignRecordSave(
   }
   if (page.collection === "companions" && detail.creating && line(value["icon"]) === "")
     value["icon"] = "🐾";
-  if (page.collection === "locations" && line(value["parentId"]) !== line(current["parentId"])) {
-    // Coordinates belong to the old image's frame; a different parent needs a new placement.
-    delete value["x"];
-    delete value["y"];
-  }
+  if (page.collection === "locations") dropPlacementIfReparented(value, current);
   value["id"] = detail.key;
 
-  const visibilityBearing = collectionManagesVisibility(page.collection);
-  if (detail.visibility !== undefined) {
-    if (
-      !visibilityBearing ||
-      !canManageVisibility ||
-      (detail.visibility !== "public" && detail.visibility !== "dm")
-    ) {
-      throw invalidEdit();
-    }
-    value["visibility"] = detail.visibility;
-  }
+  applyVisibility(value, detail.visibility, page.collection, canManageVisibility);
   if (detail.relationships !== undefined && (page.collection !== "characters" || detail.creating)) {
     throw invalidEdit();
   }
   if (detail.relationships !== undefined) {
-    const currentBase = relationshipBaseFor(campaign, detail.key);
-    const base = detail.relationshipBase;
-    if (
-      !Array.isArray(base) ||
-      base.some(
-        (item) =>
-          !isRecord(item) ||
-          typeof item["key"] !== "string" ||
-          !validRevision(item["revision"], true),
-      ) ||
-      new Set(base.map((item) => item.key)).size !== base.length
-    )
-      throw invalidEdit();
-    // Absence in the draft means deletion only for the exact set the user saw.
-    const revisions = new Map(base.map((item) => [item.key, item.revision]));
-    if (
-      base.length !== currentBase.length ||
-      currentBase.some((current) => revisions.get(current.key) !== current.revision)
-    ) {
-      throw new CampaignRecordEditError("stale", "relationship revisions are stale");
-    }
+    checkRelationshipBase(campaign, detail.key, detail.relationshipBase);
   } else if (detail.relationshipBase !== undefined) {
     throw invalidEdit();
   }
@@ -1469,6 +1374,77 @@ function ownerOptions(campaign: CampaignDataset): readonly CampaignEditorOption[
 function partyOptionLabel(campaign: CampaignDataset): string {
   const party = campaignPartyIdentity(campaign);
   return `${party.badge} ${party.name}`;
+}
+
+function applyVisibility(
+  value: Record<string, unknown>,
+  visibility: unknown,
+  collection: CampaignCollectionName,
+  canManageVisibility: boolean,
+): void {
+  if (visibility === undefined) return;
+  if (
+    !canManageVisibility ||
+    !collectionManagesVisibility(collection) ||
+    (visibility !== "public" && visibility !== "dm")
+  )
+    throw invalidEdit();
+  value["visibility"] = visibility;
+}
+
+/**
+ * A new portrait must be a valid image, or null to remove it. Media
+ * visibility is fixed at upload, so a replacement cannot also change it.
+ */
+function checkPortrait(
+  portrait: File | null,
+  visibility: unknown,
+  saved: Readonly<Record<string, unknown>>,
+): void {
+  if (portrait === null) return;
+  if (!(portrait instanceof File) || !validPortraitFile(portrait)) throw invalidEdit();
+  if (visibility !== undefined && visibility !== (saved["visibility"] === "dm" ? "dm" : "public"))
+    throw new CampaignRecordEditError(
+      "portrait-visibility",
+      "Save visibility before replacing a portrait",
+    );
+}
+
+/** Coordinates belong to the parent's map image; a new parent needs a new placement. */
+function dropPlacementIfReparented(
+  value: Record<string, unknown>,
+  before: Readonly<Record<string, unknown>>,
+): void {
+  if (line(value["parentId"]) === line(before["parentId"])) return;
+  delete value["x"];
+  delete value["y"];
+}
+
+/**
+ * Relationship edits delete what the draft left out, so they apply only to
+ * the exact set of relationships the editor loaded.
+ */
+function checkRelationshipBase(campaign: CampaignDataset, key: string, base: unknown): void {
+  if (
+    !Array.isArray(base) ||
+    base.some(
+      (item) =>
+        !isRecord(item) ||
+        typeof item["key"] !== "string" ||
+        !validRevision(item["revision"], true),
+    )
+  )
+    throw invalidEdit();
+  const revisions = new Map(
+    (base as readonly Pick<CampaignRecord, "key" | "revision">[]).map((item) => [
+      item.key,
+      item.revision,
+    ]),
+  );
+  if (revisions.size !== base.length) throw invalidEdit();
+  const live = relationshipBaseFor(campaign, key);
+  if (live.length !== base.length || live.some((item) => revisions.get(item.key) !== item.revision))
+    throw new CampaignRecordEditError("stale", "relationship revisions are stale");
 }
 
 function line(value: unknown): string {
