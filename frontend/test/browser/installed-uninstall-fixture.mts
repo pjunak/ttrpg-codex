@@ -101,7 +101,8 @@ export async function exerciseUninstall({
   const manager = page.locator("codex-addon-manager"),
     row = manager.locator(`[data-addon-id="${id}"]`),
     review = manager.locator(".addon-uninstall-review");
-  await row.getByRole("button", { name: "Uninstall", exact: true }).click();
+  await row.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: /Uninstall/u }).click();
   await review
     .getByRole("heading", { name: "Review uninstall: DM panel fixture", exact: true })
     .waitFor();
@@ -113,7 +114,8 @@ export async function exerciseUninstall({
     (await jsonResponse(await admin.get(`/api/admin/addons/${id}`))).state.activeGenerationId,
     generation,
   );
-  await row.getByRole("button", { name: "Uninstall", exact: true }).click();
+  await row.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: /Uninstall/u }).click();
   await review.waitFor();
   const snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
   await jsonResponse(
@@ -124,7 +126,8 @@ export async function exerciseUninstall({
   );
   await review.getByRole("button", { name: "Uninstall and keep data", exact: true }).click();
   await manager.getByRole("alert").filter({ hasText: "Review uninstall again" }).waitFor();
-  await row.getByRole("button", { name: "Uninstall", exact: true }).click();
+  await row.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: /Uninstall/u }).click();
   await review.getByRole("heading").first().waitFor();
   await review.screenshot({
     path: resolve(output, `uninstall-review-${mobile ? "phone" : "desktop"}.png`),
@@ -200,6 +203,7 @@ export async function exerciseUninstall({
       await page.reload();
       await page.locator('[data-category="addons"]').click();
     }
+    await row.locator(".addon-row-details > summary").click();
     await row
       .locator(`[data-generation="${incompatible.generationId}"]`)
       .getByRole("button", {
@@ -252,7 +256,8 @@ export async function exerciseUninstall({
   await page.evaluate(() => localStorage.setItem("codex_lang", "cs"));
   await page.reload();
   await page.locator('[data-category="addons"]').click();
-  await row.getByRole("button", { name: "Odinstalovat", exact: true }).click();
+  await row.getByRole("button", { name: "Další akce", exact: true }).click();
+  await page.getByRole("menuitem", { name: /Odinstalovat/u }).click();
   await review
     .getByRole("heading", { name: "Kontrola odinstalace: DM panel fixture", exact: true })
     .waitFor();

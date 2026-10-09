@@ -190,11 +190,7 @@ export async function exerciseDisable({
   );
   await page.reload();
   await page.locator('[data-category="addons"]').click();
-  await row
-    .getByText(mobile ? "Vypnuto nebo čeká na aktivaci" : "Disabled or awaiting activation", {
-      exact: true,
-    })
-    .waitFor();
+  await row.getByText(mobile ? "Vypnuto" : "Disabled", { exact: true }).waitFor();
   await installDmPackage(admin, csrf, { id, live: true });
   const retained = await jsonResponse(
     await admin.post(data + "/query", {

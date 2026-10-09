@@ -560,6 +560,65 @@ codex-addon-manager {
   gap: 0.75rem;
   flex-wrap: wrap;
 }
+.addon-row-title {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+.addon-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.addon-row-version {
+  color: var(--text-muted);
+  font: var(--text-xs) var(--font-ui);
+}
+.addon-chip {
+  padding: 0.05rem var(--space-2);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-pill);
+  font: 600 var(--text-xs) / 1.5 var(--font-ui);
+  white-space: nowrap;
+}
+.addon-chip[data-tone="ok"] {
+  color: var(--color-success);
+}
+.addon-chip[data-tone="off"] {
+  color: var(--text-muted);
+}
+.addon-chip[data-tone="danger"] {
+  color: var(--color-danger);
+}
+.addon-chip[data-tone="info"] {
+  color: var(--gold);
+}
+.addon-manager .addon-row-description {
+  margin: 0;
+  color: var(--text-light);
+}
+.addon-row .addon-actions {
+  margin: 0;
+  align-items: center;
+}
+.addon-manager .addon-more {
+  min-width: 2.25rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.addon-row-details > summary {
+  margin-bottom: 0;
+}
+.addon-row-id {
+  color: var(--text-muted);
+}
+.addon-row-section h4 {
+  margin: var(--space-3) 0 0;
+  color: var(--text-light);
+  font: 600 var(--text-sm) var(--font-ui);
+}
 .addon-row h3,
 .addon-review h3 {
   margin: 0;

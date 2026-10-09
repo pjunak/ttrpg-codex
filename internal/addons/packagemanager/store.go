@@ -98,7 +98,7 @@ func (store *store) generation(ctx context.Context, addonID, generationID string
 	row := store.db.QueryRowContext(ctx, `
 		SELECT addon_id, generation_id, addon_version, archive_sha256,
 		       installed_at, last_attempt_at, last_activated_at,
-		       COALESCE(last_error, '')
+		       COALESCE(last_error, ''), `+generationManifestColumns+`
 		FROM addon_package_generations
 		WHERE addon_id = ? AND generation_id = ?
 		AND NOT EXISTS (SELECT 1 FROM addon_package_uninstalls u WHERE u.addon_id = addon_package_generations.addon_id)`, addonID, generationID)
@@ -373,7 +373,7 @@ func (store *store) snapshot(ctx context.Context, addonID string, eventLimit int
 	rows, err := store.db.QueryContext(ctx, `
 		SELECT addon_id, generation_id, addon_version, archive_sha256,
 		       installed_at, last_attempt_at, last_activated_at,
-		       COALESCE(last_error, '')
+		       COALESCE(last_error, ''), `+generationManifestColumns+`
 		FROM addon_package_generations
 		WHERE addon_id = ? AND NOT EXISTS(SELECT 1 FROM addon_package_files f WHERE f.addon_id=addon_package_generations.addon_id AND f.generation_id=addon_package_generations.generation_id AND f.status<>'local')
 		ORDER BY installed_at DESC, generation_id`, addonID)
@@ -447,6 +447,10 @@ func insertEvent(
 	return nil
 }
 
+// generationManifestColumns reads the manifest name and description that
+// scanGeneration expects after the generation's own columns.
+const generationManifestColumns = `COALESCE(json_extract(manifest_json, '$.name'), ''), COALESCE(json_extract(manifest_json, '$.description'), '')`
+
 type rowScanner interface {
 	Scan(...any) error
 }
@@ -464,6 +468,8 @@ func scanGeneration(row rowScanner) (Generation, error) {
 		&attemptAt,
 		&activatedAt,
 		&generation.LastError,
+		&generation.Name,
+		&generation.Description,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Generation{}, ErrGenerationNotFound

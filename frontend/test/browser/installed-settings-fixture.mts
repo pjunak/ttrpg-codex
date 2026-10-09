@@ -247,7 +247,8 @@ export async function exerciseSettings({
     );
   }
   page.once("dialog", (dialog) => dialog.dismiss());
-  await row.getByRole("button", { name: "Reload", exact: true }).click();
+  await row.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: /Reload/u }).click();
   await tab.click();
   assert.equal(await view.getByLabel("Saved option").inputValue(), "Keep this draft");
   await management.click();
@@ -278,7 +279,8 @@ export async function exerciseSettings({
   await page.locator('[data-category="language"]').click();
   assert.equal(await dropdown.count(), 1);
   await management.click();
-  await row.getByRole("button", { name: "Reload", exact: true }).click();
+  await row.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: /Reload/u }).click();
   await page
     .getByText("Wait for the add-on save to finish before changing installed add-ons.", {
       exact: true,
@@ -332,7 +334,9 @@ export async function exerciseSettings({
   await player.locator('[data-category="language"]').click();
   await player.locator(".settings-preference-field select").selectOption("cs");
   await player.locator('[data-category="addons"]').click();
-  await player.getByRole("tab", { name: id, exact: true }).waitFor();
+  // A single add-on settings page needs no tab strip.
+  await player.locator("#addon-settings-panel h3").getByText(id, { exact: true }).waitFor();
+  assert.equal(await player.getByRole("tab", { name: id, exact: true }).count(), 0);
   await playerSettings
     .locator(".addon-contribution-heading strong")
     .getByText("Sdílené předvolby", { exact: true })

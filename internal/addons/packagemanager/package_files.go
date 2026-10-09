@@ -350,7 +350,7 @@ func (manager *Manager) RestorePackage(ctx context.Context, addonID, generationI
 	if !validAddonPath(addonID) || !validGenerationID(generationID) {
 		return Generation{}, ErrInvalidPackage
 	}
-	generation, err := scanGeneration(manager.store.db.QueryRowContext(ctx, "SELECT addon_id,generation_id,addon_version,archive_sha256,installed_at,last_attempt_at,last_activated_at,COALESCE(last_error,'') FROM addon_package_generations WHERE addon_id=? AND generation_id=?", addonID, generationID))
+	generation, err := scanGeneration(manager.store.db.QueryRowContext(ctx, "SELECT addon_id,generation_id,addon_version,archive_sha256,installed_at,last_attempt_at,last_activated_at,COALESCE(last_error,''),"+generationManifestColumns+" FROM addon_package_generations WHERE addon_id=? AND generation_id=?", addonID, generationID))
 	if err != nil {
 		return Generation{}, err
 	}

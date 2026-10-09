@@ -55,21 +55,25 @@ export async function exerciseAddonManager({
     undefined,
   );
   await review.getByRole("button", { name: "Cancel review", exact: true }).click();
-  await row.getByRole("button", { name: "Review activation", exact: true }).click();
+  await row.getByRole("heading", { name: "Graph test", exact: true }).waitFor();
+  await row.getByText("Disabled", { exact: true }).waitFor();
+  await row.getByRole("button", { name: "Enable", exact: true }).click();
   await approve();
   let snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
   const original = snapshot.state.activeGenerationId;
-  await row.getByRole("button", { name: "Reload", exact: true }).click();
+  await row.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: /Reload/u }).click();
   await manager.getByText("Add-on state updated.", { exact: true }).waitFor();
   await upload("1.1.0");
   await approve();
   snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
   assert.notEqual(snapshot.state.activeGenerationId, original);
+  await row.locator(".addon-row-details > summary").click();
   await row.getByText("Runtime diagnostics", { exact: true }).click();
   await row.getByText("This browser tab", { exact: true }).waitFor();
   await row.getByText("No browser failures recorded in this session.", { exact: true }).waitFor();
   assert.equal(await row.locator("codex-runtime-diagnostics pre").count(), 0);
-  await row.getByText("Saved packages", { exact: true }).click();
+  await row.getByText("Saved packages", { exact: true }).waitFor();
   await row
     .getByText(
       "Only the active package runs. Other packages are kept for review or rollback; they do not run alongside it.",
@@ -92,10 +96,11 @@ export async function exerciseAddonManager({
     .locator(".addon-disable-review")
     .getByRole("button", { name: "Disable reviewed add-ons", exact: true })
     .click();
-  await row.getByText("Disabled or awaiting activation", { exact: true }).waitFor();
+  await row.getByText("Disabled", { exact: true }).waitFor();
   await page.reload();
   await page.locator('[data-category="addons"]').click();
   await row.waitFor();
+  await row.locator(".addon-row-details > summary").click();
   assert.equal(await row.locator("[data-generation]").count(), 2);
   // A concurrent state change invalidates the exact reviewed proposal.
   await row
@@ -149,7 +154,7 @@ export async function exerciseAddonManager({
     .waitFor();
   await page.unroute(pattern);
   await manager.getByRole("button", { name: "Check for updates", exact: true }).click();
-  await row.getByText("Disabled or awaiting activation", { exact: true }).waitFor();
+  await row.getByText("Disabled", { exact: true }).waitFor();
   await openUpload();
   await manager.locator('input[type="file"]').setInputFiles({
     name: "invalid.zip",

@@ -33,6 +33,7 @@ import type { AddonDisableReview } from "../core/addon-disable.js";
 import type { AddonUninstallReview } from "../core/addon-uninstall.js";
 import { HostRequestError } from "../core/api.js";
 import { UIControlsController } from "../ui/controller.js";
+import { openContextMenu } from "../ui/context-menu.js";
 
 export class CodexAddonManager extends LitElement {
   static override properties = {
@@ -256,14 +257,16 @@ export class CodexAddonManager extends LitElement {
   protected override render() {
     const t = this.#ui.t.bind(this.#ui),
       tabs = this.#tabs(),
-      selected = this.#selectedTab(tabs);
+      selected = this.#selectedTab(tabs),
+      // A strip with one tab is noise: management alone needs no tabs.
+      tabbed = tabs.length > 1;
     const addonIds = [
       ...new Set(this.#contributions.list("settings").map((active) => active.addonId)),
     ].sort();
     return html`<section class="settings-ledger addon-manager" aria-busy=${this.#busy}>
       <header class="settings-ledger-heading"><div><span class="settings-category-mark" aria-hidden="true">🧩</span><div><h2>${t("addons.title")}</h2><p>${t(this.canManage ? "addons.intro" : "addons.settingsIntro")}</p></div></div></header>
       ${
-        tabs.length
+        tabbed
           ? html`<div class="addon-settings-tabs" role="tablist" aria-label=${t("addons.title")} @keydown=${this.#tabKey}>
         ${repeat(
           tabs,
@@ -285,9 +288,18 @@ export class CodexAddonManager extends LitElement {
       ${!tabs.length && !this.addonTarget ? html`<p>${t("addons.settingsEmpty")}</p>` : nothing}
       ${
         this.canManage
-          ? html`<div id="addon-management-panel" role="tabpanel" aria-labelledby="addon-tab-management" tabindex="0" ?hidden=${selected !== ""}>
+          ? html`<div id="addon-management-panel" role=${tabbed ? "tabpanel" : nothing} aria-labelledby=${tabbed ? "addon-tab-management" : nothing} tabindex=${tabbed ? 0 : nothing} ?hidden=${selected !== ""}>
         <div class="addon-actions addon-toolbar"><button ?disabled=${this.#busy} @click=${() => this.#checkUpdates()}>${t(this.#github.pending ? "github.checking" : "github.check")}</button>
           <button class="addon-primary" ?disabled=${this.#busy} @click=${() => this.#openInstall()}>${t("github.add")}</button></div>
+        ${this.installOpen ? this.#installDialog() : nothing}
+        ${this.removal ? this.#uninstallPanel(this.removal) : nothing}
+        ${this.disabling ? this.#disablePanel(this.disabling) : nothing}
+        ${this.pending && !this.snapshots.length ? html`<p role="status">${t("addons.loading")}</p>` : !this.snapshots.length ? html`<p>${t("addons.empty")}</p>` : nothing}
+        <div class="addon-list">${repeat(
+          this.snapshots,
+          (snapshot) => snapshot.state.addonId,
+          (snapshot) => this.#addonRow(snapshot),
+        )}</div>
         <codex-package-storage .csrfToken=${this.csrfToken} .disabled=${this.#busy}
           .inventoryRevision=${JSON.stringify(this.snapshots.map((snapshot) => [snapshot.state, snapshot.generations.map((item) => item.generationId)]))}
           @addon-storage-busy=${(event: CustomEvent<boolean>) => {
@@ -306,20 +318,11 @@ export class CodexAddonManager extends LitElement {
             this.staged = event.detail;
             this.#loadReview();
           }}></codex-package-storage>
-        ${this.installOpen ? this.#installDialog() : nothing}
-        ${this.removal ? this.#uninstallPanel(this.removal) : nothing}
-        ${this.disabling ? this.#disablePanel(this.disabling) : nothing}
-        ${this.pending && !this.snapshots.length ? html`<p role="status">${t("addons.loading")}</p>` : !this.snapshots.length ? html`<p>${t("addons.empty")}</p>` : nothing}
-        <div class="addon-list">${repeat(
-          this.snapshots,
-          (snapshot) => snapshot.state.addonId,
-          (snapshot) => this.#addonRow(snapshot),
-        )}</div>
         ${this.#tokens()}
       </div>`
           : nothing
       }
-      <div id="addon-settings-panel" role="tabpanel" aria-labelledby=${selected ? `addon-tab-addon-${selected}` : nothing} tabindex="0" ?hidden=${!selected}>
+      <div id="addon-settings-panel" role=${tabbed ? "tabpanel" : nothing} aria-labelledby=${tabbed && selected ? `addon-tab-addon-${selected}` : nothing} tabindex=${tabbed ? 0 : nothing} ?hidden=${!selected}>
         ${selected ? html`<h3>${tabs.find((tab) => tab.id === selected)?.name}</h3><a class="addon-settings-link" href=${addonSettingsHash(selected)}>${t("addons.settingsLink")}</a>` : nothing}
         ${
           this.canManage
@@ -480,21 +483,22 @@ export class CodexAddonManager extends LitElement {
             candidate.active
               ? nothing
               : html`
-        <button ?disabled=${this.#busy} @click=${() => {
-          this.#openInstall();
-          void this.#run(async (client) => {
-            this.staged = await new AddonGitHubClient(this.csrfToken, this.#request.signal).stage(
-              result.source,
-              candidate.id,
-              addonId,
-            );
-            this.snapshots = await client.inventory();
-            this.review = await client.review(this.staged.addonId, this.staged.generationId);
-            this.grants = [...new Set([...this.review.required, ...this.review.suggested])];
-          });
-        }}>${t("update.action")}</button>`
+        <button ?disabled=${this.#busy} @click=${() => this.#stageCandidate(result, candidate.id, addonId)}>${t("update.action")}</button>`
           }</li>`,
       )}</ul></div>`;
+  }
+  #stageCandidate(result: GitHubDiscovery, candidateId: string, addonId: string): void {
+    this.#openInstall();
+    void this.#run(async (client) => {
+      this.staged = await new AddonGitHubClient(this.csrfToken, this.#request.signal).stage(
+        result.source,
+        candidateId,
+        addonId,
+      );
+      this.snapshots = await client.inventory();
+      this.review = await client.review(this.staged.addonId, this.staged.generationId);
+      this.grants = [...new Set([...this.review.required, ...this.review.suggested])];
+    });
   }
   #tokens() {
     const status = this.#github.status,
@@ -536,20 +540,96 @@ export class CodexAddonManager extends LitElement {
     const active = snapshot.generations.find(
       (generation) => generation.generationId === state.activeGenerationId,
     );
-    return html`<article class="addon-row" data-addon-id=${state.addonId}>
-      <header><div><h3>${state.addonId}</h3><p>${active ? html`${active.version} · ${t("addons.active")}` : t("addons.inactive")}${snapshot.runtimeState ? ` · ${uiSourceLabel(snapshot.runtimeState)}` : ""}</p>${active ? html`<small>${t("addons.generation")}: <code title=${active.generationId}>${active.generationId.slice(0, 12)}</code></small>` : nothing}</div>
-      <div class="addon-actions">${active ? html`<button ?disabled=${this.#busy} @click=${() => this.#action(snapshot, "reload")}>${t("addons.reload")}</button><button ?disabled=${this.#busy} @click=${() => this.#prepareDisable(state.addonId)}>${t("addons.disable")}</button>` : nothing}
-        <button ?disabled=${this.#busy} @click=${() => this.#prepareUninstall(state.addonId)}>${t("addons.uninstall")}</button></div></header>
+    // Generations are newest first; an inactive add-on shows its newest package.
+    const shown = active ?? snapshot.generations[0];
+    const discovery = this.#github.results[state.addonId];
+    const found = discovery && typeof discovery !== "string" ? discovery : undefined;
+    const update = found?.candidates.find((candidate) => !candidate.active);
+    const failed = snapshot.runtimeState === "failed" || Boolean(active?.lastError);
+    const status = !active
+      ? { tone: "off", label: t("addons.disabled") }
+      : failed
+        ? { tone: "danger", label: t("addons.notRunning") }
+        : { tone: "ok", label: t("addons.active") };
+    return html`<article class="addon-row" data-addon-id=${state.addonId}
+      @contextmenu=${(event: MouseEvent) => {
+        if (this.#busy || (event.target as Element).closest("a, button, input, summary")) return;
+        event.preventDefault();
+        this.#moreActions(snapshot, null, { x: event.clientX, y: event.clientY });
+      }}>
+      <header class="addon-row-head">
+        <div class="addon-row-title">
+          <h3>${shown?.name || state.addonId}</h3>
+          <div class="addon-row-meta">
+            ${shown ? html`<span class="addon-row-version">v${shown.version}</span>` : nothing}
+            <span class="addon-chip" data-tone=${status.tone}>${status.label}</span>
+            ${update ? html`<span class="addon-chip" data-tone="info">${t("addons.updateAvailable", { version: update.version })}</span>` : nothing}
+          </div>
+          ${shown?.description ? html`<p class="addon-row-description">${shown.description}</p>` : nothing}
+          ${failed ? html`<p role="alert">${t("addons.notRunningHelp")}</p>` : nothing}
+        </div>
+        <div class="addon-actions">
+          ${found && update ? html`<button class="addon-primary" ?disabled=${this.#busy} @click=${() => this.#stageCandidate(found, update.id, state.addonId)}>${t("addons.updateTo", { version: update.version })}</button>` : nothing}
+          ${
+            active
+              ? html`<button ?disabled=${this.#busy} @click=${() => this.#prepareDisable(state.addonId)}>${t("addons.disable")}</button>`
+              : shown
+                ? html`<button class=${update ? "" : "addon-primary"} ?disabled=${this.#busy} @click=${() => this.#prepare(state.addonId, shown.generationId)}>${t("addons.enable")}</button>`
+                : nothing
+          }
+          <button class="addon-more" aria-haspopup="menu" aria-label=${t("addons.moreActions")} title=${t("addons.moreActions")}
+            ?disabled=${this.#busy} @click=${(event: MouseEvent) => {
+              const button = event.currentTarget as HTMLButtonElement,
+                box = button.getBoundingClientRect();
+              this.#moreActions(snapshot, button, { x: box.left, y: box.bottom });
+            }}>⋯</button>
+        </div>
+      </header>
       ${this.#source(state.addonId)}
-      <details ?open=${!active}><summary>${t("addons.versions")}</summary><p>${t("addons.versionsHint")}</p><ul>${snapshot.generations.map(
-        (generation) => html`<li data-generation=${generation.generationId}>
-        <div><strong>${generation.version}</strong> ${t(generation.generationId === state.activeGenerationId ? "addons.active" : "addons.savedInactive")}<small>${this.#ui.relativeDate(generation.installedAt)}</small>
-          ${generation.lastError ? html`<p role="alert">${t("addons.failed")}</p><details><summary>${uiText("Technical details")}</summary><p>${generation.lastError}</p></details>` : nothing}<details><summary>${t("addons.generation")}</summary><code>${generation.generationId}</code></details></div>
-        ${generation.generationId !== state.activeGenerationId ? html`<button ?disabled=${this.#busy} @click=${() => this.#prepare(state.addonId, generation.generationId)}>${t(active ? "addons.rollback" : "addons.review")}</button>` : nothing}</li>`,
-      )}</ul></details>
-      <codex-runtime-diagnostics .snapshot=${snapshot}></codex-runtime-diagnostics>
-      ${snapshot.events.length ? html`<details><summary>${t("addons.history")}</summary><ul>${snapshot.events.map((event) => html`<li><div>${uiSourceLabel(event.kind)}<small>${this.#ui.relativeDate(event.occurredAt)}</small>${event.message ? html`<details><summary>${uiText("Technical details")}</summary><p>${event.message}</p></details>` : nothing}</div></li>`)}</ul></details>` : nothing}
+      <details class="addon-row-details"><summary>${t("addons.details")}</summary>
+        <p class="addon-row-id">${state.addonId}${active ? html` · ${t("addons.generation")}: <code title=${active.generationId}>${active.generationId.slice(0, 12)}</code>` : nothing}</p>
+        <section class="addon-row-section"><h4>${t("addons.versions")}</h4><p>${t("addons.versionsHint")}</p><ul>${snapshot.generations.map(
+          (generation) => html`<li data-generation=${generation.generationId}>
+          <div><strong>${generation.version}</strong> ${t(generation.generationId === state.activeGenerationId ? "addons.active" : "addons.savedInactive")}<small>${this.#ui.relativeDate(generation.installedAt)}</small>
+            ${generation.lastError ? html`<p role="alert">${t("addons.failed")}</p><details><summary>${uiText("Technical details")}</summary><p>${generation.lastError}</p></details>` : nothing}<details><summary>${t("addons.generation")}</summary><code>${generation.generationId}</code></details></div>
+          ${generation.generationId !== state.activeGenerationId ? html`<button ?disabled=${this.#busy} @click=${() => this.#prepare(state.addonId, generation.generationId)}>${t(active ? "addons.rollback" : "addons.review")}</button>` : nothing}</li>`,
+        )}</ul></section>
+        <codex-runtime-diagnostics .snapshot=${snapshot}></codex-runtime-diagnostics>
+        ${snapshot.events.length ? html`<details><summary>${t("addons.history")}</summary><ul>${snapshot.events.map((event) => html`<li><div>${uiSourceLabel(event.kind)}<small>${this.#ui.relativeDate(event.occurredAt)}</small>${event.message ? html`<details><summary>${uiText("Technical details")}</summary><p>${event.message}</p></details>` : nothing}</div></li>`)}</ul></details>` : nothing}
+      </details>
     </article>`;
+  }
+  /** The rarer actions of one add-on, from its ⋯ button or a right click. */
+  #moreActions(
+    snapshot: AddonSnapshot,
+    opener: HTMLElement | null,
+    point: { x: number; y: number },
+  ): void {
+    const t = this.#ui.t.bind(this.#ui),
+      addonId = snapshot.state.addonId,
+      linked = this.#github.status?.sources.some((link) => link.addonId === addonId);
+    openContextMenu(
+      this.ownerDocument,
+      point,
+      [
+        ...(snapshot.state.activeGenerationId
+          ? [{ label: t("addons.reload"), icon: "↻", run: () => this.#action(snapshot, "reload") }]
+          : []),
+        {
+          label: t(linked ? "github.editSource" : "github.connectSource"),
+          icon: "🔗",
+          run: () => this.#openInstall(addonId),
+        },
+        {
+          label: t("addons.uninstall"),
+          icon: "🗑",
+          danger: true,
+          separator: true,
+          run: () => this.#prepareUninstall(addonId),
+        },
+      ],
+      { title: snapshot.generations[0]?.name || addonId, returnFocus: opener },
+    );
   }
   #reviewPanel(review: AddonReview) {
     const t = this.#ui.t.bind(this.#ui);

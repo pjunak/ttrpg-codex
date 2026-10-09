@@ -31,6 +31,9 @@ export interface InstalledGeneration {
   version: string;
   installedAt: string;
   lastError: string;
+  /** The package manifest's display name and description. */
+  name: string;
+  description: string;
 }
 export interface AddonSnapshot {
   state: { addonId: string; revision: number; activeGenerationId: string };
@@ -86,6 +89,8 @@ export function parseInstalledGeneration(value: unknown): InstalledGeneration {
     version: text(record["version"]),
     installedAt: text(record["installedAt"]),
     lastError: optionalText(record["lastError"]),
+    name: optionalText(record["name"]),
+    description: optionalText(record["description"]),
   };
 }
 function parseAddonSnapshot(value: unknown): AddonSnapshot {

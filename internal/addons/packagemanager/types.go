@@ -113,6 +113,9 @@ type Generation struct {
 	LastAttemptAt   *time.Time `json:"lastAttemptAt,omitempty"`
 	LastActivatedAt *time.Time `json:"lastActivatedAt,omitempty"`
 	LastError       string     `json:"lastError,omitempty"`
+	// Name and Description come from the package manifest.
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
 type State struct {

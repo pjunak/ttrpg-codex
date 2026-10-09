@@ -59,6 +59,9 @@ func TestStagePublishesContentAddressedGenerationWithoutActivation(t *testing.T)
 		len(snapshot.Generations) != 1 || len(snapshot.Events) != 1 || snapshot.Events[0].Kind != "staged" {
 		t.Fatalf("staging changed authority or produced incomplete diagnostics: %+v", snapshot)
 	}
+	if snapshot.Generations[0].Name != "notes-addon" {
+		t.Fatalf("generation name = %q, want the manifest name", snapshot.Generations[0].Name)
+	}
 	providers, err := broker.ListProviders(context.Background(), "codex.notes")
 	if err != nil {
 		t.Fatal(err)
