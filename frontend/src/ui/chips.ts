@@ -1,17 +1,12 @@
 import { folded, messages, onFormReset, setAttribute, type ControlHandle } from "./messages.js";
+import { highlightRow, labelWords, placePopup, trackPopup } from "./popup.js";
 
 let sequence = 0;
 const shownLimit = 100;
 
 function labelText(select: HTMLSelectElement): string | null {
   const label = select.labels?.[0];
-  if (!label) return null;
-  const copy = label.cloneNode(true) as HTMLElement;
-  for (const node of copy.querySelectorAll(
-    "input,select,textarea,button,small,ul,[data-ui-generated]",
-  ))
-    node.remove();
-  return copy.textContent?.trim() || null;
+  return label ? labelWords(label) || null : null;
 }
 
 /**
@@ -82,21 +77,8 @@ export function enhanceChips(select: HTMLSelectElement): ControlHandle {
   };
   const position = (): void => {
     if (!open) return;
-    const rect = input.getBoundingClientRect(),
-      viewport = window.visualViewport;
-    const left = viewport?.offsetLeft ?? 0,
-      top = viewport?.offsetTop ?? 0,
-      width = viewport?.width ?? window.innerWidth,
-      height = viewport?.height ?? window.innerHeight;
-    const below = top + height - rect.bottom - 8,
-      above = rect.top - top - 8,
-      upward = below < Math.min(240, above);
-    const available = Math.max(40, upward ? above : below),
-      popupWidth = Math.min(Math.max(rect.width, 240), width - 16);
-    popup.style.width = `${popupWidth}px`;
-    popup.style.maxHeight = `${Math.min(320, available)}px`;
-    popup.style.left = `${Math.max(left + 8, Math.min(rect.left, left + width - popupWidth - 8))}px`;
-    popup.style.top = `${upward ? Math.max(top + 8, rect.top - Math.min(popup.scrollHeight, 320, available) - 4) : rect.bottom + 4}px`;
+    const rect = input.getBoundingClientRect();
+    placePopup(window, rect, popup, { width: rect.width, maxHeight: 320 });
   };
   const close = (): void => {
     open = false;
@@ -110,15 +92,7 @@ export function enhanceChips(select: HTMLSelectElement): ControlHandle {
   };
   const highlight = (index: number): void => {
     active = index;
-    [...list.children].forEach((row, at) => {
-      row.classList.toggle("ui-active", at === active);
-      row.setAttribute("aria-selected", String(at === active));
-    });
-    const row = list.children[index];
-    if (row) {
-      input.setAttribute("aria-activedescendant", row.id);
-      row.scrollIntoView({ block: "nearest" });
-    } else input.removeAttribute("aria-activedescendant");
+    highlightRow(list, input, index);
   };
   const renderList = (): void => {
     const query = folded(input.value.trim());
@@ -167,8 +141,7 @@ export function enhanceChips(select: HTMLSelectElement): ControlHandle {
       popup.hidden = false;
       if (!popup.matches(":popover-open")) popup.showPopover();
       input.setAttribute("aria-expanded", "true");
-      window.addEventListener("resize", position, { signal: openScope.signal });
-      window.addEventListener("scroll", position, { signal: openScope.signal, capture: true });
+      trackPopup(wrapper, position, close, openScope.signal);
     }
     renderList();
   };
