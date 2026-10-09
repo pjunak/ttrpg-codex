@@ -309,7 +309,7 @@ export class CodexCampaignGraph extends LitElement {
     const types = new Map(
       this.#graph.edges.map((edge) => [
         edge.type,
-        { label: edge.typeLabel ?? edge.type, color: edge.color },
+        { label: edge.typeLabel ?? edge.type, color: edge.color, style: edge.style },
       ]),
     );
     const views = graphViews(this.registry, this.actorRole),
@@ -492,7 +492,7 @@ export class CodexCampaignGraph extends LitElement {
       </div>
       <details class="map-legend-shell"><summary>${this.#ui.t("graph.legend")}</summary><div class="map-legend">
         <strong class="legend-title">${this.#ui.t("graph.edgeTypes")}</strong>
-        ${[...types].map(([type, value]) => html`<div class="legend-item"><span class="legend-line" style=${`border-color:${value.color};border-top-style:${this.#graph.edges.find((edge) => edge.type === type)?.style ?? "solid"}`}></span>${value.label}</div>`)}
+        ${[...types.values()].map((value) => html`<div class="legend-item"><span class="legend-line" style=${`border-color:${value.color};border-top-style:${value.style ?? "solid"}`}></span>${value.label}</div>`)}
         <strong class="legend-title">${this.#ui.t("graph.factions")}</strong>
         ${[...factions].map(
           ([
