@@ -21,6 +21,7 @@ import {
 import { registerCharacterCreationTests } from "./installed-character-creation-fixture.mts";
 import { registerCharacterOutputTests } from "./installed-character-output-fixture.mts";
 import { registerCompactTests } from "./installed-character-compact-fixture.mts";
+import { registerRefusalTest } from "./installed-character-command-fixture.mts";
 import { installedHostDiagnostics } from "./installed-host-diagnostics.mts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -203,6 +204,7 @@ async function call(method: string, params: Record<string, unknown>) {
 }
 
 registerCompactTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerRefusalTest(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 
 void test(
   "incomplete builds autosave with bounded steppers, searchable choices and no draft or history UI",
@@ -514,15 +516,17 @@ void test(
       change: { operation: "damage", amount: 2 },
     });
     assert.equal(current.state.inputs.play.hp, max - 2);
-    await assert.rejects(() =>
-      call("save", {
-        operation: "play",
-        operationId: "invalid-overheal",
-        summary: "Invalid",
-        expectedRevision: current.revision,
-        change: { operation: "set-hp", amount: max + 1 },
-      }),
-    );
+    // A play action the rules refuse is answered, not thrown: nothing is saved.
+    const refused = await call("save", {
+      operation: "play",
+      operationId: "invalid-overheal",
+      summary: "Invalid",
+      expectedRevision: current.revision,
+      change: { operation: "set-hp", amount: max + 1 },
+    });
+    assert.equal(refused.status, "invalid");
+    assert.ok(refused.message.length > 0);
+    assert.equal(refused.revision, current.revision);
   },
 );
 
