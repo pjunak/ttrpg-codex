@@ -35,6 +35,10 @@ func githubRedirect(req *http.Request, via []*http.Request) error {
 }
 
 func (s *Service) request(ctx context.Context, path, token, accept string) (*http.Response, error) {
+	return s.requestWith(ctx, s.client, path, token, accept)
+}
+
+func (s *Service) requestWith(ctx context.Context, client *http.Client, path, token, accept string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com"+path, nil)
 	if err != nil {
 		return nil, ErrUnavailable
@@ -45,7 +49,7 @@ func (s *Service) request(ctx context.Context, path, token, accept string) (*htt
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	res, err := s.client.Do(req)
+	res, err := client.Do(req)
 	// Do not propagate transport errors: they can include signed redirect URLs.
 	if err != nil {
 		var verification *tls.CertificateVerificationError
@@ -232,7 +236,9 @@ func releaseNotes(value string) (string, bool) {
 }
 
 func (s *Service) download(ctx context.Context, candidate Candidate, channel, token string) (_ *os.File, resultErr error) {
-	response, err := s.request(ctx, candidate.downloadPath, token, "application/octet-stream")
+	downloads := *s.client
+	downloads.Timeout = downloadTimeout
+	response, err := s.requestWith(ctx, &downloads, candidate.downloadPath, token, "application/octet-stream")
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +262,11 @@ func (s *Service) download(ctx context.Context, candidate Candidate, channel, to
 	}()
 	hash := sha256.New()
 	size, err := io.Copy(io.MultiWriter(file, hash), io.LimitReader(response.Body, limit+1))
-	if err != nil || size == 0 || size > limit {
+	if err != nil {
+		// An interrupted transfer says nothing about the package itself.
+		return nil, ErrUnavailable
+	}
+	if size == 0 || size > limit {
 		return nil, ErrPackage
 	}
 	if candidate.Digest != "" && candidate.Digest != "sha256:"+hex.EncodeToString(hash.Sum(nil)) {

@@ -94,6 +94,10 @@ type Service struct {
 	client    *http.Client
 }
 
+// downloadTimeout gives a package of up to 128 MiB time to arrive on a slow
+// link; API requests keep the client's shorter timeout.
+const downloadTimeout = 10 * time.Minute
+
 func New(config Config) (*Service, error) {
 	if config.DB == nil || config.DataDirectory == "" || config.Lifecycle == nil || config.Inspector == nil {
 		return nil, ErrInvalid
