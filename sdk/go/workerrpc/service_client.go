@@ -6,13 +6,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"io"
 	"regexp"
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
 
 	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
+
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 var (
@@ -90,7 +91,7 @@ func (client *ServiceClient) Call(
 		ProviderGeneration      string          `json:"providerGeneration"`
 		Result                  json.RawMessage `json:"result"`
 	}
-	if err := decodeServiceExact(body, &response); err != nil {
+	if err := jsonexact.Decode(body, &response); err != nil {
 		return ServiceResult{}, errors.New("host returned an invalid bound service result")
 	}
 	_, versionErr := semver.StrictNewVersion(response.ProviderContractVersion)
@@ -150,16 +151,4 @@ func validServiceClientIdentifier(value string, maximum int) bool {
 		}
 	}
 	return true
-}
-
-func decodeServiceExact(body json.RawMessage, destination any) error {
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return err
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return errors.New("JSON contains more than one value")
-	}
-	return nil
 }

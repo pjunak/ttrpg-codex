@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 const NativeWorkerProtocolVersion = "1.0.0"
@@ -94,7 +96,7 @@ func RunNativeWorker(ctx context.Context, config NativeWorkerConfig) error {
 		return err
 	}
 	var initialization NativeWorkerInitialization
-	if err := decodeNativeWorkerExact(initializeRequest.Params, &initialization); err != nil ||
+	if err := jsonexact.Decode(initializeRequest.Params, &initialization); err != nil ||
 		!validNativeWorkerInitialization(initialization, config.ProtocolVersion) {
 		failure := NewRPCError(JSONRPCInvalidParams, KindValidationFailed,
 			"The native worker initialization request is invalid.", false, nil)
@@ -311,7 +313,7 @@ func readNativeStartupRequest(
 		Params  json.RawMessage `json:"params"`
 		Meta    *Meta           `json:"meta,omitempty"`
 	}
-	if message.Kind != KindRequest || decodeNativeWorkerExact(message.Raw, &request) != nil ||
+	if message.Kind != KindRequest || jsonexact.Decode(message.Raw, &request) != nil ||
 		request.JSONRPC != "2.0" || request.Method != expectedMethod || request.Meta != nil {
 		return nativeStartupRequest{}, fmt.Errorf("native worker expected %s", expectedMethod)
 	}
@@ -342,7 +344,7 @@ func validNativeWorkerHealth(health NativeWorkerHealth) bool {
 
 func validateNativeEmptyParams(body json.RawMessage) error {
 	var params map[string]json.RawMessage
-	if err := decodeNativeWorkerExact(body, &params); err != nil {
+	if err := jsonexact.Decode(body, &params); err != nil {
 		return err
 	}
 	if params == nil || len(params) != 0 {
@@ -409,18 +411,6 @@ func cloneNativeRawList(values []json.RawMessage) []json.RawMessage {
 		result[index] = append(json.RawMessage(nil), value...)
 	}
 	return result
-}
-
-func decodeNativeWorkerExact(body json.RawMessage, destination any) error {
-	decoder := json.NewDecoder(strings.NewReader(string(body)))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return err
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return errors.New("JSON contains more than one value")
-	}
-	return nil
 }
 
 var _ RequestHandler = (*nativeWorkerLifecycle)(nil)

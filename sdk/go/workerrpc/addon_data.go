@@ -1,14 +1,14 @@
 package workerrpc
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"io"
 	"strconv"
 	"time"
+
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 const (
@@ -114,7 +114,7 @@ func (client *AddonDataClient) Get(
 		Revision        int64           `json:"revision"`
 		Value           json.RawMessage `json:"value"`
 	}
-	if err := decodeAddonDataExact(body, &response); err != nil ||
+	if err := jsonexact.Decode(body, &response); err != nil ||
 		response.ContractVersion != "host-data-document.v1" || !validAddonDataKey(response.Key) ||
 		response.Revision < 1 || !json.Valid(response.Value) {
 		return AddonDataDocument{}, errors.New("host returned an invalid add-on data document")
@@ -166,7 +166,7 @@ func (client *AddonDataClient) Query(
 		NextCursor      string              `json:"nextCursor,omitempty"`
 		DataRevision    *int64              `json:"dataRevision,omitempty"`
 	}
-	if err := decodeAddonDataExact(body, &response); err != nil ||
+	if err := jsonexact.Decode(body, &response); err != nil ||
 		response.ContractVersion != "host-data-query-result.v1" || len(response.Documents) > 200 ||
 		!validAddonDataCursor(response.NextCursor) ||
 		(response.DataRevision != nil && *response.DataRevision < 0) ||
@@ -260,7 +260,7 @@ func (client *AddonDataClient) transact(ctx context.Context, meta *Meta, mutatio
 		Results         []AddonDataMutationResult `json:"results"`
 		DataSets        []AddonDataSetRevision    `json:"dataSets"`
 	}
-	if err := decodeAddonDataExact(body, &response); err != nil ||
+	if err := jsonexact.Decode(body, &response); err != nil ||
 		response.ContractVersion != "host-data-commit.v1" || response.CommitID < 1 ||
 		response.OccurredAt.IsZero() || len(response.Results) < 1 || len(response.DataSets) < 1 {
 		return AddonDataCommit{}, errors.New("host returned an invalid add-on data commit")
@@ -338,16 +338,4 @@ func validAddonDataCursor(value string) bool {
 	position, err := strconv.ParseInt(string(body), 10, 64)
 	return err == nil && position >= 0 &&
 		base64.RawURLEncoding.EncodeToString([]byte(strconv.FormatInt(position, 10))) == value
-}
-
-func decodeAddonDataExact(body json.RawMessage, destination any) error {
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return err
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return errors.New("JSON contains more than one value")
-	}
-	return nil
 }

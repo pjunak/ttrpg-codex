@@ -11,6 +11,8 @@ import (
 
 	codexsqlite "github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
+
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 func TestStagedRestoreInstallsOnNextStartInsideTheDataDirectory(t *testing.T) {
@@ -221,7 +223,7 @@ func readStagedJournal(t *testing.T, data string) stagedJournal {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := decodeStrict(body, &journal); err != nil {
+	if err := jsonexact.Decode(body, &journal); err != nil {
 		t.Fatal(err)
 	}
 	return journal

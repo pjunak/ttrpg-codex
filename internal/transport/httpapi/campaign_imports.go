@@ -1,18 +1,18 @@
 package httpapi
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"io"
 	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 	"github.com/pjunak/ttrpg-codex/internal/application/campaignimport"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
+
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 const coreImportProvider = "codex-core"
@@ -118,11 +118,5 @@ func decodeImportCall(params any, value any) bool {
 	if err != nil {
 		return false
 	}
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(value) != nil {
-		return false
-	}
-	var extra any
-	return decoder.Decode(&extra) == io.EOF
+	return jsonexact.Decode(body, value) == nil
 }

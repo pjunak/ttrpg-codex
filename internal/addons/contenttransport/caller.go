@@ -5,16 +5,16 @@
 package contenttransport
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/contentcontract"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
+
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 var (
@@ -185,13 +185,8 @@ func (caller *Caller) query(body json.RawMessage) (any, error) {
 }
 
 func decodeExact(body json.RawMessage, destination any) error {
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
+	if err := jsonexact.Decode(body, destination); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidRequest, err)
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return ErrInvalidRequest
 	}
 	return nil
 }

@@ -4,14 +4,12 @@
 package workerhost
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +22,8 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/application/addondata"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/addondatastore"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
+
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 const (
@@ -592,15 +592,8 @@ func decodeCursor(value string) (int64, error) {
 
 func decodeExact[T any](body json.RawMessage) (T, error) {
 	var value T
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&value); err != nil {
-		return value, err
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return value, errors.New("JSON contains more than one value")
-	}
-	return value, nil
+	err := jsonexact.Decode(body, &value)
+	return value, err
 }
 
 func dataError(err error) error {

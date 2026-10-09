@@ -1,16 +1,15 @@
 package backuparchive
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 // A staged restore is installed inside the data directory itself, so it also
@@ -116,7 +115,7 @@ func finishStagedRestore(ctx context.Context, dataDirectory string, migrations f
 		return fmt.Errorf("read staged restore journal: %w", err)
 	}
 	var journal stagedJournal
-	if err := decodeStrict(body, &journal); err != nil ||
+	if err := jsonexact.Decode(body, &journal); err != nil ||
 		journal.ContractVersion != stagedJournalVersion ||
 		!safeSiblingName(journal.StageName, stagedStagePrefix) ||
 		!safeSiblingName(journal.PreviousName, stagedPreviousPrefix) {
@@ -210,18 +209,6 @@ func moveEntries(source, destination string, skip map[string]bool) error {
 		if err := os.Rename(filepath.Join(source, entry.Name()), target); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func decodeStrict(body []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	if decoder.Decode(&struct{}{}) != io.EOF {
-		return errors.New("trailing JSON")
 	}
 	return nil
 }

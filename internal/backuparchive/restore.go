@@ -16,6 +16,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 type RestoreConfig struct {
@@ -205,7 +207,7 @@ func recoverOfflineRestore(ctx context.Context, absolute string, migrations fs.F
 		return fmt.Errorf("read restore journal: %w", err)
 	}
 	var journal restoreJournal
-	if err := decodeStrict(body, &journal); err != nil {
+	if err := jsonexact.Decode(body, &journal); err != nil {
 		return fmt.Errorf("%w: restore journal is invalid", ErrRestorePending)
 	}
 	parent := filepath.Dir(absolute)
@@ -307,7 +309,7 @@ func decodeManifest(file *zip.File, limits Limits) (Manifest, error) {
 		return Manifest{}, fmt.Errorf("%w: read manifest", ErrInvalidArchive)
 	}
 	var manifest Manifest
-	if err := decodeStrict(body, &manifest); err != nil {
+	if err := jsonexact.Decode(body, &manifest); err != nil {
 		return Manifest{}, fmt.Errorf("%w: manifest JSON is invalid", ErrInvalidArchive)
 	}
 	if manifest.ContractVersion != ContractVersion ||

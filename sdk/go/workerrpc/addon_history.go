@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 type RecordedOperation struct {
@@ -68,7 +70,7 @@ func (client *AddonDataClient) history(ctx context.Context, meta *Meta, referenc
 		return AddonHistoryResult{}, err
 	}
 	var result AddonHistoryResult
-	if decodeAddonDataExact(body, &result) != nil || result.ContractVersion != "host-data-history-result.v1" || len(result.Entries) > limit || result.NextBefore < 0 {
+	if jsonexact.Decode(body, &result) != nil || result.ContractVersion != "host-data-history-result.v1" || len(result.Entries) > limit || result.NextBefore < 0 {
 		return result, errors.New("invalid history response")
 	}
 	for i, entry := range result.Entries {
