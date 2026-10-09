@@ -86,11 +86,6 @@ export interface CampaignRecordDeleteDetail {
   readonly expectedRevision: number;
 }
 
-export interface CampaignEditDirtyDetail {
-  readonly saving?: boolean;
-  readonly dirty: boolean;
-}
-
 export interface PreparedCampaignRecordTransaction {
   readonly page: CampaignPageDefinition;
   readonly mutations: readonly CampaignMutation[];

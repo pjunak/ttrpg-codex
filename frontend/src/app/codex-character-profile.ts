@@ -47,6 +47,7 @@ import type { BrowserRole } from "../addons/generation-manager.js";
 import { CodexPortraitEditor } from "./codex-portrait-editor.js";
 import { artwork } from "../ui/artwork.js";
 import { pencilIcon } from "./edit-icon.js";
+import { reportEditState } from "./unsaved-edit.js";
 
 interface FieldDraft {
   readonly key: string;
@@ -734,13 +735,7 @@ export class CodexCharacterProfile extends LitElement {
   }
   #dirty(): void {
     this.requestUpdate();
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", {
-        detail: { dirty: this.#unsaved(), saving: this.#saves > 0 },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    reportEditState(this, { dirty: this.#unsaved(), saving: this.#saves > 0 });
   }
   readonly #undoSave = async (): Promise<void> => {
     const undo = this.#undo;

@@ -43,7 +43,7 @@ import {
 import { campaignCollection } from "../core/campaign-data.js";
 import { mapHash, mapSettingsHash, recordHash, type AppRoute } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
-import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import "./codex-record-contributions.js";
@@ -1102,9 +1102,7 @@ export class CodexMap extends LitElement {
   }
   #setDirty(dirty: boolean): void {
     this.#dirty = dirty;
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", { detail: { dirty }, bubbles: true, composed: true }),
-    );
+    reportEditState(this, { dirty });
   }
   readonly #fit = (): void => {
     this.#map?.fitBounds(this.#bounds());

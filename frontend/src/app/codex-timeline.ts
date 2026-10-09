@@ -17,7 +17,7 @@ import {
   type TimelineDraft,
 } from "./campaign-timeline.js";
 import { UiLocalizationController } from "./ui-localization.js";
-import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { isTimelineSlot, type TimelineSlot } from "./timeline-contributions.js";
@@ -433,13 +433,7 @@ export class CodexTimeline extends LitElement {
   #setDirty(dirty: boolean): void {
     if (dirty !== this.#dirty) {
       this.#dirty = dirty;
-      this.dispatchEvent(
-        new CustomEvent("campaign-edit-dirty", {
-          detail: { dirty },
-          bubbles: true,
-          composed: true,
-        }),
-      );
+      reportEditState(this, { dirty });
     }
   }
   readonly #syncScroll = (): void => {

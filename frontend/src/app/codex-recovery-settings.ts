@@ -12,6 +12,7 @@ import {
   type RecoveryScope,
 } from "../core/recovery.js";
 import { UiLocalizationController, type MessageKey } from "./ui-localization.js";
+import { reportEditState } from "./unsaved-edit.js";
 
 export class CodexRecoverySettings extends LitElement {
   static override properties = {
@@ -167,13 +168,7 @@ export class CodexRecoverySettings extends LitElement {
     }
   }
   #saving(saving: boolean): void {
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", {
-        detail: { dirty: false, saving },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    reportEditState(this, { dirty: false, saving });
   }
   #date(createdAt: string): string {
     return new Intl.DateTimeFormat(this.#ui.locale, {
@@ -277,13 +272,7 @@ export class CodexRecoverySettings extends LitElement {
     this.busy = true;
     this.message = undefined;
     this.#failed = false;
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", {
-        detail: { dirty: false, saving: action !== undefined },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    reportEditState(this, { dirty: false, saving: action !== undefined });
     try {
       const listing = await recoveryRequest(signal, this.csrfToken, action);
       if (signal.aborted) return;
@@ -321,13 +310,7 @@ export class CodexRecoverySettings extends LitElement {
     } finally {
       if (!signal.aborted) {
         this.busy = false;
-        this.dispatchEvent(
-          new CustomEvent("campaign-edit-dirty", {
-            detail: { dirty: false, saving: false },
-            bubbles: true,
-            composed: true,
-          }),
-        );
+        reportEditState(this, { dirty: false, saving: false });
       }
     }
   }

@@ -16,6 +16,7 @@ import {
 import { recordValue, stringList } from "./campaign-projection.js";
 import { pencilIcon } from "./edit-icon.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
+import { reportEditState } from "./unsaved-edit.js";
 
 /** Field kinds that edit comfortably in one line on a record page. */
 export const inlineFieldKinds: ReadonlySet<CampaignEditorField["kind"]> = new Set([
@@ -311,13 +312,7 @@ export class CodexInlineField extends LitElement {
   #dirty(dirty: boolean): void {
     if (dirty === this.#reportedDirty) return;
     this.#reportedDirty = dirty;
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", {
-        detail: { dirty },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    reportEditState(this, { dirty });
   }
 }
 

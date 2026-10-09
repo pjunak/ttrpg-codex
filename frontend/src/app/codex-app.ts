@@ -71,7 +71,6 @@ import {
   prepareCampaignRecordSave,
   prepareCharacterPatch,
   type CampaignCharacterSaveRequest,
-  type CampaignEditDirtyDetail,
   type CampaignRecordDeleteDetail,
   type CampaignRecordSaveDetail,
   type PreparedCampaignRecordTransaction,
@@ -82,7 +81,12 @@ import {
   prepareCampaignEnumSave,
   type CampaignEnumSaveDetail,
 } from "./campaign-settings.js";
-import { confirmDiscardUnsavedEdit, protectUnsavedEditBeforeUnload } from "./unsaved-edit.js";
+import {
+  confirmDiscardUnsavedEdit,
+  EditStateTracker,
+  protectUnsavedEditBeforeUnload,
+  type EditState,
+} from "./unsaved-edit.js";
 import {
   collectionHash,
   parseAppRoute,
@@ -245,8 +249,7 @@ export class CodexApp extends LitElement {
   #navigationOutlet: BrowserNavigationOutlet | undefined;
   #routeOutlet: BrowserContributionOutlet | undefined;
   #addonOwner = 0;
-  #editDirty = false;
-  #editSaving = false;
+  readonly #edits = new EditStateTracker();
   #acceptedHash = "#/";
 
   constructor() {
@@ -651,7 +654,7 @@ export class CodexApp extends LitElement {
         // invalidated this request without replacing the add-on composition.
         if (!isCurrent() || restore !== this.#restoreRequest) return;
         const edits = addons?.contributions.edits.state();
-        if (this.#editDirty || this.#editSaving || edits?.dirty || edits?.saving) {
+        if (this.#edits.dirty || this.#edits.saving || edits?.dirty || edits?.saving) {
           this.errorMessage = this.#ui.t("recovery.openEdits");
         } else {
           await this.#recoverAddons(signal);
@@ -999,7 +1002,7 @@ export class CodexApp extends LitElement {
         if (owner !== this.#addonOwner) return;
         this.#addons = undefined;
         this.#disposeOutlets();
-        if (!isPlayerPreview() && (this.#editDirty || this.#editSaving)) {
+        if (!isPlayerPreview() && (this.#edits.dirty || this.#edits.saving)) {
           this.addonState = { state: "idle" };
           void this.#checkSession().then((available) => {
             if (available && !signal.aborted && owner === this.#addonOwner)
@@ -1671,7 +1674,7 @@ export class CodexApp extends LitElement {
         this.route.page.id === route.page.id &&
         this.route.key === route.key,
       writeBlocked:
-        this.busy || this.#editDirty || this.#editSaving || editing?.dirty || editing?.saving
+        this.busy || this.#edits.dirty || this.#edits.saving || editing?.dirty || editing?.saving
           ? uiText("menu.blocked")
           : "",
       navigate: (hash) => {
@@ -1848,8 +1851,8 @@ export class CodexApp extends LitElement {
       return;
     }
     if (
-      this.#editDirty ||
-      this.#editSaving ||
+      this.#edits.dirty ||
+      this.#edits.saving ||
       this.#addons?.contributions.edits.state().dirty ||
       this.#addons?.contributions.edits.state().saving
     ) {
@@ -1895,6 +1898,7 @@ export class CodexApp extends LitElement {
   readonly #saveCampaignRecord = async (
     event: CustomEvent<CampaignRecordSaveDetail>,
   ): Promise<void> => {
+    const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
@@ -1943,7 +1947,7 @@ export class CodexApp extends LitElement {
       await this.#campaignMutations.commit(prepared.mutations, csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
-      this.#editDirty = false;
+      settle();
       this.editCompletion += 1;
       this.recordSaveState = "saved";
       this.#recordSaveDestination =
@@ -1971,6 +1975,7 @@ export class CodexApp extends LitElement {
   readonly #deleteCampaignRecord = async (
     event: CustomEvent<CampaignRecordDeleteDetail>,
   ): Promise<void> => {
+    const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
@@ -1998,7 +2003,7 @@ export class CodexApp extends LitElement {
       await this.#campaignMutations.commit(prepared.mutations, csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
-      this.#editDirty = false;
+      settle();
       this.editCompletion += 1;
       window.location.hash =
         prepared.page.collection === "events" ? "#/timeline" : collectionHash(prepared.page);
@@ -2017,6 +2022,7 @@ export class CodexApp extends LitElement {
   readonly #saveCampaignEnum = async (
     event: CustomEvent<CampaignEnumSaveDetail>,
   ): Promise<void> => {
+    const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
@@ -2048,7 +2054,7 @@ export class CodexApp extends LitElement {
       await this.#campaignMutations.commit([mutation], csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
-      this.#editDirty = false;
+      settle();
       this.editCompletion += 1;
     } catch (cause: unknown) {
       if (!signal.aborted) {
@@ -2065,6 +2071,7 @@ export class CodexApp extends LitElement {
   readonly #deleteCampaignEnum = async (
     event: CustomEvent<CampaignEnumDeleteMutation>,
   ): Promise<void> => {
+    const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
@@ -2092,7 +2099,7 @@ export class CodexApp extends LitElement {
       await this.#campaignMutations.deleteEnumItem(mutation, csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
-      this.#editDirty = false;
+      settle();
       this.editCompletion += 1;
     } catch (cause: unknown) {
       if (!signal.aborted) {
@@ -2111,6 +2118,7 @@ export class CodexApp extends LitElement {
   };
 
   readonly #saveMap = async (event: CustomEvent<MapSaveDetail>): Promise<void> => {
+    const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
@@ -2137,7 +2145,7 @@ export class CodexApp extends LitElement {
       await this.#campaignMutations.commit([mutation], csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
-      this.#editDirty = false;
+      settle();
       this.editCompletion += 1;
     } catch (cause) {
       if (!signal.aborted) this.#mapError(cause);
@@ -2147,6 +2155,7 @@ export class CodexApp extends LitElement {
   };
 
   readonly #saveTimeline = async (event: CustomEvent<TimelineDraft>): Promise<void> => {
+    const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
@@ -2170,7 +2179,7 @@ export class CodexApp extends LitElement {
       return;
     }
     if (mutations.length === 0) {
-      this.#editDirty = false;
+      settle();
       this.editCompletion++;
       return;
     }
@@ -2182,7 +2191,7 @@ export class CodexApp extends LitElement {
       await this.#campaignMutations.commit(mutations, csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
-      this.#editDirty = false;
+      settle();
       this.editCompletion++;
     } catch (cause) {
       if (!signal.aborted)
@@ -2281,6 +2290,7 @@ export class CodexApp extends LitElement {
   readonly #saveCampaignIdentity = async (
     event: CustomEvent<CampaignIdentitySaveDetail>,
   ): Promise<void> => {
+    const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
@@ -2309,7 +2319,7 @@ export class CodexApp extends LitElement {
       await this.#campaignMutations.commit([mutation], csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
-      this.#editDirty = false;
+      settle();
       this.editCompletion += 1;
     } catch (cause: unknown) {
       if (!signal.aborted) {
@@ -2325,6 +2335,7 @@ export class CodexApp extends LitElement {
   };
 
   readonly #saveSidebar = async (event: CustomEvent<SidebarSaveDetail>): Promise<void> => {
+    const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
@@ -2348,7 +2359,7 @@ export class CodexApp extends LitElement {
       await this.#campaignMutations.commit(mutations, csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
-      this.#editDirty = false;
+      settle();
       this.editCompletion += 1;
     } catch (cause) {
       if (!signal.aborted)
@@ -2366,6 +2377,7 @@ export class CodexApp extends LitElement {
   };
 
   readonly #saveBranding = async (event: CustomEvent<BrandingSaveDetail>): Promise<void> => {
+    const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
@@ -2400,7 +2412,7 @@ export class CodexApp extends LitElement {
       await this.#campaignMutations.commit([mutation], csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
-      this.#editDirty = false;
+      settle();
       this.editCompletion += 1;
     } catch (cause) {
       if (!signal.aborted)
@@ -2420,6 +2432,7 @@ export class CodexApp extends LitElement {
   readonly #saveCampaignParty = async (
     event: CustomEvent<CampaignPartySaveDetail>,
   ): Promise<void> => {
+    const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
@@ -2448,7 +2461,7 @@ export class CodexApp extends LitElement {
       await this.#campaignMutations.commit([mutation], csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
-      this.#editDirty = false;
+      settle();
       this.editCompletion += 1;
     } catch (cause: unknown) {
       if (!signal.aborted)
@@ -2465,6 +2478,7 @@ export class CodexApp extends LitElement {
   readonly #saveCampaignAppearance = async (
     event: CustomEvent<CampaignAppearanceSaveDetail>,
   ): Promise<void> => {
+    const settle = this.#edits.settler(event);
     if (
       this.busy ||
       this.#request === undefined ||
@@ -2498,7 +2512,7 @@ export class CodexApp extends LitElement {
       await this.#campaignMutations.commit([mutation], csrfToken, signal);
       await this.#loadCampaign(signal, true);
       signal.throwIfAborted();
-      this.#editDirty = false;
+      settle();
       this.editCompletion += 1;
     } catch (cause: unknown) {
       if (!signal.aborted) {
@@ -2534,17 +2548,16 @@ export class CodexApp extends LitElement {
     void this.updateComplete.then(() => this.#refreshOutlets());
   };
 
-  readonly #onEditDirty = (event: CustomEvent<CampaignEditDirtyDetail>): void => {
-    if (typeof event.detail?.dirty === "boolean") this.#editDirty = event.detail.dirty;
-    this.#editSaving = event.detail?.saving === true;
+  readonly #onEditDirty = (event: CustomEvent<EditState>): void => {
+    this.#edits.record(event);
     if (event.detail?.dirty && this.recordSaveState === "saved") this.recordSaveState = "idle";
   };
 
   readonly #onBeforeUnload = (event: BeforeUnloadEvent): void => {
     const edits = this.#addons?.contributions.edits.state();
     protectUnsavedEditBeforeUnload(
-      this.#editDirty ||
-        this.#editSaving ||
+      this.#edits.dirty ||
+        this.#edits.saving ||
         this.busy ||
         edits?.dirty === true ||
         edits?.saving === true,
@@ -2553,7 +2566,7 @@ export class CodexApp extends LitElement {
   };
 
   #confirmDiscardEdit(nextHash?: string): boolean {
-    if (this.busy || this.#editSaving) return false;
+    if (this.busy || this.#edits.saving) return false;
     const currentRoute = parseBrowserAddonLocation(this.#acceptedHash)?.routeHash;
     const nextRoute =
       nextHash === undefined ? undefined : parseBrowserAddonLocation(nextHash)?.routeHash;
@@ -2569,12 +2582,12 @@ export class CodexApp extends LitElement {
       return false;
     }
     if (
-      !confirmDiscardUnsavedEdit(this.#editDirty || edits?.dirty === true, (message) =>
+      !confirmDiscardUnsavedEdit(this.#edits.dirty || edits?.dirty === true, (message) =>
         window.confirm(message),
       )
     )
       return false;
-    this.#editDirty = false;
+    this.#edits.clear();
     return true;
   }
 

@@ -17,7 +17,7 @@ import {
   type CampaignEnumSaveDetail,
   type CampaignSettingField,
 } from "./campaign-settings.js";
-import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 import {
   campaignAppearanceRecord,
   campaignTheme,
@@ -773,13 +773,7 @@ export class CodexSettings extends LitElement {
     if (dirty === this.#dirty) return;
     this.#dirty = dirty;
     this.requestUpdate();
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", {
-        detail: Object.freeze({ dirty }),
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    reportEditState(this, { dirty });
   }
 }
 

@@ -6,6 +6,7 @@ import {
   type CredentialStatus,
 } from "../core/credentials.js";
 import { UiLocalizationController } from "./ui-localization.js";
+import { reportEditState } from "./unsaved-edit.js";
 
 type Role = "dm" | "player";
 interface Draft {
@@ -145,13 +146,7 @@ export class CodexCredentialSettings extends LitElement {
       (draft) =>
         draft.current !== "" || draft.password !== "" || draft.confirmation !== "" || draft.disable,
     );
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", {
-        detail: { dirty, saving: this.saving },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    reportEditState(this, { dirty, saving: this.saving });
   }
 
   async #load(): Promise<void> {

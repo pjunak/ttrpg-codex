@@ -13,6 +13,7 @@ import {
 } from "../core/addon-configuration.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { uiRequestError } from "./ui-errors.js";
+import { reportEditState } from "./unsaved-edit.js";
 
 export interface ConfigurationAddon {
   id: string;
@@ -109,13 +110,7 @@ export class CodexAddonConfiguration extends LitElement {
     return this.#selected !== undefined || this.#providers.size > 0 || this.review !== undefined;
   }
   #dirty(value = this.#hasDraft): void {
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", {
-        detail: { dirty: value },
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    reportEditState(this, { dirty: value });
   }
   #providerChoice(row: ServiceSelection): ProviderDraft {
     return (

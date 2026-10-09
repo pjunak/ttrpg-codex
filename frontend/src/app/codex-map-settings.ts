@@ -15,7 +15,7 @@ import {
 import { recordValue, safeMediaURL, text } from "./campaign-projection.js";
 import { mapHash } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
-import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 
 type ConfigDraft = Extract<MapSaveDetail, { kind: "config" }>;
 
@@ -164,9 +164,7 @@ export class CodexMapSettings extends LitElement {
   }
   #setDirty(dirty: boolean): void {
     this.dirty = dirty;
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", { detail: { dirty }, bubbles: true, composed: true }),
-    );
+    reportEditState(this, { dirty });
   }
   readonly #input = (event: Event): void => {
     if (this.saving || this.draft === undefined) return;

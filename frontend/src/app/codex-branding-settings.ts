@@ -9,7 +9,7 @@ import {
   type BrandingSaveDetail,
 } from "./campaign-branding.js";
 import { UiLocalizationController } from "./ui-localization.js";
-import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 
 export class CodexBrandingSettings extends LitElement {
   static override properties = {
@@ -107,9 +107,7 @@ export class CodexBrandingSettings extends LitElement {
   }
   #setDirty(dirty: boolean): void {
     this.dirty = dirty;
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", { detail: { dirty }, bubbles: true, composed: true }),
-    );
+    reportEditState(this, { dirty });
   }
   #input(field: "title" | "subtitle", event: Event): void {
     if (!this.#disabled && this.draft !== undefined) {

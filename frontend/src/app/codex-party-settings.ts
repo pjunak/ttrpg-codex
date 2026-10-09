@@ -9,7 +9,7 @@ import {
 import { recordValue, text } from "./campaign-projection.js";
 import { campaignPages, recordHash } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
-import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 
 export class CodexPartySettings extends LitElement {
   static override properties = {
@@ -105,9 +105,7 @@ export class CodexPartySettings extends LitElement {
   }
   #setDirty(dirty: boolean): void {
     this.dirty = dirty;
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", { detail: { dirty }, bubbles: true, composed: true }),
-    );
+    reportEditState(this, { dirty });
   }
   #input(field: "name" | "icon" | "color" | "textColor", event: Event): void {
     if (this.saving || this.draft === undefined) return;

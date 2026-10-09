@@ -30,7 +30,6 @@ import {
   editorFieldsFor,
   editorOptionsFor,
   relationshipBaseFor,
-  type CampaignEditDirtyDetail,
   type CampaignEditorField,
   type CampaignRecordDeleteDetail,
   type CampaignRecordSaveDetail,
@@ -77,7 +76,7 @@ import {
   mapCoordinate,
 } from "./campaign-map.js";
 import { UiLocalizationController } from "./ui-localization.js";
-import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { AddonLinksController } from "./addon-links-controller.js";
@@ -970,13 +969,7 @@ export class CodexRecordPage extends LitElement {
     if (this.#dirty === dirty) return;
     this.#dirty = dirty;
     this.requestUpdate();
-    this.dispatchEvent(
-      new CustomEvent<CampaignEditDirtyDetail>("campaign-edit-dirty", {
-        detail: Object.freeze({ dirty }),
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    reportEditState(this, { dirty });
   }
 
   readonly #submitEditor = (event: SubmitEvent): void => {

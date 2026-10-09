@@ -11,7 +11,7 @@ import {
   type SidebarSection,
 } from "./campaign-sidebar.js";
 import { UiLocalizationController } from "./ui-localization.js";
-import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 import {
   addonSidebarKey,
   addonSidebarMode,
@@ -163,9 +163,7 @@ export class CodexSidebarSettings extends LitElement {
   }
   #setDirty(dirty: boolean): void {
     this.#dirty = dirty;
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", { detail: { dirty }, bubbles: true, composed: true }),
-    );
+    reportEditState(this, { dirty });
   }
   #change(layout: SidebarLayout): void {
     if (!this.saving) {

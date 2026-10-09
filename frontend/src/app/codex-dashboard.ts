@@ -17,7 +17,7 @@ import {
   type CampaignIdentityField,
   type CampaignIdentitySaveDetail,
 } from "./campaign-identity.js";
-import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 
 export class CodexDashboard extends LitElement {
   static override properties = {
@@ -202,9 +202,7 @@ export class CodexDashboard extends LitElement {
   #setDirty(dirty: boolean): void {
     if (dirty === this.#dirty) return;
     this.#dirty = dirty;
-    this.dispatchEvent(
-      new CustomEvent("campaign-edit-dirty", { detail: { dirty }, bubbles: true, composed: true }),
-    );
+    reportEditState(this, { dirty });
   }
 
   #requestSignIn(): void {
