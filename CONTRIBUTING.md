@@ -94,9 +94,9 @@ the add-ons in their own repositories, then:
 
 ```powershell
 $env:CODEX_DM_TOOLS_ZIP = (Resolve-Path ../addon-dm-tools/dist/dm-tools-3.0.0.zip).Path
-$env:CODEX_ENGINE_ZIP = (Resolve-Path ../addon-dnd-engine/dist/dnd-engine-4.1.0.zip).Path
-$env:CODEX_SHEETS_ZIP = (Resolve-Path ../addon-dnd-character-sheets/dist/dnd-sheets-4.1.0.zip).Path
-$env:CODEX_COMPENDIUM_ZIP = (Resolve-Path ../addon-dnd-2024-compendium/dist/dnd-2024-compendium-3.2.0.zip).Path
+$env:CODEX_ENGINE_ZIP = (Resolve-Path ../addon-dnd-engine/dist/dnd-engine-4.2.0.zip).Path
+$env:CODEX_SHEETS_ZIP = (Resolve-Path ../addon-dnd-character-sheets/dist/dnd-sheets-4.2.0.zip).Path
+$env:CODEX_COMPENDIUM_ZIP = (Resolve-Path ../addon-dnd-2024-compendium/dist/dnd-2024-compendium-3.3.0.zip).Path
 npm --workspace @ttrpg-codex/frontend run build
 npm --workspace @ttrpg-codex/frontend run test:installed
 ```
