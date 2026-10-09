@@ -40,10 +40,13 @@ type enumBinding struct {
 	collection campaign.Collection
 	field      string
 	array      bool
+	// identity marks a field that is part of the record key. Such records cannot
+	// be re-pointed in place, so clearing a use deletes the record instead.
+	identity bool
 }
 
 var enumBindings = map[string][]enumBinding{
-	"relationshipTypes": {{collection: campaign.Relationships, field: "type"}},
+	"relationshipTypes": {{collection: campaign.Relationships, field: "type", identity: true}},
 	"genders":           {{collection: campaign.Characters, field: "gender"}},
 	"pinTypes":          {{collection: campaign.Locations, field: "pinType"}},
 	"characterStatuses": {{collection: campaign.Characters, field: "status"}},
@@ -71,7 +74,7 @@ func (service *Service) DeleteEnumItem(
 		return EnumDeleteResult{}, campaign.ErrInvalidTransaction
 	}
 	if request.Mode == EnumReplace {
-		if request.ReplacementID == "" || request.ReplacementID == request.ItemID {
+		if request.ReplacementID == "" || request.ReplacementID == request.ItemID || identityBinding(bindings) {
 			return EnumDeleteResult{}, campaign.ErrInvalidTransaction
 		}
 	} else if request.ReplacementID != "" {
@@ -114,6 +117,12 @@ func (service *Service) DeleteEnumItem(
 	if request.Mode == EnumReplace || request.Mode == EnumClear {
 		replacement := request.ReplacementID
 		for _, binding := range bindings {
+			if binding.identity {
+				if err := deleteEnumRecords(planner, binding, request.ItemID); err != nil {
+					return EnumDeleteResult{}, err
+				}
+				continue
+			}
 			if err := planner.updateEachObject(binding.collection, func(value map[string]any) bool {
 				if binding.array {
 					return replaceEnumArray(value, binding.field, request.ItemID, replacement)
@@ -153,6 +162,30 @@ func (service *Service) DeleteEnumItem(
 		return EnumDeleteResult{}, err
 	}
 	return EnumDeleteResult{UsageCount: usageCount, Commit: commit}, nil
+}
+
+func identityBinding(bindings []enumBinding) bool {
+	for _, binding := range bindings {
+		if binding.identity {
+			return true
+		}
+	}
+	return false
+}
+
+func deleteEnumRecords(planner *mutationPlanner, binding enumBinding, id string) error {
+	for _, record := range planner.records(binding.collection) {
+		value, err := objectValue(record.Value)
+		if err != nil {
+			return fmt.Errorf("read %s:%s enum usage: %w", record.Collection, record.Key, err)
+		}
+		if value[binding.field] == id {
+			if err := planner.deleteDerived(record); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func enumDefinitions(body json.RawMessage) ([]any, error) {

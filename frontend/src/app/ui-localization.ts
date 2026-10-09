@@ -41,6 +41,10 @@ const enCatalog = {
     one: "{n} campaign record uses this definition. Choose how those records should change.",
     other: "{n} campaign records use this definition. Choose how those records should change.",
   },
+  "settings.deleteRelationships": {
+    one: "{n} relationship uses this type. Deleting the type also deletes that relationship.",
+    other: "{n} relationships use this type. Deleting the type also deletes those relationships.",
+  },
   "recovery.title": "Backup & recovery",
   "recovery.download": "Download ZIP",
   "recovery.create": "Create recovery point",
@@ -600,6 +604,11 @@ const csCatalog = {
     one: "Tuto definici používá {n} záznam kampaně. Vyberte, jak se mají použití změnit.",
     few: "Tuto definici používají {n} záznamy kampaně. Vyberte, jak se mají použití změnit.",
     other: "Tuto definici používá {n} záznamů kampaně. Vyberte, jak se mají použití změnit.",
+  },
+  "settings.deleteRelationships": {
+    one: "Tento typ používá {n} vztah. Odstraněním typu se odstraní i tento vztah.",
+    few: "Tento typ používají {n} vztahy. Odstraněním typu se odstraní i tyto vztahy.",
+    other: "Tento typ používá {n} vztahů. Odstraněním typu se odstraní i tyto vztahy.",
   },
   "recovery.title": "Zálohy a obnova",
   "recovery.download": "Stáhnout ZIP",

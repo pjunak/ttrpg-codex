@@ -198,7 +198,9 @@ reject if referenced, replace every reference, or clear every reference.
 The application recognizes only the six host-owned enum categories and their
 typed usage fields. It verifies the loaded settings revision and replacement,
 updates every affected record and removes the definition in one transaction,
-so no reference is left dangling.
+so no reference is left dangling. A relationship's type is part of its record
+key, so relationship types cannot be replaced: clearing one deletes the
+relationships that use it.
 
 The TypeScript client now has one canonical route/descriptor registry for the
 nine user-facing record collections. Its list, search, detail, create, edit,

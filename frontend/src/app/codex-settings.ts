@@ -526,13 +526,19 @@ export class CodexSettings extends LitElement {
     usage: number,
   ) {
     const replacements = items.filter(({ id }) => id !== item.id);
+    // A relationship's type is part of its identity, so its uses are deleted
+    // with the type rather than re-pointed.
+    const relationships = this.activeCategory === "relationshipTypes";
     return html`
       <section class="settings-delete-panel" aria-labelledby=${`delete-${item.id}`}>
         <div><h3 id=${`delete-${item.id}`}>${uiText("Delete {0}?", { "0": item.label || item.id })}</h3>
           <p>${
             usage === 0
               ? uiText("The definition is not used by any campaign record.")
-              : this.#ui.plural("settings.replaceRecords", usage)
+              : this.#ui.plural(
+                  relationships ? "settings.deleteRelationships" : "settings.replaceRecords",
+                  usage,
+                )
           }</p></div>
         ${
           usage === 0
@@ -543,7 +549,15 @@ export class CodexSettings extends LitElement {
               data-mode="reject-if-used" @click=${this.#delete}>${uiText("Delete definition")}</button>
           </div>
         `
-            : html`
+            : relationships
+              ? html`
+          <div class="settings-delete-actions">
+            <button type="button" @click=${this.#cancelDelete}>${uiText("Keep it")}</button>
+            <button class="danger" type="button" data-id=${item.id} data-revision=${String(expectedRevision)}
+              data-mode="clear" @click=${this.#delete}>${uiText("Delete type and relationships")}</button>
+          </div>
+        `
+              : html`
           <label class="settings-replacement"><span>${uiText("Replacement")}</span>
             <select id=${`replacement-${item.id}`} ?disabled=${replacements.length === 0}>
               ${replacements.map((replacement) => html`<option value=${replacement.id}>${replacement.label || replacement.id}</option>`)}

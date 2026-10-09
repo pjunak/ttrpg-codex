@@ -393,6 +393,7 @@ export const sourceCs = {
   "Delete definition": "Odstranit definici",
   Replacement: "Náhrada",
   "Replace uses and delete": "Nahradit použití a odstranit",
+  "Delete type and relationships": "Odstranit typ i vztahy",
   "Clear uses and delete": "Vymazat použití a odstranit",
   "The entry or its relationships changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version.":
     "Záznam nebo jeho vztahy se změnily. Rozepsané úpravy zůstaly zachovány; zkopírujte si potřebné poznámky, poté úpravy zrušte a záznam znovu otevřete.",

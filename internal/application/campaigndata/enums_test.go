@@ -79,6 +79,46 @@ func TestDeleteEnumItemClearRemovesScalarUsage(t *testing.T) {
 	}
 }
 
+func TestDeleteRelationshipTypeRemovesItsRelationships(t *testing.T) {
+	t.Parallel()
+	repository := &fakeRepository{snapshot: campaign.Snapshot{Records: []campaign.Record{
+		{Collection: campaign.Settings, Key: "relationshipTypes", Revision: 3, Value: raw(`[{"id":"ally"},{"id":"rival"}]`)},
+		{Collection: campaign.Characters, Key: "alice", Revision: 1, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"alice"}`)},
+		{Collection: campaign.Characters, Key: "bob", Revision: 1, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"bob"}`)},
+		{Collection: campaign.Relationships, Key: relationshipKey("alice", "bob", "ally"), Revision: 4, Visibility: campaign.VisibilityPublic, Value: raw(`{"source":"alice","target":"bob","type":"ally","visibility":"public"}`)},
+		{Collection: campaign.Relationships, Key: relationshipKey("alice", "bob", "rival"), Revision: 2, Visibility: campaign.VisibilityPublic, Value: raw(`{"source":"alice","target":"bob","type":"rival","visibility":"public"}`)},
+	}}}
+	service, _ := New(repository)
+	authority := MutationAuthority{ActorID: "session:dm", Role: WriteDM}
+	if _, err := service.DeleteEnumItem(context.Background(), authority, EnumDeleteRequest{
+		Category: "relationshipTypes", ItemID: "ally", ExpectedRevision: 3, Mode: EnumReplace, ReplacementID: "rival",
+	}); !errors.Is(err, campaign.ErrInvalidTransaction) || len(repository.writes) != 0 {
+		t.Fatalf("replace error = %v; writes = %+v", err, repository.writes)
+	}
+	result, err := service.DeleteEnumItem(context.Background(), authority, EnumDeleteRequest{
+		Category: "relationshipTypes", ItemID: "ally", ExpectedRevision: 3, Mode: EnumClear,
+	})
+	if err != nil || result.UsageCount != 1 || len(repository.writes) != 1 {
+		t.Fatalf("delete = %+v, %v; writes = %+v", result, err, repository.writes)
+	}
+	deleted := false
+	for _, mutation := range repository.writes[0].Mutations {
+		if mutation.Collection != campaign.Relationships {
+			continue
+		}
+		if mutation.Key != relationshipKey("alice", "bob", "ally") {
+			t.Fatalf("other relationship changed: %+v", mutation)
+		}
+		deleted = mutation.Kind == campaign.Delete
+	}
+	if !deleted {
+		t.Fatalf("mutations = %+v", repository.writes[0].Mutations)
+	}
+	if settings := mutationRaw(t, repository.writes[0].Mutations, campaign.Settings, "relationshipTypes"); string(settings) != `[{"id":"rival"}]` {
+		t.Fatalf("settings = %s", settings)
+	}
+}
+
 func mutationRaw(
 	t *testing.T,
 	mutations []campaign.Mutation,
