@@ -77,7 +77,7 @@ const {
   addonId: id,
   hash,
 } = responseReaders("Add-on administration");
-const strings = (value: unknown): string[] => list(value ?? []).map((item) => text(item));
+const strings = (value: unknown): string[] => list(value ?? []).map(text);
 
 export function parseInstalledGeneration(value: unknown): InstalledGeneration {
   const record = object(value);

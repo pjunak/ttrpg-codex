@@ -74,7 +74,7 @@ const {
   list: array,
   hash,
 } = responseReaders("Add-on configuration");
-const strings = (value: unknown): string[] => array(value).map((item) => string(item));
+const strings = (value: unknown): string[] => array(value).map(string);
 const revision = (value: unknown): number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 1 ? value : fail();
 const choice = <T extends string>(value: unknown, allowed: readonly T[]): T =>

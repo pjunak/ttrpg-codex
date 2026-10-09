@@ -16,20 +16,29 @@ export function isSha256(value: unknown): value is string {
 /**
  * Strict readers for one response boundary. Each returns the checked value or
  * throws that boundary's validation error, so parsers read like the shape.
+ * Readers take one argument, so they can be passed straight to `map`.
  */
 export function responseReaders(boundary: string, message = "invalid server response") {
   const fail = (): never => {
     throw new BoundaryValidationError(boundary, message);
   };
-  const text = (value: unknown, max = Number.POSITIVE_INFINITY): string =>
-    typeof value === "string" && value.length <= max ? value : fail();
+  const textUpTo =
+    (max: number) =>
+    (value: unknown): string =>
+      typeof value === "string" && value.length <= max ? value : fail();
+  const listUpTo =
+    (max: number) =>
+    (value: unknown): unknown[] =>
+      Array.isArray(value) && value.length <= max ? value : fail();
+  const text = textUpTo(Number.POSITIVE_INFINITY);
   return {
     fail,
     text,
+    textUpTo,
     object: (value: unknown): Record<string, unknown> => (isRecord(value) ? value : fail()),
     optionalText: (value: unknown): string => (value === undefined ? "" : text(value)),
-    list: (value: unknown, max = Number.POSITIVE_INFINITY): unknown[] =>
-      Array.isArray(value) && value.length <= max ? value : fail(),
+    list: listUpTo(Number.POSITIVE_INFINITY),
+    listUpTo,
     boolean: (value: unknown): boolean => (typeof value === "boolean" ? value : fail()),
     /** A non-negative safe integer. */
     count: (value: unknown): number =>

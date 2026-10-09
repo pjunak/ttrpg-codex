@@ -28,9 +28,9 @@ export interface SchemaReview {
 }
 const read = responseReaders("Saved-data review");
 const { fail, object, count, hash } = read;
-const text = (v: unknown): string => read.text(v, 1024);
+const text = read.textUpTo(1024);
 const date = (v: unknown): string => (Number.isFinite(Date.parse(text(v))) ? text(v) : fail());
-const list = (v: unknown, max: number): unknown[] => read.list(v, max);
+const list = (v: unknown, max: number): unknown[] => read.listUpTo(max)(v);
 const kind = (v: unknown): SchemaChange["kind"] =>
   v === "collection" || v === "record-extension" ? v : fail();
 const localId = (v: unknown): string =>

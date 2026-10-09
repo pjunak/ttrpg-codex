@@ -14,10 +14,12 @@ describe("shared response validators", () => {
     const read = responseReaders("Example");
     expect(read.count(3)).toBe(3);
     expect(read.optionalText(undefined)).toBe("");
+    // Readers ignore extra arguments, so map cannot pass an index as a limit.
+    expect(["a", "bb", "ccc"].map(read.text)).toEqual(["a", "bb", "ccc"]);
     for (const attempt of [
       () => read.count(-1),
-      () => read.text("long", 3),
-      () => read.list([1, 2], 1),
+      () => read.textUpTo(3)("long"),
+      () => read.listUpTo(1)([1, 2]),
     ])
       expect(attempt).toThrow(BoundaryValidationError);
   });
