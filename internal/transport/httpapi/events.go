@@ -105,7 +105,10 @@ func (s *server) eventStream(w http.ResponseWriter, r *http.Request) {
 	if heartbeat == 0 {
 		heartbeat = defaultEventHeartbeat
 	}
-	lastSent, err := s.startEventStream(r, w, flusher, audience, cursor, supplied)
+	// Live events at or below the start cursor were covered by hello or replay.
+	// Commits can notify out of order, so a later live event never hides an
+	// earlier one that arrives after it.
+	replayedThrough, err := s.startEventStream(r, w, flusher, audience, cursor, supplied)
 	if err != nil {
 		if !errors.Is(err, errAuthorizationRequired) {
 			s.logger.Error("start event stream", "error", err)
@@ -131,13 +134,12 @@ func (s *server) eventStream(w http.ResponseWriter, r *http.Request) {
 			if !open {
 				return
 			}
-			if event.Sequence <= lastSent {
+			if event.Sequence <= replayedThrough {
 				continue
 			}
 			if err := writeSSE(w, flusher, event.Topic, event.Sequence, event); err != nil {
 				return
 			}
-			lastSent = event.Sequence
 			_ = controller.SetWriteDeadline(time.Now().Add(heartbeat + 10*time.Second))
 		case at := <-ticker.C:
 			if !s.eventSessionCurrent(r) {

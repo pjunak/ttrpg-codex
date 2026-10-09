@@ -226,3 +226,51 @@ func TestEventStreamResetsExpiredRetentionCursor(t *testing.T) {
 		t.Fatalf("expired cursor did not reset: %s", response.Body.String())
 	}
 }
+
+func TestEventStreamSendsLiveEventsThatArriveOutOfOrder(t *testing.T) {
+	t.Parallel()
+	broker := testEventBroker(t)
+	handler, err := New(Config{
+		Logger: slog.New(slog.DiscardHandler), Events: broker, EventHeartbeat: time.Minute,
+		EventAuthorizer: func(*http.Request) (events.Audience, error) { return events.AudiencePublic, nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	request := httptest.NewRequest(http.MethodGet, "/api/events", nil).WithContext(ctx)
+	deadline := time.AfterFunc(5*time.Second, cancel)
+	t.Cleanup(func() { deadline.Stop() })
+	response := &countingFlushRecorder{ResponseRecorder: httptest.NewRecorder(), stopAfter: 3, cancel: cancel}
+	response.afterFirst = func() {
+		// Two commits can notify in the opposite order of their sequences.
+		for _, sequence := range []int64{2, 1} {
+			broker.NotifyCommitted(events.Event{Sequence: sequence, Audience: events.AudiencePublic, Topic: "data-changed", Revision: "r" + stringInteger(sequence)})
+		}
+	}
+	handler.ServeHTTP(response, request)
+	body := response.Body.String()
+	if !strings.Contains(body, "id: 2\n") || !strings.Contains(body, "id: 1\n") {
+		t.Fatalf("stream dropped an out-of-order event: %q", body)
+	}
+}
+
+type countingFlushRecorder struct {
+	*httptest.ResponseRecorder
+	flushes    int
+	stopAfter  int
+	afterFirst func()
+	cancel     context.CancelFunc
+}
+
+func (recorder *countingFlushRecorder) Flush() {
+	recorder.ResponseRecorder.Flush()
+	recorder.flushes++
+	if recorder.flushes == 1 && recorder.afterFirst != nil {
+		recorder.afterFirst()
+	}
+	if recorder.flushes >= recorder.stopAfter {
+		recorder.cancel()
+	}
+}
