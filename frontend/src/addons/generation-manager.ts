@@ -14,17 +14,23 @@ const routePathPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*
 
 export type BrowserRole = "dm" | "player";
 
-export type BrowserContributionSurface =
-  | "route"
-  | "sidebar"
-  | "settings"
-  | "article-action"
-  | "article-section"
-  | "editor-panel"
-  | "slot"
-  | "wiki-kind"
-  | "graph-view"
-  | "graph-contributor";
+export const browserContributionSurfaces = [
+  "route",
+  "sidebar",
+  "settings",
+  "article-action",
+  "article-section",
+  "editor-panel",
+  "slot",
+  "wiki-kind",
+  "graph-view",
+  "graph-contributor",
+] as const;
+export type BrowserContributionSurface = (typeof browserContributionSurfaces)[number];
+
+export function isContributionSurface(value: unknown): value is BrowserContributionSurface {
+  return (browserContributionSurfaces as readonly unknown[]).includes(value);
+}
 
 export interface BrowserPermissionGrant {
   readonly id: string;
@@ -653,7 +659,7 @@ function normalizeContributions(
       if (!localIdPattern.test(contribution.id) || contribution.id.length > 100) {
         throw new BrowserGenerationPlanError(`invalid contribution id for ${addonId}`);
       }
-      if (!validContributionSurface(contribution.surface)) {
+      if (!isContributionSurface(contribution.surface)) {
         throw new BrowserGenerationPlanError(
           `invalid contribution surface for ${addonId}:${contribution.id}`,
         );
@@ -746,21 +752,6 @@ function hasExactKeys(
 ): boolean {
   const keys = Object.keys(value);
   return keys.length === expected.length && expected.every((key) => Object.hasOwn(value, key));
-}
-
-function validContributionSurface(value: string): value is BrowserContributionSurface {
-  return (
-    value === "route" ||
-    value === "sidebar" ||
-    value === "settings" ||
-    value === "article-action" ||
-    value === "article-section" ||
-    value === "editor-panel" ||
-    value === "slot" ||
-    value === "wiki-kind" ||
-    value === "graph-view" ||
-    value === "graph-contributor"
-  );
 }
 
 function normalizeJSONRecord(

@@ -1,10 +1,12 @@
 import { HostRequestError } from "../core/api.js";
 import { readJSONResponse } from "../core/http.js";
+import { isSha256 } from "../core/validators.js";
 import { sessionFetch } from "../core/player-preview.js";
 import { waitForSignal } from "../core/abort-signal.js";
 import { validContributionLabels } from "./contribution-label.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
 import {
+  isContributionSurface,
   validateBrowserGenerationSet,
   type BrowserGenerationDescriptor,
   type BrowserGenerationSet,
@@ -37,20 +39,7 @@ const contributionKeys = new Set([
   "config",
 ]);
 const sandboxValues = new Set(["downloads", "forms", "modals", "popups"] as const);
-const contributionSurfaces = new Set([
-  "route",
-  "sidebar",
-  "settings",
-  "article-action",
-  "article-section",
-  "editor-panel",
-  "slot",
-  "wiki-kind",
-  "graph-view",
-  "graph-contributor",
-] as const);
 const browserRoles = new Set(["dm", "player"] as const);
-const sha256Pattern = /^[0-9a-f]{64}$/;
 const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const contractIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
 const routePathPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/;
@@ -184,7 +173,7 @@ export function parseBrowserGenerationSet(value: unknown): BrowserGenerationSet 
   if (value["contractVersion"] !== 2) {
     throw new BoundaryValidationError(boundary, "contractVersion must be 2");
   }
-  if (typeof value["graphRevision"] !== "string" || !sha256Pattern.test(value["graphRevision"])) {
+  if (typeof value["graphRevision"] !== "string" || !isSha256(value["graphRevision"])) {
     throw new BoundaryValidationError(boundary, "graphRevision must be a lowercase SHA-256 digest");
   }
   if (!Array.isArray(value["addons"]) || value["addons"].length > 100) {
@@ -205,7 +194,7 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
   const addonId = requiredString(value["addonId"], `${location}.addonId`);
   const addonVersion = requiredString(value["addonVersion"], `${location}.addonVersion`);
   const generationId = requiredString(value["generationId"], `${location}.generationId`);
-  if (!sha256Pattern.test(generationId)) {
+  if (!isSha256(generationId)) {
     throw new BoundaryValidationError(
       boundary,
       `${location}.generationId must be a lowercase SHA-256 digest`,
@@ -303,12 +292,7 @@ function parseContribution(
     throw new BoundaryValidationError(boundary, `${location} must be an exact contribution object`);
   }
   const surface = value["surface"];
-  if (
-    typeof surface !== "string" ||
-    !contributionSurfaces.has(
-      surface as BrowserGenerationDescriptor["contributions"][number]["surface"],
-    )
-  ) {
+  if (!isContributionSurface(surface)) {
     throw new BoundaryValidationError(boundary, `${location}.surface is unsupported`);
   }
   const rawRoles = stringArray(value["roles"], `${location}.roles`);
@@ -338,7 +322,7 @@ function parseContribution(
   }
   return {
     id,
-    surface: surface as BrowserGenerationDescriptor["contributions"][number]["surface"],
+    surface,
     label: requiredString(value["label"], `${location}.label`),
     roles,
     order,
