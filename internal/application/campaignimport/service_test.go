@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
+	"github.com/pjunak/ttrpg-codex/internal/application/addondata"
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
 	"github.com/pjunak/ttrpg-codex/internal/events"
 	storage "github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
@@ -52,7 +53,7 @@ func setup(t *testing.T) (*Service, *sql.DB, *campaignstore.Store, *events.Broke
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := New(ctx, db, core, addons, nil)
+	service, err := New(ctx, db, core, addons, addonRulesFunc(allowImport), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +136,7 @@ func TestPreviewRetainsExactIDsViewsAndSingleUseReceipt(t *testing.T) {
 	}
 	_, err = service.Commit(ctx, owner, review.Token)
 	assertKind(t, err, workerrpc.KindNotFound)
-	restarted, err := New(ctx, db, core, service.addons, nil)
+	restarted, err := New(ctx, db, core, service.addons, service.addonRules, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,6 +218,36 @@ func attachContributor(service *Service, owner Owner, calls *int) {
 		return addondatastore.Transaction{AddonID: addonID, GenerationID: owner.Generation, ExpectedDataSets: []addondatastore.DataSetRevision{{Kind: datacontract.Collection, DataID: "notes", Revision: 0}}, Mutations: []addondatastore.Mutation{{Kind: addondatastore.Put, Definition: definition, Key: "note", Value: body, Audience: events.AudienceDM}}}, nil
 	})
 }
+
+type addonRulesFunc func(context.Context, addondatastore.Transaction) error
+
+func (rules addonRulesFunc) ValidateImport(ctx context.Context, transaction addondatastore.Transaction) error {
+	return rules(ctx, transaction)
+}
+func allowImport(context.Context, addondatastore.Transaction) error { return nil }
+
+func TestContributionMustPassAddonDataRules(t *testing.T) {
+	service, _, core, _, owner := setup(t)
+	calls := 0
+	attachContributor(service, owner, &calls)
+	service.addonRules = addonRulesFunc(func(context.Context, addondatastore.Transaction) error {
+		return addondata.ErrUniqueIndexConflict
+	})
+	_, err := service.Preview(context.Background(), owner, json.RawMessage(contributionBundle()))
+	assertKind(t, err, workerrpc.KindValidationFailed)
+
+	service.addonRules = addonRulesFunc(allowImport)
+	review := preview(t, service, owner, contributionBundle())
+	service.addonRules = addonRulesFunc(func(context.Context, addondatastore.Transaction) error {
+		return addondata.ErrInactiveGeneration
+	})
+	_, err = service.Commit(context.Background(), owner, review.Token)
+	assertKind(t, err, workerrpc.KindConflict)
+	if len(records(t, core)) != 0 {
+		t.Fatal("rejected contribution committed core records")
+	}
+}
+
 func TestAtomicCoreAndContributionRollbackAndStaleGuard(t *testing.T) {
 	for _, scenario := range []string{"success", "write-failure", "receipt-failure", "addon-stale"} {
 		t.Run(scenario, func(t *testing.T) {

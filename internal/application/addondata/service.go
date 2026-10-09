@@ -365,6 +365,27 @@ func (service *Service) Transact(ctx context.Context, input Transaction) (addond
 	})
 }
 
+// ValidateImport applies the write rules of Transact that a host-prepared
+// campaign bundle contribution does not already pass through: an active,
+// writable generation, list document IDs and unique indexes. The import commit
+// guards every touched data set's revision, so a passing result holds until
+// that commit.
+func (service *Service) ValidateImport(ctx context.Context, transaction addondatastore.Transaction) error {
+	service.mu.RLock()
+	defer service.mu.RUnlock()
+	active, exists := service.active[transaction.AddonID]
+	if !exists || active.generation != transaction.GenerationID || service.updating[transaction.AddonID] {
+		return ErrInactiveGeneration
+	}
+	for _, mutation := range transaction.Mutations {
+		if mutation.Kind == addondatastore.Put && mutation.Definition.Kind == datacontract.Collection &&
+			!mutation.Definition.Keyed && !documentIDMatches(mutation.Value, mutation.Key) {
+			return fmt.Errorf("%w: list collection document id must equal its key", ErrInvalidRequest)
+		}
+	}
+	return service.validateUniqueIndexes(ctx, transaction.AddonID, transaction.Mutations)
+}
+
 func (service *Service) ReviewActivation(
 	ctx context.Context,
 	addonID string,

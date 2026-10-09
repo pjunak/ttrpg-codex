@@ -365,7 +365,7 @@ func composeHost(
 		return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(dataDirectory, "addons"), stageRoot, inspector, githubAddons.FetchPackage)
 	}
 
-	campaignImports, err := campaignimport.New(ctx, db, campaignRecords, addonRecords, addons)
+	campaignImports, err := campaignimport.New(ctx, db, campaignRecords, addonRecords, addonData, addons)
 	if err != nil {
 		_ = addons.Shutdown(context.Background())
 		return nil, fmt.Errorf("configure campaign imports: %w", err)

@@ -162,6 +162,39 @@ func TestUniqueIndexesAreEnforcedAcrossAtomicWrites(t *testing.T) {
 	}
 }
 
+func TestValidateImportAppliesWriteRules(t *testing.T) {
+	t.Parallel()
+	service, _, _, _ := testService(t)
+	registry := testRegistry(t, "1.0.0", true)
+	activate(t, service, registry, generationOne)
+	system := Access{AddonID: "dm-tools", Generation: generationOne, Role: RoleSystem}
+	if _, err := service.Transact(context.Background(), Transaction{Access: system, Mutations: []Mutation{{
+		Kind: addondatastore.Put, DataKind: datacontract.Collection, DataID: "notes", Key: "one", Value: json.RawMessage(`{"id":"one","title":"same"}`),
+	}}}); err != nil {
+		t.Fatal(err)
+	}
+	definition, err := registry.Description(datacontract.Collection, "notes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	put := func(key, body string) addondatastore.Transaction {
+		return addondatastore.Transaction{AddonID: "dm-tools", GenerationID: generationOne, Mutations: []addondatastore.Mutation{{
+			Kind: addondatastore.Put, Definition: definition, Key: key, Value: json.RawMessage(body),
+		}}}
+	}
+	if err := service.ValidateImport(context.Background(), put("two", `{"id":"two","title":"same"}`)); !errors.Is(err, ErrUniqueIndexConflict) {
+		t.Fatalf("unique conflict error = %v", err)
+	}
+	if err := service.ValidateImport(context.Background(), put("two", `{"id":"two","title":"other"}`)); err != nil {
+		t.Fatalf("valid import = %v", err)
+	}
+	stale := put("two", `{"id":"two","title":"other"}`)
+	stale.GenerationID = strings.Repeat("f", 64)
+	if err := service.ValidateImport(context.Background(), stale); !errors.Is(err, ErrInactiveGeneration) {
+		t.Fatalf("inactive generation error = %v", err)
+	}
+}
+
 func TestQueryIsBoundedPagedAndRestrictedToDeclaredIndexes(t *testing.T) {
 	t.Parallel()
 	service, _, _, _ := testService(t)

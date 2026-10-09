@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
+	"github.com/pjunak/ttrpg-codex/internal/application/addondata"
 	"github.com/pjunak/ttrpg-codex/internal/application/campaigndata"
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/addondatastore"
@@ -23,10 +24,16 @@ type Owner struct{ ActorID, AddonID, Generation string }
 type Contributor interface {
 	PrepareCampaignContribution(context.Context, workerrpc.Actor, string, string, json.RawMessage) (addondatastore.Transaction, error)
 }
+
+// AddonDataValidator applies the add-on data write rules to a contribution.
+type AddonDataValidator interface {
+	ValidateImport(context.Context, addondatastore.Transaction) error
+}
 type Service struct {
 	db           *sql.DB
 	core         campaigndata.Repository
 	addons       *addondatastore.Store
+	addonRules   AddonDataValidator
 	contributors Contributor
 	schema       *jsonschema.Schema
 	now          func() time.Time
@@ -74,8 +81,8 @@ type Preview struct {
 	ExpiresAt       string      `json:"expiresAt"`
 }
 
-func New(ctx context.Context, db *sql.DB, core campaigndata.Repository, addons *addondatastore.Store, contributors Contributor) (*Service, error) {
-	if db == nil || core == nil || addons == nil {
+func New(ctx context.Context, db *sql.DB, core campaigndata.Repository, addons *addondatastore.Store, addonRules AddonDataValidator, contributors Contributor) (*Service, error) {
+	if db == nil || core == nil || addons == nil || addonRules == nil {
 		return nil, errors.New("campaign import stores are required")
 	}
 	schema, err := compileSchema()
@@ -86,7 +93,7 @@ func New(ctx context.Context, db *sql.DB, core campaigndata.Repository, addons *
 	if _, err = db.ExecContext(ctx, "UPDATE campaign_import_receipts SET status='failed' WHERE status='committing'"); err != nil {
 		return nil, err
 	}
-	return &Service{db: db, core: core, addons: addons, contributors: contributors, schema: schema, now: time.Now, plans: map[string]plan{}}, nil
+	return &Service{db: db, core: core, addons: addons, addonRules: addonRules, contributors: contributors, schema: schema, now: time.Now, plans: map[string]plan{}}, nil
 }
 func problem(kind, message string) error {
 	return workerrpc.NewRPCError(workerrpc.JSONRPCApplication, kind, message, false, nil)
@@ -150,6 +157,9 @@ func (service *Service) Preview(ctx context.Context, owner Owner, body json.RawM
 			return Preview{}, errors.New("contributor namespace mismatch")
 		}
 		contribution.ActorID = owner.ActorID
+		if err := service.addonRules.ValidateImport(ctx, contribution); err != nil {
+			return Preview{}, contributionProblem(err)
+		}
 		retained.addons = append(retained.addons, contribution)
 		for _, mutation := range contribution.Mutations {
 			operation := "create"
@@ -249,6 +259,13 @@ func (service *Service) Commit(ctx context.Context, owner Owner, token string) (
 	if err != nil {
 		return Receipt{}, err
 	}
+	// Data-set revision guards below prove the data is unchanged since preview;
+	// this repeats the generation checks that can change without a write.
+	for _, contribution := range retained.addons {
+		if err := service.addonRules.ValidateImport(ctx, contribution); err != nil {
+			return Receipt{}, contributionProblem(err)
+		}
+	}
 	hash := tokenHash(token)
 	if _, err = service.db.ExecContext(ctx, "INSERT INTO campaign_import_receipts(token_hash,status,created_at,result_json) VALUES(?,'committing',?,'{}')", hash, service.now().UTC().Format(time.RFC3339Nano)); err != nil {
 		return Receipt{}, err
@@ -307,6 +324,15 @@ func (service *Service) Commit(ctx context.Context, owner Owner, token string) (
 		return Receipt{}, err
 	}
 	return retained.receipt, nil
+}
+func contributionProblem(err error) error {
+	switch {
+	case errors.Is(err, addondata.ErrInactiveGeneration):
+		return problem(workerrpc.KindConflict, "An add-on in this bundle is not active or is being updated. Review a new preview.")
+	case errors.Is(err, addondata.ErrInvalidRequest), errors.Is(err, addondata.ErrUniqueIndexConflict):
+		return problem(workerrpc.KindValidationFailed, "The bundle's add-on data breaks that add-on's data rules.")
+	}
+	return err
 }
 func guardGeneration(ctx context.Context, tx *sql.Tx, addonID, generation string) error {
 	var active bool
