@@ -1,3 +1,4 @@
+import { requestModel } from "../addons/model-request.js";
 import { isRecord } from "../core/boundary.js";
 import type {
   ActiveBrowserContribution,
@@ -246,27 +247,11 @@ export async function loadAddonGraphs(
         !validConfig(active, isCoreGraph(view) ? view : undefined)
       )
         return { active };
-      const deadline = new AbortController(),
-        combined = AbortSignal.any([signal, active.signal, deadline.signal]);
-      const timer = setTimeout(() => deadline.abort(), timeoutMs);
-      let cancelled: (() => void) | undefined;
       try {
-        combined.throwIfAborted();
-        const aborted = new Promise<never>((_resolve, reject) => {
-          cancelled = () => reject(new DOMException("Graph request cancelled", "AbortError"));
-          combined.addEventListener("abort", cancelled, { once: true });
-        });
-        const value = await Promise.race([
-          aborted,
-          active.binding.provide(structuredClone(request), { signal: combined }),
-        ]);
-        combined.throwIfAborted();
+        const value = await requestModel(active, request, signal, timeoutMs);
         return { active, model: parseAddonGraphModel(value, active, base, request, routes) };
       } catch {
         return { active };
-      } finally {
-        clearTimeout(timer);
-        if (cancelled) combined.removeEventListener("abort", cancelled);
       }
     }),
   );

@@ -1,3 +1,4 @@
+import { requestModel } from "./model-request.js";
 import { isRecord } from "../core/boundary.js";
 import { browserAddonRouteHash, parseBrowserAddonLocation } from "./navigation.js";
 import type { ActiveBrowserContribution, BrowserContributionRegistry } from "./browser-sdk.js";
@@ -122,28 +123,11 @@ export async function requestWikiProvider(
   signal: AbortSignal,
   timeoutMs = 10_000,
 ): Promise<WikiResult> {
-  const deadline = new AbortController(),
-    combined = AbortSignal.any([signal, active.signal, deadline.signal]);
-  const timer = setTimeout(() => deadline.abort(), timeoutMs);
-  let cancel: (() => void) | undefined;
   try {
-    combined.throwIfAborted();
-    if (active.binding.kind !== "model-provider") throw new TypeError("Wiki provider unavailable");
-    const aborted = new Promise<never>((_resolve, reject) => {
-      cancel = () => reject(new DOMException("Wiki request cancelled", "AbortError"));
-      combined.addEventListener("abort", cancel, { once: true });
-    });
-    const value = await Promise.race([
-      aborted,
-      active.binding.provide(structuredClone(request), { signal: combined }),
-    ]);
-    combined.throwIfAborted();
+    const value = await requestModel(active, request, signal, timeoutMs);
     return { active, matches: parseWikiMatches(value, active, routes, request), failed: false };
   } catch {
     return { active, matches: [], failed: true };
-  } finally {
-    clearTimeout(timer);
-    if (cancel) combined.removeEventListener("abort", cancel);
   }
 }
 
