@@ -340,6 +340,28 @@ void test(
       .filter({ hasText: /^Saved$/ })
       .waitFor();
     assert.equal((await call("load", {})).state.inputs.build.levels.length, 2);
+    // A subclass chosen at Fighter 3 is withdrawn when that level is removed:
+    // the Engine reports it and the worker removes the saved value.
+    await sheet.getByRole("button", { name: "Add level", exact: true }).click();
+    await sheet
+      .locator("[data-character-status]")
+      .filter({ hasText: /^Saved$/ })
+      .waitFor();
+    await sheet.getByRole("combobox", { name: "Subclass", exact: true }).fill("champ");
+    await sheet.getByRole("option", { name: "Champion", exact: true }).click();
+    await sheet
+      .locator("[data-character-status]")
+      .filter({ hasText: /^Saved$/ })
+      .waitFor();
+    assert.equal((await call("load", {})).state.inputs.build.subclasses.fighter, "champion");
+    await sheet.getByRole("button", { name: "Remove level", exact: true }).last().click();
+    await sheet
+      .locator("[data-character-status]")
+      .filter({ hasText: /^Saved$/ })
+      .waitFor();
+    const withdrawn = (await call("load", {})).state.inputs.build;
+    assert.equal(withdrawn.levels.length, 2);
+    assert.equal(withdrawn.subclasses.fighter, undefined);
     await sheet.getByRole("button", { name: "Remove level", exact: true }).last().click();
     await sheet
       .locator("[data-character-status]")
