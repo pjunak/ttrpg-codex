@@ -111,6 +111,12 @@ Open **Settings → Add-ons** while signed in as DM. The toolbar has two actions
 **Check for updates** refreshes the installed list and checks linked repositories;
 **Add add-on** opens the installation wizard.
 
+Each installed add-on shows its name, version and status (Active, Not running
+or Disabled) with **Update to …** when a newer package was found, **Enable** or
+**Disable**, and **More actions** (also on right click) for Reload, the update
+source and Uninstall. **Details** holds saved packages for rollback, runtime
+diagnostics and recent activity.
+
 In the wizard, choose **GitHub** or **ZIP file**:
 
 - **GitHub** accepts a repository URL or `owner/repository`. The default is the
@@ -136,7 +142,8 @@ specific repository, including future update checks.
 Select **Download and review**, or **Inspect ZIP** for a local file, to continue
 to the permission and compatibility review in the same popup. Only **Approve
 and activate** changes the active version when saved data is compatible.
-For an installed add-on, click **Update** beside the available build. The review
+For an installed add-on, click **Update to …** on its row, or **Update**
+beside a build in its update source. The review
 shows compatibility, required dependencies/services, requested privileges and
 affected running add-ons. Required and previously approved privileges are
 selected for review; new optional privileges remain unchecked.
