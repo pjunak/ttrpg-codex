@@ -62,8 +62,8 @@ not obvious. Move an entry between sections instead of duplicating it.
 > current behaviour are fine.
 
 - **Knowledge and investigation model** `ttrpg-codex` — How much players know
-  about characters (the four knowledge levels), mystery clues (many are still
-  v1 event keys), and characters' *open questions* / *what is known* (also shown
+  about characters (the four knowledge levels), mystery clues (many are bare
+  event keys), and characters' *open questions* / *what is known* (also shown
   in Mind Palace and the unanswered-questions list). Current behaviour, known
   problems and the questions to answer are in the
   [design note](design/knowledge-and-investigation.md).
@@ -73,6 +73,12 @@ not obvious. Move an entry between sections instead of duplicating it.
 - **Tag host versions** `ttrpg-codex` and add-ons — Add-ons require the host by
   Go pseudo-version. Real tags (for example `v0.1.0`) would read better and let
   the add-ons reference the publish action by tag instead of commit SHA.
+- **Apply class damage bonuses to attacks** `addon-dnd-engine`,
+  `addon-dnd-character-sheets` — The Martial Arts die and Rage Damage are shown
+  from the class tables but not yet applied to the attacks they affect.
+- **Align owned-feature filters** `addon-dnd-2024-compendium`,
+  `addon-dnd-engine` — The Compendium's owned-feature filter and the Engine's
+  ownership rules can disagree; make them match.
 - **Split the largest UI files when next touched** — `frontend/src/app/codex-app.ts`,
   `campaign-record-editor.ts` and `codex-record-page.ts` in the host, DM Tools'
   `planner-element.ts`, Sheets' `character-element.ts`.
