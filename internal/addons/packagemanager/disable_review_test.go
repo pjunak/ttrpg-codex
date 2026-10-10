@@ -251,3 +251,88 @@ func TestReviewedDisableCanRecoverFromCorruptPackageWithoutStartingIt(t *testing
 		t.Fatal("failed package stayed active")
 	}
 }
+
+func TestReviewedUpdateReplacesActiveGenerationThatFailedRecovery(t *testing.T) {
+	ctx := context.Background()
+	db, directory := testDatabase(t), filepath.Join(t.TempDir(), "packages")
+	manager, _ := testManager(t, db, directory, &fakeRuntimeFactory{})
+	broken := installUninstallFixture(t, manager, packageSpec{ID: "broken", Version: "1.0.0", Worker: true})
+	if err := manager.Shutdown(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "broken", "generations", broken.GenerationID, "package.zip"), []byte("no longer accepted"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	factory := &fakeRuntimeFactory{}
+	recovered, _ := testManager(t, db, directory, factory)
+	if results, err := recovered.Recover(ctx); err != nil || len(results) != 1 || results[0].Recovered {
+		t.Fatal("expected failed startup", results, err)
+	}
+	if _, err := recovered.RulesPolicy(ctx); err != nil {
+		t.Fatal("an unrecoverable package broke the rules policy", err)
+	}
+	update, err := recovered.Stage(ctx, writeAddonPackage(t, packageSpec{ID: "broken", Version: "2.0.0", Worker: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := recovered.PrepareActivationReview(ctx, "broken", update.GenerationID)
+	if err != nil || len(review.Proposal.Blockers) != 0 {
+		t.Fatalf("update review: %+v %v", review.Proposal.Blockers, err)
+	}
+	approved, err := recovered.ApproveActivationReview(ctx, review.ReviewID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := recovered.ActivateReviewed(ctx, approved.ReviewID); err != nil {
+		t.Fatal("update could not replace the failed generation", err)
+	}
+	state, _ := recovered.store.state(ctx, "broken")
+	if live, running := recovered.runtimes["broken"]; state.ActiveGenerationID != update.GenerationID || !running || live.generation.GenerationID != update.GenerationID {
+		t.Fatalf("update did not take over: %+v", state)
+	}
+}
+
+func TestReviewedUpdateRestartsLiveConsumersAroundFailedProvider(t *testing.T) {
+	ctx := context.Background()
+	db, directory := testDatabase(t), filepath.Join(t.TempDir(), "packages")
+	manager, _ := testManager(t, db, directory, &fakeRuntimeFactory{})
+	provider := installUninstallFixture(t, manager, packageSpec{ID: "provider", Version: "1.0.0", Worker: true, Permission: true, Contract: "dnd5e.rules-data", ContractVersion: "3.0.0"})
+	installUninstallFixture(t, manager, packageSpec{ID: "consumer", Version: "1.0.0", Worker: true, ConsumeContract: "dnd5e.rules-data", OptionalConsume: true})
+	if err := manager.Shutdown(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "provider", "generations", provider.GenerationID, "package.zip"), []byte("no longer accepted"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	recovered, _ := testManager(t, db, directory, &fakeRuntimeFactory{})
+	if _, err := recovered.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, running := recovered.runtimes["provider"]; running {
+		t.Fatal("the rejected provider package recovered")
+	}
+	if _, running := recovered.runtimes["consumer"]; !running {
+		t.Fatal("optional consumer should run without its provider")
+	}
+	update, err := recovered.Stage(ctx, writeAddonPackage(t, packageSpec{ID: "provider", Version: "2.0.0", Worker: true, Permission: true, Contract: "dnd5e.rules-data", ContractVersion: "3.0.0"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := recovered.PrepareActivationReview(ctx, "provider", update.GenerationID)
+	if err != nil || len(review.Proposal.Blockers) != 0 || len(review.Proposal.RestartedAddonIDs) == 0 {
+		t.Fatalf("cohort update review: %+v %v", review.Proposal, err)
+	}
+	approved, err := recovered.ApproveActivationReview(ctx, review.ReviewID, []string{"core.data.read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := recovered.ActivateReviewed(ctx, approved.ReviewID)
+	if err != nil || result.RecoveryError != "" {
+		t.Fatalf("cohort update: %+v %v", result, err)
+	}
+	for _, id := range []string{"provider", "consumer"} {
+		if _, running := recovered.runtimes[id]; !running {
+			t.Fatalf("%s is not running after the update", id)
+		}
+	}
+}

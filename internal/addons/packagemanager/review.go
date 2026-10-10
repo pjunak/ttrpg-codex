@@ -260,11 +260,10 @@ func (manager *Manager) buildReviewProposal(
 			proposal.Blockers = append(proposal.Blockers, ReviewBlocker{Code: issue.Code, Message: issue.Message})
 		}
 	}
-	if state.ActiveGenerationID != "" {
-		active, recovered := manager.runtimes[addonID]
-		if !recovered || active.generation.GenerationID != state.ActiveGenerationID {
-			proposal.Blockers = append(proposal.Blockers, reviewBlocker("RECOVERY_REQUIRED", ErrRecoveryRequired))
-		}
+	// An active generation that failed to recover (for example a package the
+	// host no longer accepts) has no runtime; a reviewed replacement repairs it.
+	if active, running := manager.runtimes[addonID]; running && active.generation.GenerationID != state.ActiveGenerationID {
+		proposal.Blockers = append(proposal.Blockers, reviewBlocker("RECOVERY_REQUIRED", ErrRecoveryRequired))
 	}
 	proposal.AffectedAddonIDs = manager.activationDependents(report.Manifest)
 	if state.ActiveGenerationID != generationID && len(proposal.AffectedAddonIDs) != 0 {

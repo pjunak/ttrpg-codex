@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -67,6 +68,10 @@ func (manager *Manager) rulesPolicyLocked(ctx context.Context) (RulesPolicy, err
 	}
 	for _, state := range states {
 		report, err := manager.activeReport(ctx, state.AddonID, state.ActiveGenerationID)
+		if errors.Is(err, ErrInvalidPackage) {
+			// The add-on is not running; its row in the manager offers the update.
+			continue
+		}
 		if err != nil {
 			return result, err
 		}

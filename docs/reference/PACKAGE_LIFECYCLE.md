@@ -294,7 +294,9 @@ on add-on IDs. Available optional dependencies are preferred before consumers;
 if they fail or form only an optional cycle, recovery proceeds with the
 consumer's declared standalone behavior. Cycles, missing required providers,
 corrupt generations, invalid grants, or startup failures remain failed with
-lifecycle diagnostics.
+lifecycle diagnostics. Such an add-on shows as not running; reviewing and
+activating another package (for example an update for a package the host no
+longer accepts) replaces the failed generation, and disabling it also works.
 
 Normal shutdown reverses the live dependency graph: consumers lose routing and
 stop before providers. Durable active pointers remain intact for the next

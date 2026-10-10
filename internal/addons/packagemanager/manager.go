@@ -352,7 +352,9 @@ func (manager *Manager) activateLocked(
 	plan.GrantedPermissionIDs = normalizedIDs
 	previousID := state.ActiveGenerationID
 	previous, hasPrevious := manager.runtimes[plan.AddonID]
-	if previousID != "" && (!hasPrevious || previous.generation.GenerationID != previousID) {
+	// Without a runtime the previous generation failed to recover; replacing it
+	// is the repair. A different live generation means recovery is incomplete.
+	if hasPrevious && previous.generation.GenerationID != previousID {
 		return ActivationResult{}, ErrRecoveryRequired
 	}
 	if previousID == plan.GenerationID && reflect.DeepEqual(state.GrantedPermissionIDs, plan.GrantedPermissionIDs) {
