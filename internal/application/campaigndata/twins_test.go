@@ -15,7 +15,7 @@ func TestCreateTwinClonesOppositeVisibilityAndLinksBothSides(t *testing.T) {
 	repository := &fakeRepository{snapshot: campaign.Snapshot{Records: []campaign.Record{{
 		Collection: campaign.Characters, Key: "alice", Revision: 2,
 		Visibility: campaign.VisibilityPublic,
-		Value:      raw(`{"id":"alice","name":"Alice","visibility":"public","secrets":{"old":true}}`),
+		Value:      raw(`{"id":"alice","name":"Alice","visibility":"public"}`),
 	}}}}
 	service, _ := New(repository)
 	service.now = func() time.Time { return time.Date(2026, time.September, 1, 12, 0, 0, 0, time.UTC) }
@@ -35,9 +35,6 @@ func TestCreateTwinClonesOppositeVisibilityAndLinksBothSides(t *testing.T) {
 	if source["linkedTwinId"] != "twin-alice" || twin["linkedTwinId"] != "alice" ||
 		twin["id"] != "twin-alice" || twin["visibility"] != "dm" {
 		t.Fatalf("twin pair = source %#v, twin %#v", source, twin)
-	}
-	if _, exists := twin["secrets"]; exists {
-		t.Fatalf("retired secrets were cloned: %#v", twin)
 	}
 }
 

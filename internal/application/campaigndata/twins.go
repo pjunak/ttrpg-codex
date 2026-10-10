@@ -128,7 +128,6 @@ func (service *Service) createTwin(
 	now := service.now().UTC().UnixMilli()
 	clone := cloneObject(sourceValue)
 	delete(clone, "linkedTwinId")
-	delete(clone, "secrets")
 	clone["linkedTwinId"] = source.Key
 	clone["visibility"] = oppositeVisibility(source.Visibility)
 	clone["updatedAt"] = now

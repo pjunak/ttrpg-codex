@@ -99,7 +99,6 @@ func prepareRecordWrite(
 	} else {
 		delete(incoming, "linkedTwinId")
 	}
-	delete(incoming, "secrets")
 
 	if role == WritePlayer {
 		if descriptor.Name == campaign.Locations {

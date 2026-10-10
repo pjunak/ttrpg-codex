@@ -65,7 +65,7 @@ func TestPlayerMutationSanitizesAuthorityAndPrivateMetadata(t *testing.T) {
 		ActorID: "session-player", Role: WritePlayer,
 	}, []campaign.Mutation{{
 		Kind: campaign.Put, Collection: campaign.Characters, Key: "alice", ExpectedRevision: 4,
-		Value: raw(`{"id":"alice","name":"Alice","visibility":"dm","secrets":{"name":true},"addonData":{"sheet":{"hp":9}}}`),
+		Value: raw(`{"id":"alice","name":"Alice","visibility":"dm","addonData":{"sheet":{"hp":9}}}`),
 	}})
 	if err != nil || commit.ID != 9 || len(repository.writes) != 1 {
 		t.Fatalf("mutation = %+v, %v; writes = %d", commit, err, len(repository.writes))
@@ -80,9 +80,6 @@ func TestPlayerMutationSanitizesAuthorityAndPrivateMetadata(t *testing.T) {
 	}
 	if value["visibility"] != "public" || value["linkedTwinId"] != "alice-dm" {
 		t.Fatalf("managed fields = %#v", value)
-	}
-	if _, exists := value["secrets"]; exists {
-		t.Fatalf("legacy secrets survived: %#v", value)
 	}
 	addonData := value["addonData"].(map[string]any)
 	if len(addonData) != 2 || addonData["notes"] == nil ||

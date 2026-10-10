@@ -106,7 +106,7 @@ private record keys stay internal.
 Before one atomic SQLite transaction, the application service:
 
 - forces player-created/edited visibility to the existing public space,
-  preserves server-owned twin links, removes retired `secrets`, and merges
+  preserves server-owned twin links, and merges
   omitted add-on namespaces;
 - treats guessed hidden and missing references alike, and rejects player
   references outside the current public identity graph;
