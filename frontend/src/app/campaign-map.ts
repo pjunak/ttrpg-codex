@@ -466,7 +466,7 @@ export function prepareLocalMapImage(
 function fraction(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
 }
-// V1 allowed pins beyond the image edge. Fractions are a coordinate frame, not a clipping rule.
+// Pins may lie beyond the image edge: fractions are a coordinate frame, not a clipping rule.
 export function mapCoordinate(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
