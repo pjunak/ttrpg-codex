@@ -12,22 +12,15 @@ import (
 	codexsqlite "github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 )
 
-func validatePackageImage(ctx context.Context, databasePath, packageRoot string, replacements map[string]string) error {
+func validatePackageImage(ctx context.Context, databasePath, packageRoot string) error {
 	db, err := codexsqlite.Open(ctx, databasePath)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-	return validatePackageReferences(ctx, db, packageRoot, replacements)
+	return validatePackageReferences(ctx, db, packageRoot)
 }
-func validatePackageReferences(ctx context.Context, db *sql.DB, packageRoot string, replacements map[string]string) error {
-	var present bool
-	if err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='addon_package_states')`).Scan(&present); err != nil {
-		return err
-	}
-	if !present {
-		return nil
-	}
+func validatePackageReferences(ctx context.Context, db *sql.DB, packageRoot string) error {
 	rows, err := db.QueryContext(ctx, `SELECT addon_id,active_generation_id FROM addon_package_states WHERE active_generation_id IS NOT NULL
  UNION SELECT j.value->>'addon_id',j.value->>'active_generation_id' FROM recovery_points p,json_each(p.image_json,'$.packages') j LIMIT 513`)
 	if err != nil {
@@ -61,9 +54,6 @@ func validatePackageReferences(ctx context.Context, db *sql.DB, packageRoot stri
 			return fmt.Errorf("%w: invalid recovery package identity", ErrInvalidArchive)
 		}
 		root := filepath.Join(packageRoot, ref.addon, "generations", ref.hash)
-		if replacement, ok := replacements[ref.addon+"/"+ref.hash]; ok {
-			root = replacement
-		}
 		report, err := inspector.InspectFile(ctx, filepath.Join(root, "package.zip"))
 		if err != nil || report.Manifest.ID != ref.addon || report.ArchiveSHA256 != ref.hash {
 			return fmt.Errorf("%w: required package %s %s is missing or invalid", ErrInvalidArchive, ref.addon, ref.hash)
@@ -73,24 +63,4 @@ func validatePackageReferences(ctx context.Context, db *sql.DB, packageRoot stri
 		}
 	}
 	return nil
-}
-
-// normalizeRestoredPackageFiles runs only in the already verified restore stage.
-// Old backups gain the same offline residency as newly materialized archives.
-func normalizeRestoredPackageFiles(ctx context.Context, db *sql.DB) error {
-	var present bool
-	if err := db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='addon_package_files')").Scan(&present); err != nil {
-		return err
-	}
-	if !present {
-		return nil
-	}
-	if _, err := db.ExecContext(ctx, `UPDATE addon_package_files SET status='local'
- WHERE (addon_id,generation_id) IN (
- SELECT addon_id,active_generation_id FROM addon_package_states WHERE active_generation_id IS NOT NULL
- UNION SELECT j.value->>'addon_id',j.value->>'active_generation_id' FROM recovery_points p,json_each(p.image_json,'$.packages') j)`); err != nil {
-		return err
-	}
-	_, err := db.ExecContext(ctx, "UPDATE addon_package_retention SET initial_cleanup_complete=1 WHERE singleton=1")
-	return err
 }

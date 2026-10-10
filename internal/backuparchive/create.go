@@ -19,30 +19,28 @@ import (
 )
 
 type CreateConfig struct {
-	MaterializePackages func(context.Context, string, string) error
-	Database            *sql.DB
-	DataDirectory       string
-	OutputPath          string
-	HostVersion         string
-	Now                 func() time.Time
-	Limits              Limits
+	Database      *sql.DB
+	DataDirectory string
+	OutputPath    string
+	HostVersion   string
+	Now           func() time.Time
+	Limits        Limits
 }
 
 type Creator struct {
-	MaterializePackages func(context.Context, string, string) error
-	PackageSnapshot     func(context.Context, func() error) error
-	Database            *sql.DB
-	DataDirectory       string
-	HostVersion         string
-	Limits              Limits
-	Now                 func() time.Time
+	PackageSnapshot func(context.Context, func() error) error
+	Database        *sql.DB
+	DataDirectory   string
+	HostVersion     string
+	Limits          Limits
+	Now             func() time.Time
 }
 
 func (creator *Creator) Create(ctx context.Context, outputPath string) (Manifest, error) {
 	if creator == nil {
 		return Manifest{}, fmt.Errorf("backup creator is required")
 	}
-	config := CreateConfig{MaterializePackages: creator.MaterializePackages, Database: creator.Database, DataDirectory: creator.DataDirectory, OutputPath: outputPath, HostVersion: creator.HostVersion, Limits: creator.Limits, Now: creator.Now}
+	config := CreateConfig{Database: creator.Database, DataDirectory: creator.DataDirectory, OutputPath: outputPath, HostVersion: creator.HostVersion, Limits: creator.Limits, Now: creator.Now}
 	if creator.PackageSnapshot == nil {
 		return Create(ctx, config)
 	}
@@ -110,28 +108,7 @@ func Create(ctx context.Context, config CreateConfig) (Manifest, error) {
 		return Manifest{}, err
 	}
 
-	packageStage, err := os.MkdirTemp("", "codex-package-backup-")
-	if err != nil {
-		return Manifest{}, err
-	}
-	defer os.RemoveAll(packageStage)
-	if config.MaterializePackages != nil {
-		if err := config.MaterializePackages(ctx, databasePath, packageStage); err != nil {
-			return Manifest{}, err
-		}
-	}
-	materialized, err := collectAddonFiles(ctx, packageStage, limits)
-	if err != nil {
-		return Manifest{}, err
-	}
-	replacements := map[string]string{}
-	for _, source := range materialized {
-		parts := strings.Split(source.archivePath, "/")
-		if len(parts) >= 5 && parts[2] == "generations" {
-			replacements[parts[1]+"/"+parts[3]] = filepath.Join(packageStage, parts[1], "generations", parts[3])
-		}
-	}
-	if err := validatePackageImage(ctx, databasePath, filepath.Join(dataDirectory, "addons"), replacements); err != nil {
+	if err := validatePackageImage(ctx, databasePath, filepath.Join(dataDirectory, "addons")); err != nil {
 		return Manifest{}, err
 	}
 	sources := []sourceFile{{archivePath: "codex.db", path: databasePath, mode: 0o640}}
@@ -139,16 +116,7 @@ func Create(ctx context.Context, config CreateConfig) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	for _, source := range addonSources {
-		parts := strings.Split(source.archivePath, "/")
-		if len(parts) >= 5 && parts[2] == "generations" {
-			if _, replaced := replacements[parts[1]+"/"+parts[3]]; replaced {
-				continue
-			}
-		}
-		sources = append(sources, source)
-	}
-	sources = append(sources, materialized...)
+	sources = append(sources, addonSources...)
 	blobSources, err := collectBlobFiles(ctx, filepath.Join(dataDirectory, "blobs"), limits)
 	if err != nil {
 		return Manifest{}, err

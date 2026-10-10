@@ -352,9 +352,6 @@ func composeHost(
 	if err := addons.ConfigurePackageRetention(ctx, retentionEnabled); err != nil {
 		logger.Warn("automatic package cleanup will retry", "error", err)
 	}
-	backupArchives.MaterializePackages = func(ctx context.Context, databasePath, stageRoot string) error {
-		return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(dataDirectory, "addons"), stageRoot, inspector)
-	}
 
 	campaignImports, err := campaignimport.New(ctx, db, campaignRecords, addonRecords, addonData, addons)
 	if err != nil {

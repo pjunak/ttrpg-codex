@@ -97,10 +97,7 @@ func validateAndMigrateDatabase(
 		}
 	}
 	if migrationErr == nil {
-		migrationErr = validatePackageReferences(ctx, database, filepath.Join(filepath.Dir(databasePath), "addons"), nil)
-	}
-	if migrationErr == nil {
-		migrationErr = normalizeRestoredPackageFiles(ctx, database)
+		migrationErr = validatePackageReferences(ctx, database, filepath.Join(filepath.Dir(databasePath), "addons"))
 	}
 	if migrationErr == nil {
 		_, migrationErr = database.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`)

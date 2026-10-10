@@ -386,7 +386,6 @@ func classifyLifecycleError(err error) (int, string, string) {
 		{packagemanager.ErrRulesetCompatibility, http.StatusUnprocessableEntity, "RULESET_INCOMPATIBLE", err.Error()},
 		{servicebroker.ErrInvalidSelection, http.StatusUnprocessableEntity, "INVALID_SELECTION", "Select compatible available providers for this service."},
 		{servicebroker.ErrBindingConflict, http.StatusConflict, "BINDING_CONFLICT", "The service selection changed. Refresh and review the current choice."},
-		{packagemanager.ErrPackageUnavailable, http.StatusServiceUnavailable, "PACKAGE_UNAVAILABLE", packagemanager.ErrPackageUnavailable.Error()},
 		{packagemanager.ErrGenerationNotFound, http.StatusNotFound, "GENERATION_NOT_FOUND", packagemanager.ErrGenerationNotFound.Error()},
 		{packagemanager.ErrReviewNotFound, http.StatusNotFound, "REVIEW_NOT_FOUND", packagemanager.ErrReviewNotFound.Error()},
 		{packagemanager.ErrNotActive, http.StatusConflict, "ADDON_NOT_ACTIVE", packagemanager.ErrNotActive.Error()},

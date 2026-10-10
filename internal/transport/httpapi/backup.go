@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
 )
 
@@ -90,10 +89,6 @@ func (s *server) downloadBackup(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) writeBackupFailure(w http.ResponseWriter, r *http.Request, err error) {
 	s.logger.Error("backup download failed", "error", err, "remote", r.RemoteAddr)
-	if errors.Is(err, packagemanager.ErrPackageUnavailable) {
-		writeAPIError(w, http.StatusServiceUnavailable, "PACKAGE_UNAVAILABLE", "A recovery package could not be downloaded. Check GitHub access or upload its exact ZIP in Add-ons, then retry the backup.")
-		return
-	}
 	writeAPIError(w, http.StatusServiceUnavailable, "BACKUP_UNAVAILABLE", "backup could not be created")
 }
 

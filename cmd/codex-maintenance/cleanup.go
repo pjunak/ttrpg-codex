@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 
 	"database/sql"
-	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
-	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
 	"github.com/pjunak/ttrpg-codex/internal/maintenance/cleanup"
 	"github.com/pjunak/ttrpg-codex/internal/maintenance/processlock"
@@ -118,19 +116,12 @@ func runCleanup(ctx context.Context, kind string, arguments []string, stdout, st
 }
 
 func backupBeforeCleanup(ctx context.Context, db *sql.DB, directory, output string) error {
-	inspector, err := packageinspect.New(packageinspect.DefaultLimits)
-	if err != nil {
-		return err
-	}
-	if _, err = backuparchive.Create(ctx, backuparchive.CreateConfig{
+	if _, err := backuparchive.Create(ctx, backuparchive.CreateConfig{
 		Database: db, DataDirectory: directory, OutputPath: output, HostVersion: version.Host,
-		MaterializePackages: func(ctx context.Context, databasePath, stageRoot string) error {
-			return packagemanager.MaterializePackageBackup(ctx, databasePath, filepath.Join(directory, "addons"), stageRoot, inspector)
-		},
 	}); err != nil {
 		return err
 	}
-	if _, err = backuparchive.Verify(ctx, backuparchive.VerifyConfig{ArchivePath: output, Migrations: migrations.FS}); err != nil {
+	if _, err := backuparchive.Verify(ctx, backuparchive.VerifyConfig{ArchivePath: output, Migrations: migrations.FS}); err != nil {
 		return fmt.Errorf("backup verification failed; cleanup was not applied: %w", err)
 	}
 	return nil

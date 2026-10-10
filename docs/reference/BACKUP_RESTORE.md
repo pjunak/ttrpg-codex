@@ -57,23 +57,14 @@ of package files and do not prevent cleanup of an inactive live generation.
 Add-on recovery contexts retain exact package identities. Default
 [latest-only retention](PACKAGE_LIFECYCLE.md#automatic-package-file-retention)
 retires only obsolete add-on contexts, preserving their campaign snapshots.
-A database from an older host may still mark a needed build as evicted until
-that cleanup runs. Before publishing a full backup, online and offline creators
-copy such a build from the live package root into temporary staging when its
-files are still there, and verify its exact add-on ID and archive SHA-256. The
-snapshot records those files as local; the running installation is unchanged.
-Temporary staging is bounded to 512 packages, 100,000 files and 4 GiB, with a
-five-minute deadline; the ordinary full-archive limits still apply to the
-combined campaign and package files.
 
 A needed package whose files are missing or changed fails the backup before an
 output archive is published; upload the matching ZIP first. Verification and restore also require every active and
 recovery-referenced package ZIP and its extracted files to be complete and
 correct. A restored full backup can therefore start offline. Default latest-only
 retention also runs after healthy startup of a restored directory; to retain
-the archive's historical add-on contexts, set `CODEX_ADDON_AUTO_CLEANUP=false`
-before starting it, or choose the recoverable-package policy above. The input
-backup ZIP itself is never modified.
+the archive's older add-on contexts, set `CODEX_ADDON_AUTO_CLEANUP=false`
+before starting it. The input backup ZIP itself is never modified.
 An archive may include an approved pending cleanup receipt and remaining files;
 the restored host resumes that approved cleanup at startup.
 
@@ -177,8 +168,7 @@ The host wires `recoverystore.BeforeWrite` into core/add-on transactions and
 blob creation/deletion. It captures once before the first mutation, at most
 once per minute, in the same transaction. A failed edit rolls back its point.
 Per-row triggers advance the review revision without taking intermediate
-snapshots. Offline conversion does not capture partly converted states;
-package lifecycle transitions use the full backup/rollback boundary.
+snapshots. Package lifecycle transitions use the full backup/rollback boundary.
 
 Restore acquires the SQLite write transaction with the exact reviewed revision,
 checks the point's format and selected scope, and captures a `pre-restore`

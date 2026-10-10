@@ -2,17 +2,17 @@
 
 Campaign records are stored in SQLite as opaque JSON with storage-owned
 metadata around them. The host validates the fields it uses but never drops
-fields it does not know, so add-on data and older fields survive edits.
+fields it does not know, so add-on data and unknown fields survive edits.
 
 ## Record shape
 
 | Campaign behaviour | Storage representation |
 |---|---|
 | List collections keep meaningful insertion order | Every record has a stable `position`; updates retain it and new records append after the highest surviving position. |
-| Keyed collections store values under an outer key | The outer key is stored separately from the JSON value, so settings arrays, campaign `main`, faction records, and boolean tombstones round-trip. |
+| Keyed collections store values under an outer key | The outer key is stored separately from the JSON value, so settings arrays, campaign `main` and faction records round-trip. |
 | Relationships use `(source, target, type)` rather than `id` | The tuple is encoded into a collision-free internal key while the original relationship object remains unchanged. |
 | Existing IDs never change on rename | Record keys are accepted as bounded UTF-8 and are never regenerated or slug-normalized. |
-| Missing collection files mean “use defaults”; an empty file means “intentionally empty” | `campaign_collections.materialized` distinguishes absent from materialized-empty collections. |
+| A collection that was never saved uses defaults; a saved empty collection stays empty | `campaign_collections.materialized` distinguishes absent from materialized-empty collections. |
 | Record-owned fields, including `addonData`, survive | `body_json` retains the complete validated JSON record; the storage layer does not whitelist current UI fields. |
 
 ## SQLite ownership

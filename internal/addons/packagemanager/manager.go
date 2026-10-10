@@ -264,9 +264,6 @@ func (manager *Manager) stageArchiveLocked(ctx context.Context, archive io.Reade
 	if err := manager.store.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM addon_package_cleanups c, json_each(c.review_json, '$.generations') g WHERE c.status='pending' AND g.value ->> 'remove' = 1 AND g.value ->> 'addonId' = ? AND g.value ->> 'generationId' = ?)`, report.Manifest.ID, generationID).Scan(&pending); err != nil {
 		return Generation{}, err
 	}
-	if err := manager.store.db.QueryRowContext(ctx, `SELECT ? OR EXISTS(SELECT 1 FROM addon_package_files WHERE addon_id=? AND generation_id=? AND status='pending')`, pending, report.Manifest.ID, generationID).Scan(&pending); err != nil {
-		return Generation{}, err
-	}
 	if pending {
 		return Generation{}, ErrCleanupPending
 	}

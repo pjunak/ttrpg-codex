@@ -2,7 +2,6 @@ package packagemanager
 
 import (
 	"context"
-	"errors"
 )
 
 // PackageStorage reports the automatic package cleanup policy and any cleanup
@@ -12,8 +11,6 @@ type PackageStorage struct {
 	Automatic       bool   `json:"automatic"`
 	Pending         int    `json:"pending"`
 }
-
-var ErrPackageUnavailable = errors.New("exact historical package is unavailable; supply its matching ZIP")
 
 // ConfigurePackageRetention is called after healthy startup recovery and before
 // serving requests. With automatic cleanup, only the selected build of each

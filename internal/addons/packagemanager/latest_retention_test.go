@@ -45,8 +45,6 @@ func TestLatestRetentionCleansExistingAndFutureBuildsPreservingCampaignRecovery(
 	}
 	id := points.Points[0].ID
 	selected := installUninstallFixture(t, m, packageSpec{ID: "example", Version: "2.0.0"})
-	// An installation which already ran the retired eviction policy must migrate.
-	retentionExec(t, db, `UPDATE addon_package_retention SET initial_cleanup_complete=1`)
 	if err := m.ConfigurePackageRetention(ctx, true); err != nil {
 		t.Fatal(err)
 	}
@@ -245,22 +243,17 @@ func TestAutomaticCleanupWaitsForPackageSnapshot(t *testing.T) {
 	}
 }
 
-func TestBackupCopiesOrRejectsBuildsLeftNonLocalByTheRetiredPolicy(t *testing.T) {
+func TestBackupRequiresTheSelectedPackageFiles(t *testing.T) {
 	ctx := context.Background()
 	db := testDatabase(t)
 	root := t.TempDir()
 	directory := filepath.Join(root, "addons")
 	m, _ := testManager(t, db, directory, &fakeRuntimeFactory{})
 	installed := installUninstallFixture(t, m, packageSpec{ID: "example", Version: "1.0.0"})
-	// A crash during the retired eviction left the row pending with files intact.
-	retentionExec(t, db, `INSERT INTO addon_package_files(addon_id,generation_id,status,updated_at) VALUES('example',?,'pending','then')`, installed.GenerationID)
-	materialize := func(ctx context.Context, databasePath, stage string) error {
-		return MaterializePackageBackup(ctx, databasePath, directory, stage, m.inspector)
-	}
 	out := filepath.Join(t.TempDir(), "backup.zip")
-	creator := &backuparchive.Creator{Database: db, DataDirectory: root, HostVersion: "test", PackageSnapshot: m.WithPackageSnapshot, MaterializePackages: materialize}
+	creator := &backuparchive.Creator{Database: db, DataDirectory: root, HostVersion: "test", PackageSnapshot: m.WithPackageSnapshot}
 	if _, err := creator.Create(ctx, out); err != nil {
-		t.Fatal("backup could not copy a build still on disk", err)
+		t.Fatal(err)
 	}
 	if _, err := backuparchive.Verify(ctx, backuparchive.VerifyConfig{ArchivePath: out, Migrations: migrations.FS}); err != nil {
 		t.Fatal(err)
@@ -270,7 +263,7 @@ func TestBackupCopiesOrRejectsBuildsLeftNonLocalByTheRetiredPolicy(t *testing.T)
 		t.Fatal(err)
 	}
 	missing := filepath.Join(t.TempDir(), "missing.zip")
-	if _, err := creator.Create(ctx, missing); !errors.Is(err, ErrPackageUnavailable) {
+	if _, err := creator.Create(ctx, missing); !errors.Is(err, backuparchive.ErrInvalidArchive) {
 		t.Fatal("published a backup without required package files", err)
 	}
 	if _, err := os.Stat(missing); !errors.Is(err, os.ErrNotExist) {

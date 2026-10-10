@@ -106,7 +106,7 @@ func (manager *Manager) cleanupReviewLocked(ctx context.Context, tx *sql.Tx, sco
   g.generation_id=COALESCE((SELECT e.generation_id FROM addon_lifecycle_events e WHERE e.addon_id=g.addon_id AND e.kind='disabled' ORDER BY e.sequence DESC LIMIT 1),
     (SELECT newest.generation_id FROM addon_package_generations newest WHERE newest.addon_id=g.addon_id ORDER BY newest.installed_at DESC,newest.generation_id LIMIT 1))
   FROM addon_package_generations g JOIN addon_package_states s USING(addon_id)
-  WHERE (? OR NOT EXISTS(SELECT 1 FROM addon_package_files f WHERE f.addon_id=g.addon_id AND f.generation_id=g.generation_id AND f.status<>'local')) AND (? = '' OR g.addon_id = ?) AND (? = '' OR g.generation_id = ?) ORDER BY g.addon_id, g.installed_at DESC, g.generation_id`, scope.DiscardAddonRecovery, scope.AddonID, scope.AddonID, scope.GenerationID, scope.GenerationID)
+  WHERE (? = '' OR g.addon_id = ?) AND (? = '' OR g.generation_id = ?) ORDER BY g.addon_id, g.installed_at DESC, g.generation_id`, scope.AddonID, scope.AddonID, scope.GenerationID, scope.GenerationID)
 	if err != nil {
 		return CleanupReview{}, err
 	}
