@@ -69,11 +69,12 @@ describe("investigation reading", () => {
         null,
         8,
         " ",
-        { question: "Old question?", answer: " yes " },
+        { question: "Unknown shape?", answer: "ignored" },
+        { text: "Open question?", answer: " yes " },
         "Plain question",
       ]),
     ).toEqual([
-      { text: "Old question?", answer: "yes" },
+      { text: "Open question?", answer: "yes" },
       { text: "Plain question", answer: "" },
     ]);
   });

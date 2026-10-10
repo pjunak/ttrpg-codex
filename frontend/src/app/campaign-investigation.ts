@@ -20,12 +20,7 @@ export interface InvestigationStatus {
 export function investigationQuestions(value: unknown): readonly InvestigationQuestion[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
-    const question =
-      typeof item === "string"
-        ? item
-        : isRecord(item)
-          ? (item["text"] ?? item["question"])
-          : undefined;
+    const question = typeof item === "string" ? item : isRecord(item) ? item["text"] : undefined;
     const answer =
       isRecord(item) && typeof item["answer"] === "string" ? item["answer"].trim() : "";
     return typeof question === "string" && question.trim()

@@ -506,7 +506,7 @@ describe("campaign record editing", () => {
             rankChain: "guard",
             rank: "Captain",
             locationRoles: [{ locationId: "gate", role: "Warden", addonNote: "keep" }],
-            unknown: [{ text: "Who opened the vault?", answer: "", legacyMark: true }],
+            unknown: [{ text: "Who opened the vault?", answer: "", unknownMark: true }],
           },
         },
       ],

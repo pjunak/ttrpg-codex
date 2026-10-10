@@ -335,7 +335,7 @@ function firstExcerpt(value: Readonly<Record<string, unknown>>, fields: readonly
     for (const candidate of value[field]) {
       if (typeof candidate === "string" && candidate.trim() !== "") return candidate.trim();
       if (isRecord(candidate)) {
-        const nested = text(candidate["text"] ?? candidate["question"] ?? candidate["answer"]);
+        const nested = text(candidate["text"] ?? candidate["answer"]);
         if (nested !== "") return nested;
       }
     }

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestNormalizeRecordPreservesLegacyIdentityAndVisibility(t *testing.T) {
+func TestNormalizeRecordPreservesStoredIdentityAndVisibility(t *testing.T) {
 	t.Parallel()
 
 	character := json.RawMessage(`{

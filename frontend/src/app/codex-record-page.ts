@@ -1239,7 +1239,7 @@ function articleFieldMarkdown(value: unknown): string {
     }
     if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return [];
     const item = candidate as Readonly<Record<string, unknown>>;
-    const question = text(item["text"] ?? item["question"]);
+    const question = text(item["text"]);
     const answer = text(item["answer"]);
     if (question === "") return [];
     return [

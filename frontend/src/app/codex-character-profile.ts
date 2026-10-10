@@ -337,7 +337,7 @@ export class CodexCharacterProfile extends LitElement {
       return Array.isArray(value[key])
         ? value[key].map((item) =>
             isRecord(item)
-              ? { text: text(item["text"]) || text(item["question"]), answer: text(item["answer"]) }
+              ? { text: text(item["text"]), answer: text(item["answer"]) }
               : { text: text(item), answer: "" },
           )
         : [];
