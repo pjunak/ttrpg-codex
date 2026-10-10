@@ -324,10 +324,9 @@ route's dirty state; it never exempts a pending write or another mounted view.
 
 ### Pending record edits during generation replacement
 
-Integrated `article-section` elements mounted for a campaign record may
-feature-detect `edits.handoff`. Its
-[public types](../../contracts/addons/v3/contribution-edits.d.ts) are additive;
-other outlets, isolated frames and older hosts may omit this handle.
+Integrated `article-section` elements mounted for a campaign record receive
+`edits.handoff` ([public types](../../contracts/addons/v3/contribution-edits.d.ts));
+other outlets and isolated frames do not.
 
 ```ts
 const recovered = edits.handoff?.take(); // detached, once per mounted instance
@@ -415,7 +414,7 @@ contribution fields plus a frozen `codexContribution.host` value:
 ```ts
 interface RecordContributionHostContext {
   readonly kind: "campaign-record";
-  readonly locale?: "en" | "cs"; // Current browser language; absent hosts default to English.
+  readonly locale: "en" | "cs"; // Current browser language.
   readonly collection: string;
   readonly key: string;
   readonly revision: number;
@@ -426,7 +425,7 @@ interface RecordContributionHostContext {
 
 The host refreshes this property when the authoritative record revision or
 browser language changes. A language update keeps the mounted element and its
-drafts; older hosts may omit `locale`, in which case consumers use English.
+drafts.
 Add-ons must persist their own state through a declared
 `recordExtension`; the projected core value is read-only and never contains
 another add-on's extension data.

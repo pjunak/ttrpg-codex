@@ -6,7 +6,7 @@ export interface BrowserContributionEditState {
 }
 export interface BrowserContributionEditHandle {
   set(state: BrowserContributionEditState): void;
-  /** Optional for integrated record article sections; feature-detect on older hosts. */
+  /** Present only for integrated record article sections. */
   readonly handoff?: BrowserContributionHandoff;
 }
 /** Page-memory transfer to the same contribution/record after reload or update. */
