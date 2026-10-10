@@ -22,9 +22,9 @@ not obvious. Move an entry between sections instead of duplicating it.
 - **Nightly smoke test** `ttrpg-codex` — The **Installed add-on smoke test**
   workflow runs at 02:41 UTC. Confirm it passes and that the
   `ADDON_SUITE_TOKEN` secret still reads the compendium repository.
-- **Native-data rollout on Asurai** `ttrpg-codex` — Confirm Compendium 3.2.0,
-  Engine 4.1.0 and Sheets 4.1.0 are active (Settings → Add-ons; the host refuses
-  the old Compendium build), then download fresh backups of both sites into
+- **Native-data rollout on Asurai** `ttrpg-codex` — Confirm the latest
+  Compendium 3.3.0, Engine 4.2.0 and Sheets 4.2.0 builds are active
+  (Settings → Add-ons), then download fresh backups of both sites into
   `L:\Backups\ttrpg\`. If DM Tools reports dangling consequence targets, fix
   those planner entries by hand (it only reports them).
 - **Asurai characters** `addon-dnd-character-sheets` — The players are
@@ -53,10 +53,6 @@ not obvious. Move an entry between sections instead of duplicating it.
   weight with container capacity (a container backed by an item, Bag of Holding
   contents counting as nothing). The Backpack window still uses the older item
   rows rather than the mockup's list-and-editor layout.
-- **Shared controls inside installed add-ons** `ttrpg-codex` and the three UI
-  add-ons — The compact control size, the `ui-controls` cascade layer and the
-  `data-ui="chips"` picker have not been tried in real installed add-ons. Run
-  the installed smoke test with release ZIPs and review the add-on screens.
 
 ## Undecided
 
@@ -120,5 +116,5 @@ These failed once and have not recurred:
 - The Timeline page and a phone Settings load timing out at start-up (September).
 - The planner canvas timing out before its first action (September).
 - The rules service briefly reporting rules unavailable (September).
-- The shared-controls browser fixture timing out at start-up in a full
-  `npm run check` (October).
+- The shared-controls and editors browser fixtures timing out at start-up in a
+  full `npm run check` (October).
