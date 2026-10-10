@@ -24,7 +24,7 @@ export function routeRecordReferences(
       (collection) => collection.name === page.collection,
     )?.records ?? []) {
       const value = record.value;
-      const name = isRecord(value) ? (value["name"] ?? value["title"]) : undefined;
+      const name = isRecord(value) ? value["name"] : undefined;
       const reference = {
         collection: page.collection,
         id: record.key,

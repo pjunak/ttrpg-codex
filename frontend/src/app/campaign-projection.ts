@@ -164,7 +164,7 @@ function projectEntityWithContext(
   return Object.freeze({
     partyIdentity,
     key: record.key,
-    name: nonEmptyText(value["name"]) ?? nonEmptyText(value["title"]) ?? record.key,
+    name: nonEmptyText(value["name"]) ?? record.key,
     title: firstText(value, secondaryFields[page.collection] ?? []),
     excerpt: firstExcerpt(
       value,

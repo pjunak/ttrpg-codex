@@ -458,7 +458,7 @@ export function editorOptionsFor(
     if ((field.excludeCurrent === true && record.key === currentKey) || seen.has(record.key))
       continue;
     const value = isRecord(record.value) ? record.value : {};
-    const label = line(value["name"]) || line(value["title"]) || record.key;
+    const label = line(value["name"]) || record.key;
     seen.add(record.key);
     options.push(Object.freeze({ value: record.key, label }));
   }

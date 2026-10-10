@@ -136,7 +136,7 @@ export function resolveCampaignWikiLink(
     const matches = campaignCollection(context.dataset, page.collection).records.filter(
       (record) => {
         if (!isRecord(record.value)) return false;
-        return normalizeIdentity(record.value["name"] ?? record.value["title"]) === normalizedLabel;
+        return normalizeIdentity(record.value["name"]) === normalizedLabel;
       },
     );
     if (matches.length === 0) continue;
