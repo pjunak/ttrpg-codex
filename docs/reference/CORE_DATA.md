@@ -78,7 +78,7 @@ record becomes private on desktop and phone. See the
 
 ## Deliberate boundaries
 
-The application layer now publishes `GET /api/campaign` as
+The application layer publishes `GET /api/campaign` as
 `campaign-data.v1`. Anonymous and player requests receive a closed public
 projection: DM records are removed, `linkedTwinId` is stripped, references to
 hidden identities are removed, and relationship/map settings are filtered so
@@ -202,7 +202,7 @@ so no reference is left dangling. A relationship's type is part of its record
 key, so relationship types cannot be replaced: clearing one deletes the
 relationships that use it.
 
-The TypeScript client now has one canonical route/descriptor registry for the
+The TypeScript client has one canonical route/descriptor registry for the
 nine user-facing record collections. Its list, search, detail, create, edit,
 and delete surfaces share optimistic-revision preparation. Editors use the
 canonical stored shapes for scalar and multi-record references, attitudes,
@@ -257,7 +257,7 @@ policies. The host also re-applies authorization, visibility, identity, twin,
 reference, and revision policy; browser validation is only an earlier usability
 boundary.
 
-The TypeScript archive editors now cover the nested campaign shapes that are
+The TypeScript archive editors cover the nested campaign shapes that are
 not useful as generic text fields: question/answer ledgers, faction rank chains,
 character rank assignments and location roles, and character relationships.
 Relationship source, target, and type changes are prepared as one compound
@@ -311,7 +311,7 @@ transaction. The browser caches only the last accepted theme ID to avoid a
 flash of the default chrome during startup; the campaign record remains
 authoritative and replaces that cache as soon as it loads.
 
-World/local map viewing and editing now use the same transaction and media
+World/local map viewing and editing use the same transaction and media
 boundaries. Coordinates, map scope, saved views, draft revisions, and image
 replacement are described in [`MAPS.md`](MAPS.md).
 
@@ -336,7 +336,7 @@ this does not add a collection-membership lock. Moves above the existing
 500-mutation limit are rejected without splitting the save. Failed or stale
 saves keep the draft, and cancellation/navigation use the unsaved-edit guard.
 
-The timeline retains the original column/card styling, stacking, horizontal
+The timeline has column/card styling, stacking, horizontal
 scroll slider, and responsive shell. Editing expands stacks to expose the
 keyboard and phone move controls. Session-scoped creation and card editing use
 the common event form; deleting an event returns to the board. Navigation and
@@ -345,11 +345,11 @@ timeline messages use the English/Czech catalogs. Preparation tests live in
 `frontend/test/browser/timeline.browser.mts` cover desktop/phone layout, native
 drag, keyboard moves, reload, empty and DM-twin views, creation/edit/deletion,
 anonymous access, live conflicts, failed saves, and navigation guards.
-The four additive timeline slots now mount integrated and isolated elements
+The four additive timeline slots mount integrated and isolated elements
 with bounded, permission-filtered event identities. `installed-timeline.browser.mts`
-uses real reviewed ZIPs and a disposable Go host to verify the original board,
+uses real reviewed ZIPs and a disposable Go host to verify the board,
 widget state across refreshes, role/read grants, replacement and disable, and
-protection of core order drafts. Real-campaign visual acceptance remains open.
+protection of core order drafts.
 
 Mind Palace has faction, relationship, and mystery modes at `#/graph/factions`,
 `#/graph/relationships`, and `#/graph/mysteries`. `projectRelationshipGraph` reads characters, relationship records,
@@ -406,7 +406,7 @@ other tab's saved arrangement, preventing delayed overwrites. The owning
 component cleans up animation frames, media-query listeners, and page/window
 listeners on disconnection.
 
-The views retain the original 168px cloud cards, 210px rounded faction hubs,
+The views use 168px cloud cards, 210px rounded faction hubs,
 faction territory glows, purple mystery and green location variants, typography
 and edge palette, parallel edge routing, full wrapped/rotated labels, fixed zoom
 ladder with a 100% step, zoom-dependent detail, chip filters,
@@ -450,8 +450,8 @@ ownership labels. The linked member list uses only the current role projection.
 `frontend/test/browser/party-settings.browser.mts` cover preparation and these
 production UI paths, including desktop/phone layout and English/Czech copy.
 
-`settings/branding` now provides the shared sidebar wordmark, tab title, and
-logo/favicon. The Appearance panel retains the original branding section and
+`settings/branding` provides the shared sidebar wordmark, tab title, and
+logo/favicon. The Appearance panel has a branding section with an
 84px preview. A selected logo remains in the draft until Save; the normal
 `branding-logo/main` media upload precedes the optimistic settings transaction.
 An upload or settings failure keeps both text and the file for retry. Resetting

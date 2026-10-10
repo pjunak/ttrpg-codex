@@ -6,71 +6,40 @@
 
 **Decider:** Project maintainer
 
-**Note:** Format-based routing is current. The Go host uses serializable import-adapter v2 service methods instead of the original 1.1 `open(File)` object contract below. See [current planning imports](../../../addon-dm-tools/docs/IMPORTING.md).
-
 ## Context
 
-The first Import Center composed every compatible adapter as a complete
-vertical workflow. Each adapter therefore rendered its own file input. The
-planning and campaign-bundle adapters both accept JSON, so choosing a planning
-document in the campaign-bundle section sent it to the wrong server provider.
-The resulting schema diagnostics were accurate for that provider but
-misleading for the user. The page also had more than one visual entry point
-for the same action.
+Several import providers accept JSON, and file extensions or MIME types cannot
+tell their documents apart. If each provider had its own file input, the
+section the user happened to pick would decide the validator, and a document
+sent to the wrong provider would produce accurate but misleading diagnostics.
 
-DM Tools must discover import owners without hardcoding addon ids or copying
-their schemas. Content owners must retain authority over strict parsing,
-preview, review, actions, and commit.
+DM Tools composes the Import Center but must discover providers without
+hard-coding add-on IDs or copying their schemas. Each provider keeps authority
+over parsing, preview, review and commit.
 
 ## Decision
 
-`codex.import-adapter` version 1.1 uses a shared JSON envelope discriminator.
-Every adapter descriptor declares one or more exact top-level `format` strings,
-and every adapter implements `open(file)`. DM Tools renders one file chooser,
-parses only enough JSON to read the root `format`, and passes the original
-browser `File` to the single matching adapter.
+Every JSON import document carries a root `format` string. Providers of
+`codex.import-adapter` v2 list the exact formats they accept in `describe`.
+DM Tools renders one file chooser, reads only the root `format`, and sends the
+document to the single provider claiming it through `preview` and `commit`.
 
-The center rejects malformed JSON, a missing discriminator, an unknown format,
-or multiple claims for one format before any provider job starts. After a
-successful match, only the owning workflow is rendered. The route shows the
-document-to-owner decision and provides one way back to the shared chooser.
-Its breadcrumb uses the same `DM tools › current page` host helper as Story
-Planner.
-
-The center does not inspect `schemaVersion` or any format-specific field. The
-owner still submits the untouched file through its scoped import client, and
-the server remains the authoritative parser and validator. Duplicate-key,
-UTF-8, size, depth, schema, revision, and plan validation therefore remain in
-the existing provider boundary.
-
-## Options considered
-
-### Keep one file input per adapter
-
-Rejected because file extensions and MIME types cannot distinguish two JSON
-contracts. The visible section would continue to determine the validator and
-make wrong-owner diagnostics possible.
-
-### Teach DM Tools every supported schema
-
-Rejected because the composing addon would need known addon ids and would
-duplicate content-owner validation. New formats would require central changes.
-
-### Route by a shared discriminator, then delegate
-
-Accepted because routing needs only stable identity metadata. Discovery stays
-open-ended, while validation and mutation authority remain with the owner.
+The center rejects malformed JSON, a missing or unknown `format`, or a format
+claimed by more than one provider before any provider work starts. It does not
+inspect `schemaVersion` or other format-specific fields; the provider remains
+the authoritative parser and validator.
 
 ## Consequences
 
-- The Import Center has exactly one file browser regardless of adapter count.
-- JSON documents cannot reach a provider that does not claim their `format`.
-- New adapters must publish service version 1.1, declare `formats`, and
-  implement `open(file)`.
-- Format strings are public, stable document identities. Two enabled adapters
-  claiming the same string block that import instead of resolving by load
-  order.
-- Version 1.0 adapters are intentionally incompatible with the unified center;
-  they must adopt the routing contract before appearing.
-- Non-JSON import documents require a future contract version with an explicit
-  routing mechanism.
+- The Import Center has exactly one file chooser regardless of provider count.
+- A document cannot reach a provider that does not claim its `format`.
+- Format strings are public, stable document identities. Two enabled providers
+  claiming the same string block that import instead of resolving by load order.
+- Non-JSON import documents need a future contract version with its own routing.
+
+## Alternatives considered
+
+- **One file input per provider:** rejected; the visible section would choose
+  the validator.
+- **Teach DM Tools every schema:** rejected; it would need known add-on IDs and
+  duplicate the providers' validation.

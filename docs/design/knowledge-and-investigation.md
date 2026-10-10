@@ -24,7 +24,7 @@ questions a decision has to answer. Add observations as they come up.
   uses record visibility and DM/player twins
   ([core data](../reference/CORE_DATA.md#character-knowledge-and-dm-inspection)).
 - **Locations** also store `knowledge` 0–4 (editable, filterable), but nothing
-  in the host reads it. v1 showed it as badges such as "Fully mapped".
+  in the host reads it.
 - There is one level per record for the whole campaign, not per player or party.
 
 ### Facts, questions and clues
@@ -36,8 +36,7 @@ questions a decision has to answer. Add observations as they come up.
   override; otherwise solved when every question has an answer), `clues` (a
   string list), and linked `characters` and `locations`.
 - **Clues** mean two things at once. The editor treats them as free-text lines,
-  but many records carried over from v1 hold event keys such as
-  `kela_priznani`. The mystery page currently shows a clue that matches an event
+  many stored clues are event keys such as `kela_priznani`. The mystery page currently shows a clue that matches an event
   key as a link to that event; anything else is shown as text.
 - The **unanswered-questions list** on the Mysteries page merges character
   questions and mystery questions, with answer history underneath.
@@ -54,8 +53,8 @@ its first question only
 - Levels 2, 3 and 4 look identical to readers, so the scale has more steps than
   meaning.
 - Location knowledge is stored and edited but has no effect.
-- Clues mix prose and record references in one list, and v1 keys only become
-  links by coincidence of matching an event key.
+- Clues mix prose and record references in one list, and event keys only
+  become links by coincidence of matching an event key.
 - Characters and mysteries each have their own way to hold facts and open
   threads, so the same investigation can live in two shapes.
 - A single campaign-wide level cannot express "the party knows, one player
@@ -73,7 +72,7 @@ its first question only
 5. Should character facts and questions stay on characters, move to mysteries,
    or become their own linked records?
 6. How should Mind Palace and the questions list present an investigation?
-7. How do existing records migrate without losing anything (v1 clue keys,
+7. How do existing records migrate without losing anything (event-key clues,
    answered questions, unknown fields), and what does the reviewed migration
    look like?
 

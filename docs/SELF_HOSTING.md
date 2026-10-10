@@ -377,37 +377,17 @@ window receive a reset and reload authoritative state.
 3. Stop, replace, and start the service.
 4. Check `/api/health`, login, campaign counts, representative DM/player
    records, media, live updates, and every active add-on.
-5. If validation fails, stop v2 and restore the verified pre-upgrade archive or
-   previous data directory before returning traffic.
+5. If validation fails, stop the new version and restore the verified
+   pre-upgrade archive or previous data directory before returning traffic.
 
 Database migrations are forward-only. Container rollback alone is not a data
 rollback.
 
-### Migration checksum drift
-
 Every host and maintenance binary embeds the SQL migration files and compares
-their exact SHA-256 checksums with the database history. Git now pins these files
-to LF on every platform. Before that rule, Windows Git checkouts with
-`core.autocrlf=true` could produce binaries with CRLF checksums even though the
-SQL in Git and Linux builds used LF. This fix does not rewrite existing history.
-
-If a pre-fix database reports `migration checksum drift`:
-
-- For disposable development data, identify the data directory and start the
-  canonical build with a new empty directory. Keep the old directory until its
-  contents have been confirmed disposable; do not reset a campaign to test this.
-- For retained data, stop writers and preserve the original data and its matching
-  binary/image. Create and verify an independent backup with that matching build.
-  Compare the reported migration version against that build's source before
-  concluding the difference is only line endings; real SQL drift also fails.
-- Use a verified backup created with canonical migrations if one is available.
-  Otherwise retain the matching build pending a separately reviewed offline
-  conversion. There is no automatic history normalization or general conversion
-  for this case. Ordinary backup/restore preserves the stored checksums and does
-  not itself fix this mismatch.
-
-Never update `schema_migrations` hashes manually or bypass validation. A
-canonical build rejects the mismatch before applying any pending migration.
+their exact SHA-256 checksums with the database history before applying any
+pending migration. A `migration checksum drift` error means the binary and the
+data directory do not belong together; never update `schema_migrations` hashes
+by hand or bypass the check.
 
 ## After an update
 
@@ -422,8 +402,8 @@ First sign in as DM and open **Settings → Add-ons**. Package installation and
 GitHub credentials are administrative controls. If the current host UI and API
 are not installed, refreshing the page or updating an add-on cannot add them.
 
-The main-branch workflow now links publication and deployment, but each stage
-still has its own result:
+The main-branch workflow links publication and deployment, but each stage has
+its own result:
 
 - A skipped **Build image** job publishes nothing. If that job failed, inspect
   the publication and metadata steps before treating its image as a release.
@@ -457,8 +437,7 @@ finish. A failed deployment makes the application run fail; accepting the
 request alone is insufficient. Each deployment summary records the source
 commit, image digest and infrastructure run link.
 
-The infrastructure repository is `pjunak/infra`; `pjunak/junak.eu` now owns the
-separate public/owner portal application. Host tooling calls infra's main-only
+The infrastructure repository is `pjunak/infra`. Host tooling calls infra's main-only
 `workflow_dispatch` with `service`, full source `sha`, immutable `image_ref` and
 unique `request_id`. It verifies the returned run ID and waits for that run.
 Infra's `registry/deployments.json` approves both campaign targets for the

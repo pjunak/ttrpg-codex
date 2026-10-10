@@ -161,7 +161,7 @@ and invalidated counts.
 
 ## Lifecycle and transport integration
 
-The package manager now owns catalog publication and exact runtime activation
+The package manager owns catalog publication and exact runtime activation
 for initial activation, updates, rollback, reviewed cold-graph rebinding, and
 restart recovery. Its ordering and failure contract is in
 [`PACKAGE_LIFECYCLE.md`](PACKAGE_LIFECYCLE.md).

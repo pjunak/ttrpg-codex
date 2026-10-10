@@ -1,6 +1,6 @@
 # ADR-NNNN: Short decision title
 
-**Status:** Proposed | Accepted | Superseded by ADR-NNNN
+**Status:** Proposed | Accepted
 
 **Date:** YYYY-MM-DD
 

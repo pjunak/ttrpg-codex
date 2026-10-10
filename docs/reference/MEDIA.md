@@ -79,8 +79,8 @@ record is published, and fallback leaves the authored record unchanged.
 `POST /api/media/{kind}/{target}` sends the image bytes directly. It requires
 an exact `Content-Length`, an allowed image `Content-Type`, URL-encoded UTF-8 in
 `X-Codex-Filename`, and `X-Codex-CSRF`. Raster signatures must match their
-declared PNG, JPEG, GIF, or WebP type. SVG is supported for migrated and custom
-artwork, but declarations such as a doctype are rejected.
+declared PNG, JPEG, GIF, or WebP type. SVG artwork is accepted, but
+declarations such as a doctype are rejected.
 
 The exact `media-blob.v1` response contains the opaque ID and URL, logical kind
 and target, normalized media type, byte count, revision, and creation time. It

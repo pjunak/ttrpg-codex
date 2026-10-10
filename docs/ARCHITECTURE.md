@@ -1,6 +1,6 @@
 # Architecture
 
-TTRPG Codex v2 is one Go process serving a compiled TypeScript application and
+TTRPG Codex is one Go process serving a compiled TypeScript application and
 a versioned add-on platform. Accepted design decisions live under
 [`decisions/`](decisions/); detailed subsystem contracts live under
 [`reference/`](reference/).

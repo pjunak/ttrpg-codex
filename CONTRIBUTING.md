@@ -24,8 +24,7 @@ root `package-lock.json`.
 
 Migration SQL is pinned to LF by [.gitattributes](.gitattributes) because the
 host verifies migration checksums over the exact bytes. Never change a released
-migration. For databases created by older Windows builds, see
-[migration checksum drift](docs/SELF_HOSTING.md#migration-checksum-drift).
+migration.
 
 ## Run the development host
 

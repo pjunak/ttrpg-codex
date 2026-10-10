@@ -178,7 +178,7 @@ not an operating-system security sandbox.
 
 ## Reviewed activation contract
 
-The package manager now exposes a three-step application contract:
+The package manager exposes a three-step application contract:
 
 1. `PrepareActivationReview` stores an exact manifest comparison and blockers.
 2. `ApproveActivationReview` validates and records the complete grant set.
@@ -454,7 +454,7 @@ installations. Set the variable to `false` to stop new automatic removals;
 already journaled removals still finish. This setting does not download or
 activate updates.
 
-Old packages no longer pin whole campaign snapshots. In the same SQLite
+Old packages do not pin whole campaign snapshots. In the same SQLite
 transaction as metadata retirement, cleanup removes only the affected add-on's
 documents, dataset definitions, file references and package reference from
 snapshots requiring that exact build. Core campaign data and every other
@@ -462,10 +462,7 @@ add-on's recovery context remain. Current campaign records, current add-on
 saves, retained character history, schema-upgrade evidence and full backup ZIPs
 are untouched; the campaign context of such a snapshot stays restorable.
 
-The exact cleanup inventory is journaled before any file removal. Automatic
-retention includes any generation an older host marked as evicted (migration
-0018's `pending` or `remote` residency); nothing marks files that way any more,
-and such rows disappear with their generation. Valid pending
+The exact cleanup inventory is journaled before any file removal. Valid pending
 activation reviews remain usable: pruning unrelated obsolete builds does not
 advance their selected-package revision. A disabled add-on's selected build is
 also protected. Cleanup receipts use the explicit `discardAddonRecovery` scope;
@@ -494,8 +491,8 @@ the strict client test, and desktop/phone installed-update browser scenarios.
 ## Reviewed saved package cleanup
 
 The retained operator API reviews the complete saved
-inventory, including archives of uninstalled add-ons. Settings no longer exposes
-cleanup controls; the server owns normal housekeeping. Only a real and effective
+inventory, including archives of uninstalled add-ons. Settings has no cleanup
+controls; the server owns normal housekeeping. Only a real and effective
 DM with CSRF authority can use these diagnostic/operator endpoints.
 
 A count selection retains zero to five additional inactive packages per add-on,

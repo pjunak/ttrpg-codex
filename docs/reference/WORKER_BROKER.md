@@ -131,8 +131,7 @@ successes, and stable error-kind counts. Payloads are deliberately absent.
 
 ## Request contexts and service routing
 
-The next host layer is now implemented in
-[`SERVICE_BROKER.md`](SERVICE_BROKER.md). It provides bounded host-issued
+The [service broker](SERVICE_BROKER.md) provides bounded host-issued
 request contexts, persisted provider declarations and operator selections,
 deterministic resolution, generation-safe handles, and validated worker
 service routing. The dispatcher uses that request-context contract directly;

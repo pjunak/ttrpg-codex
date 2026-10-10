@@ -21,8 +21,8 @@ Leaflet's image-coordinate behavior is documented in its
   one unit in the stored record.
 - Existing `x` and `y` are fractions of source-image width and height, with
   top-left origin. Leaflet coordinates remain `[-y * height, x * width]`.
-  Pins outside the image are retained, as in v1; fractions are units rather
-  than a clipping boundary. The form displays percentages for readability.
+  Pins outside the image are retained; fractions are units rather than a
+  clipping boundary. The form displays percentages for readability.
 - The world background resolves the newest `world-map/main` media binding.
   Local backgrounds use the owning location's opaque `localMap` URL.
 - Marker artwork follows configured `pinTypes.iconConfig`, including stable
@@ -42,7 +42,8 @@ filter, which would blend the colors together again.
 
 Band order follows the entity's attitudes. Unknown IDs and zero-strength
 attitudes do not occupy a band. Colors and strengths come from shared settings,
-including the synthetic party color; retired entry-level strength is ignored.
+including the synthetic party color; a strength stored on an entity's own
+attitude entry is ignored.
 The outer marker blur is `max(5, round(size * 0.22))`, with a tighter inner
 blur at 40%. Glyph size is 85% of marker size. Artwork retains the two 1px
 black outline layers. These layers scale and hover together with the pin.
@@ -162,11 +163,11 @@ its saved-view editor. It includes unplaced locations so their local maps can
 be uploaded. `#/settings/maps` opens the world map configuration;
 `#/settings/maps/local/<encoded key>` opens a location's configuration.
 
-Shared `settings/mapConfigs` retains the original `world` and `local-<key>`
+Shared `settings/mapConfigs` holds `world` and `local-<key>`
 entries. Each entry's `zoomScaleRatio` ranges from 0 to 1, defaulting to 0.
 Location marker scale is `2 ** (zoomScaleRatio * zoom)`: 0 keeps constant
 screen size, 1 scales with the image, and intermediate values scale gently.
-The original 1.25 hover enlargement applies on top. Event markers retain their
+A 1.25 hover enlargement applies on top. Event markers retain their
 original constant 28px size. Changes apply to the visible map on live refresh.
 
 Configuration drafts capture the settings revision, preserve all other maps

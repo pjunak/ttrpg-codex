@@ -1,7 +1,10 @@
 # ADR-0001: Host-owned campaign bundle imports
 
-**Status:** Accepted; Go implementation restored September 16, 2026.
-**Original decision:** July 28, 2026, project maintainer.
+**Status:** Accepted
+
+**Date:** 2026-07-28
+
+**Decider:** Project maintainer
 
 ## Ownership and scope
 
@@ -17,7 +20,7 @@ record views and core keys up to 1024 bytes; v2-only consumers are not offered
 this provider. Updated Import Centers consume `>=2.0.0 <4.0.0` to retain existing
 planning/third-party adapters while opting into the expanded review.
 
-The preserved input [schema](../../internal/application/campaignimport/campaign-bundle.schema.json)
+The input [schema](../../internal/application/campaignimport/campaign-bundle.schema.json)
 uses format `ttrpg-codex-campaign-bundle`, schemaVersion 1 and generatedAt.
 It permits at most 2 MiB, 128 logical core records and 256 total materialized
 writes. Core operations create characters, locations and relationships with
@@ -94,9 +97,7 @@ returns a plan without retaining a second token or publishing its own commit.
 ## Alternatives and validation
 
 Granting core writes to DM Tools or accepting arbitrary collection paths was
-rejected: either creates a second core authority. The old file-journal publisher
-has been replaced by the current SQLite transaction boundary while preserving
-the original format and review contract.
+rejected: either creates a second core authority.
 
 Backend regression tests cover closed schemas, typed references, exact IDs/views,
 session ownership, expiry, cancellation, stale data/generations, concurrent

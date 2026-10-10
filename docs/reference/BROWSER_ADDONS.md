@@ -226,7 +226,7 @@ This trades a brief full contribution refresh for one small, deterministic
 lifecycle. That is appropriate for the current personal deployment and small
 first-party add-on set. A graph change restarts all browser add-ons, including
 otherwise unchanged ones. Local actions honor published edit guards. Integrated
-record article sections may now opt into the
+record article sections may opt into the
 [transient edit handoff](../../examples/addons/API_V3.md#pending-record-edits-during-generation-replacement):
 `BrowserContributionEdits` copies bounded JSON and preserves the dirty guard
 while `BrowserContributionOutlet` replaces the instance. Handoff identity is the
@@ -302,7 +302,7 @@ activation is held by a fallback SDK disposer; successful activation transfers
 cleanup into one composite that unpublishes contributions before calling the
 module's own disposer.
 
-The registry now publishes host-only change notifications after a binding is
+The registry publishes host-only change notifications after a binding is
 added or removed. Observer failures are reported through the shell diagnostic
 boundary and cannot turn a valid add-on binding into a partial failure.
 `BrowserContributionOutlet` performs a keyed projection for one host-selected

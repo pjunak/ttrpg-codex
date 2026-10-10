@@ -196,7 +196,7 @@ destination. It clears on subsequent editing or navigation. Profile feedback
 prioritizes any pending write, failed write or unsaved text over an older success
 message. Local Markdown recovery continues to describe a device copy separately.
 Cancelling a failed field, panel or wiki edit clears its abandoned error state;
-a cancelled wiki conflict no longer prevents a fresh edit from saving.
+a cancelled wiki conflict does not block a fresh edit from saving.
 
 Core record, field, twin, enum, map, timeline and campaign-settings writes capture
 the initiating application's signal and CSRF token. Disconnect cancels their

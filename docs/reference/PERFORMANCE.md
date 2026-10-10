@@ -65,7 +65,7 @@ All values below are medians in milliseconds, with the three-sample range.
 **Local measurement limitation:** a separate local HTTP probe confirmed that
 responses sent with `Content-Encoding: gzip` reached Chromium as decoded bodies
 with `X-Content-Encoding-Over-Network: gzip`. The browser then applied its
-throttling to those decoded bodies. The harness now detects and reports this
+throttling to those decoded bodies. The harness detects and reports this
 condition. The almost unchanged phone load times cannot establish the actual
 download-time benefit of compression. No local network/security configuration
 was altered to obtain a better score.

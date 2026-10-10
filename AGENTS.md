@@ -86,8 +86,8 @@ docs/                 Operator guide, architecture, references, backlog
   first-party add-ons. Temporary plans go in the ignored `docs/plans/`.
 - [docs/design/](docs/design/): problems the owner has not decided yet. Do not
   redesign an area marked **Undecided** or change its data; ask first.
-- [docs/decisions/](docs/decisions/): accepted design decisions. Supersede an
-  entry with a new one rather than rewriting it.
+- [docs/decisions/](docs/decisions/): accepted design decisions, kept current.
+  When a decision changes, edit or delete its entry; Git keeps the history.
 - [examples/addons/AUTHORING.md](examples/addons/AUTHORING.md) and
   [API_V3.md](examples/addons/API_V3.md): the public add-on contract. Keep
   them in sync with `contracts/addons/v3/` and the SDK.

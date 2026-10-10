@@ -1,24 +1,24 @@
-# ADR-0005: Replace in-process add-ons with Add-on Platform v3
+# ADR-0005: Out-of-process Add-on Platform v3
 
-- Status: Accepted
-- Date: 2026-08-31
-- Decider: Project owner
+**Status:** Accepted
 
-**Outcome:** Implemented with native Go workers, inspection, the browser SDK,
-isolated frames, automatic package retention and guided saved-data updates.
-WASI workers were not built; the [API reference](../../examples/addons/API_V3.md)
+**Date:** 2026-08-31
+
+**Decider:** Project owner
+
+WASI workers are not built; the [API reference](../../examples/addons/API_V3.md)
 describes what is available.
 
 ## Context
 
-The retired Add-on API v2 established useful ownership principles: stable IDs, capability discovery,
-permission review, generic service contracts, optional providers, bounded
-lifecycle hooks and host-owned import transactions. Its execution model was the
-limiting factor: browser modules received a broad facade, while server modules
-executed inside the Node.js host and exchanged live objects. That boundary could
-not survive the Go rewrite and made failures hard to isolate or replay.
+Add-ons are optional, may come from other authors, and must not be able to
+take the host down or reach past their granted data. The platform keeps stable
+IDs, capability discovery, permission review, generic service contracts,
+optional providers and host-owned import transactions, while giving add-on code
+no live host objects: browser modules get a scoped SDK and backend code runs in
+a separate process, so failures stay attributable and replayable.
 
-The replacement must cover the suite's current requirements:
+The platform must cover:
 
 - routes, sidebars, settings, article actions, editor panels, slots, renderers,
   wiki kinds, and other UI contributions;
@@ -105,8 +105,8 @@ invalidate generation handles in a deterministic order.
 
 The manager exposes identity, grants, service selections, lifecycle state,
 worker health/exit, bounded request timing, redacted correlation references and
-tab-local browser failures. Full RPC payload tracing and support exports remain
-unavailable; they are not required to close this platform implementation.
+tab-local browser failures. Full RPC payload tracing and support exports are
+not available.
 
 ## Isolation profiles
 
@@ -133,9 +133,6 @@ to toolchain and dependency builds, and unavailable on Windows.
 - Host code must not branch on add-on IDs. Identity-specific collaboration is
   expressed as an explicit add-on dependency; interchangeable behavior uses a
   service contract.
-- V2 CommonJS server modules are not supported in the final production host.
-  A temporary development converter may inspect manifests or data, but it must
-  not become a second runtime.
 
 ## Options considered
 
@@ -150,10 +147,9 @@ Rejected because WASI is a valuable containment profile but does not yet cover
 all networking, threading, debugging, and native-library needs. It is preferred
 for pure computation, not mandated for every extension.
 
-### Keep server add-ons in a Node.js sidecar
+### Run server add-ons in a Node.js sidecar
 
-Rejected because it preserves two production runtimes and turns temporary v2
-compatibility into a permanent architectural dependency.
+Rejected because it adds a second production runtime.
 
 ### Expose only HTTP endpoints to add-ons
 
@@ -174,7 +170,7 @@ a contribution, but it runs through the same worker and permission contracts.
 ### Negative
 
 - RPC and schema generation add engineering overhead.
-- Ports must not restore browser access to private host DOM or live objects.
+- Add-ons never get browser access to private host DOM or live objects.
 - Native worker packaging needs per-target artifacts.
 - A good Inspector and conformance harness are required, not optional polish.
 

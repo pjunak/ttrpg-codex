@@ -6,46 +6,42 @@
 
 **Decider:** Project maintainer
 
-**Note:** The Go host implements reviewed deletes through planning adapter v2 and host SQLite transactions. The file-journal and bundle-coordinator mechanisms below describe the original Node implementation. See [planning imports](../../../addon-dm-tools/docs/IMPORTING.md).
-
 ## Context
 
-Import provider API v1 originally accepted only `put` operations. That made
-incremental imports safe, but it left no supported recovery path when a newer
-schema intentionally superseded invalid records in an addon's collections.
-Deleting files or calling the transaction API from a browser console bypassed
-the Import Center's review contract and was too easy to apply to the wrong
-campaign.
-
-The collection transaction service already supports bounded atomic deletes,
-revision conflicts, journaled publication, and crash recovery. The missing
-piece was a reviewed import-plan representation for the same operation.
+An import that can only create and update records can add to a dataset but
+cannot replace it: records that a newer document intentionally drops would
+linger, and invalid stored records would have no supported cleanup path.
+Deleting them by hand bypasses the Import Center's review and is easy to apply
+to the wrong campaign.
 
 ## Decision
 
-Provider API v1 plans may contain `put` and `delete` operations. Both target
-only collections declared in the provider's write set and share the existing
-per-record duplicate-write, operation-count, plan-size, provider-revision, and
-collection-revision checks. A delete carries only `target`, `op`, and `id`;
-supplying `value` is rejected.
+A reviewed import plan may contain both put and delete mutations. Both target
+only collections the provider declares for its own add-on and share the same
+duplicate-target, operation-count, plan-size and revision checks. A delete
+names only its collection and key; it carries no value.
 
-Commit continues to accept only the opaque preview token. The host applies the
-stored operations through the existing addon transaction manager, or through
-the campaign journal when a host-owned campaign bundle includes addon
-contributions. There is no reset endpoint and no client-authored commit plan.
+The provider retains the exact plan behind the preview token. Commit accepts
+only that token and applies the retained mutations in one host SQLite
+transaction (together with the core records when the plan is part of a
+[campaign bundle](0001-campaign-bundle-imports.md)). There is no reset endpoint
+and no client-authored commit plan.
 
-Adapters that expose destructive plans must label every delete in preview and
-require explicit confirmation. Addon-owned document formats decide when delete
-intent is valid; the host does not infer replacement from schema mismatch or
-an empty input.
+Providers that produce deletes must count and label them in the preview and
+require explicit confirmation. The document format decides when delete intent
+is valid: omission alone deletes nothing unless the format declares a complete
+replacement, as DM Tools' `replace` mode does. The host never infers deletion
+from a schema mismatch or an empty input.
 
 ## Consequences
 
-- Addons can implement bounded, reviewable replacement and cleanup workflows
-  without gaining new collection authority.
-- Puts and deletes publish atomically and are invalidated together by any stale
-  participating collection revision.
-- Existing put-only providers remain compatible without changes.
+- Add-ons can offer bounded, reviewable replacement and cleanup without
+  gaining new collection authority.
+- Puts and deletes publish atomically and any stale participating revision
+  invalidates them together.
+- The 256-operation transaction bound counts puts and deletes alike.
 - Provider authors must distinguish omitted records from explicit delete or
-  replacement intent; omission alone does not delete data.
-- The existing 256-operation transaction bound includes both puts and deletes.
+  replacement intent.
+
+See [planning imports](../../../addon-dm-tools/docs/IMPORTING.md) for the
+DM Tools behaviour.
