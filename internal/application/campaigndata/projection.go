@@ -156,6 +156,7 @@ func closeRecord(
 		case campaign.Events:
 			filterStringArray(value, "characters", ids[campaign.Characters])
 			filterStringArray(value, "locations", ids[campaign.Locations])
+			removeInvalidScalar(value, "consequence", ids[campaign.Events])
 			removeUnavailableMapPlacement(value, "mapParentId", "mapX", "mapY", ids[campaign.Locations])
 		case campaign.Mysteries, campaign.HistoricalEvents:
 			filterStringArray(value, "characters", ids[campaign.Characters])

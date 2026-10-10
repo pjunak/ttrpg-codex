@@ -435,3 +435,28 @@ func assertStringValues(t *testing.T, value any, expected ...string) {
 		}
 	}
 }
+
+func TestEventDeleteClearsConsequencesThatLeadToIt(t *testing.T) {
+	t.Parallel()
+	repository := &fakeRepository{snapshot: campaign.Snapshot{Records: []campaign.Record{
+		{Collection: campaign.Events, Key: "warning", Revision: 1, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"warning","consequence":"attack"}`)},
+		{Collection: campaign.Events, Key: "attack", Revision: 2, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"attack","consequence":"retreat"}`)},
+		{Collection: campaign.Events, Key: "retreat", Revision: 3, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"retreat"}`)},
+	}}}
+	service, _ := New(repository)
+	service.now = func() time.Time { return time.Date(2026, time.October, 11, 12, 0, 0, 0, time.UTC) }
+	if _, err := service.Mutate(context.Background(), MutationAuthority{ActorID: "dm", Role: WriteDM}, []campaign.Mutation{
+		{Kind: campaign.Delete, Collection: campaign.Events, Key: "attack", ExpectedRevision: 2},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	writes := repository.writes[0].Mutations
+	if warning := mutationObject(t, writes, campaign.Events, "warning"); warning["consequence"] != "" {
+		t.Fatalf("consequence still leads to the deleted event: %#v", warning)
+	}
+	for _, mutation := range writes {
+		if mutation.Collection == campaign.Events && mutation.Key == "retreat" {
+			t.Fatalf("unrelated event changed: %+v", mutation)
+		}
+	}
+}

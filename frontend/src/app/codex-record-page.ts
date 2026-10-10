@@ -1269,6 +1269,7 @@ const factDefinitions: Readonly<Record<string, readonly (readonly [string, strin
     ["Priority", "priority"],
     ["Characters", "characters", "characters"],
     ["Locations", "locations", "locations"],
+    ["Leads to", "consequence", "events"],
   ],
   mysteries: [
     ["Priority", "priority"],

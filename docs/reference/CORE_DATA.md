@@ -86,6 +86,10 @@ they cannot disclose hidden records. An effective DM receives the exact stored
 snapshot. The transport never accepts a requested role; authority comes only
 from the resolved session.
 
+An event's `consequence` names the event it leads to (shown as **Leads to**);
+like other references it is removed from the public projection when that event
+is hidden, and cleared when that event is deleted.
+
 Map placement is projected as a unit: hiding/removing a location's `parentId`
 or an event's `mapParentId` also hides its corresponding coordinates. Public
 clients must not reinterpret those local coordinates as world coordinates.
@@ -113,7 +117,7 @@ Before one atomic SQLite transaction, the application service:
 - prevents generic writes from creating, changing, or dropping twin links;
 - keeps location connections symmetric while preserving a player's existing
   links to peers that are not visible/editable to that player;
-- expands character, location, and faction deletion into reference cleanup,
+- expands character, location, faction and event deletion into reference cleanup,
   including twins, relationships, maps, settings, ownership, and audit marks;
 - rechecks every requested and derived expected revision in the storage
   transaction, so a race rolls the complete plan back.

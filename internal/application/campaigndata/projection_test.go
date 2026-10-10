@@ -40,7 +40,7 @@ func TestPublicDatasetClosesReferencesWithoutChangingDMSnapshot(t *testing.T) {
 	event := recordObject(t, public, campaign.Events, "arrival")
 	assertStrings(t, event["characters"], "alice")
 	assertStrings(t, event["locations"], "town")
-	assertMissing(t, event, "mapParentId")
+	assertMissing(t, event, "mapParentId", "consequence")
 
 	artifact := recordObject(t, public, campaign.Artifacts, "crown")
 	assertMissing(t, artifact, "ownerCharacterId", "locationId")
@@ -99,7 +99,8 @@ func projectionFixture() campaign.Snapshot {
 		{Collection: campaign.Factions, Key: "secret-faction", Visibility: campaign.VisibilityDM, Revision: 1, Value: raw(`{"id":"private-faction-id","visibility":"dm"}`)},
 		{Collection: campaign.Locations, Key: "town", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"town","visibility":"public","parentId":"hidden-cave","connections":["town","hidden-cave"],"characters":["alice","secret"]}`)},
 		{Collection: campaign.Locations, Key: "hidden-cave", Visibility: campaign.VisibilityDM, Revision: 1, Value: raw(`{"id":"hidden-cave","visibility":"dm"}`)},
-		{Collection: campaign.Events, Key: "arrival", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"arrival","visibility":"public","characters":["alice","secret"],"locations":["town","hidden-cave"],"mapParentId":"hidden-cave"}`)},
+		{Collection: campaign.Events, Key: "arrival", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"arrival","visibility":"public","characters":["alice","secret"],"locations":["town","hidden-cave"],"mapParentId":"hidden-cave","consequence":"ambush"}`)},
+		{Collection: campaign.Events, Key: "ambush", Visibility: campaign.VisibilityDM, Revision: 1, Value: raw(`{"id":"ambush","visibility":"dm"}`)},
 		{Collection: campaign.Artifacts, Key: "crown", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"crown","visibility":"public","ownerCharacterId":"secret","locationId":"hidden-cave"}`)},
 		{Collection: campaign.Companions, Key: "owl", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"owl","ownerType":"character","ownerId":"secret"}`)},
 		{Collection: campaign.Relationships, Key: "hidden-target", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"source":"alice","target":"secret","type":"ally","visibility":"public"}`)},

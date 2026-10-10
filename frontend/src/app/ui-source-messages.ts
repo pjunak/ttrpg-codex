@@ -193,6 +193,7 @@ export const sourceCs = {
   Attitudes: "Postoje",
   "Map notes": "Poznámky k mapě",
   Date: "Datum",
+  "Leads to": "Vede k",
   Session: "Sezení",
   Priority: "Priorita",
   "Short summary": "Krátké shrnutí",

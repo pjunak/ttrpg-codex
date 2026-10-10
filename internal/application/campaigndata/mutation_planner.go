@@ -147,6 +147,10 @@ func (planner *mutationPlanner) applyDerivedPolicies() error {
 			if err := planner.deleteFactionReferences(deleted.Key); err != nil {
 				return err
 			}
+		case campaign.Events:
+			if err := planner.deleteEventReferences(deleted.Key); err != nil {
+				return err
+			}
 		}
 	}
 	for _, target := range planner.requestedOrder {
@@ -197,7 +201,8 @@ func (planner *mutationPlanner) validatePlayerReferences() error {
 			valid = validStringReferences(value["characters"], preservedStringReferenceIDs(ids[campaign.Characters], originalValue["characters"])) &&
 				validStringReferences(value["locations"], preservedStringReferenceIDs(ids[campaign.Locations], originalValue["locations"]))
 			if record.Collection == campaign.Events {
-				valid = valid && validScalarReference(value["mapParentId"], preservedReferenceIDs(ids[campaign.Locations], originalValue["mapParentId"]))
+				valid = valid && validScalarReference(value["mapParentId"], preservedReferenceIDs(ids[campaign.Locations], originalValue["mapParentId"])) &&
+					validScalarReference(value["consequence"], preservedReferenceIDs(ids[campaign.Events], originalValue["consequence"]))
 			}
 		case campaign.Artifacts:
 			valid = validScalarReference(value["ownerCharacterId"], preservedReferenceIDs(ids[campaign.Characters], originalValue["ownerCharacterId"])) &&
@@ -269,6 +274,7 @@ func (planner *mutationPlanner) preserveUnavailablePlayerReferences(
 		preserveUnavailableStrings(incoming, current, "locations", ids[campaign.Locations])
 		if existing.Collection == campaign.Events {
 			preserveUnavailableMapPlacement(incoming, current, "mapParentId", "mapX", "mapY", ids[campaign.Locations])
+			preserveUnavailableScalar(incoming, current, "consequence", ids[campaign.Events])
 		}
 	case campaign.Artifacts:
 		preserveUnavailableScalar(incoming, current, "ownerCharacterId", ids[campaign.Characters])
@@ -552,6 +558,17 @@ func (planner *mutationPlanner) deleteFactionReferences(id string) error {
 		}
 		value["ownerType"] = "none"
 		value["ownerId"] = ""
+		return true
+	})
+}
+
+// An event's consequence names the event it leads to.
+func (planner *mutationPlanner) deleteEventReferences(id string) error {
+	return planner.updateEachObject(campaign.Events, func(value map[string]any) bool {
+		if value["consequence"] != id {
+			return false
+		}
+		value["consequence"] = ""
 		return true
 	})
 }

@@ -38,7 +38,7 @@ export interface CampaignEditorField {
   readonly required?: boolean;
   readonly placeholder?: string;
   readonly help?: string;
-  readonly referenceCollection?: "characters" | "locations" | "factions";
+  readonly referenceCollection?: "characters" | "locations" | "factions" | "events";
   readonly enumCategory?: CampaignEnumCategory;
   readonly reservedOptions?: readonly CampaignEditorOption[];
   readonly excludeCurrent?: boolean;
@@ -653,6 +653,11 @@ const editorFields: Readonly<
       kind: "references",
       referenceCollection: "locations",
       maximumItems: 500,
+    }),
+    field("consequence", "Leads to", {
+      kind: "reference",
+      referenceCollection: "events",
+      excludeCurrent: true,
     }),
     field("tags", "Tags", { kind: "tags", maximumLength: 100, maximumItems: 100 }),
     description,
