@@ -22,7 +22,7 @@ requirements. Machine-readable definitions live in
 | Browser SDK | `addon`, `signal`, `capabilities`, `permissions`, `ui`, `data`, `content` and `services`. Contributions also receive host context, navigation and edit guards. |
 | Shared controls | `ui.controls.v1` lends `ui.enhance(ownRoot)` for native fields, searchable choices, states, actions, tabs and modal focus ([shared UI](../../docs/reference/UI_FOUNDATIONS.md)). Integrated UI only. |
 | UI contributions | Routes, sidebar items, settings panels, article actions and sections, editor panels, named slots, wiki providers, graph views and graph contributors. |
-| Workers | Native Go workers with lifecycle, health, cancellation, brokered service calls, package data and retained history. |
+| Workers | Native Go workers with lifecycle, health, cancellation, brokered service calls and package data. |
 | Imports | Import adapters (`codex.import-adapter` v2) with reviewed preview and commit; the host's campaign-bundle adapter (v3) with contributor v1. |
 | Saved-data updates | On update, the DM keeps compatible values or resets the add-on's data, with an optional backup download. |
 | Diagnostics | Worker health, exit and request timing, redacted correlation references and tab-local browser failures in Settings → Add-ons. |
@@ -40,9 +40,7 @@ for available handles and methods. Use the owning references for exact limits.
 
 ## Design principles
 
-The public [retained record-history contract](../../docs/reference/RETAINED_ADDON_HISTORY.md)
-defines `retained: true`, `data.history`, recorded worker transactions and
-historical reads. The public [rule-details contract](../../docs/reference/RULE_DETAILS.md)
+The public [rule-details contract](../../docs/reference/RULE_DETAILS.md)
 defines `ui.rule-details`, the integrated component and the equivalent
 integrated/isolated `ui.showRuleDetails` operation. These extend API v3 without
 making domain-specific character rules part of the host.
@@ -1206,8 +1204,7 @@ The currently composed methods are:
 | Host -> worker | `addon/service.call` | Invoke a declared service method |
 | Worker -> host | `host/data.get` | Read an authorized package document |
 | Worker -> host | `host/data.query` | Run a bounded package query |
-| Worker -> host | `host/data.transact` | Submit schema-checked mutations, including guarded/recorded forms |
-| Worker -> host | `host/data.history` | Read authorized retained revisions |
+| Worker -> host | `host/data.transact` | Submit schema-checked mutations, optionally guarded by data-set revisions |
 | Worker -> host | `host/service.call` | Call an exact bound service |
 
 These method families do not exist: `addon/http.handle`,

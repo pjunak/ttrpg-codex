@@ -46,8 +46,7 @@ func inspectBlobs(ctx context.Context, tx *sql.Tx, directory string) (BlobReport
 	protected := map[string]bool{}
 	// Any authored reference keeps a handle, even if that handle is currently
 	// logically deleted. References in unknown/extension fields remain protected.
-	rows, err := tx.QueryContext(ctx, `SELECT body_json FROM campaign_records UNION ALL SELECT body_json FROM addon_documents
-  UNION ALL SELECT body_json FROM addon_history_payloads`)
+	rows, err := tx.QueryContext(ctx, `SELECT body_json FROM campaign_records UNION ALL SELECT body_json FROM addon_documents`)
 	if err != nil {
 		return report, err
 	}

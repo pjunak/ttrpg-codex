@@ -68,19 +68,9 @@ func TestCampaignAndAddonRecoveryAreIndependent(t *testing.T) {
 	execute(t, s.DB, `UPDATE blobs SET deleted=1,revision=2`)
 	// An unrelated missing provider cannot block restoring this add-on.
 	execute(t, s.DB, `UPDATE addon_package_states SET active_generation_id=NULL WHERE addon_id='planner'`)
-	// An unrelated owner can have older retained history than its current head.
-	// Restoring sheets must neither inspect nor append that owner's history.
-	execute(t, s.DB, `INSERT INTO addon_data_sets(addon_id,data_kind,data_id,materialized,schema_version,schema_sha256,target_collection,keyed) VALUES('planner','record-extension','history-sheet',1,'1.0.0',?,'characters',1)`, hash)
-	execute(t, s.DB, `INSERT INTO addon_documents(addon_id,data_kind,data_id,document_key,position,body_json,schema_version,schema_sha256,revision,created_at,updated_at,target_created_at) SELECT 'planner','record-extension','history-sheet','hero',0,'{}','1.0.0',?,2,created_at,created_at,created_at FROM campaign_records WHERE record_key='hero'`, hash)
-	execute(t, s.DB, `INSERT INTO addon_document_versions VALUES('planner','record-extension','history-sheet','hero',2,0,'2026-09-01T00:00:00Z')`)
-	execute(t, s.DB, `INSERT INTO addon_history_revisions SELECT 'planner','record-extension','history-sheet','hero',1,created_at,?,'dm','2026-09-01T00:00:00Z','before','edit','Saved note',0,'{}' FROM campaign_records WHERE record_key='hero'`, hash)
 	restoreScope(t, s, id, Scope{Scope: "addon", AddonID: "sheets"})
 	assertOwnedRecovery(t, s, "sheets", "future", 3, 0)
 	assertOwnedRecovery(t, s, "planner", "after", 2, 1)
-	var historyCount int
-	if err := s.DB.QueryRow(`SELECT count(*) FROM addon_history_revisions WHERE addon_id='planner'`).Scan(&historyCount); err != nil || historyCount != 1 {
-		t.Fatal("unrelated history changed", historyCount, err)
-	}
 	core, err := records.Get(ctx, campaign.Characters, "hero")
 	if err != nil || core.Revision != 2 || !strings.Contains(string(core.Value), "After") {
 		t.Fatal("add-on restore changed core", core, err)

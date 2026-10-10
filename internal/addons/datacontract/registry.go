@@ -44,7 +44,6 @@ type Index struct {
 
 type Declaration struct {
 	WorkerOnly    bool
-	Retained      bool
 	Kind          Kind
 	ID            string
 	Target        string
@@ -57,7 +56,6 @@ type Declaration struct {
 
 type Description struct {
 	WorkerOnly    bool       `json:"workerOnly,omitempty"`
-	Retained      bool       `json:"retained,omitempty"`
 	Kind          Kind       `json:"kind"`
 	ID            string     `json:"id"`
 	Target        string     `json:"target,omitempty"`
@@ -126,17 +124,17 @@ func Compile(declarations []Declaration, resources map[string][]byte) (*Registry
 		if err != nil {
 			return nil, err
 		}
-		if declaration.Retained || declaration.WorkerOnly {
+		if declaration.WorkerOnly {
 			if declaration.Kind != RecordExtension {
 				return nil, ErrInvalidDeclaration
 			}
-			// Keep worker authority stable when a reviewed package stops retaining snapshots.
+			// The worker-only policy is part of the saved schema identity. The salt
+			// value is stored with existing data; never change it.
 			policyDigest := sha256.Sum256([]byte(digest + "\x00retained-worker.v1"))
 			digest = hex.EncodeToString(policyDigest[:])
 		}
 		description := Description{
-			WorkerOnly: declaration.WorkerOnly || declaration.Retained,
-			Retained:   declaration.Retained,
+			WorkerOnly: declaration.WorkerOnly,
 			Kind:       declaration.Kind, ID: declaration.ID, Target: declaration.Target,
 			Keyed: declaration.Keyed, Visibility: declaration.Visibility,
 			Schema: declaration.Schema, SchemaVersion: declaration.SchemaVersion,

@@ -105,10 +105,10 @@ func runCleanup(ctx context.Context, kind string, arguments []string, stdout, st
 		fmt.Fprintln(stderr, "Preview only. Counts and encoded row sizes describe this operation; no records or files were removed.")
 	}
 	if kind == "delete-addon-data" {
-		fmt.Fprintln(stderr, "Deletion includes this add-on's collections, extensions, retained field history and namespace values in every local recovery point. Core records and package archives remain. Existing external backups still contain the old data and can restore it.")
+		fmt.Fprintln(stderr, "Deletion includes this add-on's collections, extensions and namespace values in every local recovery point. Core records and package archives remain. Existing external backups still contain the old data and can restore it.")
 	}
 	if kind == "prune-logs" {
-		fmt.Fprintln(stderr, "Only SSE, lifecycle and commit audit rows are eligible. Authored data, retained field history, idempotency receipts, recovery points and package archives never expire through this command. SQLite may reuse freed pages without shrinking its file.")
+		fmt.Fprintln(stderr, "Only SSE, lifecycle and commit audit rows are eligible. Authored data, import receipts, recovery points and package archives never expire through this command. SQLite may reuse freed pages without shrinking its file.")
 	}
 	encoder := json.NewEncoder(stdout)
 	encoder.SetIndent("", "  ")

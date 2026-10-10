@@ -459,8 +459,7 @@ transaction as metadata retirement, cleanup removes only the affected add-on's
 documents, dataset definitions, file references and package reference from
 snapshots requiring that exact build. Core campaign data and every other
 add-on's recovery context remain. Current campaign records, current add-on
-saves, retained character history, schema-upgrade evidence and full backup ZIPs
-are untouched; the campaign context of such a snapshot stays restorable.
+saves, schema-upgrade evidence and full backup ZIPs are untouched; the campaign context of such a snapshot stays restorable.
 
 The exact cleanup inventory is journaled before any file removal. Valid pending
 activation reviews remain usable: pruning unrelated obsolete builds does not
@@ -516,7 +515,7 @@ latest-only retention performs that retirement automatically for superseded
 builds; it never deletes campaign context to free a package.
 
 The review lists exact generation hashes, eligibility, file counts, byte sizes,
-activation-review counts and retained character-history counts. Its fingerprint
+and activation-review counts. Its fingerprint
 binds the selected inventory, package-state revisions, recovery references,
 activation-review identities/status/approval fingerprints, provenance counts,
 and candidate file paths, sizes, modes and modification times. The coordinator

@@ -48,13 +48,7 @@ func TestCleanupRemovesOnlyReviewedInactivePackages(t *testing.T) {
 	if _, e = db.Exec(`INSERT INTO addon_data_sets(addon_id,data_kind,data_id) VALUES ('example','collection','notes')`); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = db.Exec("INSERT INTO addon_history_revisions VALUES ('example','record-extension','sheet','hero',1,'then',?,'dm','now','create','create','Saved hero',0,'{}')", old.GenerationID); e != nil {
-		t.Fatal(e)
-	}
 	r := mustCleanupReview(t, m, cleanupScope(0))
-	if r.Generations[1].HistoryRecords != 1 {
-		t.Fatal("history absent from review", r)
-	}
 	if r.RemoveCount != 1 || r.ReclaimableBytes < 1 {
 		t.Fatalf("review = %+v", r)
 	}
@@ -75,7 +69,7 @@ func TestCleanupRemovesOnlyReviewedInactivePackages(t *testing.T) {
 	if _, e = m.GetActivationReview(ctx, pending.ReviewID); !errors.Is(e, ErrReviewNotFound) {
 		t.Fatalf("review survived: %v", e)
 	}
-	for _, table := range []string{"addon_data_sets", "addon_github_sources", "addon_history_revisions"} {
+	for _, table := range []string{"addon_data_sets", "addon_github_sources"} {
 		var count int
 		if e = db.QueryRow("SELECT count(*) FROM " + table + " WHERE addon_id='example'").Scan(&count); e != nil || count != 1 {
 			t.Fatalf("%s lost: %d %v", table, count, e)

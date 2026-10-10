@@ -78,9 +78,6 @@ type Mutation struct {
 }
 
 type Transaction struct {
-	OperationID      string
-	Operation        string
-	Summary          string
 	ExpectedDataSets []addondatastore.DataSetRevision
 	Access           Access
 	Mutations        []Mutation
@@ -328,7 +325,7 @@ func (service *Service) Transact(ctx context.Context, input Transaction) (addond
 		if err != nil {
 			return addondatastore.Commit{}, ErrInvalidRequest
 		}
-		if description.WorkerOnly && !input.Access.Worker || description.Retained && (!input.Access.Worker || input.OperationID == "" || input.Operation == "") {
+		if description.WorkerOnly && !input.Access.Worker {
 			return addondatastore.Commit{}, ErrUnauthorized
 		}
 		if !roleCanAccess(input.Access.Role, description.Visibility) {
@@ -369,7 +366,6 @@ func (service *Service) Transact(ctx context.Context, input Transaction) (addond
 	}
 	return service.repository.Transact(ctx, addondatastore.Transaction{
 		AddonID: input.Access.AddonID, GenerationID: input.Access.Generation,
-		OperationID: input.OperationID, Operation: input.Operation, Summary: input.Summary,
 		ActorID: actorLabel(input.Access), Mutations: prepared, ExpectedDataSets: input.ExpectedDataSets,
 	})
 }

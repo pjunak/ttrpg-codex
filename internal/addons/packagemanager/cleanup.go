@@ -42,7 +42,6 @@ type CleanupGeneration struct {
 	RecoveryPointIDs    []int64  `json:"recoveryPointIds"`
 	ActivationReviewIDs []string `json:"activationReviewIds"`
 	ReviewsSHA256       string   `json:"reviewsSha256"`
-	HistoryRecords      int64    `json:"historyRecords"`
 	SourceRecords       int64    `json:"sourceRecords"`
 	Remove              bool     `json:"remove"`
 	Protection          string   `json:"protection"`
@@ -243,9 +242,6 @@ func cleanupReferences(ctx context.Context, tx *sql.Tx, generation *CleanupGener
 	}
 	rows.Close()
 	generation.ReviewsSHA256 = hex.EncodeToString(reviewDigest.Sum(nil))
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM addon_history_revisions WHERE addon_id=? AND generation_id=?`, generation.AddonID, generation.GenerationID).Scan(&generation.HistoryRecords); err != nil {
-		return err
-	}
 	return tx.QueryRowContext(ctx, `SELECT count(*) FROM addon_github_generations WHERE addon_id=? AND generation_id=?`, generation.AddonID, generation.GenerationID).Scan(&generation.SourceRecords)
 }
 

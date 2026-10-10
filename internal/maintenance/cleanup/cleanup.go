@@ -53,13 +53,11 @@ func targets(options Options) ([]target, error) {
 			return nil, errors.New("a valid add-on ID is required")
 		}
 		result := []target{}
-		for _, name := range []string{"addon_data_sets", "addon_documents", "addon_document_versions", "addon_history_revisions", "addon_data_requests", "addon_data_commits", "addon_schema_reviews", "addon_update_attempts"} {
+		for _, name := range []string{"addon_data_sets", "addon_documents", "addon_document_versions", "addon_data_commits", "addon_schema_reviews", "addon_update_attempts"} {
 			result = append(result, target{name, "addon_id = ?", []any{options.AddonID}})
 		}
 		result = append(result,
-			target{"addon_data_commit_records", "commit_id IN (SELECT commit_id FROM addon_data_commits WHERE addon_id=?)", []any{options.AddonID}},
-			target{"addon_history_payloads", `sha256 IN (SELECT field.value FROM addon_history_revisions,json_each(fields_json) AS field WHERE addon_id=?)
-    AND NOT EXISTS (SELECT 1 FROM addon_history_revisions,json_each(fields_json) AS field WHERE addon_id!=? AND field.value=addon_history_payloads.sha256)`, []any{options.AddonID, options.AddonID}})
+			target{"addon_data_commit_records", "commit_id IN (SELECT commit_id FROM addon_data_commits WHERE addon_id=?)", []any{options.AddonID}})
 		return result, nil
 	case "prune-logs":
 		if options.Events < 0 || options.Lifecycle < 0 || options.Audit < 0 {
@@ -217,13 +215,6 @@ func Apply(ctx context.Context, db *sql.DB, options Options, reviewed string) (R
 		return report, ErrStale
 	}
 	if options.Kind == "delete-addon-data" {
-		// Remember only this namespace's payload hashes; never sweep unrelated
-		// unreferenced payloads as a side effect of deleting one add-on.
-		if _, err = tx.ExecContext(ctx, `CREATE TEMP TABLE cleanup_payloads AS
-   SELECT DISTINCT field.value AS sha256 FROM addon_history_revisions, json_each(fields_json) AS field WHERE addon_id=?`, options.AddonID); err != nil {
-			return report, err
-		}
-		defer tx.ExecContext(context.Background(), "DROP TABLE IF EXISTS cleanup_payloads")
 		if _, err = tx.ExecContext(ctx, `UPDATE recovery_points SET image_json=json_set(image_json,
    '$.sets',json(COALESCE((SELECT json_group_array(json(value)) FROM json_each(image_json,'$.sets') WHERE value ->> 'addon_id' != ?),'[]')),
    '$.documents',json(COALESCE((SELECT json_group_array(json(value)) FROM json_each(image_json,'$.documents') WHERE value ->> 'addon_id' != ?),'[]')))
@@ -232,17 +223,10 @@ func Apply(ctx context.Context, db *sql.DB, options Options, reviewed string) (R
 			options.AddonID, options.AddonID, options.AddonID, options.AddonID); err != nil {
 			return report, err
 		}
-		for _, table := range []string{"addon_update_attempts", "addon_schema_reviews", "addon_history_revisions", "addon_data_requests", "addon_data_commits", "addon_data_sets"} {
+		for _, table := range []string{"addon_update_attempts", "addon_schema_reviews", "addon_data_commits", "addon_data_sets"} {
 			if _, err = tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE addon_id=?", options.AddonID); err != nil {
 				return report, err
 			}
-		}
-		if _, err = tx.ExecContext(ctx, `DELETE FROM addon_history_payloads WHERE sha256 IN (SELECT sha256 FROM cleanup_payloads)
-   AND NOT EXISTS (SELECT 1 FROM addon_history_revisions, json_each(fields_json) AS field WHERE field.value=addon_history_payloads.sha256)`); err != nil {
-			return report, err
-		}
-		if _, err = tx.ExecContext(ctx, "DROP TABLE cleanup_payloads"); err != nil {
-			return report, err
 		}
 		if _, err = tx.ExecContext(ctx, "UPDATE recovery_control SET revision=revision+1 WHERE singleton=1"); err != nil {
 			return report, err

@@ -155,7 +155,7 @@ If saved data needs attention, **Continue update** opens a floating confirmation
   schema. It is unavailable if healing would require guessing or changing values.
 - **Remove data and update** clears only this add-on's current saves and starts
   the selected package with an empty namespace. Core campaign records, other
-  add-ons, retained history/media and existing backups remain intact.
+  add-ons, media and existing backups remain intact.
 - **Exit upgrade** keeps the current package and saves.
 
 The server handles stopping/restarting dependencies and activation as one
@@ -346,8 +346,8 @@ saved-package cleanup.
    ```
 
 2. Read the counts, byte estimates, recovery implications and `reviewSHA256`.
-   Namespace removal includes that add-on's retained field history and its
-   contents inside local recovery points. It preserves core records, unrelated
+   Namespace removal includes that add-on's contents inside local recovery
+   points. It preserves core records, unrelated
    namespaces and package archives. Existing external backups remain unchanged.
    Disable or uninstall the selected add-on before stopping the host.
 3. Repeat the **same command and options** with
@@ -366,8 +366,8 @@ Log retention is explicit, not automatic. Review it again as storage grows.
 SSE retention is per audience; lifecycle rows and each commit audit have
 separate newest-row limits. Preview reports encoded row payload sizes rather
 than SQLite page allocation, and cleanup need not shrink the database file.
-Authoring history, idempotency receipts, recovery points and package archives
-are never expired by log retention. Clients reconnecting behind a pruned event
+Authored data, import receipts, recovery points and package archives are never
+expired by log retention. Clients reconnecting behind a pruned event
 window receive a reset and reload authoritative state.
 
 ## Upgrade and rollback

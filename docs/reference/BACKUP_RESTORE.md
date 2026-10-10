@@ -11,15 +11,11 @@ A backup is a versioned recovery archive, not a directory copy.
 
 Transient add-on and blob `.staging` content is excluded. Blob archive paths
 must match their content hash, and verification proves every object referenced
-by the restored database exists with the expected size and digest. The database
-also retains [immutable add-on history payloads](RETAINED_ADDON_HISTORY.md) and
-their revision/operation records. Add-on recovery appends a retained head;
-it does not erase later revisions. Browser device drafts are outside backups.
+by the restored database exists with the expected size and digest. Browser
+device drafts are outside backups.
 The database
 includes versioned DM/player password hashes, never clear-text passwords.
-Restoring an archive restores those credentials. Archives made before password
-persistence have no saved credentials and bootstrap from the environment on
-their next start. The offline password-reset command can recover access after
+Restoring an archive restores those credentials. The offline password-reset command can recover access after
 restore; see [self-hosting](../SELF_HOSTING.md#password-changes-and-access-recovery).
 
 GitHub repository links and generation provenance are included in `codex.db`.

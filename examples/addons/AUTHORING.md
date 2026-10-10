@@ -126,8 +126,7 @@ develop against an unreleased host change, use an uncommitted `go.work`
 - **Collections and record extensions** need closed JSON Schemas and explicit
   visibility. Change them only through the host data client so validation,
   revisions, events and transactions apply. `workerOnly: true` limits writes to
-  your worker; `retained: true` adds immutable history
-  ([retained history](../../docs/reference/RETAINED_ADDON_HISTORY.md)).
+  your worker.
 - **Services** are namespaced contracts with semantic versions and JSON Schema
   request/response documents. Consumers ask for a contract and version range,
   never a provider add-on ID, and stay useful when no provider is installed.

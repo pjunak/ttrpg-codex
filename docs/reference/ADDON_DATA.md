@@ -11,18 +11,10 @@ general compatibility layer for either format.
 
 ## Requirements and decisions
 
-Extensions with `retained: true` add immutable, actor-attributed snapshots and
-require a native worker mutation boundary. See [retained history](RETAINED_ADDON_HISTORY.md)
-for transaction authority, pagination, core-record lifetime and backup rules.
-`workerOnly: true` keeps native-worker mutation authority without creating
-retained snapshots or requiring `data.history`. Retained extensions imply
-worker-only authority. A reviewed package can turn retention off while keeping
-the same schema and worker authority; current documents remain compatible.
-Campaign recovery also respects explicit current-state worker declarations, even
-while the last activated package is disabled. Existing archives are not exposed through the non-retained extension, and new
-writes use only current state. Historical installation backups remain unchanged.
-Ordinary host transaction metadata and optimistic revision numbers continue to
-protect storage consistency.
+`workerOnly: true` on a record extension limits mutations to the add-on's
+native worker. Campaign recovery respects that declaration, even while the
+last activated package is disabled. Optimistic revision numbers protect storage
+consistency; there is no per-document history.
 
 | Need | Decision |
 |---|---|
@@ -214,7 +206,7 @@ graph. Healing advances schema identities and affected set/package revisions;
 JSON values, document revisions, ordering, timestamps, target lifetimes and
 tombstones are unchanged. Removal instead clears current documents, marks sets
 unmaterialized and advances tombstone revisions so stale saves cannot recreate
-removed values. It preserves core records, other add-ons, retained history/media
+removed values. It preserves core records, other add-ons, media
 and existing backups. Incompatible values never become guessed replacements.
 
 Migration `0023_addon_update_resolution.sql` journals the data resolution and

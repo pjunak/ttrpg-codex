@@ -124,8 +124,8 @@ checkpoint can continue. Latest cursors never regress even when all visible rows
 are removed, and private/system checkpoints never enter public cursors.
 AUTOINCREMENT sequences are never reset.
 
-Retained field history, authored records, idempotency receipts, recovery images
-and package archives are outside log retention. SQLite reuses freed pages; the
+Authored records, import receipts, recovery images and package archives are
+outside log retention. SQLite reuses freed pages; the
 encoded row measurements do not claim immediate on-disk file shrinkage. See the
 [maintenance commands](../SELF_HOSTING.md#reviewed-offline-storage-maintenance).
 

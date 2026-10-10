@@ -30,7 +30,7 @@ then the [API reference](../examples/addons/API_V3.md) and the
 | Live updates | [Event stream](reference/EVENT_STREAM.md) |
 | Campaign views | [Maps](reference/MAPS.md), [editing and browsing](reference/EDITOR_BROWSING.md), [performance](reference/PERFORMANCE.md) |
 | Packages and browser add-ons | [Package lifecycle](reference/PACKAGE_LIFECYCLE.md), [browser add-ons](reference/BROWSER_ADDONS.md), [shared UI](reference/UI_FOUNDATIONS.md) |
-| Add-on data, content and services | [Add-on data](reference/ADDON_DATA.md), [content](reference/CONTENT.md), [service broker](reference/SERVICE_BROKER.md), [retained history](reference/RETAINED_ADDON_HISTORY.md), [rule details](reference/RULE_DETAILS.md) |
+| Add-on data, content and services | [Add-on data](reference/ADDON_DATA.md), [content](reference/CONTENT.md), [service broker](reference/SERVICE_BROKER.md), [rule details](reference/RULE_DETAILS.md) |
 | Native workers | [Supervision](reference/WORKER_SUPERVISION.md), [worker broker](reference/WORKER_BROKER.md) |
 
 ## Planning, decisions and open questions

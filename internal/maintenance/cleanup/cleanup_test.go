@@ -106,38 +106,6 @@ func TestNamespaceDeletionIsReviewedAtomicAndCannotBeUndoneByLocalRecovery(t *te
 	}
 }
 
-func TestNamespaceDeletionProtectsSharedRetainedPayloads(t *testing.T) {
-	db, _ := database(t)
-	ctx := context.Background()
-	shared := strings.Repeat("a", 64)
-	unique := strings.Repeat("b", 64)
-	execute(t, db, "INSERT INTO addon_history_payloads VALUES(?,'1'),(?,'2')", shared, unique)
-	for i, id := range []string{"retired-addon", "kept-addon"} {
-		fields := `{"shared":"` + shared + `"}`
-		if i == 0 {
-			fields = `{"shared":"` + shared + `","unique":"` + unique + `"}`
-		}
-		execute(t, db, `INSERT INTO addon_history_revisions VALUES(?,'record-extension','sheet','hero',1,'now','generation','dm','now','op','edit','save',0,?)`, id, fields)
-	}
-	options := Options{Kind: "delete-addon-data", AddonID: "retired-addon"}
-	report, err := Inspect(ctx, db, options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = Apply(ctx, db, options, report.Review); err != nil {
-		t.Fatal(err)
-	}
-	if count(t, db, "SELECT count(*) FROM addon_history_payloads WHERE sha256=?", shared) != 1 {
-		t.Fatal("shared retained history lost")
-	}
-	if count(t, db, "SELECT count(*) FROM addon_history_payloads WHERE sha256=?", unique) != 0 {
-		t.Fatal("deleted namespace payload retained")
-	}
-	if count(t, db, "SELECT count(*) FROM addon_history_revisions") != 1 {
-		t.Fatal("wrong history deletion")
-	}
-}
-
 func TestReviewedLogRetentionPreservesRoleScopedReplayAndAuthoredHistory(t *testing.T) {
 	db, _ := database(t)
 	ctx := context.Background()
@@ -239,15 +207,13 @@ func TestBlobCollectionProtectsSharedRecoveryAndAuthoredReferencesAndResumes(t *
 	execute(t, db, "UPDATE blobs SET deleted=0 WHERE blob_id=?", ids[2])
 	execute(t, db, "INSERT INTO recovery_points(created_at,reason,image_json) SELECT 'now','manual',image_json FROM recovery_image")
 	execute(t, db, "UPDATE blobs SET deleted=1 WHERE blob_id=?", ids[2])
-	history := object(t, db, directory, "history", ids[3])
-	execute(t, db, "INSERT INTO addon_history_payloads VALUES(?,json_object('image',?))", strings.Repeat("f", 64), ids[3])
 	removed := object(t, db, directory, "unused", ids[4])
 	orphan := object(t, db, directory, "orphan")
 	report, err := InspectBlobs(ctx, db, directory)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(report.Objects) != 2 || report.ProtectedObjects != 3 {
+	if len(report.Objects) != 2 || report.ProtectedObjects != 2 {
 		t.Fatalf("preview: %+v", report)
 	}
 	execute(t, db, "UPDATE blobs SET deleted=0 WHERE blob_id=?", ids[4])
@@ -273,7 +239,7 @@ func TestBlobCollectionProtectsSharedRecoveryAndAuthoredReferencesAndResumes(t *
 	if err = ResumeBlobs(ctx, db, directory); err != nil {
 		t.Fatal("resume not idempotent", err)
 	}
-	for _, hash := range []string{shared, recovery, history, orphan} {
+	for _, hash := range []string{shared, recovery, orphan} {
 		if _, err = os.Stat(filepath.Join(directory, "blobs", "sha256", hash[:2], hash)); err != nil {
 			t.Fatal("protected object lost", hash, err)
 		}
