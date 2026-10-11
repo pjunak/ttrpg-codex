@@ -22,6 +22,7 @@ planning/third-party adapters while opting into the expanded review.
 
 The input [schema](../../internal/application/campaignimport/campaign-bundle.schema.json)
 uses format `ttrpg-codex-campaign-bundle`, schemaVersion 1 and generatedAt.
+The [bundle guide](../reference/CAMPAIGN_BUNDLES.md) explains how to write one.
 It permits at most 2 MiB, 128 logical core records and 256 total materialized
 writes. Core operations create characters, locations and relationships with
 explicit public/DM visibility. Core updates, deletes, settings, credentials,

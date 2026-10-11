@@ -1391,7 +1391,8 @@ only declared collection mutations under host-issued read-only authority,
 including all dataset guards. Nested calls preserve that authority; the host
 validates schemas and namespace ownership again. See
 [ADR-0001](../../docs/decisions/0001-campaign-bundle-imports.md) for the complete
-format, contribution and transaction contract. A standalone planning import
+format, contribution and transaction contract, and the
+[bundle guide](../../docs/reference/CAMPAIGN_BUNDLES.md) for writing bundles. A standalone planning import
 still cannot create core records. Full backup restoration remains separate.
 
 ## Content and localization

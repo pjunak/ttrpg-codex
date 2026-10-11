@@ -13,6 +13,7 @@ checked out next to this one.
 | Back up, restore or recover access | [Backups](SELF_HOSTING.md#backups) and [password recovery](SELF_HOSTING.md#password-changes-and-access-recovery) |
 | Choose a ruleset, books or service providers | [Rules and sources](reference/RULES_SOURCES.md) |
 | Recover Markdown drafts or customize collection views | [Editing and browsing](reference/EDITOR_BROWSING.md) |
+| Write characters, locations and plans for import, by hand or with an agent | [Campaign bundles](reference/CAMPAIGN_BUNDLES.md) and DM Tools [content generation](../../addon-dm-tools/docs/AGENT_GENERATION.md) |
 | Use quick search, activity and map editing | [Search, activity and maps](reference/SEARCH_ACTIVITY_MAP.md) |
 | Build characters, automatic saving and DM grants | [Character sheet workflow](../../addon-dnd-character-sheets/docs/WORKFLOW.md) |
 
