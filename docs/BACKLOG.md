@@ -25,7 +25,7 @@ not obvious. Move an entry between sections instead of duplicating it.
 - **Engine 5 and Sheets 5 on Asurai** `ttrpg-codex` — Download fresh backups
   of both sites into `L:\Backups\ttrpg\`. After the host deploy, Sheets stops
   until updated (its worker-only schema identity changed). In Settings →
-  Add-ons install Engine 5.0.0, then Sheets 5.0.0 and choose **Remove data and
+  Add-ons install Engine 5.0.0, then Sheets 5.1.0 (it needs this host) and choose **Remove data and
   update**: existing character sheets are cleared. Re-import the characters
   from the `character-imports/` folder beside the repositories. If DM Tools
   reports dangling consequence targets, fix those planner entries by hand (it
