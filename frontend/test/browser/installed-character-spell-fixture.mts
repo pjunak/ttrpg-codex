@@ -13,7 +13,6 @@ export async function spellCharacter(f: Fixture, key: string, count = 3) {
       operation: "grant",
       operationId: key + "-grant-" + list,
       expectedRevision: stored.revision,
-      summary: "Grant spell training",
       grant: {
         id: "",
         actorId: "",
@@ -48,7 +47,7 @@ export async function spellCharacter(f: Fixture, key: string, count = 3) {
       "WIS",
       "CHA",
     ][index];
-    selected.notes = "Preserve spell ownership";
+    selected.play.currency = { ...selected.play.currency, gp: 10 + index };
     stored = await save(f, key, selected, stored.revision, "spells-" + list);
     assert.equal(stored.evaluation.ready, true, JSON.stringify(stored.evaluation.issues));
   }

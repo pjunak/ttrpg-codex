@@ -130,7 +130,7 @@ async function call(method: string, params: unknown) {
       data: {
         contractVersion: "addon-service-connect.v1",
         contract: "dnd5e.rules-engine",
-        range: "^4.0.0",
+        range: "^5.0.0",
         cardinality: "one",
       },
     }),
@@ -197,11 +197,10 @@ function inputs(classId = "wizard", level = 5) {
       asOf: "2026-09-11T00:00:00Z",
     },
     grants: [],
-    notes: "",
   };
 }
 const evaluate = (value = inputs()) =>
-  call("evaluate-character", { contractVersion: "rules-character.v1", inputs: value });
+  call("evaluate-character", { contractVersion: "rules-character.v2", inputs: value });
 
 void test(
   "installed engine reports missing rules and never invents a validated character",

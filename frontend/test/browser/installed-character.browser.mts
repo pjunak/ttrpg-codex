@@ -164,7 +164,7 @@ async function call(method: string, params: Record<string, unknown>) {
         data: {
           contractVersion: "addon-service-connect.v1",
           contract: "dnd5e.character",
-          range: "^2.0.0",
+          range: "^3.0.0",
           cardinality: "many",
           includeOwn: true,
         },
@@ -192,7 +192,7 @@ async function call(method: string, params: Record<string, unknown>) {
           providerGeneration: target.generation,
           bindingRevision: target.bindingRevision,
           method,
-          params: { contractVersion: "character.v2", key: "new-hero", ...params },
+          params: { contractVersion: "character.v3", key: "new-hero", ...params },
           deadlineMs: 30000,
         },
       });
@@ -467,22 +467,11 @@ void test(
     let current = await call("save", {
       operation: "build",
       operationId: "complete-character",
-      summary: "Complete fighter",
       expectedRevision: initial.revision,
       inputs: input,
     });
     assert.equal(current.status, "ready", JSON.stringify(current));
     assert.equal(current.evaluation.ready, true, JSON.stringify(current.evaluation.issues));
-    for (const method of ["history", "revision", "compare"])
-      await assert.rejects(() => call(method, {}));
-    await assert.rejects(() =>
-      call("save", {
-        operation: "restore",
-        operationId: "removed-restore",
-        summary: "Removed",
-        expectedRevision: current.revision,
-      }),
-    );
     const grant = {
       id: "forged",
       actorId: "forged",
@@ -498,7 +487,6 @@ void test(
     current = await call("save", {
       operation: "grant",
       operationId: "autosave-grant",
-      summary: "Reward",
       expectedRevision: current.revision,
       grant,
     });
@@ -507,7 +495,6 @@ void test(
     current = await call("save", {
       operation: "amend-grant",
       operationId: "autosave-amend",
-      summary: "Amend",
       expectedRevision: current.revision,
       grantId: current.state.inputs.grants[0].id,
       grant: { ...grant, reason: "Changed", effects: [] },
@@ -516,7 +503,6 @@ void test(
     current = await call("save", {
       operation: "revoke-grant",
       operationId: "autosave-revoke",
-      summary: "Remove",
       expectedRevision: current.revision,
       grantId: current.state.inputs.grants[0].id,
     });
@@ -524,7 +510,6 @@ void test(
     current = await call("save", {
       operation: "play",
       operationId: "autosave-rest",
-      summary: "Long rest",
       expectedRevision: current.revision,
       change: { operation: "rest", rest: "long" },
     });
@@ -533,7 +518,6 @@ void test(
     current = await call("save", {
       operation: "play",
       operationId: "autosave-damage",
-      summary: "Damage",
       expectedRevision: current.revision,
       change: { operation: "damage", amount: 2 },
     });
@@ -542,7 +526,6 @@ void test(
     const refused = await call("save", {
       operation: "play",
       operationId: "invalid-overheal",
-      summary: "Invalid",
       expectedRevision: current.revision,
       change: { operation: "set-hp", amount: max + 1 },
     });
@@ -654,9 +637,12 @@ void test(
     await sheet.getByRole("button", { name: "Import character", exact: true }).click();
     const current = await call("load", {}),
       envelope = {
-        format: "dnd-character.v1",
-        schemaVersion: "4.0.0",
-        inputs: { ...current.state.inputs, notes: "Imported notes" },
+        format: "dnd-character.v2",
+        schemaVersion: "5.0.0",
+        inputs: {
+          ...current.state.inputs,
+          play: { ...current.state.inputs.play, currency: { gp: 77 } },
+        },
       };
     await sheet.getByLabel("Or paste the export").fill(JSON.stringify(envelope));
     await sheet.getByRole("button", { name: "Review import", exact: true }).click();
@@ -665,7 +651,7 @@ void test(
       .locator("[data-character-status]")
       .filter({ hasText: /^Saved$/ })
       .waitFor();
-    assert.equal((await call("load", {})).state.inputs.notes, "Imported notes");
+    assert.equal((await call("load", {})).state.inputs.play.currency.gp, 77);
   },
 );
 registerCharacterCreationTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));

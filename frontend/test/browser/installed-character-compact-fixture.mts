@@ -52,7 +52,6 @@ export function registerCompactTests(enabled: boolean, fixture: () => Fixture): 
             operation: "play",
             operationId: key + hand,
             expectedRevision: stored.revision,
-            summary: "Choose hands",
             change: { operation: "set-hand", hand, itemId },
           });
         assert.equal(stored.status, "ready");

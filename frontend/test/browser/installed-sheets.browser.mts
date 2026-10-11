@@ -178,7 +178,7 @@ for (const role of ["dm", "player"])
       if (role === "dm") await area.fill(invalid);
       else {
         await dialog.getByLabel("Choose a file", { exact: true }).setInputFiles({
-          name: "legacy.json",
+          name: "unknown.json",
           mimeType: "application/json",
           buffer: Buffer.from(invalid),
         });
@@ -190,7 +190,7 @@ for (const role of ["dm", "player"])
       }
       await dialog.getByRole("button", { name: "Review import", exact: true }).click();
       const error = dialog.getByRole("alert");
-      assert.match(await error.innerText(), /Choose a current character export without history\./);
+      assert.match(await error.innerText(), /Choose a current character export\./);
       assert.equal(await error.evaluate((node) => node === document.activeElement), true);
       assert.equal(await area.inputValue(), invalid);
       await dialog.getByLabel("Choose a file", { exact: true }).setInputFiles({

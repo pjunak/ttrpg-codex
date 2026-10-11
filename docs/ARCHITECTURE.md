@@ -26,10 +26,10 @@ in add-ons. The optional first-party service graph is:
 ```text
 D&D 2024 Compendium --rules-data v3--> D&D Engine
                                               |
-                                  rules-engine v4
+                                  rules-engine v5
                                               v
                                     Character Sheets
-                                 character v2 / schema 4
+                                 character v3 / schema 5
 
 DM Tools is independent and owns planning/world-building workflows.
 ```

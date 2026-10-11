@@ -310,7 +310,7 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
             ]),
           ),
         );
-        assert.equal(next.state.inputs.notes, envelope.inputs.notes);
+        assert.deepEqual(next.state.inputs.play.currency, envelope.inputs.play.currency);
         assert.equal(next.state.inputs.grants.length, 1);
         assert.equal(next.state.inputs.grants[0].actorId, next.actorId);
         const popup = await printOutput(page, sheet, locale);
@@ -440,7 +440,7 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
           ...connection.body,
           method: "preview",
           params: {
-            contractVersion: "character.v2",
+            contractVersion: "character.v3",
             key,
             operation: "import",
             operationId: "player-forged-import",

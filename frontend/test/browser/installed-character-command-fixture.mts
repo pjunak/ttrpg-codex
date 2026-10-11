@@ -52,7 +52,6 @@ export async function readyCharacter(f: Fixture, key: string) {
     operation: "play",
     operationId: key + "-rest",
     expectedRevision: built.revision,
-    summary: "Start with full HP",
     change: { operation: "rest", rest: "long" },
   });
   assert.equal(rested.status, "ready");

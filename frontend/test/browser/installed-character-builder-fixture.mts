@@ -62,7 +62,6 @@ export async function save(
     key,
     operation: "build",
     operationId: key + "-" + suffix,
-    summary: "Builder acceptance",
     expectedRevision: revision,
     inputs,
   });

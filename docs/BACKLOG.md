@@ -22,11 +22,14 @@ not obvious. Move an entry between sections instead of duplicating it.
 - **Nightly smoke test** `ttrpg-codex` — The **Installed add-on smoke test**
   workflow runs at 02:41 UTC. Confirm it passes and that the
   `ADDON_SUITE_TOKEN` secret still reads the compendium repository.
-- **Native-data rollout on Asurai** `ttrpg-codex` — Confirm the latest
-  Compendium 3.3.0, Engine 4.2.0 and Sheets 4.2.0 builds are active
-  (Settings → Add-ons), then download fresh backups of both sites into
-  `L:\Backups\ttrpg\`. If DM Tools reports dangling consequence targets, fix
-  those planner entries by hand (it only reports them).
+- **Engine 5 and Sheets 5 on Asurai** `ttrpg-codex` — Download fresh backups
+  of both sites into `L:\Backups\ttrpg\`. After the host deploy, Sheets stops
+  until updated (its worker-only schema identity changed). In Settings →
+  Add-ons install Engine 5.0.0, then Sheets 5.0.0 and choose **Remove data and
+  update**: existing character sheets are cleared. Re-import the characters
+  from the `character-imports/` folder beside the repositories. If DM Tools
+  reports dangling consequence targets, fix those planner entries by hand (it
+  only reports them).
 - **Asurai characters** `addon-dnd-character-sheets` — The players are
   rebuilding Bloodvell, Kael Vor, Ines and Talia in the new builder. The
   September reconstructions are archived with the backups for reference.

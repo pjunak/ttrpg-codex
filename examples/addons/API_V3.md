@@ -1482,8 +1482,8 @@ The first-party packages currently use these profiles:
 | Add-on | Browser | Worker | Main contracts exercised |
 |---|---|---|---|
 | D&D 2024 Compendium | Integrated TypeScript | None | content sets, locales, nonexclusive `dnd5e.rules-data` v3 provider; defines `dnd-2024` |
-| D&D Rules Engine | None | Native Go | `dnd5e.rules-engine` v4 provider, optional consumer of all compatible rules-data v3 providers |
-| D&D Character Sheets | Integrated TypeScript | Native Go | optional engine v4 consumer, character service v2 and worker-only current schema-4 extension |
+| D&D Rules Engine | None | Native Go | `dnd5e.rules-engine` v5 provider, optional consumer of all compatible rules-data v3 providers |
+| D&D Character Sheets | Integrated TypeScript | Native Go | optional engine v5 consumer, character service v3 and worker-only schema-5 extension |
 | DM Tools | Integrated TypeScript | Native Go | DM collections, transactions, import-adapter v2 provider/consumer, routes and slots |
 
 All four remain optional. Saved character revisions remain readable, printable
