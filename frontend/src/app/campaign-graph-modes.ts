@@ -190,17 +190,11 @@ export function projectCampaignGraph(campaign: CampaignDataset, mode: GraphMode)
   return { nodes: [...hubs, ...nodes, ...usedLocations.values()], edges };
 }
 
+/** Per-browser view preferences for one graph mode; never campaign data. */
 export function graphPreferenceKeys(mode: GraphMode | `addon:${string}:${string}`) {
-  if (mode.startsWith("addon:"))
-    return {
-      positions: `cm_pos_v3_${mode}`,
-      filters: `cm_vf_v3_${mode}`,
-      factions: `cm_filter_v3_${mode}`,
-    };
-  const suffix = mode === "factions" ? "frakce" : mode === "mysteries" ? "tajemstvi" : "vztahy";
   return {
-    positions: mode === "relationships" ? `cm_pos_${suffix}` : `cm_pos_v2_${suffix}`,
-    filters: `cm_vf_${suffix}`,
-    factions: `cm_filter_${suffix}`,
+    positions: `codex-graph:${mode}:positions`,
+    filters: `codex-graph:${mode}:filters`,
+    factions: `codex-graph:${mode}:hidden-factions`,
   };
 }

@@ -165,7 +165,9 @@ describe("faction and mystery graph modes", () => {
         }),
       ).size,
     ).toBe(9);
-    expect(graphPreferenceKeys("relationships").positions).toBe("cm_pos_vztahy");
+    expect(graphPreferenceKeys("relationships").positions).toBe(
+      "codex-graph:relationships:positions",
+    );
   });
   it("clips faction connections to their rounded pill border", () => {
     const a = { x: 0, y: 0, width: 210, height: 80, pill: true },

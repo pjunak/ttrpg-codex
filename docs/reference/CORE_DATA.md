@@ -377,9 +377,9 @@ Mixed graph modes qualify node identities by collection and encode generated
 edge identities as tuples. Equal character, location, mystery, and hub IDs
 therefore cannot join the wrong records or overwrite each other's arrangement.
 
-Arrangement is a browser preference. Relationships use `cm_pos_vztahy`, with
-node centers keyed by permanent character IDs. Factions and mysteries use
-`cm_pos_v2_frakce` and `cm_pos_v2_tajemstvi` with collection-qualified keys.
+Arrangement is a browser preference stored under
+`codex-graph:<mode>:positions`. Relationships key node centers by permanent
+character IDs; factions and mysteries use collection-qualified keys.
 Pointer, touch, and keyboard moves save local coordinates only; no campaign
 mutation is sent.
 Valid saved positions win over the deterministic initial placement of new nodes.
@@ -416,9 +416,8 @@ and edge palette, parallel edge routing, full wrapped/rotated labels, fixed zoom
 ladder with a 100% step, zoom-dependent detail, chip filters,
 relationship-type dimming, faction visibility, neighborhood focus,
 and detail/context navigation. Text uses native CSS dimensions at each zoom
-instead of scaling a rendered canvas texture. Filter preferences retain the
-`cm_vf_<mode>` and `cm_filter_<mode>` keys with the preserved `frakce`, `vztahy`,
-and `tajemstvi` suffixes.
+instead of scaling a rendered canvas texture. Filter preferences use
+`codex-graph:<mode>:filters` and `codex-graph:<mode>:hidden-factions`.
 
 `frontend/test/campaign-graph.test.ts` and `campaign-graph-modes.test.ts` cover
 projection, typed identity collisions, command chains, question shapes,

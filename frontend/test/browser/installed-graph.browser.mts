@@ -193,7 +193,7 @@ for (const mode of ["integrated", "isolated"])
     await board.focus();
     await page.keyboard.press("ArrowRight");
     const storage = await page.evaluate(
-      (view) => JSON.parse(localStorage.getItem(`cm_pos_v3_addon:${view}:board`)!),
+      (view) => JSON.parse(localStorage.getItem(`codex-graph:addon:${view}:board:positions`)!),
       id,
     );
     assert.equal(storage[JSON.stringify(["addon", id, "board", "node", "note"])].x, 305);
@@ -204,7 +204,7 @@ for (const mode of ["integrated", "isolated"])
     assert.equal(
       await page.evaluate(
         (view) =>
-          JSON.parse(localStorage.getItem(`cm_pos_v3_addon:${view}:board`)!)[
+          JSON.parse(localStorage.getItem(`codex-graph:addon:${view}:board:positions`)!)[
             JSON.stringify(["addon", view, "board", "node", "note"])
           ].x,
         id,
@@ -299,7 +299,7 @@ void test("late installed models and live refresh preserve explicit zoom and sav
   assert.equal(
     await page.evaluate(
       (view) =>
-        JSON.parse(localStorage.getItem(`cm_pos_v3_addon:${view}:board`)!)[
+        JSON.parse(localStorage.getItem(`codex-graph:addon:${view}:board:positions`)!)[
           JSON.stringify(["addon", view, "board", "node", "note"])
         ].x,
       id,

@@ -166,7 +166,7 @@ async function fixture(
     ({ savedPositions, locale, blockedStorage, malformedStorage }) => {
       if (!localStorage.getItem("graph-test-seeded")!) {
         localStorage.setItem(
-          "cm_pos_vztahy",
+          "codex-graph:relationships:positions",
           malformedStorage ? "{broken" : JSON.stringify(savedPositions),
         );
         const layout = (points: Record<string, [string, number, number]>) =>
@@ -174,7 +174,7 @@ async function fixture(
             Object.fromEntries(Object.values(points).map(([key, x, y]) => [key, { x, y }])),
           );
         localStorage.setItem(
-          "cm_pos_v2_frakce",
+          "codex-graph:factions:positions",
           layout({
             watch: ['["faction","watch"]', -330, -250],
             guild: ['["faction","guild"]', 330, -250],
@@ -187,7 +187,7 @@ async function fixture(
           }),
         );
         localStorage.setItem(
-          "cm_pos_v2_tajemstvi",
+          "codex-graph:mysteries:positions",
           layout({
             gate: ['["mystery","gate"]', -300, -200],
             veil: ['["mystery","veil"]', 300, -200],
@@ -204,7 +204,7 @@ async function fixture(
       // oxlint-disable-next-line typescript/unbound-method -- The storage fault injector preserves the receiver through call below.
       const original = Storage.prototype.setItem;
       Storage.prototype.setItem = function (key, value) {
-        if (key.startsWith("cm_") && window.graphStorageBlocked)
+        if (key.startsWith("codex-graph:") && window.graphStorageBlocked)
           throw new DOMException("Storage is full", "QuotaExceededError");
         return original.call(this, key, value);
       };
@@ -235,7 +235,9 @@ async function fixture(
   return { page, context };
 }
 async function positions(page: Page) {
-  return page.evaluate(() => JSON.parse(localStorage.getItem("cm_pos_vztahy")!));
+  return page.evaluate(() =>
+    JSON.parse(localStorage.getItem("codex-graph:relationships:positions")!),
+  );
 }
 async function publish(page: Page, change: () => void) {
   change();
@@ -319,7 +321,7 @@ void test("pointer and keyboard moves persist saved centers and never modify cam
   const before = structuredClone(campaign);
   await drag(page, "ryn", 100, 55);
   await page.waitForFunction(
-    () => JSON.parse(localStorage.getItem("cm_pos_vztahy")!).ryn.x === -200,
+    () => JSON.parse(localStorage.getItem("codex-graph:relationships:positions")!).ryn.x === -200,
   );
   assert.deepEqual((await positions(page)).ryn, { x: -200, y: -105 });
   assert.match(page.url(), /#\/graph\/relationships$/);
@@ -485,7 +487,7 @@ void test("another tab interrupts an active drag without overwriting its saved a
   await page.mouse.move(rect.x + 100, rect.y + 80, { steps: 3 });
   await second.evaluate(() =>
     localStorage.setItem(
-      "cm_pos_vztahy",
+      "codex-graph:relationships:positions",
       JSON.stringify({ ryn: { x: 10, y: 20 }, mira: { x: 120, y: -160 } }),
     ),
   );
@@ -701,7 +703,9 @@ void test("same IDs in different collections keep separate cards, links and save
 
 void test("route changes and live removal cancel a mixed graph drag without saving it into another mode", async (t) => {
   const { page } = await fixture(t, { mixed: true });
-  const factions = await page.evaluate(() => localStorage.getItem("cm_pos_v2_frakce"));
+  const factions = await page.evaluate(() =>
+    localStorage.getItem("codex-graph:factions:positions"),
+  );
   await switchMode(page, "factions");
   const rect = await typedNode(page, "character", "ryn").boundingBox().then(required);
   await page.mouse.move(rect.x + 20, rect.y + 20);
@@ -713,7 +717,10 @@ void test("route changes and live removal cancel a mixed graph drag without savi
   await typedNode(page, "mystery", "gate").waitFor();
   await page.mouse.up();
   assert.deepEqual(await typedPosition(page, "character", "ryn"), { x: -300, y: 70 });
-  assert.equal(await page.evaluate(() => localStorage.getItem("cm_pos_v2_frakce")), factions);
+  assert.equal(
+    await page.evaluate(() => localStorage.getItem("codex-graph:factions:positions")),
+    factions,
+  );
   await publish(page, () => {
     collection("characters").records = collection("characters").records.filter(
       (record) => record.key !== "ryn",
@@ -749,7 +756,7 @@ for (const reducedMotion of ["reduce", "no-preference"] as const)
     });
     await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await page.waitForFunction(
-      (key) => JSON.parse(localStorage.getItem("cm_pos_v2_frakce")!)[key].x !== 0,
+      (key) => JSON.parse(localStorage.getItem("codex-graph:factions:positions")!)[key].x !== 0,
       typedKey("character", "mira"),
     );
     const after = await typedPosition(page, "character", "mira");
@@ -878,7 +885,9 @@ void test("Escape restores the complete pre-drag arrangement after other cards h
 
 void test("a completed drop survives an immediate mode change without writing into the destination layout", async (t) => {
   const { page } = await fixture(t, { mixed: true, reducedMotion: "no-preference" });
-  const mysteries = await page.evaluate(() => localStorage.getItem("cm_pos_v2_tajemstvi"));
+  const mysteries = await page.evaluate(() =>
+    localStorage.getItem("codex-graph:mysteries:positions"),
+  );
   await switchMode(page, "factions");
   await holdDrag(page, typedKey("character", "ryn"), 70, 50);
   await page.mouse.up();
@@ -889,11 +898,14 @@ void test("a completed drop survives an immediate mode change without writing in
   await waitForRest(page);
   assert.deepEqual(await typedPosition(page, "character", "ryn"), { x: -300, y: 70 });
   const saved = await page.evaluate(
-    (key) => JSON.parse(localStorage.getItem("cm_pos_v2_frakce")!)[key],
+    (key) => JSON.parse(localStorage.getItem("codex-graph:factions:positions")!)[key],
     typedKey("character", "ryn"),
   );
   assert.deepEqual(saved, { x: -260, y: 50 });
-  assert.equal(await page.evaluate(() => localStorage.getItem("cm_pos_v2_tajemstvi")), mysteries);
+  assert.equal(
+    await page.evaluate(() => localStorage.getItem("codex-graph:mysteries:positions")),
+    mysteries,
+  );
   await switchMode(page, "factions");
   assert.deepEqual(await typedPosition(page, "character", "ryn"), saved);
 });
@@ -922,7 +934,7 @@ void test("another tab wins over post-release settling without a delayed overwri
   await page.mouse.up();
   const replacement = { ...savedPositions, ryn: { x: -250, y: 10 } };
   await second.evaluate(
-    (value) => localStorage.setItem("cm_pos_vztahy", JSON.stringify(value)),
+    (value) => localStorage.setItem("codex-graph:relationships:positions", JSON.stringify(value)),
     replacement,
   );
   await page.locator(".cm-message").filter({ hasText: "Another tab changed" }).waitFor();
