@@ -325,7 +325,7 @@ func TestLocationAndFactionDeletesCloseCrossCollectionReferences(t *testing.T) {
 	missionKey := relationshipKey("alice", "town", "mission")
 	repository := &fakeRepository{snapshot: campaign.Snapshot{Records: []campaign.Record{
 		{Collection: campaign.Locations, Key: "town", Revision: 1, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"town"}`)},
-		{Collection: campaign.Locations, Key: "district", Revision: 2, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"district","parentId":"town","connections":["town"]}`)},
+		{Collection: campaign.Locations, Key: "district", Revision: 2, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"district","parentId":"town","x":0.4,"y":0.5,"connections":["town"]}`)},
 		{Collection: campaign.Characters, Key: "alice", Revision: 3, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"alice","location":"town","locationRoles":[{"locationId":"town"}],"faction":"guild","rank":"Captain","rankChain":"guard"}`)},
 		{Collection: campaign.Events, Key: "arrival", Revision: 4, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"arrival","locations":["town"],"mapParentId":"town","mapX":0.2,"mapY":0.3}`)},
 		{Collection: campaign.Relationships, Key: missionKey, Revision: 5, Visibility: campaign.VisibilityPublic, Value: raw(`{"source":"alice","target":"town","type":"mission"}`)},
@@ -350,7 +350,8 @@ func TestLocationAndFactionDeletesCloseCrossCollectionReferences(t *testing.T) {
 		t.Fatalf("character references survived: %#v", character)
 	}
 	district := mutationObject(t, writes, campaign.Locations, "district")
-	if district["parentId"] != "" || len(district["connections"].([]any)) != 0 {
+	if district["parentId"] != nil || district["x"] != nil || district["y"] != nil ||
+		len(district["connections"].([]any)) != 0 {
 		t.Fatalf("location references survived: %#v", district)
 	}
 	event := mutationObject(t, writes, campaign.Events, "arrival")

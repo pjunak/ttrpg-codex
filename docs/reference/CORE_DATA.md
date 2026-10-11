@@ -86,13 +86,22 @@ they cannot disclose hidden records. An effective DM receives the exact stored
 snapshot. The transport never accepts a requested role; authority comes only
 from the resolved session.
 
+Which fields reference other records, and which fields are DM-only, is
+declared once in [`internal/domain/campaign/references.go`](../../internal/domain/campaign/references.go).
+The public projection, player-save checks and delete cleanup all read that
+table; relationships and companion owners are polymorphic and handled
+separately. A Go test writes the table to
+`frontend/test/fixtures/campaign-references.json` and a frontend test checks
+the record editors against it. After changing the table, run
+`go test ./internal/domain/campaign -update-references`.
+
 An event's `consequence` names the event it leads to (shown as **Leads to**);
 like other references it is removed from the public projection when that event
 is hidden, and cleared when that event is deleted.
 
-Map placement is projected as a unit: hiding/removing a location's `parentId`
-or an event's `mapParentId` also hides its corresponding coordinates. Public
-clients must not reinterpret those local coordinates as world coordinates.
+Map placement is handled as a unit: hiding or deleting a location's `parentId`
+or an event's `mapParentId` also hides or removes its coordinates. Clients
+must not reinterpret those local coordinates as world coordinates.
 Full-record player saves preserve the unavailable parent and coordinates,
 including absence of a placement, while applying visible field edits.
 

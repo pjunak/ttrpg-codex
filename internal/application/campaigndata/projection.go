@@ -34,9 +34,8 @@ func projectPublic(snapshot campaign.Snapshot) (campaign.Snapshot, error) {
 		cloned.Value = append(json.RawMessage(nil), record.Value...)
 		if descriptor.VisibilityBearing {
 			cloned.Value, err = transformObject(cloned.Value, func(value map[string]any) {
-				delete(value, "linkedTwinId")
-				if record.Collection == campaign.Locations {
-					delete(value, "notes")
+				for _, field := range campaign.DMOnlyFields(record.Collection) {
+					delete(value, field)
 				}
 			})
 			if err != nil {
@@ -144,27 +143,10 @@ func closeRecord(
 	}
 
 	value, err := transformObject(record.Value, func(value map[string]any) {
-		switch record.Collection {
-		case campaign.Characters:
-			removeInvalidScalar(value, "faction", ids[campaign.Factions])
-			removeInvalidScalar(value, "location", ids[campaign.Locations])
-			filterObjectArrayByID(value, "locationRoles", "locationId", ids[campaign.Locations])
-		case campaign.Locations:
-			removeUnavailableMapPlacement(value, "parentId", "x", "y", ids[campaign.Locations])
-			filterStringArray(value, "connections", ids[campaign.Locations])
-			filterStringArray(value, "characters", ids[campaign.Characters])
-		case campaign.Events:
-			filterStringArray(value, "characters", ids[campaign.Characters])
-			filterStringArray(value, "locations", ids[campaign.Locations])
-			removeInvalidScalar(value, "consequence", ids[campaign.Events])
-			removeUnavailableMapPlacement(value, "mapParentId", "mapX", "mapY", ids[campaign.Locations])
-		case campaign.Mysteries, campaign.HistoricalEvents:
-			filterStringArray(value, "characters", ids[campaign.Characters])
-			filterStringArray(value, "locations", ids[campaign.Locations])
-		case campaign.Artifacts:
-			removeInvalidScalar(value, "ownerCharacterId", ids[campaign.Characters])
-			removeInvalidScalar(value, "locationId", ids[campaign.Locations])
-		case campaign.Companions:
+		for _, reference := range campaign.ReferenceFields(record.Collection) {
+			hideUnavailableReference(value, reference, ids[reference.Target])
+		}
+		if record.Collection == campaign.Companions {
 			closeCompanionOwner(value, ids)
 		}
 		projectActivity(value, ViewPublic)
@@ -172,16 +154,27 @@ func closeRecord(
 	return value, true, err
 }
 
+func hideUnavailableReference(value map[string]any, reference campaign.ReferenceField, visible map[string]struct{}) {
+	switch reference.Kind {
+	case campaign.ReferenceMany:
+		filterStringArray(value, reference.Field, visible)
+	case campaign.ReferenceObjects:
+		filterObjectArrayByID(value, reference.Field, reference.IDField, visible)
+	default:
+		removeUnavailableMapPlacement(value, reference, visible)
+	}
+}
+
 // Coordinates are meaningful only in their owning map. Removing just a hidden
 // parent would reinterpret a local pin as a world-map pin in public clients.
-func removeUnavailableMapPlacement(value map[string]any, parent, x, y string, visible map[string]struct{}) {
-	id, _ := value[parent].(string)
-	removeInvalidScalar(value, parent, visible)
-	if id != "" {
-		if _, available := visible[id]; !available {
-			delete(value, x)
-			delete(value, y)
-		}
+func removeUnavailableMapPlacement(value map[string]any, reference campaign.ReferenceField, visible map[string]struct{}) {
+	id, _ := value[reference.Field].(string)
+	if id == "" || validScalarReference(id, visible, reference.Reserved...) {
+		return
+	}
+	delete(value, reference.Field)
+	for _, field := range reference.Placement {
+		delete(value, field)
 	}
 }
 
@@ -247,16 +240,6 @@ func objectValue(value json.RawMessage) (map[string]any, error) {
 		return nil, fmt.Errorf("record value must be an object")
 	}
 	return object, nil
-}
-
-func removeInvalidScalar(value map[string]any, field string, visible map[string]struct{}) {
-	id, ok := value[field].(string)
-	if !ok || id == "" {
-		return
-	}
-	if _, exists := visible[id]; !exists {
-		delete(value, field)
-	}
 }
 
 func filterStringArray(value map[string]any, field string, visible map[string]struct{}) {

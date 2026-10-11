@@ -134,23 +134,8 @@ func (planner *mutationPlanner) applyDerivedPolicies() error {
 		if err := planner.clearTwin(deleted); err != nil {
 			return err
 		}
-		switch deleted.Collection {
-		case campaign.Characters:
-			if err := planner.deleteCharacterReferences(deleted.Key); err != nil {
-				return err
-			}
-		case campaign.Locations:
-			if err := planner.deleteLocationReferences(deleted.Key); err != nil {
-				return err
-			}
-		case campaign.Factions:
-			if err := planner.deleteFactionReferences(deleted.Key); err != nil {
-				return err
-			}
-		case campaign.Events:
-			if err := planner.deleteEventReferences(deleted.Key); err != nil {
-				return err
-			}
+		if err := planner.deleteReferences(deleted.Collection, deleted.Key); err != nil {
+			return err
 		}
 	}
 	for _, target := range planner.requestedOrder {
@@ -189,24 +174,11 @@ func (planner *mutationPlanner) validatePlayerReferences() error {
 			}
 		}
 		valid := true
+		for _, reference := range campaign.ReferenceFields(record.Collection) {
+			valid = valid && validReference(value[reference.Field], reference,
+				preservedIDs(ids[reference.Target], originalValue[reference.Field], reference))
+		}
 		switch record.Collection {
-		case campaign.Characters:
-			valid = validScalarReference(value["faction"], preservedReferenceIDs(ids[campaign.Factions], originalValue["faction"]), "neutral", "party") &&
-				validScalarReference(value["location"], preservedReferenceIDs(ids[campaign.Locations], originalValue["location"])) &&
-				validObjectReferences(value["locationRoles"], "locationId", preservedObjectReferenceIDs(ids[campaign.Locations], originalValue["locationRoles"], "locationId"))
-		case campaign.Locations:
-			valid = validScalarReference(value["parentId"], preservedReferenceIDs(ids[campaign.Locations], originalValue["parentId"])) &&
-				validStringReferences(value["characters"], preservedStringReferenceIDs(ids[campaign.Characters], originalValue["characters"]))
-		case campaign.Events, campaign.Mysteries, campaign.HistoricalEvents:
-			valid = validStringReferences(value["characters"], preservedStringReferenceIDs(ids[campaign.Characters], originalValue["characters"])) &&
-				validStringReferences(value["locations"], preservedStringReferenceIDs(ids[campaign.Locations], originalValue["locations"]))
-			if record.Collection == campaign.Events {
-				valid = valid && validScalarReference(value["mapParentId"], preservedReferenceIDs(ids[campaign.Locations], originalValue["mapParentId"])) &&
-					validScalarReference(value["consequence"], preservedReferenceIDs(ids[campaign.Events], originalValue["consequence"]))
-			}
-		case campaign.Artifacts:
-			valid = validScalarReference(value["ownerCharacterId"], preservedReferenceIDs(ids[campaign.Characters], originalValue["ownerCharacterId"])) &&
-				validScalarReference(value["locationId"], preservedReferenceIDs(ids[campaign.Locations], originalValue["locationId"]))
 		case campaign.Companions:
 			ownerType, _ := value["ownerType"].(string)
 			originalOwnerType, _ := originalValue["ownerType"].(string)
@@ -261,25 +233,20 @@ func (planner *mutationPlanner) preserveUnavailablePlayerReferences(
 	}
 	ids := planner.visibleIdentityIDs()
 
-	switch existing.Collection {
-	case campaign.Characters:
-		preserveUnavailableScalar(incoming, current, "faction", ids[campaign.Factions], "neutral", "party")
-		preserveUnavailableScalar(incoming, current, "location", ids[campaign.Locations])
-		preserveUnavailableObjects(incoming, current, "locationRoles", "locationId", ids[campaign.Locations])
-	case campaign.Locations:
-		preserveUnavailableMapPlacement(incoming, current, "parentId", "x", "y", ids[campaign.Locations])
-		preserveUnavailableStrings(incoming, current, "characters", ids[campaign.Characters])
-	case campaign.Events, campaign.Mysteries, campaign.HistoricalEvents:
-		preserveUnavailableStrings(incoming, current, "characters", ids[campaign.Characters])
-		preserveUnavailableStrings(incoming, current, "locations", ids[campaign.Locations])
-		if existing.Collection == campaign.Events {
-			preserveUnavailableMapPlacement(incoming, current, "mapParentId", "mapX", "mapY", ids[campaign.Locations])
-			preserveUnavailableScalar(incoming, current, "consequence", ids[campaign.Events])
+	for _, reference := range campaign.ReferenceFields(existing.Collection) {
+		visible := ids[reference.Target]
+		switch {
+		case reference.Kind == campaign.ReferenceOne && len(reference.Placement) > 0:
+			preserveUnavailableMapPlacement(incoming, current, reference.Field, reference.Placement, visible)
+		case reference.Kind == campaign.ReferenceOne:
+			preserveUnavailableScalar(incoming, current, reference.Field, visible, reference.Reserved...)
+		case reference.Kind == campaign.ReferenceMany:
+			preserveUnavailableStrings(incoming, current, reference.Field, visible)
+		case reference.Kind == campaign.ReferenceObjects:
+			preserveUnavailableObjects(incoming, current, reference.Field, reference.IDField, visible)
 		}
-	case campaign.Artifacts:
-		preserveUnavailableScalar(incoming, current, "ownerCharacterId", ids[campaign.Characters])
-		preserveUnavailableScalar(incoming, current, "locationId", ids[campaign.Locations])
-	case campaign.Companions:
+	}
+	if existing.Collection == campaign.Companions {
 		preserveUnavailableOwner(incoming, current, ids)
 	}
 
@@ -421,7 +388,46 @@ func (planner *mutationPlanner) clearTwin(deleted campaign.Record) error {
 	})
 }
 
-func (planner *mutationPlanner) deleteCharacterReferences(id string) error {
+// deleteReferences removes every reference to a deleted record: declared
+// reference fields, relationships and companion owners pointing at it, and
+// the map settings of a deleted location.
+func (planner *mutationPlanner) deleteReferences(collection campaign.Collection, id string) error {
+	if collection == campaign.Characters || collection == campaign.Locations {
+		if err := planner.deleteRelationships(collection, id); err != nil {
+			return err
+		}
+	}
+	for _, descriptor := range campaign.Descriptors() {
+		for _, reference := range campaign.ReferenceFields(descriptor.Name) {
+			if reference.Target != collection {
+				continue
+			}
+			if err := planner.updateEachObject(descriptor.Name, func(value map[string]any) bool {
+				return removeReference(value, reference, id)
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	if ownerType := companionOwnerType(collection); ownerType != "" {
+		if err := planner.updateEachObject(campaign.Companions, func(value map[string]any) bool {
+			if value["ownerType"] != ownerType || value["ownerId"] != id {
+				return false
+			}
+			value["ownerType"] = "none"
+			value["ownerId"] = ""
+			return true
+		}); err != nil {
+			return err
+		}
+	}
+	if collection == campaign.Locations {
+		return planner.removeLocationSettings(id)
+	}
+	return nil
+}
+
+func (planner *mutationPlanner) deleteRelationships(collection campaign.Collection, id string) error {
 	targetKinds, err := planner.relationshipTargetKinds()
 	if err != nil {
 		return err
@@ -434,143 +440,53 @@ func (planner *mutationPlanner) deleteCharacterReferences(id string) error {
 		source, _ := value["source"].(string)
 		target, _ := value["target"].(string)
 		typeID, _ := value["type"].(string)
-		if source == id || targetKinds[typeID] != campaign.Locations && target == id {
+		targetsLocation := targetKinds[typeID] == campaign.Locations
+		removed := collection == campaign.Characters && (source == id || !targetsLocation && target == id) ||
+			collection == campaign.Locations && targetsLocation && target == id
+		if removed {
 			if err := planner.deleteDerived(record); err != nil {
 				return err
 			}
 		}
 	}
-	for _, collection := range []campaign.Collection{
-		campaign.Events, campaign.Mysteries, campaign.HistoricalEvents,
-	} {
-		if err := planner.updateEachObject(collection, func(value map[string]any) bool {
-			return removeString(value, "characters", id)
-		}); err != nil {
-			return err
-		}
-	}
-	if err := planner.updateEachObject(campaign.Locations, func(value map[string]any) bool {
-		return removeString(value, "characters", id)
-	}); err != nil {
-		return err
-	}
-	if err := planner.updateEachObject(campaign.Artifacts, func(value map[string]any) bool {
-		if value["ownerCharacterId"] != id {
-			return false
-		}
-		value["ownerCharacterId"] = ""
-		return true
-	}); err != nil {
-		return err
-	}
-	return planner.updateEachObject(campaign.Companions, func(value map[string]any) bool {
-		if value["ownerType"] != "character" || value["ownerId"] != id {
-			return false
-		}
-		value["ownerType"] = "none"
-		value["ownerId"] = ""
-		return true
-	})
+	return nil
 }
 
-func (planner *mutationPlanner) deleteLocationReferences(id string) error {
-	targetKinds, err := planner.relationshipTargetKinds()
-	if err != nil {
-		return err
+func companionOwnerType(collection campaign.Collection) string {
+	switch collection {
+	case campaign.Characters:
+		return "character"
+	case campaign.Factions:
+		return "faction"
+	default:
+		return ""
 	}
-	for _, record := range planner.records(campaign.Relationships) {
-		value, err := objectValue(record.Value)
-		if err != nil {
-			return err
-		}
-		target, _ := value["target"].(string)
-		typeID, _ := value["type"].(string)
-		if targetKinds[typeID] == campaign.Locations && target == id {
-			if err := planner.deleteDerived(record); err != nil {
-				return err
-			}
-		}
-	}
-	if err := planner.updateEachObject(campaign.Locations, func(value map[string]any) bool {
-		changed := removeString(value, "connections", id)
-		if value["parentId"] == id {
-			value["parentId"] = ""
-			changed = true
-		}
-		return changed
-	}); err != nil {
-		return err
-	}
-	if err := planner.updateEachObject(campaign.Characters, func(value map[string]any) bool {
-		changed := false
-		if value["location"] == id {
-			value["location"] = ""
-			changed = true
-		}
-		return filterObjectArray(value, "locationRoles", "locationId", id) || changed
-	}); err != nil {
-		return err
-	}
-	for _, collection := range []campaign.Collection{
-		campaign.Events, campaign.Mysteries, campaign.HistoricalEvents,
-	} {
-		current := collection
-		if err := planner.updateEachObject(collection, func(value map[string]any) bool {
-			changed := removeString(value, "locations", id)
-			if current == campaign.Events && value["mapParentId"] == id {
-				delete(value, "mapParentId")
-				delete(value, "mapX")
-				delete(value, "mapY")
-				changed = true
-			}
-			return changed
-		}); err != nil {
-			return err
-		}
-	}
-	if err := planner.updateEachObject(campaign.Artifacts, func(value map[string]any) bool {
-		if value["locationId"] != id {
-			return false
-		}
-		value["locationId"] = ""
-		return true
-	}); err != nil {
-		return err
-	}
-	return planner.removeLocationSettings(id)
 }
 
-func (planner *mutationPlanner) deleteFactionReferences(id string) error {
-	if err := planner.updateEachObject(campaign.Characters, func(value map[string]any) bool {
-		if value["faction"] != id {
-			return false
-		}
-		value["faction"] = "neutral"
-		value["rank"] = ""
-		value["rankChain"] = ""
-		return true
-	}); err != nil {
-		return err
+// removeReference clears one declared reference to a deleted record. A map
+// placement goes with its parent, since its coordinates belong to that map.
+func removeReference(value map[string]any, reference campaign.ReferenceField, id string) bool {
+	switch reference.Kind {
+	case campaign.ReferenceMany:
+		return removeString(value, reference.Field, id)
+	case campaign.ReferenceObjects:
+		return filterObjectArray(value, reference.Field, reference.IDField, id)
 	}
-	return planner.updateEachObject(campaign.Companions, func(value map[string]any) bool {
-		if value["ownerType"] != "faction" || value["ownerId"] != id {
-			return false
+	if value[reference.Field] != id {
+		return false
+	}
+	if len(reference.Placement) > 0 {
+		delete(value, reference.Field)
+		for _, field := range reference.Placement {
+			delete(value, field)
 		}
-		value["ownerType"] = "none"
-		value["ownerId"] = ""
 		return true
-	})
-}
-
-// An event's consequence names the event it leads to.
-func (planner *mutationPlanner) deleteEventReferences(id string) error {
-	return planner.updateEachObject(campaign.Events, func(value map[string]any) bool {
-		if value["consequence"] != id {
-			return false
-		}
-		value["consequence"] = ""
-		return true
-	})
+	}
+	value[reference.Field] = reference.Deleted
+	for _, field := range reference.Clears {
+		value[field] = ""
+	}
+	return true
 }
 
 func (planner *mutationPlanner) synchronizeLocation(id string, role WriteRole) error {
@@ -842,14 +758,14 @@ func equalStringArray(value any, expected []any) bool {
 	return true
 }
 
-func preserveUnavailableMapPlacement(incoming, current map[string]any, parent, x, y string, visible map[string]struct{}) {
+func preserveUnavailableMapPlacement(incoming, current map[string]any, parent string, placement []string, visible map[string]struct{}) {
 	id, _ := current[parent].(string)
 	if id == "" || validScalarReference(id, visible) {
 		return
 	}
 	// Public saves omit this entire placement, not just its hidden parent.
 	// Preserve it as a unit, including absence of coordinates on unplaced pins.
-	for _, field := range []string{parent, x, y} {
+	for _, field := range append([]string{parent}, placement...) {
 		if value, exists := current[field]; exists {
 			incoming[field] = value
 		} else {
@@ -1119,4 +1035,26 @@ func validObjectReferences(value any, idField string, visible map[string]struct{
 		}
 	}
 	return true
+}
+
+func validReference(value any, reference campaign.ReferenceField, visible map[string]struct{}) bool {
+	switch reference.Kind {
+	case campaign.ReferenceMany:
+		return validStringReferences(value, visible)
+	case campaign.ReferenceObjects:
+		return validObjectReferences(value, reference.IDField, visible)
+	default:
+		return validScalarReference(value, visible, reference.Reserved...)
+	}
+}
+
+func preservedIDs(visible map[string]struct{}, original any, reference campaign.ReferenceField) map[string]struct{} {
+	switch reference.Kind {
+	case campaign.ReferenceMany:
+		return preservedStringReferenceIDs(visible, original)
+	case campaign.ReferenceObjects:
+		return preservedObjectReferenceIDs(visible, original, reference.IDField)
+	default:
+		return preservedReferenceIDs(visible, original)
+	}
 }

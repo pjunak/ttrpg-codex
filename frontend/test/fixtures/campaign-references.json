@@ -1,0 +1,161 @@
+{
+  "artifacts": {
+    "references": [
+      {
+        "field": "ownerCharacterId",
+        "target": "characters",
+        "kind": "one"
+      },
+      {
+        "field": "locationId",
+        "target": "locations",
+        "kind": "one"
+      }
+    ],
+    "dmOnly": [
+      "linkedTwinId"
+    ]
+  },
+  "characters": {
+    "references": [
+      {
+        "field": "faction",
+        "target": "factions",
+        "kind": "one",
+        "reserved": [
+          "neutral",
+          "party"
+        ],
+        "deleted": "neutral",
+        "clears": [
+          "rank",
+          "rankChain"
+        ]
+      },
+      {
+        "field": "location",
+        "target": "locations",
+        "kind": "one"
+      },
+      {
+        "field": "locationRoles",
+        "target": "locations",
+        "kind": "objects",
+        "idField": "locationId"
+      }
+    ],
+    "dmOnly": [
+      "linkedTwinId"
+    ]
+  },
+  "events": {
+    "references": [
+      {
+        "field": "characters",
+        "target": "characters",
+        "kind": "many"
+      },
+      {
+        "field": "locations",
+        "target": "locations",
+        "kind": "many"
+      },
+      {
+        "field": "consequence",
+        "target": "events",
+        "kind": "one"
+      },
+      {
+        "field": "mapParentId",
+        "target": "locations",
+        "kind": "one",
+        "placement": [
+          "mapX",
+          "mapY"
+        ]
+      }
+    ],
+    "dmOnly": [
+      "linkedTwinId"
+    ]
+  },
+  "factions": {
+    "references": null,
+    "dmOnly": [
+      "linkedTwinId"
+    ]
+  },
+  "historicalEvents": {
+    "references": [
+      {
+        "field": "characters",
+        "target": "characters",
+        "kind": "many"
+      },
+      {
+        "field": "locations",
+        "target": "locations",
+        "kind": "many"
+      }
+    ],
+    "dmOnly": [
+      "linkedTwinId"
+    ]
+  },
+  "locations": {
+    "references": [
+      {
+        "field": "parentId",
+        "target": "locations",
+        "kind": "one",
+        "placement": [
+          "x",
+          "y"
+        ]
+      },
+      {
+        "field": "connections",
+        "target": "locations",
+        "kind": "many"
+      },
+      {
+        "field": "characters",
+        "target": "characters",
+        "kind": "many"
+      }
+    ],
+    "dmOnly": [
+      "linkedTwinId",
+      "notes"
+    ]
+  },
+  "mysteries": {
+    "references": [
+      {
+        "field": "characters",
+        "target": "characters",
+        "kind": "many"
+      },
+      {
+        "field": "locations",
+        "target": "locations",
+        "kind": "many"
+      }
+    ],
+    "dmOnly": [
+      "linkedTwinId"
+    ]
+  },
+  "pantheon": {
+    "references": null,
+    "dmOnly": [
+      "linkedTwinId"
+    ]
+  },
+  "relationships": {
+    "references": null,
+    "dmOnly": [
+      "linkedTwinId"
+    ]
+  }
+}
