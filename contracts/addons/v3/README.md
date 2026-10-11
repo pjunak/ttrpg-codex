@@ -7,6 +7,10 @@ boundaries validate browser models.
 
 ## Files
 
+- `browser-sdk.d.ts` types the browser entry module: `activate(context)`, the
+  data, content, service and UI handles, and the context of mounted
+  contribution elements. The host implementation is checked against it in
+  `frontend/test/public-sdk-types.test.ts`; add-ons copy it unchanged.
 - `ui-controls.d.ts` is the public integrated DOM UI handle and query-event type contract; see [shared UI](../../../docs/reference/UI_FOUNDATIONS.md) for markers and tokens.
 - `manifest.schema.json` validates the declarative package manifest.
 - `checksums.schema.json` validates the complete SHA-256 file inventory.

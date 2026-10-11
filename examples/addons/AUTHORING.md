@@ -74,6 +74,13 @@ Write browser code in strict TypeScript and ship only the compiled `web/`
 output. The entry module exports `activate(context)`. Bind only contributions
 declared in the manifest and use only the SDK handles you receive.
 
+Type your code against the host's public browser types: copy
+`contracts/addons/v3/browser-sdk.d.ts`, `contribution-edits.d.ts` and
+`ui-controls.d.ts` unchanged from the host version you build against, and
+check in CI that they still match it (the first-party add-ons keep them in
+`src/codex/` and compare them with `npm run check:source`). Do not hand-write
+your own subset; it drifts from what the host actually provides.
+
 - Modules run in the app page as trusted, reviewed code. They must not import
   host modules, read host DOM or assume file layout.
 - Treat all data as untrusted. Build DOM with `textContent`; never insert raw
