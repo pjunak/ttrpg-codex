@@ -20,9 +20,12 @@ credentials never silently fall back to an environment password.
 Successful login creates independent random 256-bit session and CSRF tokens.
 Only digests of the session and CSRF tokens are used for lookup/comparison;
 the CSRF value is retained only so the same-origin client can recover it after
-a page reload. Sessions are process-local, bounded, and expire after 30 days by
-default. A restart intentionally signs everyone out. Password hashes remain
-in SQLite; sessions remain process-local.
+a page reload. Sessions are bounded and expire after 30 days by default. Each
+session is saved in the `host_sessions` table (token digest, roles, CSRF value,
+times), so a restart or deploy keeps everyone signed in. A session change is
+saved before it takes effect; if saving fails, the request fails and the
+current session stays as it was. Backup images contain no sessions, so
+restoring a backup signs everyone out.
 
 The `edit_session` cookie is host-only, HttpOnly, SameSite=Lax, and can be
 marked Secure by executable configuration. Deployment must enable Secure
@@ -250,6 +253,7 @@ by Go session tests.
 
 ## Limits
 
-Sessions do not survive a restart and cannot be listed or revoked one by one.
+Sessions cannot be listed or revoked one by one; changing a password signs out
+that role.
 Requests carry no correlation IDs and there are no security-event diagnostics.
 These are [backlog ideas](../BACKLOG.md#ideas) under Operations.

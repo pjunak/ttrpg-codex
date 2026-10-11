@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"testing"
@@ -112,5 +114,48 @@ func TestServiceBoundsSessionCapacity(t *testing.T) {
 	}
 	if _, err := service.Login("dragon-master"); !errors.Is(err, ErrSessionCapacity) {
 		t.Fatalf("capacity error = %v", err)
+	}
+}
+
+type failingSessions struct{ fail bool }
+
+func (store *failingSessions) LoadSessions(context.Context) ([]StoredSession, error) { return nil, nil }
+func (store *failingSessions) ApplySessions(context.Context, []StoredSession, [][sha256.Size]byte) error {
+	if store.fail {
+		return errors.New("storage unavailable")
+	}
+	return nil
+}
+
+func TestSessionStoreFailuresLeaveSessionsUnchanged(t *testing.T) {
+	t.Parallel()
+	store := &failingSessions{}
+	service, err := New(Config{DMPassword: "dragon-master", SessionStore: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dm, err := service.Login("dragon-master")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.fail = true
+	if _, err := service.Login("dragon-master"); !errors.Is(err, ErrSessionUnavailable) {
+		t.Fatalf("login with failing store = %v", err)
+	}
+	if _, err := service.SwitchRole(dm.Token, RolePlayer); err == nil {
+		t.Fatal("role switch succeeded without saving")
+	}
+	if err := service.Revoke(dm.Token); err == nil {
+		t.Fatal("sign-out succeeded without saving")
+	}
+	if actor, ok := service.Resolve(dm.Token); !ok || actor != dm.Actor {
+		t.Fatal("failed writes changed the current session")
+	}
+	store.fail = false
+	if err := service.Revoke(dm.Token); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := service.Resolve(dm.Token); ok {
+		t.Fatal("revoked session remains usable")
 	}
 }

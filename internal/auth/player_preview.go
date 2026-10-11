@@ -24,7 +24,9 @@ func (service *Service) CreatePlayerPreview(parentToken string) (Session, error)
 	parentDigest, digest := sha256.Sum256([]byte(parentToken)), sha256.Sum256([]byte(token))
 	service.mu.Lock()
 	defer service.mu.Unlock()
-	service.pruneExpiredLocked(now)
+	if err := service.pruneExpiredLocked(now); err != nil {
+		return Session{}, err
+	}
 	parent, ok := service.sessions[parentDigest]
 	if !ok || parent.actor.RealRole != RoleDM || parent.actor.Role != RoleDM || parent.previewParent != nil {
 		return Session{}, ErrRoleTransition
@@ -46,8 +48,12 @@ func (service *Service) CreatePlayerPreview(parentToken string) (Session, error)
 		expires = parent.expiresAt
 	}
 	actor := Actor{SessionID: hex.EncodeToString(digest[:12]), RealRole: RolePlayer, Role: RolePlayer}
-	service.sessions[digest] = storedSession{actor: actor, csrfToken: csrf, csrfDigest: sha256.Sum256([]byte(csrf)),
+	record := storedSession{actor: actor, csrfToken: csrf, csrfDigest: sha256.Sum256([]byte(csrf)),
 		createdAt: now, expiresAt: expires, previewParent: &parentDigest}
+	if err := service.applyLocked([]sessionWrite{{digest, record}}, nil); err != nil {
+		return Session{}, err
+	}
+	service.sessions[digest] = record
 	return Session{Token: token, CSRFToken: csrf, Actor: actor, ExpiresAt: expires}, nil
 }
 

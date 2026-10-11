@@ -63,6 +63,7 @@ type Session struct {
 type Config struct {
 	Context         context.Context
 	CredentialStore CredentialStore
+	SessionStore    SessionStore
 	DMPassword      string
 	PlayerPassword  string
 	SessionTTL      time.Duration
@@ -84,6 +85,7 @@ type Service struct {
 	credentialMu    sync.Mutex
 	credentials     Credentials
 	credentialStore CredentialStore
+	sessionStore    SessionStore
 	ttl             time.Duration
 	maximum         int
 	now             func() time.Time
@@ -114,6 +116,7 @@ func New(config Config) (*Service, error) {
 	}
 	service := &Service{
 		credentialStore: config.CredentialStore,
+		sessionStore:    config.SessionStore,
 		ttl:             config.SessionTTL,
 		maximum:         config.MaxSessions,
 		now:             config.Now,
@@ -124,6 +127,9 @@ func New(config Config) (*Service, error) {
 		config.Context = context.Background()
 	}
 	if err := service.initializeCredentials(config.Context, config); err != nil {
+		return nil, err
+	}
+	if err := service.loadSessions(config.Context); err != nil {
 		return nil, err
 	}
 	return service, nil
@@ -216,31 +222,42 @@ func (service *Service) SwitchRole(token string, target Role) (Session, error) {
 	if _, collision := service.sessions[nextDigest]; collision {
 		return Session{}, fmt.Errorf("%w: generated duplicate token", ErrSessionUnavailable)
 	}
-	delete(service.sessions, digest)
 	actor := Actor{
 		SessionID: hex.EncodeToString(nextDigest[:12]),
 		RealRole:  RoleDM, Role: target,
 	}
 	expiresAt := now.Add(service.ttl)
-	service.sessions[nextDigest] = storedSession{
+	next := storedSession{
 		actor: actor, csrfToken: nextCSRFToken,
 		csrfDigest: sha256.Sum256([]byte(nextCSRFToken)),
 		createdAt:  now, expiresAt: expiresAt,
 	}
+	if err := service.applyLocked([]sessionWrite{{nextDigest, next}}, [][sha256.Size]byte{digest}); err != nil {
+		return Session{}, err
+	}
+	delete(service.sessions, digest)
+	service.sessions[nextDigest] = next
 	return Session{
 		Token: nextToken, CSRFToken: nextCSRFToken,
 		Actor: actor, ExpiresAt: expiresAt,
 	}, nil
 }
 
-func (service *Service) Revoke(token string) {
+func (service *Service) Revoke(token string) error {
 	if service == nil || !validToken(token) {
-		return
+		return nil
 	}
 	digest := sha256.Sum256([]byte(token))
 	service.mu.Lock()
+	defer service.mu.Unlock()
+	if _, exists := service.sessions[digest]; !exists {
+		return nil
+	}
+	if err := service.applyLocked(nil, [][sha256.Size]byte{digest}); err != nil {
+		return err
+	}
 	delete(service.sessions, digest)
-	service.mu.Unlock()
+	return nil
 }
 
 func (service *Service) createSession(realRole, role Role) (Session, error) {
@@ -253,7 +270,9 @@ func (service *Service) createSession(realRole, role Role) (Session, error) {
 	tokenDigest := sha256.Sum256([]byte(token))
 	service.mu.Lock()
 	defer service.mu.Unlock()
-	service.pruneExpiredLocked(now)
+	if err := service.pruneExpiredLocked(now); err != nil {
+		return Session{}, err
+	}
 	if len(service.sessions) >= service.maximum {
 		return Session{}, ErrSessionCapacity
 	}
@@ -265,11 +284,15 @@ func (service *Service) createSession(realRole, role Role) (Session, error) {
 		RealRole:  realRole,
 		Role:      role,
 	}
-	service.sessions[tokenDigest] = storedSession{
+	record := storedSession{
 		actor: actor, csrfToken: csrfToken,
 		csrfDigest: sha256.Sum256([]byte(csrfToken)),
 		createdAt:  now, expiresAt: expiresAt,
 	}
+	if err := service.applyLocked([]sessionWrite{{tokenDigest, record}}, nil); err != nil {
+		return Session{}, err
+	}
+	service.sessions[tokenDigest] = record
 	return Session{Token: token, CSRFToken: csrfToken, Actor: actor, ExpiresAt: expiresAt}, nil
 }
 
@@ -285,12 +308,20 @@ func (service *Service) generateSessionTokens() (string, string, error) {
 	return token, csrfToken, nil
 }
 
-func (service *Service) pruneExpiredLocked(now time.Time) {
+func (service *Service) pruneExpiredLocked(now time.Time) error {
+	expired := make([][sha256.Size]byte, 0)
 	for digest, record := range service.sessions {
 		if !service.usableLocked(record, now) {
-			delete(service.sessions, digest)
+			expired = append(expired, digest)
 		}
 	}
+	if err := service.applyLocked(nil, expired); err != nil {
+		return err
+	}
+	for _, digest := range expired {
+		delete(service.sessions, digest)
+	}
+	return nil
 }
 
 func randomToken() (string, error) {

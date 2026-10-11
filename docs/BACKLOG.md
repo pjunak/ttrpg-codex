@@ -106,8 +106,8 @@ with it.
   docs.
 - **Editor extensions** `ttrpg-codex` — Arbitrary add-on editor fields or
   combined core/add-on saves (panels save independently today).
-- **Operations** `ttrpg-codex` — A restart button in the web UI, persistent
-  sessions with per-session revocation and a session list, request/correlation
+- **Operations** `ttrpg-codex` — A restart button in the web UI, per-session
+  revocation and a session list, request/correlation
   IDs and security-event diagnostics (never recording credentials or tokens),
   add-on resource limits or signatures, add-on data indexes for measured load.
 - **DM Tools** `addon-dm-tools` — Faster Atlas placement and mouse-wheel

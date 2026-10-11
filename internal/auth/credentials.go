@@ -115,14 +115,15 @@ func (service *Service) credentialStatusLocked() CredentialStatus {
 	return CredentialStatus{"credential-status.v1", service.credentials.Revision, service.credentials.Player != nil}
 }
 
-// ChangePassword commits first, then revokes affected sessions. The reviewing DM
-// keeps the same session so a lost response does not discard their access.
+// ChangePassword revokes affected sessions only once the new password commits.
+// The reviewing DM keeps the same session so a lost response does not discard
+// their access.
 func (service *Service) ChangePassword(ctx context.Context, token, csrf, current string, role Role, password string, revision int64) (CredentialStatus, error) {
 	service.credentialMu.Lock()
 	defer service.credentialMu.Unlock()
 	digest, csrfDigest := sha256.Sum256([]byte(token)), sha256.Sum256([]byte(csrf))
-	// The session lock covers only the session check and the revocation, so
-	// password hashing does not stall every other request's session lookup.
+	// The session lock is not held while passwords are hashed, so hashing does
+	// not stall every other request's session lookup.
 	service.mu.Lock()
 	session, exists := service.sessions[digest]
 	authorized := exists && service.usableLocked(session, service.now()) && session.actor.RealRole == RoleDM && session.actor.Role == RoleDM && subtle.ConstantTimeCompare(csrfDigest[:], session.csrfDigest[:]) == 1
@@ -152,18 +153,28 @@ func (service *Service) ChangePassword(ctx context.Context, token, csrf, current
 		hash := hashPassword(password)
 		next.Player = &hash
 	}
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	revoked := make([][sha256.Size]byte, 0)
+	for key, candidate := range service.sessions {
+		if key != digest && (candidate.actor.RealRole == role || candidate.previewParent != nil) {
+			revoked = append(revoked, key)
+		}
+	}
+	// Saved sessions go before the password commits. If the commit then fails,
+	// they stay usable until the next restart, which only signs people out; the
+	// reverse order could revive revoked sessions after a restart.
+	if err := service.applyLocked(nil, revoked); err != nil {
+		return CredentialStatus{}, err
+	}
 	if service.credentialStore != nil {
 		if err := service.credentialStore.Save(ctx, next, revision); err != nil {
 			return CredentialStatus{}, err
 		}
 	}
 	service.credentials = next
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	for key, candidate := range service.sessions {
-		if key != digest && (candidate.actor.RealRole == role || candidate.previewParent != nil) {
-			delete(service.sessions, key)
-		}
+	for _, key := range revoked {
+		delete(service.sessions, key)
 	}
 	return service.credentialStatusLocked(), nil
 }

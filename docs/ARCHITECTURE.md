@@ -44,9 +44,10 @@ new requests and then tears workers down in reverse dependency order.
 The first start requires `CODEX_DM_PASSWORD`; an optional
 `CODEX_PLAYER_PASSWORD` enables player edits. Versioned password hashes then
 persist in SQLite and can be changed in Settings → Server access. Later starts
-use saved credentials rather than the bootstrap environment. Sessions are random, process-local,
-HttpOnly cookies. State-changing requests additionally require a session-bound
-`X-Codex-CSRF` token. Restarting invalidates sessions, not campaign data.
+use saved credentials rather than the bootstrap environment. Sessions are random
+HttpOnly cookies whose digests persist in SQLite, so restarts and deploys keep
+people signed in. State-changing requests additionally require a session-bound
+`X-Codex-CSRF` token. Restoring a backup signs everyone out.
 
 ## Campaign data
 

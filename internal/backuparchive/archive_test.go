@@ -35,6 +35,10 @@ func TestCreateAndRestoreRoundTripDatabaseAndImmutableAddonFiles(t *testing.T) {
 	if _, err := database.Exec(`INSERT INTO restore_marker(value) VALUES ('from-backup')`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := database.Exec(`INSERT INTO host_sessions VALUES (randomblob(32), 'dm', 'dm', ?, NULL, '2026-09-01T06:00:00Z', '2099-01-01T00:00:00Z')`,
+		strings.Repeat("c", 43)); err != nil {
+		t.Fatal(err)
+	}
 	blobs, err := blobstore.New(database, filepath.Join(sourceDirectory, "blobs"), blobstore.Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -113,6 +117,10 @@ func TestCreateAndRestoreRoundTripDatabaseAndImmutableAddonFiles(t *testing.T) {
 	var marker string
 	if err := restored.QueryRow(`SELECT value FROM restore_marker`).Scan(&marker); err != nil || marker != "from-backup" {
 		t.Fatalf("restored marker = %q, %v", marker, err)
+	}
+	var sessions int
+	if err := restored.QueryRow(`SELECT count(*) FROM host_sessions`).Scan(&sessions); err != nil || sessions != 0 {
+		t.Fatalf("restored sessions = %d, %v", sessions, err)
 	}
 	restoredBlobs, err := blobstore.New(restored, filepath.Join(targetDirectory, "blobs"), blobstore.Options{})
 	if err != nil {

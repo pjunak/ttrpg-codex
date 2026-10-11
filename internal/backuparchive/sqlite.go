@@ -66,6 +66,31 @@ func createDatabaseImage(ctx context.Context, database *sql.DB, destination stri
 		_ = os.Remove(destination)
 		return fmt.Errorf("create online database image: %w", err)
 	}
+	if err := clearSessions(ctx, destination); err != nil {
+		_ = os.Remove(destination)
+		return err
+	}
+	return nil
+}
+
+// clearSessions keeps signed-in sessions out of backup images. A restored host
+// therefore signs everyone out.
+func clearSessions(ctx context.Context, databasePath string) error {
+	database, err := codexsqlite.Open(ctx, databasePath)
+	if err != nil {
+		return fmt.Errorf("open database image: %w", err)
+	}
+	_, clearErr := database.ExecContext(ctx, `DELETE FROM host_sessions`)
+	if clearErr == nil {
+		_, clearErr = database.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`)
+	}
+	closeErr := database.Close()
+	if clearErr != nil {
+		return fmt.Errorf("clear sessions from database image: %w", clearErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close database image: %w", closeErr)
+	}
 	return nil
 }
 
@@ -79,6 +104,9 @@ func validateAndMigrateDatabase(
 		return 0, fmt.Errorf("open restored database: %w", err)
 	}
 	result, migrationErr := codexsqlite.Migrate(ctx, database, migrationFS)
+	if migrationErr == nil {
+		_, migrationErr = database.ExecContext(ctx, `DELETE FROM host_sessions`)
+	}
 	if migrationErr == nil {
 		migrationErr = integrityCheck(ctx, database)
 	}

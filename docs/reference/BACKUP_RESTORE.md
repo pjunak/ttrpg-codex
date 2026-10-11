@@ -127,8 +127,8 @@ to continue and leaves the previous data in place for the operator.
 Refusals leave the site running: `INVALID_BACKUP` (400, with the reason, for
 example a recovery package this host no longer accepts), `RESTORE_PENDING` or
 `RESTORE_IN_PROGRESS` (409), `PAYLOAD_TOO_LARGE` (413) and
-`RESTORE_UNAVAILABLE` (503). Sessions do not survive the restart, and the
-restored passwords are the ones saved in the archive.
+`RESTORE_UNAVAILABLE` (503). Backups contain no sessions, so everyone signs in
+again, with the passwords saved in the archive.
 
 ## Deliberate boundary
 

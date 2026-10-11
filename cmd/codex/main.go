@@ -213,6 +213,7 @@ func composeHost(
 	authentication, err := sessionauth.New(sessionauth.Config{
 		DMPassword: dmPassword, PlayerPassword: playerPassword,
 		Context: ctx, CredentialStore: credentialstore.Store{DB: db},
+		SessionStore: credentialstore.Store{DB: db},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("configure authentication: %w", err)

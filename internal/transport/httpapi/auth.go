@@ -173,7 +173,11 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {
-	s.authentication.Revoke(sessionToken(r))
+	if err := s.authentication.Revoke(sessionToken(r)); err != nil {
+		s.logger.Error("revoke session", "error", err)
+		writeAPIError(w, http.StatusServiceUnavailable, "AUTH_UNAVAILABLE", "could not sign out; try again")
+		return
+	}
 	if !isPlayerPreview(r) {
 		s.clearSessionCookie(w)
 	}
