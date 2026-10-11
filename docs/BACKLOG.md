@@ -102,9 +102,11 @@ with it.
 - **Cloud backup add-on** — Workers have no network access and cannot read
   backup archives; both would be new, reviewed host capabilities.
 - **Value-transforming add-on data migrations** `ttrpg-codex` — Updates can
-  keep compatible data or reset it with a backup download. The reserved worker
-  methods `addon/migration.plan` and `addon/migration.apply` are not
-  implemented; add them only for a real incompatible case.
+  keep compatible data or reset it with a backup download, and worker add-ons
+  upgrade old formats themselves on read ([how](reference/ADDON_DATA.md#reviewed-compatible-schema-upgrades)).
+  The reserved worker methods `addon/migration.plan` and `addon/migration.apply`
+  are not implemented; add them only for an add-on without a worker that must
+  change its format.
 - **More add-on surfaces** `ttrpg-codex` — Record renderers, custom graph node
   kinds, `kind` enum injection, HTTP endpoints, WASI workers, standalone
   `context.imports/events/settings/navigation/log` SDK handles and native

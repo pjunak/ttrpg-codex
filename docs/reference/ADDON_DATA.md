@@ -187,6 +187,13 @@ whole review, including private and detached documents. Optional fields can be
 introduced without fabricating values. This is not a worker transformation or
 a way to skip validation.
 
+To change a stored format incompatibly without **Remove data and update**, an
+add-on with a worker keeps old documents valid: its new schema accepts the old
+format as well (for example `anyOf` with a frozen copy of the old schema),
+**Heal and update** keeps every document, and the worker upgrades each one when
+it reads it and saves the new format. Character Sheets does this; see its
+[stored-format guide](../../../addon-dnd-character-sheets/docs/RULES_EDGE_CASES.md#changing-the-stored-format).
+
 The immutable SQLite plan records the exact target package, package-state
 revision, ordered metadata, raw JSON bytes and all tombstone revisions. Reviews
 expire after 30 minutes. A new pending review replaces the previous pending
