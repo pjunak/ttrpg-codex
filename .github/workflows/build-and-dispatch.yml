@@ -82,6 +82,14 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # Deployments wait for the latest released add-ons to pass on this commit.
+  installed-addons:
+    name: Installed add-on smoke test
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && inputs.deploy_target != 'none') }}
+    uses: ./.github/workflows/installed-smoke.yml
+    secrets:
+      ADDON_SUITE_TOKEN: ${{ secrets.ADDON_SUITE_TOKEN }}
+
   build:
     name: Build image
     needs: [test, resolve-targets]
@@ -222,7 +230,7 @@ jobs:
   dispatch:
     name: Deploy and verify (${{ matrix.service }})
     timeout-minutes: 35
-    needs: [build, resolve-targets]
+    needs: [build, resolve-targets, installed-addons]
     if: ${{ needs.build.outputs.image_ref != '' && needs.resolve-targets.outputs.services != '' }}
     runs-on: ubuntu-latest
     strategy:

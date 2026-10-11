@@ -1,21 +1,22 @@
 name: Installed add-on smoke test
 
 # Installs the latest published release of each first-party add-on into this
-# host and exercises the main workflows. It never gates deployment.
-# Optional secret ADDON_SUITE_TOKEN (read access to the private compendium)
-# enables the compendium, rules and character cases.
+# host and exercises the main workflows. Build and dispatch calls it before
+# deploying, so a host change that breaks the released add-ons does not reach
+# the sites. Optional secret ADDON_SUITE_TOKEN (read access to the private
+# compendium) enables the compendium, rules and character cases.
 
 on:
   schedule:
     - cron: "41 2 * * *"
   workflow_dispatch:
+  workflow_call:
+    secrets:
+      ADDON_SUITE_TOKEN:
+        required: false
 
 permissions:
   contents: read
-
-concurrency:
-  group: installed-smoke
-  cancel-in-progress: true
 
 jobs:
   smoke:
