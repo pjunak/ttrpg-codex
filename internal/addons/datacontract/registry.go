@@ -128,9 +128,9 @@ func Compile(declarations []Declaration, resources map[string][]byte) (*Registry
 			if declaration.Kind != RecordExtension {
 				return nil, ErrInvalidDeclaration
 			}
-			// The worker-only policy is part of the saved schema identity. The salt
-			// value is stored with existing data; never change it.
-			policyDigest := sha256.Sum256([]byte(digest + "\x00retained-worker.v1"))
+			// Worker-only authority is part of the saved schema identity, so a
+			// change of policy requires a reviewed saved-data update.
+			policyDigest := sha256.Sum256([]byte(digest + "\x00worker-only"))
 			digest = hex.EncodeToString(policyDigest[:])
 		}
 		description := Description{
