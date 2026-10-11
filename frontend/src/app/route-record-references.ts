@@ -32,7 +32,7 @@ export function routeRecordReferences(
         href: recordHash(page, record.key),
       };
       const size = encoder.encode(JSON.stringify(reference)).length;
-      // Leave room for query pairs and the envelope in the isolated 64 KiB bridge.
+      // Keep the catalog small; route context is copied into every contribution.
       if (records.length >= 1000 || bytes + size > 48_000) {
         truncated = true;
         continue;

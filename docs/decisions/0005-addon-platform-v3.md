@@ -54,10 +54,10 @@ contribution contexts carry navigation and edit guards. Broader standalone
 event, settings, job and logging handles remain reserved. Runtime code binds
 implementations only to declared contribution IDs.
 
-Integrated UI modules run in the trusted application realm and use custom
-elements with scoped styles. Packages that need a stronger UI boundary use a
-sandboxed iframe and the same logical SDK over `postMessage`. The host never
-accepts raw HTML strings or string-to-function action dispatch.
+UI modules run in the trusted application realm and use custom elements with
+scoped styles. The host never accepts raw HTML strings or string-to-function
+action dispatch. There is no sandboxed iframe profile for less-trusted UI; add
+one only when a real third-party add-on needs that boundary.
 
 ### 3. Framed worker protocol
 
@@ -114,8 +114,7 @@ Add-on Platform v3 makes trust claims explicit:
 
 | Profile | Intended use | Isolation claim |
 |---|---|---|
-| Integrated TypeScript UI | Reviewed first-party UI | Lifecycle and API isolation, not a security sandbox |
-| Sandboxed iframe UI | Less-trusted visual extensions | Browser-origin and capability boundary |
+| Integrated TypeScript UI | Reviewed, trusted UI | Lifecycle and API isolation, not a security sandbox |
 | WASI worker | Conditional portable-computation design | Reserved; no runtime or current isolation claim |
 | Native Go worker | OS, parser, or library access not available in WASI | Crash isolation; not a security sandbox by itself |
 

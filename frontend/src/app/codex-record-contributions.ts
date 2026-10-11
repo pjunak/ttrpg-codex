@@ -88,7 +88,6 @@ export class CodexRecordContributions extends LitElement {
       registry: this.registry,
       surface: this.mode === "map" ? "slot" : "editor-panel",
       role: this.actorRole,
-      isolatedHostContext: true,
       include: (active) => acceptsRecordContribution(active, this.mode, this.collection),
       hostContext: () =>
         recordContributionContext(this.record!, this.collection, this.mode, this.#ui.locale),

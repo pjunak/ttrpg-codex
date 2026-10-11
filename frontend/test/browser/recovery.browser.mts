@@ -360,14 +360,14 @@ for (const mobile of [false, true])
       admin,
       csrf,
       id,
-      graphPackage({ id, mode: "integrated", version: "1.0.0" }),
+      graphPackage({ id, version: "1.0.0" }),
       perms,
     );
     const second = await installReviewedPackage(
       admin,
       csrf,
       id,
-      graphPackage({ id, mode: "integrated", version: "2.0.0" }),
+      graphPackage({ id, version: "2.0.0" }),
       perms,
     );
     const generationPath = (hash: string) =>
@@ -394,13 +394,7 @@ for (const mobile of [false, true])
       .waitFor();
     const saved = await jsonResponse(await admin.post("/api/recovery", { headers, data: {} }));
     const pointId = saved.points[0].id;
-    await installReviewedPackage(
-      admin,
-      csrf,
-      id,
-      graphPackage({ id, mode: "integrated", version: "3.0.0" }),
-      perms,
-    );
+    await installReviewedPackage(admin, csrf, id, graphPackage({ id, version: "3.0.0" }), perms);
     await page.reload();
     await page.locator("[data-category=addons]").click();
     await assert.rejects(stat(generationPath(second.state.activeGenerationId)), { code: "ENOENT" });

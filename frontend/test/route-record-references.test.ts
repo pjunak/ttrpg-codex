@@ -85,15 +85,11 @@ it("bounds label, count and serialized size and reports omitted records", () => 
   expect(result.truncated).toBe(true);
   expect(result.records.length).toBeLessThanOrEqual(1000);
   expect(result.records[0]!.label.length).toBe(200);
-  const message = {
-    protocol: "codex-isolated-frame.v1",
-    type: "context",
-    host: {
-      contractVersion: "addon-route-context.v1",
-      locale: "en",
-      query: [["search", '"'.repeat(4096)]],
-      recordReferences: result,
-    },
+  const context = {
+    contractVersion: "addon-route-context.v1",
+    locale: "en",
+    query: [["search", '"'.repeat(4096)]],
+    recordReferences: result,
   };
-  expect(new TextEncoder().encode(JSON.stringify(message)).length).toBeLessThan(64 * 1024);
+  expect(new TextEncoder().encode(JSON.stringify(context)).length).toBeLessThan(64 * 1024);
 });

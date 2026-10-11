@@ -7,7 +7,6 @@ import { BrowserAddonDataChanges } from "./data-changes.js";
 import { BrowserAddonContentClient } from "./content-client.js";
 import { BrowserAddonServiceClient } from "./service-client.js";
 import { createDocumentStyleLoader } from "./browser-styles.js";
-import { createIsolatedFrameActivator } from "./isolated-frame.js";
 import { BrowserGenerationManager, createModuleActivator } from "./generation-manager.js";
 
 export interface BrowserAddonComposition {
@@ -55,15 +54,8 @@ export function createBrowserAddonComposition(
     (descriptor, scope) => contributions.open(descriptor, scope),
     createDocumentStyleLoader(document),
   );
-  const activateFrame = createIsolatedFrameActivator(document, contributions, (cause) =>
-    callbacks.onDiagnostic?.(cause),
-  );
-  const manager = new BrowserGenerationManager(
-    (descriptor, context) =>
-      descriptor.mode === "isolated"
-        ? activateFrame(descriptor, context)
-        : activateModule(descriptor, context),
-    (failure) => callbacks.onDiagnostic?.(failure),
+  const manager = new BrowserGenerationManager(activateModule, (failure) =>
+    callbacks.onDiagnostic?.(failure),
   );
   const runtime = new BrowserAddonRuntime(new BrowserGraphClient(), manager);
   return {

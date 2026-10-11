@@ -55,8 +55,8 @@ SQLite transaction ---- documents + tombstones + audit + event
                  ^
                  |
 generation URL + authenticated role
-       /                         \
-integrated TypeScript     isolated iframe JSON bridge
+                 |
+       browser TypeScript module
 ```
 
 The inspector compiles schemas offline. Local `$ref` dependencies are included
@@ -118,7 +118,7 @@ choice only after measured contention justifies a more complex coordinator.
 
 ## Browser API
 
-Integrated and isolated browser add-ons receive the same `context.data` API.
+Browser add-ons receive the `context.data` API.
 `collection(id)` and `recordExtension(target, id)` return immutable handles
 with `get`, bounded `query`, optimistic `put`, and `delete` operations. A
 top-level `transact` combines up to 256 writes atomically. Every request URL
@@ -134,12 +134,7 @@ document revisions still apply independently. Player requests cannot inspect
 these counters. Unrequested query responses retain their original shape.
 See the public [data-handle contract](../../examples/addons/API_V3.md#data-handles).
 
-The isolated iframe still has `connect-src 'none'` and no same-origin access.
-It sends bounded JSON commands over its private message port; the host owns the
-HTTP client, credentials, schema authority, and cancellation. Generation
-shutdown aborts both integrated requests and in-flight iframe commands. Safe
-HTTP status classes cross the iframe boundary, while server-derived details do
-not.
+Generation shutdown aborts in-flight requests.
 
 Native workers receive equivalent versioned `host/data.get`,
 `host/data.query`, and `host/data.transact` JSON-RPC methods. Their dispatcher

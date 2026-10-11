@@ -10,7 +10,7 @@ import type { GenerationScope } from "./generation-scope.js";
 import type { BrowserDataAPI } from "./data-client.js";
 import type { BrowserContentAPI } from "./content-client.js";
 import type { BrowserServiceAPI } from "./service-client.js";
-import { BrowserContributionEdits, type BrowserContributionEditHandle } from "./edit-state.js";
+import { BrowserContributionEdits } from "./edit-state.js";
 import { showRuleDetails, type RuleDetails } from "./rule-details.js";
 import { enhanceControls, type UIControlsHandle } from "../ui/controls.js";
 
@@ -31,21 +31,6 @@ export interface BrowserModelProviderBinding {
   readonly provide: (request: unknown, context: BrowserInvocationContext) => unknown;
 }
 
-/** Host-only binding used to mount one sandboxed document into a visual outlet. */
-export interface BrowserIsolatedFrameBinding {
-  readonly kind: "isolated-frame";
-  readonly mount: (
-    host: HTMLElement,
-    hostContext?: unknown,
-    edits?: BrowserContributionEditHandle,
-  ) => (() => void) | BrowserIsolatedMount;
-}
-
-export interface BrowserIsolatedMount {
-  dispose(): void;
-  updateHostContext(value: unknown): void;
-}
-
 /** Host-only marker for a manifest contribution that contains no executable binding. */
 export interface BrowserDeclarativeBinding {
   readonly kind: "declarative";
@@ -55,7 +40,7 @@ export type BrowserContributionBinding =
   BrowserElementBinding | BrowserActionBinding | BrowserModelProviderBinding;
 
 export type ActiveBrowserContributionBinding =
-  BrowserContributionBinding | BrowserIsolatedFrameBinding | BrowserDeclarativeBinding;
+  BrowserContributionBinding | BrowserDeclarativeBinding;
 
 export interface BrowserInvocationContext {
   readonly signal: AbortSignal;
@@ -111,14 +96,6 @@ export interface ActiveBrowserContribution {
 export interface BrowserAddonSDKSession {
   readonly context: BrowserAddonContext;
   publishDeclarative(contributionId: string): BrowserContributionHandle;
-  bindIsolatedCallback(
-    contributionId: string,
-    binding: BrowserActionBinding | BrowserModelProviderBinding,
-  ): BrowserContributionHandle;
-  bindIsolated(
-    contributionId: string,
-    binding: BrowserIsolatedFrameBinding,
-  ): BrowserContributionHandle;
   dispose(): void;
 }
 
@@ -184,9 +161,6 @@ export class BrowserContributionRegistry {
     return {
       context: session.context,
       publishDeclarative: (contributionId) => session.publishDeclarative(contributionId),
-      bindIsolatedCallback: (contributionId, binding) =>
-        session.bindIsolatedCallback(contributionId, binding),
-      bindIsolated: (contributionId, binding) => session.bindIsolated(contributionId, binding),
       dispose: () => {
         releaseFallback();
         session.dispose();
@@ -211,11 +185,9 @@ export class BrowserContributionRegistry {
   settleGraph(graph: BrowserGenerationSet): void {
     this.edits.retain(
       new Set(
-        graph.addons
-          .filter((addon) => addon.mode === "integrated")
-          .flatMap((addon) =>
-            addon.contributions.map((contribution) => `${addon.addonId}:${contribution.id}`),
-          ),
+        graph.addons.flatMap((addon) =>
+          addon.contributions.map((contribution) => `${addon.addonId}:${contribution.id}`),
+        ),
       ),
     );
     this.#changed();
@@ -302,8 +274,6 @@ class RegistrySession {
         enhance: (root: HTMLElement): UIControlsHandle => {
           this.#assertOpen();
           this.context.capabilities.require("ui.controls.v1");
-          if (descriptor.mode !== "integrated")
-            throw new BrowserSDKAuthorityError("DOM controls require an integrated contribution.");
           const handle = enhanceControls(root, { signal });
           this.#uiHandles.add(handle);
           return Object.freeze({
@@ -361,56 +331,6 @@ class RegistrySession {
       );
     }
     return this.#register(declaration, Object.freeze({ kind: "declarative" }));
-  }
-
-  bindIsolatedCallback(
-    contributionId: string,
-    binding: BrowserActionBinding | BrowserModelProviderBinding,
-  ): BrowserContributionHandle {
-    this.#assertOpen();
-    if (this.#descriptor.mode !== "isolated") {
-      throw new BrowserContributionBindingError(
-        `integrated add-on ${this.#descriptor.addonId} cannot bind an isolated callback`,
-      );
-    }
-    const declaration = this.#declaration(contributionId);
-    const expected = expectedBindingKind(declaration.surface);
-    if (expected !== "action" && expected !== "model-provider") {
-      throw new BrowserContributionBindingError(
-        `isolated contribution ${contributionId} on ${declaration.surface} is not a callback surface`,
-      );
-    }
-    return this.#register(declaration, normalizeBinding(declaration, binding, this.context.signal));
-  }
-
-  bindIsolated(
-    contributionId: string,
-    binding: BrowserIsolatedFrameBinding,
-  ): BrowserContributionHandle {
-    this.#assertOpen();
-    if (this.#descriptor.mode !== "isolated") {
-      throw new BrowserContributionBindingError(
-        `integrated add-on ${this.#descriptor.addonId} cannot bind an isolated frame`,
-      );
-    }
-    const declaration = this.#declaration(contributionId);
-    if (expectedBindingKind(declaration.surface) !== "element") {
-      throw new BrowserContributionBindingError(
-        `isolated contribution ${contributionId} on ${declaration.surface} is not a visual element surface`,
-      );
-    }
-    if (typeof binding.mount !== "function") {
-      throw new BrowserContributionBindingError(
-        `isolated contribution ${contributionId} requires a frame mount function`,
-      );
-    }
-    return this.#register(
-      declaration,
-      Object.freeze({
-        kind: "isolated-frame",
-        mount: binding.mount,
-      }),
-    );
   }
 
   #bind(contributionId: string, binding: BrowserContributionBinding): BrowserContributionHandle {

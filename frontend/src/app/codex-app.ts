@@ -1097,7 +1097,6 @@ export class CodexApp extends LitElement {
         include: (active) =>
           browserAddonRouteHash(active) ===
           parseBrowserAddonLocation(window.location.hash)?.routeHash,
-        isolatedHostContext: true,
         hostContext: (active) => {
           const recordReferences = routeRecordReferences(
             this.campaignState.state === "ready" ? this.campaignState.campaign : undefined,

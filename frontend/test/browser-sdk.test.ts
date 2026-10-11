@@ -22,7 +22,7 @@ const sidebar = contribution("planner.sidebar", "sidebar", 200);
 const graphView = contribution("planner.graph", "graph-view", 300);
 
 describe("BrowserContributionRegistry", () => {
-  it("requires the controls capability, integrated mode and a live SDK session", () => {
+  it("requires the controls capability and a live SDK session", () => {
     const root = {} as HTMLElement,
       registry = new BrowserContributionRegistry();
     const absent = registry.open(
@@ -30,14 +30,8 @@ describe("BrowserContributionRegistry", () => {
       new GenerationScope("controls@absent"),
     );
     expect(() => absent.context.ui.enhance(root)).toThrow("ui.controls.v1");
-    const isolated = registry.open(
-      { ...descriptor("controls", []), mode: "isolated", capabilities: ["ui.controls.v1"] },
-      new GenerationScope("controls@isolated"),
-    );
-    expect(() => isolated.context.ui.enhance(root)).toThrow("integrated");
-    isolated.dispose();
-    expect(() => isolated.context.ui.enhance(root)).toThrow();
     absent.dispose();
+    expect(() => absent.context.ui.enhance(root)).toThrow();
   });
   it("binds wiki providers as generation-scoped callbacks rather than visual elements", () => {
     const registry = new BrowserContributionRegistry();
@@ -409,10 +403,8 @@ function descriptor(
     addonId,
     addonVersion: "1.0.0",
     generationId,
-    mode: "integrated",
     entryUrl: `/api/addons/${addonId}/generations/${generationId}/assets/web/index.js`,
     styleUrls: [],
-    sandbox: [],
     dependencies: [],
     capabilities: ["ui.contributions"],
     permissions: [{ id: "core.data.read", resources: ["characters"] }],

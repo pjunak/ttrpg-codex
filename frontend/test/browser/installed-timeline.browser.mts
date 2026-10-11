@@ -1,5 +1,5 @@
 import { required } from "./fixture-types.mts";
-import type { APIRequestContext, Browser, Page, Locator, FrameLocator } from "playwright";
+import type { APIRequestContext, Browser, Page, Locator } from "playwright";
 import type { TestContext } from "node:test";
 import type { AddressInfo } from "node:net";
 import type { ChildProcessByStdio } from "node:child_process";
@@ -165,18 +165,17 @@ async function open(t: TestContext, role = "dm", mobile = false) {
   await page.locator('.tl-card[data-key="arrival"]').waitFor();
   return page;
 }
-function widget(page: Page, id: string, mode: string, slot: string, eventKey?: string) {
+function widget(page: Page, id: string, slot: string, eventKey?: string) {
   const root = eventKey
     ? page.locator(`.tl-card[data-key="${eventKey}"]`)
     : page.locator(".tl-shell");
-  const container = root
+  return root
     .locator(
       `codex-timeline-slot[data-timeline-slot="${slot}"] .addon-contribution[data-addon-id="${id}"]`,
     )
     .first();
-  return mode === "isolated" ? container.frameLocator("iframe") : container;
 }
-async function details(widget: Locator | FrameLocator) {
+async function details(widget: Locator) {
   return JSON.parse(await widget.locator("output").textContent().then(required));
 }
 async function refreshArrival() {
@@ -204,13 +203,13 @@ async function refreshArrival() {
   return event.revision + 1;
 }
 
-for (const mode of ["integrated", "isolated"])
-  void test(`installed ${mode} timeline slots retain widget state, role filtering and the original board`, async (t) => {
-    const id = `timeline-${mode}`;
-    await installTimelinePackage(admin, csrf, { id, mode });
+for (const mobile of [false, true])
+  void test(`installed timeline slots retain widget state, role filtering and the original board on ${mobile ? "phone" : "desktop"}`, async (t) => {
+    const id = `timeline-${mobile ? "phone" : "desktop"}`;
+    await installTimelinePackage(admin, csrf, { id });
     t.after(() => disable(id));
-    const page = await open(t, "dm", mode === "isolated");
-    const extra = widget(page, id, mode, "timeline:card:extra", "arrival");
+    const page = await open(t, "dm", mobile);
+    const extra = widget(page, id, "timeline:card:extra", "arrival");
     await extra.getByLabel("Widget draft").waitFor();
     const initial = await details(extra);
     assert.equal(initial.slot, "timeline:card:extra");
@@ -235,15 +234,15 @@ for (const mode of ["integrated", "isolated"])
     await extra.getByRole("button", { name: "Widget action" }).click();
     assert.equal(await extra.getByLabel("Widget draft").inputValue(), "Action ran");
     assert.equal(new URL(page.url()).hash, "#/timeline");
-    const header = widget(page, id, mode, "timeline:column:header");
+    const header = widget(page, id, "timeline:column:header");
     await header.locator("output").waitFor();
     assert.ok(
       (await details(header)).events.some((event: { key: string }) => event.key === "secret-event"),
     );
-    await widget(page, id, mode, "timeline:column:footer").locator("output").waitFor();
-    await page.screenshot({ path: resolve(output, `${mode}.png`) });
+    await widget(page, id, "timeline:column:footer").locator("output").waitFor();
+    await page.screenshot({ path: resolve(output, `${id}.png`) });
     const player = await open(t, "player");
-    const playerHeader = widget(player, id, mode, "timeline:column:header");
+    const playerHeader = widget(player, id, "timeline:column:header");
     await playerHeader.locator("output").waitFor();
     assert.deepEqual(
       (await details(playerHeader)).events.map((event: { key: string }) => event.key),
@@ -259,10 +258,10 @@ for (const mode of ["integrated", "isolated"])
 
 void test("timeline slot replacement and refresh preserve unsaved core ordering and enforce read grants", async (t) => {
   const id = "timeline-no-read";
-  await installTimelinePackage(admin, csrf, { id, mode: "isolated", read: false });
+  await installTimelinePackage(admin, csrf, { id, read: false });
   t.after(() => disable(id));
   const page = await open(t),
-    extra = widget(page, id, "isolated", "timeline:card:extra", "arrival");
+    extra = widget(page, id, "timeline:card:extra", "arrival");
   await extra.locator("output").waitFor();
   assert.deepEqual((await details(extra)).events, []);
   await page.getByRole("button", { name: /Edit timeline/ }).click();
@@ -275,7 +274,6 @@ void test("timeline slot replacement and refresh preserve unsaved core ordering 
   );
   await installTimelinePackage(admin, csrf, {
     id,
-    mode: "isolated",
     read: false,
     version: "1.0.1",
   });
@@ -296,10 +294,10 @@ void test("timeline slot replacement and refresh preserve unsaved core ordering 
 
 void test("a retained timeline draft does not share newly hidden event references with add-ons", async (t) => {
   const id = "timeline-projection";
-  await installTimelinePackage(admin, csrf, { id, mode: "isolated" });
+  await installTimelinePackage(admin, csrf, { id });
   t.after(() => disable(id));
   const page = await open(t, "player"),
-    header = widget(page, id, "isolated", "timeline:column:header");
+    header = widget(page, id, "timeline:column:header");
   await header.locator("output").waitFor();
   await page.getByRole("button", { name: /Edit timeline/ }).click();
   await page.getByRole("button", { name: "Move Arrival down" }).click();

@@ -19,10 +19,8 @@ const descriptor: BrowserGenerationDescriptor = {
   addonId: "dm-tools",
   addonVersion: "1.0.0",
   generationId,
-  mode: "integrated",
   entryUrl: `/api/addons/dm-tools/generations/${generationId}/assets/web/index.js`,
   styleUrls: [`/api/addons/dm-tools/generations/${generationId}/assets/web/index.css`],
-  sandbox: [],
   dependencies: [],
   capabilities: ["ui.contributions"],
   permissions: [{ id: "core.data.read", resources: ["characters"] }],
@@ -92,7 +90,6 @@ describe("parseBrowserGenerationSet", () => {
     { ...graph, unexpected: true },
     { ...graph, addons: "not-an-array" },
     { ...graph, addons: [{ ...graph.addons[0], unexpected: true }] },
-    { ...graph, addons: [{ ...graph.addons[0], sandbox: ["same-origin"] }] },
     { ...graph, addons: [{ ...graph.addons[0], dependencies: [1] }] },
     { ...graph, addons: [{ ...graph.addons[0], capabilities: ["invalid"] }] },
     {

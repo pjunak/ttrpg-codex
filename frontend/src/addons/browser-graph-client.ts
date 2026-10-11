@@ -38,7 +38,6 @@ const contributionKeys = new Set([
   "requires",
   "config",
 ]);
-const sandboxValues = new Set(["downloads", "forms", "modals", "popups"] as const);
 const browserRoles = new Set(["dm", "player"] as const);
 const localIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const contractIdPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
@@ -200,10 +199,6 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
       `${location}.generationId must be a lowercase SHA-256 digest`,
     );
   }
-  const mode = value["mode"];
-  if (mode !== "integrated" && mode !== "isolated") {
-    throw new BoundaryValidationError(boundary, `${location}.mode is unsupported`);
-  }
   const entryUrl = requiredString(value["entryUrl"], `${location}.entryUrl`);
   const styleUrls = stringArray(value["styleUrls"], `${location}.styleUrls`);
   if (styleUrls.length > 64) {
@@ -226,17 +221,6 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
   const contributions = value["contributions"].map((contribution, index) =>
     parseContribution(contribution, `${location}.contributions[${index}]`),
   );
-  const rawSandbox = stringArray(value["sandbox"], `${location}.sandbox`);
-  const sandbox: Array<BrowserGenerationDescriptor["sandbox"][number]> = [];
-  for (const grant of rawSandbox) {
-    if (!sandboxValues.has(grant as BrowserGenerationDescriptor["sandbox"][number])) {
-      throw new BoundaryValidationError(
-        boundary,
-        `${location}.sandbox contains an unsupported grant`,
-      );
-    }
-    sandbox.push(grant as BrowserGenerationDescriptor["sandbox"][number]);
-  }
   const assetPrefix = `/api/addons/${encodeURIComponent(addonId)}/generations/${encodeURIComponent(generationId)}/assets/web/`;
   if (
     !validProjectedAssetURL(entryUrl, assetPrefix) ||
@@ -254,10 +238,8 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
     addonId,
     addonVersion,
     generationId,
-    mode,
     entryUrl,
     styleUrls,
-    sandbox,
     dependencies,
     capabilities,
     permissions,

@@ -753,9 +753,6 @@ codex-addon-settings {
   flex-wrap: wrap;
   overflow-wrap: anywhere;
 }
-.addon-settings .codex-isolated-addon-frame {
-  height: 8rem;
-}
 .addon-source-form {
   display: flex;
   flex-wrap: wrap;

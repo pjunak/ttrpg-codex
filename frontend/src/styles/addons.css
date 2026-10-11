@@ -45,10 +45,6 @@ codex-addon-markdown {
 .record-contributions > p {
   color: var(--text-muted);
 }
-.record-contributions .codex-isolated-addon-frame {
-  height: 8rem;
-}
-
 .addon-contribution {
   min-width: 0;
   overflow: hidden;
@@ -82,19 +78,6 @@ codex-addon-markdown {
 .addon-contribution > :not(.addon-contribution-heading) {
   display: block;
   padding: 1rem;
-}
-
-.addon-isolated-frame {
-  padding: 0 !important;
-  background: #fff;
-}
-
-.codex-isolated-addon-frame {
-  display: block;
-  width: 100%;
-  height: min(42rem, 72vh);
-  border: 0;
-  background: #fff;
 }
 
 .route-addon .addon-contribution,

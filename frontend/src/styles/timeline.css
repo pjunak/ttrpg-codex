@@ -33,17 +33,6 @@ codex-timeline-slot {
   background: transparent;
   box-shadow: none;
 }
-.tl-shell codex-timeline-slot .addon-isolated-frame {
-  min-height: 0;
-  background: transparent;
-}
-.tl-shell codex-timeline-slot iframe {
-  display: block;
-  width: 100%;
-  height: 1px;
-  border: 0;
-  background: transparent;
-}
 .tl-toolbar codex-timeline-slot {
   flex: 0 1 16rem;
   max-width: 100%;

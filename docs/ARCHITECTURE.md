@@ -104,10 +104,10 @@ They inherit no host environment, receive host-authoritative actor/deadline
 metadata, and can call only granted host methods. A native process boundary
 improves failure isolation but is not an OS security sandbox.
 
-Browser add-ons receive a strict TypeScript SDK and generation scope. Integrated
-components register only declared surfaces. Isolated contributions run in
-opaque, CSP-restricted iframes over transferred message ports. Abort-first,
-LIFO, once-only cleanup prevents stale handlers and services after reloads.
+Browser add-ons receive a strict TypeScript SDK and generation scope. Their
+modules run in the application page as trusted code and register only declared
+surfaces. Abort-first, LIFO, once-only cleanup prevents stale handlers and
+services after reloads.
 
 ## Imports
 
@@ -129,11 +129,11 @@ output from Vite; Node.js is absent from the runtime image.
 The [shared UI foundations](reference/UI_FOUNDATIONS.md) preserve the goal of
 reusable, themeable controls serving both the host and add-ons. The versioned
 `ui.controls.v1` capability lends one implementation of fields, search/comboboxes,
-buttons, states, tabs and modal focus to integrated contributions. Semantic tokens
+buttons, states, tabs and modal focus to contributions. Semantic tokens
 style that implementation. DM Tools, Compendium and Character Sheets use it;
 records, rules, saving and specialized layouts remain with their owners.
 Contribution framing, Markdown and serializable rule details are separate public
-surfaces. Isolated frames retain the documented bridge boundary.
+surfaces.
 
 [Markdown recovery and collection browsing](reference/EDITOR_BROWSING.md) share
 host editor descriptors, current role projections, and existing record saves.

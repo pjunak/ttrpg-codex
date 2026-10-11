@@ -31,7 +31,7 @@ export async function exerciseAddonManager({
     await manager.locator('input[type="file"]').setInputFiles({
       name: `${id}.zip`,
       mimeType: "application/zip",
-      buffer: graphPackage({ id, mode: "integrated", version }),
+      buffer: graphPackage({ id, version }),
     });
     await manager.getByRole("button", { name: "Inspect ZIP", exact: true }).click();
     await review

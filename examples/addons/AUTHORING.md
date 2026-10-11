@@ -57,7 +57,7 @@ saved-data and integration namespaces. Display names may change.
 
 | Capability | Gives you |
 | --- | --- |
-| `ui.contributions` | Browser modules (integrated or sandboxed iframe) |
+| `ui.contributions` | Browser modules (`runtime.ui.mode` is always `integrated`) |
 | `ui.controls.v1` | The host's shared fields, searchable choices, tabs and dialogs |
 | `ui.markdown`, `ui.rule-details` | Shared Markdown rendering and rule-detail popovers |
 | `worker.native` | A native Go worker per target platform |
@@ -73,10 +73,8 @@ Write browser code in strict TypeScript and ship only the compiled `web/`
 output. The entry module exports `activate(context)`. Bind only contributions
 declared in the manifest and use only the SDK handles you receive.
 
-- **Integrated** modules run in the app page as trusted, reviewed code.
-  **Isolated** modules run in a sandboxed iframe, talk only through the host
-  bridge and must be one self-contained bundle. Neither may import host modules,
-  read host DOM or assume file layout.
+- Modules run in the app page as trusted, reviewed code. They must not import
+  host modules, read host DOM or assume file layout.
 - Treat all data as untrusted. Build DOM with `textContent`; never insert raw
   HTML from packages, translations, services or records.
 - For forms and controls, declare `ui.controls.v1` and call

@@ -25,8 +25,8 @@ and records are copies, so callers cannot mutate the host index.
 
 ## Browser contract
 
-Authenticated integrated and isolated add-ons receive the same
-generation-scoped `context.content` API:
+Authenticated browser add-ons receive the generation-scoped
+`context.content` API:
 
 ```ts
 const catalog = await context.content.catalog({ signal: context.signal });
@@ -47,11 +47,6 @@ generation and use strict versioned envelopes. Queries are sorted by
 exceed 4 MiB. Opaque cursors resume after the last returned stable position.
 Cursors bind the effective revision, set and query kind. Content responses use
 `private, no-store`: source eligibility can change at the same archive URL.
-
-The isolated iframe has no network authority or credentials. Its private JSON
-bridge forwards `content.catalog`, `content.get`, and `content.query` to the
-same host-owned client, enforces request and response limits, propagates
-cancellation, and exposes only safe HTTP status classes.
 
 ## Effective source policy
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BrowserContributionOutlet } from "../src/addons/contribution-outlet.js";
 import { BrowserContributionRegistry } from "../src/addons/browser-sdk.js";
 import type {
@@ -136,33 +136,6 @@ describe("BrowserContributionOutlet", () => {
     expect(root.children).toEqual([]);
   });
 
-  it("mounts and releases host-owned isolated frame bindings", () => {
-    const registry = new BrowserContributionRegistry();
-    const session = registry.open(
-      { ...descriptor("isolated-tools", contribution("frame.panel", 10)), mode: "isolated" },
-      new GenerationScope("isolated-tools@generation"),
-    );
-    const mount = vi.fn(() => dispose);
-    const dispose = vi.fn();
-    const root = new FakeElement("div");
-    const outlet = new BrowserContributionOutlet({
-      document: new FakeDocument() as unknown as Document,
-      root: root as unknown as HTMLElement,
-      registry,
-      surface: "slot",
-      role: "dm",
-    });
-
-    const handle = session.bindIsolated("frame.panel", { kind: "isolated-frame", mount });
-    expect(mount).toHaveBeenCalledOnce();
-    expect((root.children[0] as FakeElement).children[1]?.tagName).toBe("div");
-
-    handle.dispose();
-    expect(dispose).toHaveBeenCalledOnce();
-    outlet.dispose();
-    expect(dispose).toHaveBeenCalledOnce();
-  });
-
   it("mounts only contributions selected by a feature-owned outlet", () => {
     const registry = new BrowserContributionRegistry();
     const first = registry.open(
@@ -242,10 +215,8 @@ function descriptor(
     addonId,
     addonVersion: "1.0.0",
     generationId,
-    mode: "integrated",
     entryUrl: `/api/addons/${addonId}/generations/${generationId}/assets/web/index.js`,
     styleUrls: [],
-    sandbox: [],
     dependencies: [],
     capabilities: ["ui.contributions"],
     permissions: [],

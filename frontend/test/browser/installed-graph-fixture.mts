@@ -53,14 +53,12 @@ export function zip(
 
 export function graphPackage({
   id,
-  mode,
   version = "1.0.0",
   label = "Trail note",
   invalid = false,
   delay = 0,
 }: {
   id: string;
-  mode: string;
   version?: string;
   label?: string;
   invalid?: boolean;
@@ -87,7 +85,7 @@ export function graphPackage({
         reason: "Link clues to visible characters.",
       },
     ],
-    runtime: { ui: { mode, entry: "web/index.js" } },
+    runtime: { ui: { mode: "integrated", entry: "web/index.js" } },
     contributions: [
       declaration("notes", "graph-contributor", "Trail clues", {
         contractVersion: 1,

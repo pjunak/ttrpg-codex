@@ -110,7 +110,7 @@ export interface AddonGraphResult {
   readonly model?: AddonGraphModel;
 }
 
-/** Treat integrated callbacks and isolated port responses as the same JSON boundary. */
+/** Add-on graph models are untrusted JSON and are validated like any API response. */
 export function parseAddonGraphModel(
   value: unknown,
   active: ActiveBrowserContribution,

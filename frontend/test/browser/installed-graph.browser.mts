@@ -168,12 +168,12 @@ async function disable(id: string) {
   );
 }
 
-for (const mode of ["integrated", "isolated"])
-  void test(`installed ${mode} graphs preserve core cards, detail navigation and local movement`, async (t) => {
-    const id = `graph-${mode}`;
-    await installGraphPackage(admin, csrf, { id, mode });
+for (const mobile of [false, true])
+  void test(`installed graphs preserve core cards, detail navigation and local movement on ${mobile ? "phone" : "desktop"}`, async (t) => {
+    const id = `graph-${mobile ? "phone" : "desktop"}`;
+    await installGraphPackage(admin, csrf, { id });
     t.after(() => disable(id));
-    const page = await open(t, "dm", mode === "isolated"),
+    const page = await open(t, "dm", mobile),
       note = card(page, id);
     await note.waitFor();
     assert.equal(await note.locator(".cm-name").textContent().then(required), "Trail note");
@@ -197,7 +197,7 @@ for (const mode of ["integrated", "isolated"])
       id,
     );
     assert.equal(storage[JSON.stringify(["addon", id, "board", "node", "note"])].x, 305);
-    await page.screenshot({ path: resolve(output, `${mode}.png`) });
+    await page.screenshot({ path: resolve(output, `${id}.png`) });
     await page.reload();
     await card(page, id, "board").waitFor();
     assert.ok(before.width > 0);
@@ -212,11 +212,7 @@ for (const mode of ["integrated", "isolated"])
       305,
     );
     await card(page, id, "board").click();
-    await (
-      mode === "isolated"
-        ? page.frameLocator("[data-addon-route-outlet] iframe").getByText("Reviewed package detail")
-        : page.getByText("Reviewed package detail")
-    ).waitFor();
+    await page.getByText("Reviewed package detail").waitFor();
     const player = await open(t, "player");
     await card(player, id).waitFor();
     assert.equal(await player.getByRole("link", { name: "Trail board", exact: true }).count(), 0);
@@ -228,14 +224,13 @@ for (const mode of ["integrated", "isolated"])
 
 void test("invalid and replaced installed graph models cannot leave stale cards behind", async (t) => {
   const id = "graph-replace";
-  await installGraphPackage(admin, csrf, { id, mode: "integrated", invalid: true });
+  await installGraphPackage(admin, csrf, { id, invalid: true });
   t.after(() => disable(id));
   const page = await open(t);
   await page.getByRole("alert").filter({ hasText: "Could not load graph content" }).waitFor();
   assert.equal(await card(page, id).count(), 0);
   await installGraphPackage(admin, csrf, {
     id,
-    mode: "integrated",
     version: "1.0.1",
     delay: 1000,
     label: "Late old card",
@@ -248,7 +243,6 @@ void test("invalid and replaced installed graph models cannot leave stale cards 
   await page.getByText("Loading add-on cards…").waitFor();
   await installGraphPackage(admin, csrf, {
     id,
-    mode: "integrated",
     version: "1.0.2",
     label: "Current card",
   });
@@ -262,7 +256,7 @@ void test("invalid and replaced installed graph models cannot leave stale cards 
 
 void test("late installed models and live refresh preserve explicit zoom and saved positions", async (t) => {
   const id = "graph-zoom";
-  await installGraphPackage(admin, csrf, { id, mode: "isolated", delay: 500 });
+  await installGraphPackage(admin, csrf, { id, delay: 500 });
   t.after(() => disable(id));
   const page = await open(t);
   await page.getByRole("link", { name: "Trail board", exact: true }).click();

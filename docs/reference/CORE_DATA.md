@@ -358,7 +358,7 @@ timeline messages use the English/Czech catalogs. Preparation tests live in
 `frontend/test/browser/timeline.browser.mts` cover desktop/phone layout, native
 drag, keyboard moves, reload, empty and DM-twin views, creation/edit/deletion,
 anonymous access, live conflicts, failed saves, and navigation guards.
-The four additive timeline slots mount integrated and isolated elements
+The four additive timeline slots mount add-on elements
 with bounded, permission-filtered event identities. `installed-timeline.browser.mts`
 uses real reviewed ZIPs and a disposable Go host to verify the board,
 widget state across refreshes, role/read grants, replacement and disable, and
@@ -443,8 +443,8 @@ also verify deferred saves, idle frame shutdown, complete cancellation,
 navigation during settling, live projection changes, cross-tab races, and
 runtime reduced-motion changes. `campaign-addon-graph.test.ts` verifies model
 validation, permission-filtered references, namespaced identities, bounded
-work, and cancellation. `installed-graph.browser.mts` exercises integrated and
-isolated graph providers on a disposable Go host through the reviewed package
+work, and cancellation. `installed-graph.browser.mts` exercises graph providers
+on a disposable Go host through the reviewed package
 lifecycle, including local movement, role restrictions, detail navigation,
 replacement, and disable. Real-campaign visual acceptance remains open.
 

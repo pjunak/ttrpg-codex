@@ -86,7 +86,6 @@ export class CodexAddonSettings extends LitElement {
       surface: "settings",
       role: this.actorRole,
       include: (active) => active.addonId === this.addonId,
-      isolatedHostContext: true,
       hostContext: () => ({
         contractVersion: "addon-settings-context.v1",
         locale: this.#ui.locale,

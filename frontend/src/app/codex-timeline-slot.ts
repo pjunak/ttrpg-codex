@@ -86,7 +86,6 @@ export class CodexTimelineSlot extends LitElement {
         surface: "slot",
         role: this.actorRole,
         compact: true,
-        isolatedHostContext: true,
         include: (active) => isTimelineSlot(active, this.context.slot),
         hostContext: (active) => timelineSlotContext(this.context, active),
         onError: () => {

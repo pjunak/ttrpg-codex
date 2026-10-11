@@ -208,55 +208,52 @@ async function open(t: TestContext, role = "dm", mobile = false) {
   await page.locator("#dm-page-title").waitFor();
   return page;
 }
-function slotRoot(page: Page, mode: string) {
-  const root = page.locator("[data-dm-dashboard-slot]");
-  return mode === "isolated" ? root.frameLocator("iframe") : root;
+function slotRoot(page: Page) {
+  return page.locator("[data-dm-dashboard-slot]");
 }
 
-for (const mode of ["integrated", "isolated"])
-  void test(`installed ${mode} rule details preserve drafts, keyboard focus and generation lifetime`, async (t) => {
-    const id = `rule-details-${mode}`;
-    await installDmPackage(admin, csrf, { id, mode, edits: true, ruleDetails: true });
-    t.after(() => disable(id));
-    const page = await open(t, "dm", mode === "isolated"),
-      surface = slotRoot(page, mode);
-    await surface.getByLabel("Fixture notes").fill("Draft survives rule inspection");
-    const trigger = surface.getByRole("button", { name: "Inspect saved rule", exact: true });
-    await trigger.focus();
-    await trigger.press("Enter");
-    const dialog = page.getByRole("dialog", { name: "Synthetic total", exact: true });
-    await dialog.waitFor();
-    assert.match(await dialog.innerText(), /10 \+ 2/);
-    assert.match(await dialog.innerText(), /Saved explanations remain visible/);
-    await page.keyboard.press("Escape");
-    await dialog.waitFor({ state: "hidden" });
-    // The isolated acknowledgement crosses MessagePort after the host closes.
-    for (
-      let attempt = 0;
-      attempt < 50 && !(await trigger.evaluate((element) => element === document.activeElement));
-      attempt++
-    )
-      await sleep(20);
-    assert.equal(
-      await trigger.evaluate((element) => element === document.activeElement),
-      true,
-      JSON.stringify(
-        await trigger.evaluate(() => ({
-          active: document.activeElement?.outerHTML,
-          focused: document.hasFocus(),
-        })),
-      ),
-    );
-    assert.equal(
-      await surface.getByLabel("Fixture notes").inputValue(),
-      "Draft survives rule inspection",
-    );
-    assert.equal(await unloadBlocked(page), true);
-    await trigger.press("Space");
-    await dialog.waitFor();
-    await disable(id);
-    await dialog.waitFor({ state: "detached" });
-  });
+void test(`installed rule details preserve drafts, keyboard focus and generation lifetime`, async (t) => {
+  const id = "rule-details";
+  await installDmPackage(admin, csrf, { id, edits: true, ruleDetails: true });
+  t.after(() => disable(id));
+  const page = await open(t, "dm"),
+    surface = slotRoot(page);
+  await surface.getByLabel("Fixture notes").fill("Draft survives rule inspection");
+  const trigger = surface.getByRole("button", { name: "Inspect saved rule", exact: true });
+  await trigger.focus();
+  await trigger.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "Synthetic total", exact: true });
+  await dialog.waitFor();
+  assert.match(await dialog.innerText(), /10 \+ 2/);
+  assert.match(await dialog.innerText(), /Saved explanations remain visible/);
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "hidden" });
+  for (
+    let attempt = 0;
+    attempt < 50 && !(await trigger.evaluate((element) => element === document.activeElement));
+    attempt++
+  )
+    await sleep(20);
+  assert.equal(
+    await trigger.evaluate((element) => element === document.activeElement),
+    true,
+    JSON.stringify(
+      await trigger.evaluate(() => ({
+        active: document.activeElement?.outerHTML,
+        focused: document.hasFocus(),
+      })),
+    ),
+  );
+  assert.equal(
+    await surface.getByLabel("Fixture notes").inputValue(),
+    "Draft survives rule inspection",
+  );
+  assert.equal(await unloadBlocked(page), true);
+  await trigger.press("Space");
+  await dialog.waitFor();
+  await disable(id);
+  await dialog.waitFor({ state: "detached" });
+});
 
 void test("DM panel preserves the fallback cards and hidden sidebar tool access on desktop and phone", async (t) => {
   const id = "dm-fallback";
@@ -349,98 +346,90 @@ void test("DM panel preserves the fallback cards and hidden sidebar tool access 
   }
 });
 
-for (const mode of ["integrated", "isolated"])
-  void test(`installed ${mode} DM dashboard mounts only in the DM route and cleans up on replacement and disable`, async (t) => {
-    const id = `dm-${mode}`;
-    await installDmPackage(admin, csrf, { id, mode });
-    t.after(() => disable(id));
-    const page = await open(t, "dm", mode === "isolated"),
-      slot = slotRoot(page, mode);
-    await slot.getByRole("heading", { name: "Fixture DM workspace 1.0.0" }).waitFor();
-    assert.deepEqual(
-      JSON.parse(await slot.getByLabel("Fixture context").textContent().then(required)),
-      { contractVersion: "dm-dashboard-context.v1", locale: "en" },
-    );
-    assert.equal(
+void test(`installed DM dashboard mounts only in the DM route and cleans up on replacement and disable`, async (t) => {
+  const id = "dm-dashboard";
+  await installDmPackage(admin, csrf, { id });
+  t.after(() => disable(id));
+  const page = await open(t, "dm"),
+    slot = slotRoot(page);
+  await slot.getByRole("heading", { name: "Fixture DM workspace 1.0.0" }).waitFor();
+  assert.deepEqual(
+    JSON.parse(await slot.getByLabel("Fixture context").textContent().then(required)),
+    { contractVersion: "dm-dashboard-context.v1", locale: "en" },
+  );
+  assert.equal(
+    await page
+      .locator("codex-dm-dashboard")
+      .evaluate((element: HTMLElement & { degraded: boolean }) => element.degraded),
+    false,
+    JSON.stringify(
       await page
-        .locator("codex-dm-dashboard")
-        .evaluate((element: HTMLElement & { degraded: boolean }) => element.degraded),
-      false,
-      JSON.stringify(
-        await page
-          .locator("codex-app")
-          .evaluate((element: HTMLElement & { addonState: unknown }) => element.addonState),
-      ),
-    );
-    await page.locator('[data-dm-collection="events"]').waitFor({ state: "detached" });
-    await slot.getByLabel("Fixture notes").fill("Keep these notes");
-    const campaign = await jsonResponse(await admin.get("/api/campaign"));
-    const event = campaign.collections
-      .find((collection: FixtureCollection) => collection.name === "events")!
-      .records.find((record: FixtureRecord) => record.key === "arrival");
-    await jsonResponse(
-      await admin.post("/api/campaign/transactions", {
-        headers: { "X-Codex-CSRF": csrf },
-        data: {
-          contractVersion: "campaign-mutation.v1",
-          mutations: [
-            {
-              operation: "put",
-              collection: "events",
-              key: event.key,
-              expectedRevision: event.revision,
-              value: { ...event.value, short: `Changed ${event.revision}` },
-            },
-          ],
-        },
-      }),
-    );
-    await page.waitForFunction(
-      (revision) =>
-        document
-          .querySelector("codex-dm-dashboard")!
-          .campaign.collections.find((collection) => collection.name === "events")!
-          .records.find((record) => record.key === "arrival")!.revision > revision,
-      event.revision,
-    );
-    assert.equal(await slot.getByLabel("Fixture notes").inputValue(), "Keep these notes");
-    const player = await open(t, "player");
-    assert.equal(await player.locator("[data-dm-dashboard-slot]").count(), 0);
-    await page.goto("/#/");
-    assert.equal(await page.locator(`[data-addon-slot] [data-addon-id="${id}"]`).count(), 0);
-    await page.goto(`/#/addons/${id}/planner?item=first`);
-    const route =
-      mode === "isolated"
-        ? page.locator("[data-addon-route-outlet]").frameLocator("iframe")
-        : page.locator("[data-addon-route-outlet]");
-    await route.getByRole("heading", { name: "Fixture planner page" }).waitFor();
-    await route.getByLabel("Fixture notes").fill("Keep this draft");
-    assert.deepEqual(
-      JSON.parse(await route.getByLabel("Fixture context").textContent().then(required)),
-      { contractVersion: "addon-route-context.v1", locale: "en", query: [["item", "first"]] },
-    );
-    await page.goto(`/#/addons/${id}/planner?item=second&item=third`);
-    await route.getByLabel("Fixture context").filter({ hasText: "second" }).waitFor();
-    assert.deepEqual(
-      JSON.parse(await route.getByLabel("Fixture context").textContent().then(required)).query,
-      [
-        ["item", "second"],
-        ["item", "third"],
-      ],
-    );
-    assert.equal(await route.getByLabel("Fixture notes").inputValue(), "Keep this draft");
-    await page.goto("/#/dm");
-    await slotRoot(page, mode)
-      .getByRole("heading", { name: "Fixture DM workspace 1.0.0" })
-      .waitFor();
-    await installDmPackage(admin, csrf, { id, mode, version: "1.0.1" });
-    await slotRoot(page, mode)
-      .getByRole("heading", { name: "Fixture DM workspace 1.0.1" })
-      .waitFor();
-    await disable(id);
-    await page.locator('[data-dm-collection="events"]').waitFor();
-    assert.equal(await page.locator(`[data-dm-dashboard-slot] [data-addon-id="${id}"]`).count(), 0);
-  });
+        .locator("codex-app")
+        .evaluate((element: HTMLElement & { addonState: unknown }) => element.addonState),
+    ),
+  );
+  await page.locator('[data-dm-collection="events"]').waitFor({ state: "detached" });
+  await slot.getByLabel("Fixture notes").fill("Keep these notes");
+  const campaign = await jsonResponse(await admin.get("/api/campaign"));
+  const event = campaign.collections
+    .find((collection: FixtureCollection) => collection.name === "events")!
+    .records.find((record: FixtureRecord) => record.key === "arrival");
+  await jsonResponse(
+    await admin.post("/api/campaign/transactions", {
+      headers: { "X-Codex-CSRF": csrf },
+      data: {
+        contractVersion: "campaign-mutation.v1",
+        mutations: [
+          {
+            operation: "put",
+            collection: "events",
+            key: event.key,
+            expectedRevision: event.revision,
+            value: { ...event.value, short: `Changed ${event.revision}` },
+          },
+        ],
+      },
+    }),
+  );
+  await page.waitForFunction(
+    (revision) =>
+      document
+        .querySelector("codex-dm-dashboard")!
+        .campaign.collections.find((collection) => collection.name === "events")!
+        .records.find((record) => record.key === "arrival")!.revision > revision,
+    event.revision,
+  );
+  assert.equal(await slot.getByLabel("Fixture notes").inputValue(), "Keep these notes");
+  const player = await open(t, "player");
+  assert.equal(await player.locator("[data-dm-dashboard-slot]").count(), 0);
+  await page.goto("/#/");
+  assert.equal(await page.locator(`[data-addon-slot] [data-addon-id="${id}"]`).count(), 0);
+  await page.goto(`/#/addons/${id}/planner?item=first`);
+  const route = page.locator("[data-addon-route-outlet]");
+  await route.getByRole("heading", { name: "Fixture planner page" }).waitFor();
+  await route.getByLabel("Fixture notes").fill("Keep this draft");
+  assert.deepEqual(
+    JSON.parse(await route.getByLabel("Fixture context").textContent().then(required)),
+    { contractVersion: "addon-route-context.v1", locale: "en", query: [["item", "first"]] },
+  );
+  await page.goto(`/#/addons/${id}/planner?item=second&item=third`);
+  await route.getByLabel("Fixture context").filter({ hasText: "second" }).waitFor();
+  assert.deepEqual(
+    JSON.parse(await route.getByLabel("Fixture context").textContent().then(required)).query,
+    [
+      ["item", "second"],
+      ["item", "third"],
+    ],
+  );
+  assert.equal(await route.getByLabel("Fixture notes").inputValue(), "Keep this draft");
+  await page.goto("/#/dm");
+  await slotRoot(page).getByRole("heading", { name: "Fixture DM workspace 1.0.0" }).waitFor();
+  await installDmPackage(admin, csrf, { id, version: "1.0.1" });
+  await slotRoot(page).getByRole("heading", { name: "Fixture DM workspace 1.0.1" }).waitFor();
+  await disable(id);
+  await page.locator('[data-dm-collection="events"]').waitFor();
+  assert.equal(await page.locator(`[data-dm-dashboard-slot] [data-addon-id="${id}"]`).count(), 0);
+});
 
 void test("failed dashboard rendering and activation retain useful DM fallback and retry", async (t) => {
   const id = "dm-failed";
@@ -474,14 +463,10 @@ void test("failed dashboard rendering and activation retain useful DM fallback a
   await page.locator('[data-dm-collection="events"]').waitFor();
   await installDmPackage(admin, csrf, { id: "dm-healthy" });
   t.after(() => disable("dm-healthy"));
-  await slotRoot(page, "integrated")
-    .getByRole("heading", { name: "Fixture DM workspace 1.0.0" })
-    .waitFor();
+  await slotRoot(page).getByRole("heading", { name: "Fixture DM workspace 1.0.0" }).waitFor();
   await page.locator(`[data-addon-health="${id}"] .failed`).waitFor();
   await installDmPackage(admin, csrf, { id, version: "1.0.2" });
-  await slotRoot(page, "integrated")
-    .getByRole("heading", { name: "Fixture DM workspace 1.0.2" })
-    .waitFor();
+  await slotRoot(page).getByRole("heading", { name: "Fixture DM workspace 1.0.2" }).waitFor();
   await page.locator('[data-dm-collection="events"]').waitFor({ state: "detached" });
 });
 
@@ -637,103 +622,99 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     }
   });
 
-for (const mode of ["integrated", "isolated"])
-  void test(`installed ${mode} edit state protects navigation and expires with its mounted view`, async (t) => {
-    const id = `dm-edits-${mode}`;
-    await installDmPackage(admin, csrf, { id, mode, slot: false, edits: true });
-    t.after(() => disable(id));
-    const page = await open(t),
-      hash = `#/addons/${id}/planner`;
-    page.setDefaultTimeout(10_000);
-    await page.goto(`/${hash}`);
-    const root = page.locator("[data-addon-route-outlet]");
-    const surface = mode === "isolated" ? root.frameLocator("iframe") : root;
-    await surface.getByLabel("Fixture notes").fill("Keep this draft");
-    await page.waitForFunction(() => {
-      const event = new Event("beforeunload", { cancelable: true });
-      window.dispatchEvent(event);
-      return event.defaultPrevented;
-    });
-    await attemptHash(page, "#/timeline");
-    await page.waitForURL(`**/${hash}`);
-    assert.equal(await surface.getByLabel("Fixture notes").inputValue(), "Keep this draft");
-    // Query retention is explicit; this fixture does not opt in.
-    await attemptHash(page, `${hash}?item=another`);
-    await page.waitForURL(`**/${hash}`);
-    await surface.getByLabel("Fixture notes").fill("");
-    await page.waitForFunction(() => {
-      const event = new Event("beforeunload", { cancelable: true });
-      window.dispatchEvent(event);
-      return !event.defaultPrevented;
-    });
-    await page.evaluate(() => {
-      location.hash = "#/timeline";
-    });
-    await page.locator(".tl-shell").waitFor();
-    assert.equal(await unloadBlocked(page), false);
-    await page.goto(`/${hash}`);
-    await surface.getByLabel("Fixture notes").fill("Retire this generation");
-    await page.waitForFunction(() => {
-      const event = new Event("beforeunload", { cancelable: true });
-      window.dispatchEvent(event);
-      return event.defaultPrevented;
-    });
-    await disable(id);
-    await page
-      .locator("[data-addon-route-outlet] input, [data-addon-route-outlet] iframe")
-      .waitFor({ state: "detached" });
-    assert.equal(await unloadBlocked(page), false);
+void test(`installed edit state protects navigation and expires with its mounted view`, async (t) => {
+  const id = "dm-edits";
+  await installDmPackage(admin, csrf, { id, slot: false, edits: true });
+  t.after(() => disable(id));
+  const page = await open(t),
+    hash = `#/addons/${id}/planner`;
+  page.setDefaultTimeout(10_000);
+  await page.goto(`/${hash}`);
+  const root = page.locator("[data-addon-route-outlet]");
+  const surface = root;
+  await surface.getByLabel("Fixture notes").fill("Keep this draft");
+  await page.waitForFunction(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
   });
+  await attemptHash(page, "#/timeline");
+  await page.waitForURL(`**/${hash}`);
+  assert.equal(await surface.getByLabel("Fixture notes").inputValue(), "Keep this draft");
+  // Query retention is explicit; this fixture does not opt in.
+  await attemptHash(page, `${hash}?item=another`);
+  await page.waitForURL(`**/${hash}`);
+  await surface.getByLabel("Fixture notes").fill("");
+  await page.waitForFunction(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return !event.defaultPrevented;
+  });
+  await page.evaluate(() => {
+    location.hash = "#/timeline";
+  });
+  await page.locator(".tl-shell").waitFor();
+  assert.equal(await unloadBlocked(page), false);
+  await page.goto(`/${hash}`);
+  await surface.getByLabel("Fixture notes").fill("Retire this generation");
+  await page.waitForFunction(() => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  await disable(id);
+  await page.locator("[data-addon-route-outlet] input").waitFor({ state: "detached" });
+  assert.equal(await unloadBlocked(page), false);
+});
 
-for (const mode of ["integrated", "isolated"])
-  void test(`installed ${mode} subscriptions refresh only their package and stop on abort`, async (t) => {
-    const id = `live-${mode}`,
-      other = `live-other-${mode}`;
-    await installDmPackage(admin, csrf, { id, mode, live: true });
-    t.after(() => disable(id));
-    await installDmPackage(admin, csrf, { id: other, slot: false, live: true });
-    t.after(() => disable(other));
-    const page = await open(t),
-      slot = slotRoot(page, mode),
-      output = slot.getByLabel("Data changes");
-    await output.waitFor();
-    const write = async (addonId: string, expectedRevision: number) => {
-      const generation = (await jsonResponse(await admin.get(`/api/admin/addons/${addonId}`))).state
-        .activeGenerationId;
-      await jsonResponse(
-        await admin.post(`/api/addons/${addonId}/generations/${generation}/data/transactions`, {
-          headers: { "X-Codex-CSRF": csrf },
-          data: {
-            contractVersion: "addon-data-transaction.v1",
-            mutations: [
-              {
-                operation: "put",
-                kind: "collection",
-                dataId: "notes",
-                key: "note",
-                expectedRevision,
-                value: { text: "Changed elsewhere" },
-              },
-            ],
-          },
-        }),
-      );
-    };
-    await write(other, 0);
-    await write(id, 0);
-    await output.filter({ hasText: "notes" }).waitFor();
-    assert.deepEqual(
-      JSON.parse(await output.textContent().then(required)).filter(
-        (change: { reason: string }) => change.reason === "changed",
-      ),
-      [{ reason: "changed", kind: "collection", dataId: "notes" }],
+void test(`installed subscriptions refresh only their package and stop on abort`, async (t) => {
+  const id = "live",
+    other = "live-other";
+  await installDmPackage(admin, csrf, { id, live: true });
+  t.after(() => disable(id));
+  await installDmPackage(admin, csrf, { id: other, slot: false, live: true });
+  t.after(() => disable(other));
+  const page = await open(t),
+    slot = slotRoot(page),
+    output = slot.getByLabel("Data changes");
+  await output.waitFor();
+  const write = async (addonId: string, expectedRevision: number) => {
+    const generation = (await jsonResponse(await admin.get(`/api/admin/addons/${addonId}`))).state
+      .activeGenerationId;
+    await jsonResponse(
+      await admin.post(`/api/addons/${addonId}/generations/${generation}/data/transactions`, {
+        headers: { "X-Codex-CSRF": csrf },
+        data: {
+          contractVersion: "addon-data-transaction.v1",
+          mutations: [
+            {
+              operation: "put",
+              kind: "collection",
+              dataId: "notes",
+              key: "note",
+              expectedRevision,
+              value: { text: "Changed elsewhere" },
+            },
+          ],
+        },
+      }),
     );
-    await slot.getByRole("button", { name: "Stop changes", exact: true }).click();
-    const before = await output.textContent().then(required);
-    await write(id, 1);
-    await page.waitForTimeout(250);
-    assert.equal(await output.textContent().then(required), before);
-  });
+  };
+  await write(other, 0);
+  await write(id, 0);
+  await output.filter({ hasText: "notes" }).waitFor();
+  assert.deepEqual(
+    JSON.parse(await output.textContent().then(required)).filter(
+      (change: { reason: string }) => change.reason === "changed",
+    ),
+    [{ reason: "changed", kind: "collection", dataId: "notes" }],
+  );
+  await slot.getByRole("button", { name: "Stop changes", exact: true }).click();
+  const before = await output.textContent().then(required);
+  await write(id, 1);
+  await page.waitForTimeout(250);
+  assert.equal(await output.textContent().then(required), before);
+});
 
 if (process.env.CODEX_DM_TOOLS_ZIP)
   for (const mobile of [false, true])
@@ -1314,104 +1295,85 @@ after(async () => {
   }
 });
 
-for (const mode of ["integrated", "isolated"])
-  void test(`installed ${mode} route reference catalogs respect grants and player visibility`, async (t) => {
-    const id = `reference-${mode}`,
-      secret = `private-${mode}`;
-    await jsonResponse(
-      await admin.post("/api/campaign/transactions", {
-        headers: { "X-Codex-CSRF": csrf },
-        data: {
-          contractVersion: "campaign-mutation.v1",
-          mutations: [
-            {
-              operation: "put",
-              collection: "events",
-              key: secret,
-              expectedRevision: 0,
-              value: { id: secret, name: "Private reference event", visibility: "dm" },
-            },
-            ...(mode === "isolated"
-              ? Array.from({ length: 200 }, (_, index) => ({
-                  operation: "put",
-                  collection: "events",
-                  key: `zz-reference-${index}`,
-                  expectedRevision: 0,
-                  value: {
-                    id: `zz-reference-${index}`,
-                    name: "é".repeat(200),
-                    visibility: "public",
-                  },
-                }))
-              : []),
-          ],
-        },
-      }),
+void test(`installed route reference catalogs respect grants and player visibility`, async (t) => {
+  const id = "reference",
+    secret = "private";
+  await jsonResponse(
+    await admin.post("/api/campaign/transactions", {
+      headers: { "X-Codex-CSRF": csrf },
+      data: {
+        contractVersion: "campaign-mutation.v1",
+        mutations: [
+          {
+            operation: "put",
+            collection: "events",
+            key: secret,
+            expectedRevision: 0,
+            value: { id: secret, name: "Private reference event", visibility: "dm" },
+          },
+        ],
+      },
+    }),
+  );
+  await installDmPackage(admin, csrf, { id, slot: false, references: true });
+  t.after(() => disable(id));
+  for (const role of ["dm", "player"]) {
+    const page = await open(t, role);
+    await page.goto(`/#/addons/${id}/planner`);
+    const route = page.locator("[data-addon-route-outlet]");
+    const context = route.getByLabel("Fixture context");
+    await context.filter({ hasText: '"ready":true' }).waitFor();
+    const catalog = JSON.parse(await context.textContent().then(required)).recordReferences;
+    assert.ok(catalog.records.some((record: { id: string }) => record.id === "arrival"));
+    assert.equal(
+      catalog.records.some((record: { id: string }) => record.id === secret),
+      role === "dm",
     );
-    await installDmPackage(admin, csrf, { id, mode, slot: false, references: true });
-    t.after(() => disable(id));
-    for (const role of ["dm", "player"]) {
-      const page = await open(t, role);
-      await page.goto(`/#/addons/${id}/planner`);
-      const route =
-        mode === "isolated"
-          ? page.locator("[data-addon-route-outlet]").frameLocator("iframe")
-          : page.locator("[data-addon-route-outlet]");
-      const context = route.getByLabel("Fixture context");
-      await context.filter({ hasText: '"ready":true' }).waitFor();
-      const catalog = JSON.parse(await context.textContent().then(required)).recordReferences;
-      if (mode === "isolated") assert.equal(catalog.truncated, true);
-      assert.ok(catalog.records.some((record: { id: string }) => record.id === "arrival"));
-      assert.equal(
-        catalog.records.some((record: { id: string }) => record.id === secret),
-        role === "dm",
+    assert.ok(
+      catalog.records.every(
+        (record: { collection: string }) =>
+          record.collection === "events" &&
+          Object.keys(record).sort().join(",") === "collection,href,id,label",
+      ),
+    );
+    await route.getByLabel("Fixture notes").fill("Retain mounted draft");
+    if (role === "dm") {
+      const campaign = await jsonResponse(await admin.get("/api/campaign"));
+      const event = campaign.collections
+        .find((collection: FixtureCollection) => collection.name === "events")
+        .records.find((record: FixtureRecord) => record.key === secret);
+      await jsonResponse(
+        await admin.post("/api/campaign/transactions", {
+          headers: { "X-Codex-CSRF": csrf },
+          data: {
+            contractVersion: "campaign-mutation.v1",
+            mutations: [
+              {
+                operation: "put",
+                collection: "events",
+                key: secret,
+                expectedRevision: event.revision,
+                value: { ...event.value, name: "Updated private reference" },
+              },
+            ],
+          },
+        }),
       );
-      assert.ok(
-        catalog.records.every(
-          (record: { collection: string }) =>
-            record.collection === "events" &&
-            Object.keys(record).sort().join(",") === "collection,href,id,label",
-        ),
-      );
-      await route.getByLabel("Fixture notes").fill("Retain mounted draft");
-      if (role === "dm") {
-        const campaign = await jsonResponse(await admin.get("/api/campaign"));
-        const event = campaign.collections
-          .find((collection: FixtureCollection) => collection.name === "events")
-          .records.find((record: FixtureRecord) => record.key === secret);
-        await jsonResponse(
-          await admin.post("/api/campaign/transactions", {
-            headers: { "X-Codex-CSRF": csrf },
-            data: {
-              contractVersion: "campaign-mutation.v1",
-              mutations: [
-                {
-                  operation: "put",
-                  collection: "events",
-                  key: secret,
-                  expectedRevision: event.revision,
-                  value: { ...event.value, name: "Updated private reference" },
-                },
-              ],
-            },
-          }),
-        );
-        await context.filter({ hasText: "Updated private reference" }).waitFor();
-        assert.equal(await route.getByLabel("Fixture notes").inputValue(), "Retain mounted draft");
-      }
+      await context.filter({ hasText: "Updated private reference" }).waitFor();
+      assert.equal(await route.getByLabel("Fixture notes").inputValue(), "Retain mounted draft");
     }
-  });
+  }
+});
 
 for (const mobile of [false, true])
   void test(`add-on manager completes package review, update and rollback on ${mobile ? "phone" : "desktop"}`, async (t) => {
     await exerciseAddonManager({ t, open, admin, csrf, output, mobile });
   });
 
-for (const mode of ["integrated", "isolated"])
-  for (const mobile of [false, true])
-    void test(`contributed settings ${mode} saves and protects drafts on ${mobile ? "phone" : "desktop"}`, async (t) => {
-      await exerciseSettings({ t, open, admin, csrf, output, mobile, mode });
-    });
+for (const mobile of [false, true])
+  void test(`contributed settings save and protect drafts on ${mobile ? "phone" : "desktop"}`, async (t) => {
+    await exerciseSettings({ t, open, admin, csrf, output, mobile });
+  });
 
 void test("contributed settings retry preserves other panels", async (t) => {
   await exerciseSettingsFailure({ t, open, admin, csrf, output, mobile: false });
@@ -1441,10 +1403,9 @@ for (const mobile of [false, true])
     await exerciseConfiguration({ t, open, admin, csrf, output, mobile });
   });
 
-for (const mode of ["integrated", "isolated"])
-  void test(`installed ${mode} record panels preserve separate saves and role-visible map context`, async (t) => {
-    await exerciseRecordPanels({ t, open, admin, csrf, mode });
-  });
+void test("installed record panels preserve separate saves and role-visible map context", async (t) => {
+  await exerciseRecordPanels({ t, open, admin, csrf });
+});
 
 if (process.env.CODEX_DM_TOOLS_ZIP)
   for (const mobile of [false, true])

@@ -15,7 +15,6 @@ export function installDmPackage(
   csrf: string,
   {
     id,
-    mode = "integrated",
     version = "1.0.0",
     failure = "",
     slot = true,
@@ -25,7 +24,6 @@ export function installDmPackage(
     ruleDetails = false,
   }: {
     id: string;
-    mode?: string;
     version?: string;
     failure?: string;
     slot?: boolean;
@@ -76,7 +74,7 @@ export function installDmPackage(
     permissions: references
       ? [{ id: "core.data.read", resources: ["events"], reason: "Choose event targets." }]
       : [],
-    runtime: { ui: { mode, entry: "web/index.js" } },
+    runtime: { ui: { mode: "integrated", entry: "web/index.js" } },
     contributions,
   };
   Object.assign(

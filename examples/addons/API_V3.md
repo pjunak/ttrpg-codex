@@ -20,7 +20,7 @@ requirements. Machine-readable definitions live in
 | --- | --- |
 | Package lifecycle | ZIP inspection and staging, permission and compatibility review, approval, activation, reload, disable, uninstall and start-up recovery. Only the selected build of each add-on is kept; older builds must be uploaded again to roll back. |
 | Browser SDK | `addon`, `signal`, `capabilities`, `permissions`, `ui`, `data`, `content` and `services`. Contributions also receive host context, navigation and edit guards. |
-| Shared controls | `ui.controls.v1` lends `ui.enhance(ownRoot)` for native fields, searchable choices, states, actions, tabs and modal focus ([shared UI](../../docs/reference/UI_FOUNDATIONS.md)). Integrated UI only. |
+| Shared controls | `ui.controls.v1` lends `ui.enhance(ownRoot)` for native fields, searchable choices, states, actions, tabs and modal focus ([shared UI](../../docs/reference/UI_FOUNDATIONS.md)). |
 | UI contributions | Routes, sidebar items, settings panels, article actions and sections, editor panels, named slots, wiki providers, graph views and graph contributors. |
 | Workers | Native Go workers with lifecycle, health, cancellation, brokered service calls and package data. |
 | Imports | Import adapters (`codex.import-adapter` v2) with reviewed preview and commit; the host's campaign-bundle adapter (v3) with contributor v1. |
@@ -41,8 +41,8 @@ for available handles and methods. Use the owning references for exact limits.
 ## Design principles
 
 The public [rule-details contract](../../docs/reference/RULE_DETAILS.md)
-defines `ui.rule-details`, the integrated component and the equivalent
-integrated/isolated `ui.showRuleDetails` operation. These extend API v3 without
+defines `ui.rule-details`, the component and the equivalent
+`ui.showRuleDetails` operation. These extend API v3 without
 making domain-specific character rules part of the host.
 
 1. **Inspect before executing.** A package's requested authority and occupied
@@ -55,8 +55,8 @@ making domain-specific character rules part of the host.
    contribution belongs to one activation generation and expires with it.
 5. **Reviewable mutation.** Imports, migrations, and generated suggestions are
    plans until a user or explicit policy commits them.
-6. **Honest isolation.** A process boundary contains crashes; only a sandboxed
-   profile is described as a security boundary.
+6. **Honest isolation.** A process boundary contains crashes; it is not
+   described as a security boundary.
 7. **Schema at every durable boundary.** Manifests, service payloads,
    collections, protocol envelopes, and HTTP models are machine validated.
 
@@ -80,10 +80,9 @@ locales/                      localization catalogs
 ```
 
 Every `runtime.ui.entry` is a `.js` or `.mjs` module and every
-`runtime.ui.styles` item is CSS under `web/`. Integrated browser modules may
-use additional files from that subtree. Isolated entry modules are transferred
-into an opaque frame and must be self-contained without relative imports or
-network assets. The host never serves worker binaries, contracts, content
+`runtime.ui.styles` item is CSS under `web/`. Browser modules may use
+additional files from that subtree; `runtime.ui.mode` is always `integrated`.
+The host never serves worker binaries, contracts, content
 sets, locales, or package metadata through the browser asset route.
 
 Production installation MUST NOT invoke npm, Go, Python, a shell, or any other
@@ -134,48 +133,8 @@ installation path or display name.
 
 Reviewed UI code is loaded as ESM into the application realm. It can render
 custom elements and use the scoped SDK. This is a lifecycle boundary, not a
-security sandbox. Integrated packages MUST be treated as trusted browser code.
-
-### Sandboxed iframe UI
-
-Less-trusted visual code runs in a sandboxed iframe with a separate document.
-The host supplies the same logical SDK over a versioned `postMessage` channel.
-The manifest selects explicit sandbox features; same-origin access is not
-granted.
-
-The host fetches reviewed module and stylesheet text itself and transfers it
-over a document-owned message port into a generated `srcdoc`; it does not
-navigate the frame to the authenticated asset URL. A document that navigates
-away cannot inherit that port or receive the module bundle. The frame has an
-opaque origin and a CSP that blocks ambient network access and external
-resources. Its entry is therefore one self-contained ESM bundle. The baseline
-sandbox permits scripts; `downloads`, `forms`, `modals`, and `popups` add only
-their corresponding browser sandbox token.
-
-This boundary contains DOM and ambient browser authority; it is not a
-general-purpose sandbox for actively malicious computation. Code that needs
-that stronger boundary belongs behind a narrower worker contract.
-
-The bridge supports element-backed visual contributions plus article actions,
-graph views, and graph contributors. It calls `activate(context)` with identity,
-cancellation, capability, permission, and UI declaration/binding APIs. Each
-frame sees exactly one declaration and MUST bind that declaration before its
-activation handshake completes. Sidebar metadata is published by the host and
-does not create a frame.
-
-Each action or model-provider call exchanges JSON through its private port.
-The complete message is limited to 64 KiB, each frame accepts at most 32 active
-calls, and the host deadline is ten seconds. Host cancellation reaches the
-callback's invocation signal. Add-ons SHOULD stop optional work promptly and
-MUST return JSON; `undefined` is normalized to `null`. Feature-specific request
-and response schemas remain owned and validated by the consuming host feature.
-Disposing the binding or navigating its document withdraws the host-side
-registration; the replacement document cannot reconnect.
-
-The host currently uses one frame per executable contribution for simple,
-deterministic ownership and cleanup. A pooled generation runtime may be
-considered later only if measured frame startup or memory cost warrants the
-additional multiplexer.
+security sandbox. Browser packages MUST be treated as trusted browser code;
+install only add-ons whose code you trust.
 
 ### Native Go worker
 
@@ -322,9 +281,9 @@ route's dirty state; it never exempts a pending write or another mounted view.
 
 ### Pending record edits during generation replacement
 
-Integrated `article-section` elements mounted for a campaign record receive
+`article-section` elements mounted for a campaign record receive
 `edits.handoff` ([public types](../../contracts/addons/v3/contribution-edits.d.ts));
-other outlets and isolated frames do not.
+other outlets do not.
 
 ```ts
 const recovered = edits.handoff?.take(); // detached, once per mounted instance
@@ -449,8 +408,7 @@ implementation; ordinary article sections and editor panels are additive.
 
 ### Add-on settings
 
-A `settings` contribution binds an element in either integrated or isolated
-mode. The host lists its localized `label` in the owning add-on's tab in
+A `settings` contribution binds a custom element. The host lists its localized `label` in the owning add-on's tab in
 Settings → Add-ons, alongside its sourcebook and provider controls when
 available. Panels follow declaration `order` and normal registry ordering. The host filters declarations by
 effective role and granted capabilities. Add-ons without visible settings
@@ -508,7 +466,7 @@ slot belongs to the selected saved location's read-only details. Both require
 an approved `core.data.read` grant for that collection and an allowed role.
 DM Tools' related-planning map list is a first-party consumer.
 
-Integrated elements and isolated frames receive the same frozen context:
+Elements receive this frozen context:
 
 ```ts
 interface RecordHostContext {
@@ -530,7 +488,7 @@ draft fields, hidden record catalog, or host internals are included. Record
 changes retire the old outlet. Disappearance, role loss and generation
 replacement remove its panels and edit handles. A refreshed revision/context
 on the same record must not overwrite an add-on's unsaved draft or rebase its
-write revision. Isolated frames use the existing content-height reporting.
+write revision.
 
 Map panels are read-only: show related information and navigation, with no
 mutations or editable controls. Editor panels mount below the core form for
@@ -562,8 +520,8 @@ unsafe URLs do not become links. Heading IDs are unique per component. Wiki
 references remain unresolved text because this component receives no campaign
 data or reference resolver. Use separately authorized reference links for
 campaign records. Invalid/oversized input shows an error without truncating
-or changing stored text. This component is integrated-only; it is not an
-iframe API or an HTML-returning service.
+or changing stored text. It is a browser component, not an HTML-returning
+service.
 
 ### Wiki references and library search
 
@@ -634,8 +592,7 @@ board, outside event links and core editing controls. Named timeline slots do
 not also appear in the dashboard's Campaign tools outlet. Core card replacement
 and arbitrary fragment/DOM overrides are not part of this contract.
 
-Both integrated and isolated elements receive frozen
-`codexContribution.host` values with this shape:
+Elements receive frozen `codexContribution.host` values with this shape:
 
 ```ts
 interface TimelineContributionHostContext {
@@ -667,19 +624,16 @@ start their widgets when first visible; started widgets remain mounted until
 their slot is removed, navigated away from, or its role/generation changes.
 Clean up component resources on disconnection as well as generation disposal.
 Add-on controls cannot initiate core event dragging or enter the core order
-transaction. Author narrow widgets that fit the board's design. Isolated
-timeline widgets use transparent dark surfaces and content-based heights
-bounded to 1–2,400 CSS pixels; overflowing content needs its own scrolling.
+transaction. Author narrow widgets that fit the board's design.
 
 ### DM dashboard
 
 The stable `#/dm` route accepts additive `slot` contributions with exact config
-`{ "contractVersion": 1, "slot": "dm:dashboard" }`. Bind an integrated custom
-element or an isolated element through the usual UI contract. The host checks
+`{ "contractVersion": 1, "slot": "dm:dashboard" }`. Bind a custom element
+through the usual UI contract. The host checks
 real/effective DM authority before mounting this outlet, even if the manifest
 declares broader roles. It passes the frozen host context
-`{ contractVersion: "dm-dashboard-context.v1", locale: "en" | "cs" }` to both
-UI modes, with updates when the selected language changes. It passes no campaign
+`{ contractVersion: "dm-dashboard-context.v1", locale: "en" | "cs" }`, with updates when the selected language changes. It passes no campaign
 bodies; add-ons read their own collections through the public SDK.
 These named slots do not also appear on the campaign overview.
 
@@ -851,8 +805,8 @@ this API. Visibility follows the authenticated event audience; HTTP reads
 remain authoritative. A callback may run for the caller's own writes or repeat
 an invalidation. It is synchronous, must schedule/catch any asynchronous work,
 and should not blindly retry writes. The generation signal, caller signal, or
-returned disposer ends the subscription. Each host composition/isolated frame
-bounds listeners to 1,024; a throwing listener is diagnosed independently.
+returned disposer ends the subscription. Each host composition bounds listeners
+to 1,024; a throwing listener is diagnosed independently.
 
 ### Immutable content handles
 
@@ -905,10 +859,10 @@ An optional service with no current provider returns a handle with
 `available === false` and an empty `providers` list. Calling it fails with
 `SERVICE_UNAVAILABLE`, so packages can keep an explicit standalone path. A
 cardinality-many handle requires `providerAddonId` on each call; the ID must be
-one of the providers captured by that handle. Integrated modules call the
-same authenticated, CSRF-protected HTTP boundary used by isolated frames, and
-both routes ultimately enter the package manager's stored exact-generation
-handle and the service broker's request/response schemas.
+one of the providers captured by that handle. Browser modules call an
+authenticated, CSRF-protected HTTP boundary that enters the package manager's
+stored exact-generation handle and the service broker's request/response
+schemas.
 
 Browser code may explicitly add its own worker provider to discovery:
 
@@ -919,8 +873,7 @@ const adapters = await context.services.connect("codex.import-adapter", {
 });
 ```
 
-`includeOwn` is an optional boolean, false by default, supported in integrated
-and isolated UI. The active manifest must declare the exact consumer requirement
+`includeOwn` is an optional boolean, false by default. The active manifest must declare the exact consumer requirement
 and a compatible `worker` provider for that contract. The extra provider is
 always the caller's own active generation, with binding revision `0`; callers
 cannot name another package as their own. An absent own provider leaves the
@@ -1456,8 +1409,8 @@ locale falls back to the contribution's required `label`; display helpers also
 defend against invalid entries. Hosts predating this optional metadata may reject
 such packages at inspection and should be updated first. This metadata changes
 display text only; contribution IDs, route paths, permissions, and mounted view
-identities stay unchanged. Integrated and isolated views continue translating
-their own content from the locale in their host context.
+identities stay unchanged. Views continue translating their own content from
+the locale in their host context.
 
 ## Debugging contract
 
@@ -1503,8 +1456,7 @@ platform, and add the matching failure tests with any new surface:
   rollback behavior;
 - malformed framing, oversized payloads, invalid schemas, and late responses;
 - transaction conflict, import stale-plan, and recovery;
-- UI contribution cleanup, isolated bridge teardown, and reload without stale
-  handlers;
+- UI contribution cleanup and reload without stale handlers;
 - first-party add-ons against only public SDK and protocol artifacts.
 
 A feature is not done merely because a first-party add-on can call an internal

@@ -27,9 +27,8 @@ boundaries validate browser models.
 UI entry modules (`.js` or `.mjs`) and styles (`.css`) are restricted to the
 package `web/` subtree. This matches the host's browser asset boundary and
 keeps worker, contract, content, locale, and metadata files outside browser
-delivery. Isolated entry modules are transferred into an opaque frame and must
-be self-contained; integrated modules may use additional immutable files from
-the same generation's `web/` subtree.
+delivery. Modules may use additional immutable files from the same
+generation's `web/` subtree.
 
 All schemas use JSON Schema Draft 2020-12. They are source artifacts, not
 generated copies. Runtime validation and public schema changes must stay

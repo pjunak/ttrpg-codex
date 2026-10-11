@@ -165,11 +165,7 @@ async function disable(id: string) {
   );
 }
 
-function wikiPackage(
-  id: string,
-  mode: string,
-  { version = "1.0.0", roles = ["dm", "player"] } = {},
-) {
+function wikiPackage(id: string, { version = "1.0.0", roles = ["dm", "player"] } = {}) {
   const manifest = {
     packageFormat: 1,
     id,
@@ -177,7 +173,7 @@ function wikiPackage(
     version,
     compatibility: { host: ">=2.0.0 <3.0.0", addonApi: "^3.0.0" },
     capabilities: { required: ["ui.contributions"], optional: [] },
-    runtime: { ui: { mode, entry: "web/index.js" } },
+    runtime: { ui: { mode: "integrated", entry: "web/index.js" } },
     permissions: [],
     contributions: [
       {
@@ -229,10 +225,10 @@ function wikiPackage(
   return zip(files);
 }
 
-for (const mode of ["integrated", "isolated"])
-  void test(`installed ${mode} reference providers resolve articles, search and old URLs across replacement`, async (t) => {
-    const id = `wiki-${mode}`,
-      archive = wikiPackage(id, mode);
+for (const mobile of [false, true])
+  void test(`installed reference providers resolve articles, search and old URLs across replacement on ${mobile ? "phone" : "desktop"}`, async (t) => {
+    const id = `wiki-${mobile ? "phone" : "desktop"}`,
+      archive = wikiPackage(id);
     await installReviewedPackage(admin, csrf, id, archive, []);
     t.after(() => disable(id));
     await jsonResponse(
@@ -258,7 +254,7 @@ for (const mode of ["integrated", "isolated"])
         },
       }),
     );
-    const page = await open(t, "player", mode === "isolated");
+    const page = await open(t, "player", mobile);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     t.after(() => assert.deepEqual(errors, []));
@@ -275,7 +271,7 @@ for (const mode of ["integrated", "isolated"])
     const full = ward.getByRole("link", { name: "Open full rule", exact: true });
     await full.waitFor();
     assert.equal(await full.getAttribute("href"), `#/addons/${id}/library?id=shield`);
-    await installReviewedPackage(admin, csrf, id, wikiPackage(id, mode, { version: "1.0.1" }), []);
+    await installReviewedPackage(admin, csrf, id, wikiPackage(id, { version: "1.0.1" }), []);
     await ward.waitFor();
     await ward.getByRole("button", { name: "Ward", exact: true }).click();
     await full.waitFor();
@@ -294,7 +290,7 @@ for (const mode of ["integrated", "isolated"])
       admin,
       csrf,
       id,
-      wikiPackage(id, mode, { version: "1.0.2", roles: ["dm"] }),
+      wikiPackage(id, { version: "1.0.2", roles: ["dm"] }),
       [],
     );
     await page.goto(`/#/characters/${id}`);

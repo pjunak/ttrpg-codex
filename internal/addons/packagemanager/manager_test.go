@@ -1214,8 +1214,6 @@ type packageSpec struct {
 	DependencyRange      string
 	UIEntry              string
 	UIStyles             []string
-	UIMode               string
-	UISandbox            []string
 	RequiredCapabilities []string
 	OptionalCapabilities []string
 	Contributions        []map[string]any
@@ -1294,16 +1292,9 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 		files["worker/windows-amd64/addon.exe"] = []byte("test worker")
 	}
 	if spec.UIEntry != "" {
-		mode := spec.UIMode
-		if mode == "" {
-			mode = "integrated"
-		}
-		ui := map[string]any{"mode": mode, "entry": spec.UIEntry}
+		ui := map[string]any{"mode": "integrated", "entry": spec.UIEntry}
 		if len(spec.UIStyles) != 0 {
 			ui["styles"] = spec.UIStyles
-		}
-		if len(spec.UISandbox) != 0 {
-			ui["sandbox"] = spec.UISandbox
 		}
 		runtime["ui"] = ui
 		files[spec.UIEntry] = []byte("export function activate() {}")

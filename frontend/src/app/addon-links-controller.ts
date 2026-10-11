@@ -122,7 +122,7 @@ export class AddonLinksController implements ReactiveController {
     const signal = this.#owner.signal,
       providers = wikiProviders(this.#registry, this.#role);
     const routes = this.#role ? (this.#registry?.list("route", this.#role) ?? []) : [];
-    // Small batches stay inside the isolated bridge's serialized request limit.
+    // Small batches keep each provider call bounded.
     for (let offset = 0; offset < entries.length; offset += 20) {
       const batch = entries.slice(offset, offset + 20);
       void Promise.all(

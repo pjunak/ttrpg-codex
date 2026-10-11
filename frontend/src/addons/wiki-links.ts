@@ -91,7 +91,7 @@ export function parseWikiMatches(
         item.generationId === active.generationId &&
         !item.signal.aborted &&
         item.descriptor.id === target["route"] &&
-        ["element", "isolated-frame"].includes(item.binding.kind),
+        item.binding.kind === "element",
     );
     if (!route || !Array.isArray(target["query"]) || target["query"].length > 32)
       throw new TypeError("Wiki target needs an active route in its generation");

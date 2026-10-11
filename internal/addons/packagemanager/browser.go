@@ -87,10 +87,9 @@ func (manager *Manager) browserGraphLocked(ctx context.Context) (BrowserGraph, e
 		}
 		generation := BrowserGeneration{
 			AddonID: state.AddonID, AddonVersion: active.generation.Version,
-			GenerationID: active.generation.GenerationID, Mode: ui.Mode,
+			GenerationID:  active.generation.GenerationID,
 			EntryURL:      browserAssetURL(state.AddonID, active.generation.GenerationID, ui.Entry),
 			StyleURLs:     make([]string, 0, len(ui.Styles)),
-			Sandbox:       append([]string{}, ui.Sandbox...),
 			Dependencies:  make([]string, 0),
 			Capabilities:  capabilities,
 			Permissions:   browserPermissions(approved),
@@ -111,7 +110,6 @@ func (manager *Manager) browserGraphLocked(ctx context.Context) (BrowserGraph, e
 			}
 		}
 		sort.Strings(generation.StyleURLs)
-		sort.Strings(generation.Sandbox)
 		sort.Strings(generation.Dependencies)
 		addOns = append(addOns, generation)
 	}

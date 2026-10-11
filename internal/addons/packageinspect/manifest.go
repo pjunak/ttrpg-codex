@@ -36,10 +36,9 @@ type Runtime struct {
 }
 
 type UIRuntime struct {
-	Mode    string   `json:"mode"`
-	Entry   string   `json:"entry"`
-	Styles  []string `json:"styles,omitempty"`
-	Sandbox []string `json:"sandbox,omitempty"`
+	Mode   string   `json:"mode"`
+	Entry  string   `json:"entry"`
+	Styles []string `json:"styles,omitempty"`
 }
 
 type WorkerRuntime struct {

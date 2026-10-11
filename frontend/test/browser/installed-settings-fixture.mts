@@ -7,7 +7,6 @@ import { reportBrowserFailure } from "./failure-diagnostics.mts";
 
 export function settingsPackage(
   id: string,
-  mode: string,
   version = "1.0.0",
   failure = false,
   order = 10,
@@ -22,7 +21,7 @@ export function settingsPackage(
       compatibility: { host: "^2.0.0", addonApi: "^3.0.0" },
       capabilities: { required: ["ui.contributions"], optional: [] },
       permissions: [],
-      runtime: { ui: { mode, entry: "web/index.js" } },
+      runtime: { ui: { mode: "integrated", entry: "web/index.js" } },
       collections: [
         {
           id: "options",
@@ -136,12 +135,11 @@ export async function exerciseSettings({
   csrf,
   output,
   mobile,
-  mode,
-}: InstalledFixture & { mode: string }): Promise<void> {
-  const id = `settings-${mode}-${mobile ? "phone" : "desktop"}`,
+}: InstalledFixture): Promise<void> {
+  const id = `settings-${mobile ? "phone" : "desktop"}`,
     headers = { "X-Codex-CSRF": csrf };
   const install = (version = "1.0.0") =>
-    installReviewedPackage(admin, csrf, id, settingsPackage(id, mode, version), []);
+    installReviewedPackage(admin, csrf, id, settingsPackage(id, version), []);
   const disable = async () => {
     const snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
     if (snapshot.state.activeGenerationId)
@@ -183,7 +181,7 @@ export async function exerciseSettings({
   assert.equal(await row.isVisible(), false);
   assert.equal(await page.getByRole("tabpanel").count(), 1);
   const panel = dropdown.locator('[data-contribution-id="preferences"]');
-  const view = mode === "isolated" ? panel.frameLocator("iframe") : panel;
+  const view = panel;
   await view.getByText("Options ready", { exact: true }).waitFor();
   assert.deepEqual(
     await dropdown
@@ -290,19 +288,8 @@ export async function exerciseSettings({
   release();
   await view.getByText("Option saved", { exact: true }).waitFor();
   await page.unrouteAll({ behavior: "wait" });
-  if (mode === "isolated") {
-    const frame = await (await panel.locator("iframe").elementHandle())!.contentFrame();
-    await frame!.waitForFunction(() => document.body.scrollHeight <= innerHeight);
-    const frameHeight = (await panel.locator("iframe").boundingBox())!.height;
-    assert.ok(frameHeight < 450, `settings frames size to content: ${frameHeight}`);
-    assert.equal(
-      await view.locator("body").evaluate((element) => element.scrollHeight > window.innerHeight),
-      false,
-      "content is not clipped by iframe margins",
-    );
-  }
   await dropdown.screenshot({
-    path: resolve(output, `settings-${mode}-${mobile ? "phone" : "desktop"}.png`),
+    path: resolve(output, `settings-${mobile ? "phone" : "desktop"}.png`),
   });
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
@@ -317,7 +304,7 @@ export async function exerciseSettings({
   await player.goto(`/#/settings/addons/${id}`);
   const playerSettings = player.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
   const playerPanel = playerSettings.locator('[data-contribution-id="preferences"]');
-  const playerView = mode === "isolated" ? playerPanel.frameLocator("iframe") : playerPanel;
+  const playerView = playerPanel;
   await playerView.getByText("Options ready", { exact: true }).waitFor();
   assert.equal(await playerView.getByLabel("Saved option").inputValue(), "Durable option");
   assert.equal(await playerSettings.locator('[data-contribution-id="campaign"]').count(), 0);
@@ -371,13 +358,7 @@ export async function exerciseSettingsFailure({
   csrf,
 }: InstalledFixture): Promise<void> {
   const id = "settings-failure";
-  await installReviewedPackage(
-    admin,
-    csrf,
-    id,
-    settingsPackage(id, "integrated", "1.0.0", true),
-    [],
-  );
+  await installReviewedPackage(admin, csrf, id, settingsPackage(id, "1.0.0", true), []);
   t.after(async () => {
     const snapshot = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
     await jsonResponse(
@@ -433,7 +414,7 @@ export async function exerciseSettingsCardStability({
       admin,
       csrf,
       id,
-      settingsPackage(id, "integrated", "1.0.0", false, index ? 0 : 10, index === 1),
+      settingsPackage(id, "1.0.0", false, index ? 0 : 10, index === 1),
       [],
     );
     t.after(async () => {

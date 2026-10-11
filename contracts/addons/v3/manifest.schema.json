@@ -294,7 +294,7 @@
       "required": ["mode", "entry"],
       "properties": {
         "mode": {
-          "enum": ["integrated", "isolated"]
+          "const": "integrated"
         },
         "entry": {
           "$ref": "#/$defs/uiModulePath"
@@ -306,29 +306,8 @@
           "items": {
             "$ref": "#/$defs/uiStylePath"
           }
-        },
-        "sandbox": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "enum": ["downloads", "forms", "modals", "popups"]
-          }
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "mode": { "const": "integrated" }
-            }
-          },
-          "then": {
-            "not": {
-              "required": ["sandbox"]
-            }
-          }
-        }
-      ]
+      }
     },
     "nativeWorker": {
       "type": "object",

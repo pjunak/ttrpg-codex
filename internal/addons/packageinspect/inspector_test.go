@@ -147,6 +147,27 @@ func TestInspectFileRejectsInvalidManifestAndMissingDeclaration(t *testing.T) {
 		}
 	})
 
+	t.Run("UI runs only in the integrated mode", func(t *testing.T) {
+		t.Parallel()
+		var manifest map[string]any
+		if err := json.Unmarshal(minimalManifest("example-addon"), &manifest); err != nil {
+			t.Fatal(err)
+		}
+		manifest["runtime"] = map[string]any{"ui": map[string]any{
+			"mode": "isolated", "entry": "web/index.js", "sandbox": []string{"forms"},
+		}}
+		body, err := json.Marshal(manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		packagePath := writePackage(t, map[string][]byte{
+			manifestFilename: body,
+			"web/index.js":   []byte("export function activate() {}"),
+		})
+		_, err = newTestInspector(t).InspectFile(context.Background(), packagePath)
+		assertInspectionCode(t, err, CodeInvalidManifest)
+	})
+
 	t.Run("UI files require executable and stylesheet types", func(t *testing.T) {
 		t.Parallel()
 		for _, test := range []struct {
@@ -165,7 +186,7 @@ func TestInspectFileRejectsInvalidManifestAndMissingDeclaration(t *testing.T) {
 					t.Fatal(err)
 				}
 				manifest["runtime"] = map[string]any{"ui": map[string]any{
-					"mode": "isolated", "entry": test.entry, "styles": test.styles,
+					"mode": "integrated", "entry": test.entry, "styles": test.styles,
 				}}
 				body, err := json.Marshal(manifest)
 				if err != nil {

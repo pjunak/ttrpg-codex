@@ -82,6 +82,12 @@ not obvious. Move an entry between sections instead of duplicating it.
 - **Align owned-feature filters** `addon-dnd-2024-compendium`,
   `addon-dnd-engine` — The Compendium's owned-feature filter and the Engine's
   ownership rules can disagree; make them match.
+- **Collapse add-on confirmation flows when next touched** `ttrpg-codex` —
+  Activation, disable, uninstall, cleanup, schema and update reviews each have
+  their own review type and SHA-256 confirmation token. Do not add another;
+  when one of them changes, move it to a shared plan-and-confirm helper that
+  checks expected state revisions. Disable is reversible and could confirm with
+  a plain dialog plus the target's state revision.
 - **Split the largest UI files when next touched** — `frontend/src/app/codex-app.ts`,
   `campaign-record-editor.ts` and `codex-record-page.ts` in the host, DM Tools'
   `planner-element.ts`, Sheets' `character-element.ts`.

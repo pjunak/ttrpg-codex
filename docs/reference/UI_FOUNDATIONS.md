@@ -247,13 +247,8 @@ and requires their final values without an active transition.
   Classic layouts, optional rules and worker authorization remain unchanged.
 - **Engine:** headless; no UI dependency.
 
-Integrated add-ons borrow the live host implementation, not a compiled private
-copy. Their manifests prevent activation on hosts lacking the capability.
-Isolated documents intentionally cannot call enhance: DOM handles and inherited
-tokens cannot cross the opaque iframe bridge. They retain their self-contained
-controls and supported serializable host operations such as rule details.
-No new iframe DOM access, stylesheet injection, theme bridge or permission
-exception is implied by ui.controls.v1.
+Add-ons borrow the live host implementation, not a compiled private copy.
+Their manifests prevent activation on hosts lacking the capability.
 
 ## Validation and limits
 

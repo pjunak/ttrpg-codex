@@ -96,8 +96,7 @@ replay covers missed notifications as usual.
 
 `addon-data-changed` publications are validated in the shared browser stream
 and dispatched only to the owning add-on's `context.data.subscribe` listeners.
-Both integrated modules and isolated frames receive payload-free collection or
-extension invalidations. The browser drops the internal data revision; normal
+Add-on modules receive payload-free collection or extension invalidations. The browser drops the internal data revision; normal
 role-projected reads remain the only source of documents. `hello`, `reset` and
 `campaign-restored` invalidate each active subscriber's cache. Subscriptions
 end with their generation, contribution signal, or explicit disposer.

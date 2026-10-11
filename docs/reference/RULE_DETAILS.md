@@ -1,11 +1,10 @@
 # Shared rule details
 
 `ui.rule-details` is the public capability for contextual rule explanations.
-Integrated consumers can render `codex-addon-rule-details` with a typed
-`details` property and optional `compact` attribute. Integrated and isolated
-consumers can instead `await context.ui.showRuleDetails(details)`. The promise
-settles when the panel closes or its generation is disposed; isolated callers
-then recover focus in their own document.
+Consumers can render `codex-addon-rule-details` with a typed `details`
+property and optional `compact` attribute, or instead
+`await context.ui.showRuleDetails(details)`. The promise settles when the panel
+closes or its generation is disposed.
 
 The closed `RuleDetails` contract accepts a label, structured reference or wiki
 reference, summary, saved sources and a structured explanation. Requests are
@@ -52,7 +51,7 @@ choice, not a WCAG timing requirement. The panel remains an interactive dialog.
 | Compendium list | Intentional navigation link with a separate adjacent details button |
 | Compendium metadata and bestiary statistics | Labeled facts with current record context |
 | Explicit compendium and host Markdown rule references | Contextual details before full-entry navigation |
-| Other participating integrated/isolated add-ons | Public component or SDK capability |
+| Other participating add-ons | Public component or SDK capability |
 | Printed sheets | Saved source notes and optional provenance appendix |
 
 Ordinary unannotated prose is not automatically linked. Content authors must

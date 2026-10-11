@@ -36,7 +36,6 @@ export interface BrowserContributionOutletOptions {
   readonly role: BrowserRole;
   readonly include?: (active: ActiveBrowserContribution) => boolean;
   readonly hostContext?: (active: ActiveBrowserContribution) => unknown;
-  readonly isolatedHostContext?: boolean;
   readonly compact?: boolean;
   /** Host-owned instance identity, independent of package generation and revision. */
   readonly handoffKey?: () => string | undefined;
@@ -46,12 +45,10 @@ export interface BrowserContributionOutletOptions {
 
 interface MountedContribution {
   readonly edits: BrowserContributionEditRegistration;
-  readonly updateHostContext?: (value: unknown) => void;
   readonly identity: string;
   readonly wrapper: HTMLElement;
   readonly label: HTMLElement;
-  readonly dispose?: () => void;
-  readonly element?: BrowserContributionElement;
+  readonly element: BrowserContributionElement;
 }
 
 /** Reconciles one host-owned UI surface without exposing its DOM to add-ons. */
@@ -63,7 +60,6 @@ export class BrowserContributionOutlet {
   readonly #role: BrowserRole;
   readonly #include: (active: ActiveBrowserContribution) => boolean;
   readonly #hostContext: (active: ActiveBrowserContribution) => unknown;
-  readonly #isolatedHostContext: boolean;
   readonly #compact: boolean;
   readonly #onError: (cause: unknown) => void;
   readonly #onCountChange: (count: number) => void;
@@ -84,7 +80,6 @@ export class BrowserContributionOutlet {
     this.#role = options.role;
     this.#include = options.include ?? (() => true);
     this.#hostContext = options.hostContext ?? (() => null);
-    this.#isolatedHostContext = options.isolatedHostContext ?? false;
     this.#compact = options.compact ?? false;
     this.#handoffKey = options.handoffKey ?? (() => undefined);
     this.#onError = options.onError ?? (() => undefined);
@@ -110,7 +105,7 @@ export class BrowserContributionOutlet {
       if (!this.#include(active)) {
         continue;
       }
-      if (active.binding.kind !== "element" && active.binding.kind !== "isolated-frame") {
+      if (active.binding.kind !== "element") {
         this.#onError(
           new TypeError(
             `host outlet ${this.#surface} cannot mount ${active.binding.kind} contribution ` +
@@ -120,10 +115,7 @@ export class BrowserContributionOutlet {
         continue;
       }
       const key = contributionKey(active);
-      const identity =
-        active.binding.kind === "element"
-          ? `element:${active.binding.tag}:${handoffKey ?? ""}`
-          : "isolated-frame";
+      const identity = `element:${active.binding.tag}:${handoffKey ?? ""}`;
       let mounted = this.#mounted.get(key);
       if (mounted === undefined || mounted.identity !== identity) {
         if (mounted !== undefined) {
@@ -147,13 +139,11 @@ export class BrowserContributionOutlet {
         );
         mounted.wrapper.setAttribute("aria-label", label);
         mounted.label.textContent = label;
-        if (mounted.element !== undefined)
-          mounted.element.codexContribution = contributionContext(
-            active,
-            context,
-            mounted.edits.handle,
-          );
-        else if (this.#isolatedHostContext) mounted.updateHostContext?.(freezeJSON(context));
+        mounted.element.codexContribution = contributionContext(
+          active,
+          context,
+          mounted.edits.handle,
+        );
       } catch (cause: unknown) {
         this.#onError(cause);
         continue;
@@ -183,7 +173,7 @@ export class BrowserContributionOutlet {
       } else if (handoff.active.signal.aborted) this.#handoffs.delete(id);
     }
     try {
-      // Keep unchanged frames and custom elements connected during refresh.
+      // Keep unchanged custom elements connected during refresh.
       // oxlint-disable-next-line unicorn/no-useless-spread -- Snapshot the live HTMLCollection before removing children.
       for (const child of [...this.#root.children])
         if (!ordered.includes(child as HTMLElement)) child.remove();
@@ -225,7 +215,7 @@ export class BrowserContributionOutlet {
     handoffKey: string | undefined,
   ): MountedContribution {
     let slot: symbol | undefined;
-    if (handoffKey !== undefined && active.binding.kind === "element") {
+    if (handoffKey !== undefined) {
       const key = `${active.addonId}:${active.descriptor.id}`;
       const handoff = this.#handoffs.get(key) ?? { slot: Symbol(), key: handoffKey, active };
       handoff.active = active;
@@ -276,27 +266,6 @@ export class BrowserContributionOutlet {
       wrapper.append(element);
       return { identity: `element:${active.binding.tag}`, wrapper, label, element, edits };
     }
-    if (active.binding.kind === "isolated-frame") {
-      const frameHost = this.#document.createElement("div");
-      frameHost.className = "addon-isolated-frame";
-      const mount = active.binding.mount(
-        frameHost,
-        this.#isolatedHostContext ? freezeJSON(this.#hostContext(active)) : null,
-        edits.handle,
-      );
-      if (!this.#compact) wrapper.append(heading);
-      wrapper.append(frameHost);
-      return {
-        identity: "isolated-frame",
-        wrapper,
-        label,
-        edits,
-        dispose: typeof mount === "function" ? mount : () => mount.dispose(),
-        ...(typeof mount === "function"
-          ? {}
-          : { updateHostContext: (value: unknown) => mount.updateHostContext(value) }),
-      };
-    }
     throw new TypeError(
       `host outlet ${this.#surface} cannot mount ${active.binding.kind} contribution`,
     );
@@ -304,14 +273,6 @@ export class BrowserContributionOutlet {
 
   #release(mounted: MountedContribution | undefined): void {
     mounted?.edits.dispose();
-    if (mounted?.dispose === undefined) {
-      return;
-    }
-    try {
-      mounted.dispose();
-    } catch (cause: unknown) {
-      this.#onError(cause);
-    }
   }
 }
 

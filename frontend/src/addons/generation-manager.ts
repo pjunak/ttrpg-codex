@@ -51,10 +51,8 @@ export interface BrowserGenerationDescriptor {
   readonly addonId: string;
   readonly addonVersion: string;
   readonly generationId: string;
-  readonly mode: "integrated" | "isolated";
   readonly entryUrl: string;
   readonly styleUrls: readonly string[];
-  readonly sandbox: readonly ("downloads" | "forms" | "modals" | "popups")[];
   readonly dependencies: readonly string[];
   readonly capabilities: readonly string[];
   readonly permissions: readonly BrowserPermissionGrant[];
@@ -423,9 +421,6 @@ export function createModuleActivator(
   prepareResources: BrowserGenerationResourceFactory = () => undefined,
 ): BrowserGenerationActivator {
   return async (descriptor, context) => {
-    if (descriptor.mode !== "integrated") {
-      throw new TypeError(`browser add-on ${descriptor.addonId} is not an integrated module`);
-    }
     const disposeResources = await prepareResources(descriptor, context.scope);
     let resourcesDisposed = false;
     const resourceDisposer =
@@ -499,9 +494,6 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
     if (!validSameOriginPath(input.entryUrl) || !hasAssetExtension(input.entryUrl, ".js", ".mjs")) {
       throw new BrowserGenerationPlanError(`invalid entry URL for ${input.addonId}`);
     }
-    if (input.mode !== "integrated" && input.mode !== "isolated") {
-      throw new BrowserGenerationPlanError(`invalid UI mode for ${input.addonId}`);
-    }
     if (addons.has(input.addonId)) {
       throw new BrowserGenerationPlanError(`duplicate add-on ${input.addonId}`);
     }
@@ -524,14 +516,6 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
     if (styleUrls === undefined || styleUrls.length > 64) {
       throw new BrowserGenerationPlanError(`invalid style URL list for ${input.addonId}`);
     }
-    const sandbox = sortedUnique(
-      input.sandbox,
-      (value) =>
-        value === "downloads" || value === "forms" || value === "modals" || value === "popups",
-    );
-    if (sandbox === undefined || (input.mode === "integrated" && sandbox.length > 0)) {
-      throw new BrowserGenerationPlanError(`invalid sandbox list for ${input.addonId}`);
-    }
     const capabilities = sortedUnique(
       input.capabilities,
       (value) => contractIdPattern.test(value) && value.length <= 120,
@@ -549,10 +533,8 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
       addonId: input.addonId,
       addonVersion: input.addonVersion,
       generationId: input.generationId,
-      mode: input.mode,
       entryUrl: input.entryUrl,
       styleUrls,
-      sandbox,
       dependencies,
       capabilities,
       permissions,
@@ -608,10 +590,8 @@ function sameDescriptor(
     left.addonId === right.addonId &&
     left.addonVersion === right.addonVersion &&
     left.generationId === right.generationId &&
-    left.mode === right.mode &&
     left.entryUrl === right.entryUrl &&
     sameStrings(left.styleUrls, right.styleUrls) &&
-    sameStrings(left.sandbox, right.sandbox) &&
     sameStrings(left.dependencies, right.dependencies) &&
     sameStrings(left.capabilities, right.capabilities) &&
     JSON.stringify(left.permissions) === JSON.stringify(right.permissions) &&

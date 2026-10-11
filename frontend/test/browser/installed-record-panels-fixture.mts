@@ -8,10 +8,9 @@ export async function exerciseRecordPanels({
   open,
   admin,
   csrf,
-  mode,
-}: Pick<InstalledFixture, "t" | "open" | "admin" | "csrf"> & { mode: string }): Promise<void> {
-  const id = `record-panels-${mode}`,
-    key = `panel-location-${mode}`,
+}: Pick<InstalledFixture, "t" | "open" | "admin" | "csrf">): Promise<void> {
+  const id = "record-panels",
+    key = "panel-location",
     hidden = `${key}-hidden`,
     headers = { "X-Codex-CSRF": csrf };
   const permission = {
@@ -28,7 +27,7 @@ export async function exerciseRecordPanels({
       compatibility: { host: "^2.0.0", addonApi: "^3.0.0" },
       capabilities: { required: ["ui.contributions"], optional: [] },
       permissions: [permission],
-      runtime: { ui: { mode, entry: "web/index.js" } },
+      runtime: { ui: { mode: "integrated", entry: "web/index.js" } },
       contributions: [
         {
           id: "map",
@@ -114,7 +113,7 @@ export async function exerciseRecordPanels({
   const page = await open(t);
   page.setDefaultTimeout(10000);
   const panel = page.locator(`codex-record-contributions [data-addon-id="${id}"]`);
-  const view = mode === "isolated" ? panel.frameLocator("iframe") : panel;
+  const view = panel;
   await page.goto(`/#/map/world/location/${key}/show`);
   await view.getByLabel("Record context").waitFor();
   const map = JSON.parse((await view.getByLabel("Record context").textContent())!);
@@ -155,7 +154,7 @@ export async function exerciseRecordPanels({
   const player = await open(t, "player");
   await player.goto(`/#/map/world/location/${key}/show`);
   const playerPanel = player.locator(`codex-record-contributions [data-addon-id="${id}"]`);
-  const playerView = mode === "isolated" ? playerPanel.frameLocator("iframe") : playerPanel;
+  const playerView = playerPanel;
   await playerView.getByLabel("Record context").waitFor();
   await player.goto(`/#/map/world/location/${hidden}/show`);
   await playerPanel.waitFor({ state: "detached" });

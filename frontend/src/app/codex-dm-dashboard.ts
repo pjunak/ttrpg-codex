@@ -94,7 +94,6 @@ export class CodexDmDashboard extends LitElement {
       surface: "slot",
       role: "dm",
       compact: true,
-      isolatedHostContext: true,
       hostContext: () => ({ contractVersion: "dm-dashboard-context.v1", locale: this.#ui.locale }),
       include: (active) =>
         Object.keys(active.descriptor.config).every((key) =>
@@ -128,11 +127,8 @@ export class CodexDmDashboard extends LitElement {
   }
   #fallback() {
     const routes =
-      this.registry
-        ?.list("route", "dm")
-        .filter(
-          (active) => active.binding.kind === "element" || active.binding.kind === "isolated-frame",
-        ) ?? [];
+      this.registry?.list("route", "dm").filter((active) => active.binding.kind === "element") ??
+      [];
     const pages = [
       "characters",
       "locations",

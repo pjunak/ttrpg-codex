@@ -85,7 +85,7 @@ export function listBrowserNavigation(
 ): readonly BrowserNavigationEntry[] {
   const routes = new Map<string, ActiveBrowserContribution>();
   for (const active of registry.list("route", role)) {
-    if (active.binding.kind === "element" || active.binding.kind === "isolated-frame") {
+    if (active.binding.kind === "element") {
       routes.set(routeIdentity(active.addonId, active.generationId, active.descriptor.id), active);
     }
   }

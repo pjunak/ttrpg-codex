@@ -7,12 +7,10 @@ export function installTimelinePackage(
   csrf: string,
   {
     id,
-    mode,
     read = true,
     version = "1.0.0",
   }: {
     id: string;
-    mode: string;
     read?: boolean;
     version?: string;
   },
@@ -34,7 +32,7 @@ export function installTimelinePackage(
     compatibility: { host: "^2.0.0", addonApi: "^3.0.0" },
     capabilities: { required: ["ui.contributions"], optional: [] },
     permissions,
-    runtime: { ui: { mode, entry: "web/index.js" } },
+    runtime: { ui: { mode: "integrated", entry: "web/index.js" } },
     contributions: slots.map((slot, index) => ({
       id: `slot-${index}`,
       surface: "slot",
