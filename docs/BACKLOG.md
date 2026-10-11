@@ -88,7 +88,9 @@ not obvious. Move an entry between sections instead of duplicating it.
   when one of them changes, move it to a shared plan-and-confirm helper that
   checks expected state revisions. Disable is reversible and could confirm with
   a plain dialog plus the target's state revision.
-- **Split the largest UI files when next touched** — `frontend/src/app/codex-app.ts`,
+- **Split the largest UI files when next touched** — `frontend/src/app/codex-app.ts`
+  (campaign loading and live refresh already live in `campaign-controller.ts`;
+  the save handlers and add-on composition are the next cuts),
   `campaign-record-editor.ts` and `codex-record-page.ts` in the host, DM Tools'
   `planner-element.ts`, Sheets' `character-element.ts`.
 

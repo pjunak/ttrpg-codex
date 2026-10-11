@@ -19,14 +19,9 @@ import {
   type AuthState,
   type Health,
 } from "../core/api.js";
+import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
+import { CampaignController, type CampaignState } from "./campaign-controller.js";
 import {
-  campaignCollection,
-  CampaignDataClient,
-  CampaignDataRefreshInvalidatedError,
-  type CampaignDataset,
-} from "../core/campaign-data.js";
-import {
-  CampaignMutationClient,
   CampaignMutationHTTPError,
   type CampaignEnumDeleteMutation,
   type CampaignMutation,
@@ -154,11 +149,6 @@ type Readiness =
 type Authority =
   { readonly state: "checking" } | { readonly state: "known"; readonly auth: AuthState };
 
-type CampaignState =
-  | { readonly state: "loading" }
-  | { readonly state: "ready"; readonly campaign: CampaignDataset }
-  | { readonly state: "unavailable"; readonly message: string };
-
 type AddonState =
   | { readonly state: "idle" }
   | { readonly state: "loading" }
@@ -179,7 +169,6 @@ export class CodexApp extends LitElement {
   static override properties = {
     readiness: { state: true },
     authority: { state: true },
-    campaignState: { state: true },
     addonState: { state: true },
     liveState: { state: true },
     route: { state: true },
@@ -203,7 +192,6 @@ export class CodexApp extends LitElement {
 
   declare private readiness: Readiness;
   declare private authority: Authority;
-  declare private campaignState: CampaignState;
   declare private addonState: AddonState;
   declare private liveState: LiveState;
   declare private route: AppRoute;
@@ -232,10 +220,30 @@ export class CodexApp extends LitElement {
   readonly #mobileMedia = window.matchMedia("(max-width: 768px)");
   #request: AbortController | undefined;
   #addonCleanup: Promise<void> = Promise.resolve();
-  readonly #campaignData = new CampaignDataClient();
-  readonly #campaignMutations = new CampaignMutationClient();
+  readonly #campaign = new CampaignController(this, {
+    mayRefresh: (retainCurrent) => {
+      if (this.sessionRecovery) return false;
+      // Live refresh first confirms a signed-in session is still valid.
+      if (retainCurrent && this.#authenticated() && !isPlayerPreview()) return this.#checkSession();
+      return true;
+    },
+    apply: (campaign) => {
+      applyCampaignTheme(campaign);
+      applyBrandingFavicon(campaignBranding(campaign));
+    },
+    accepted: () => {
+      this.#articleOutlet?.refresh();
+      this.#navigationOutlet?.refresh();
+      this.#routeOutlet?.refresh();
+    },
+    refreshFailed: (cause) => {
+      this.errorMessage = uiText("Campaign refresh failed: {0}", { "0": errorMessage(cause) });
+    },
+  });
   readonly #events = new SharedEventStream();
-  #restoreRequest = 0;
+  private get campaignState(): CampaignState {
+    return this.#campaign.state;
+  }
   readonly #ui = new UiLocalizationController(this);
   #addons: BrowserAddonComposition | undefined;
   readonly #links = new AddonLinksController(this, () => ({
@@ -257,7 +265,6 @@ export class CodexApp extends LitElement {
     super();
     this.readiness = { state: "checking" };
     this.authority = { state: "checking" };
-    this.campaignState = { state: "loading" };
     this.addonState = { state: "idle" };
     this.liveState = "connecting";
     this.route = { kind: "dashboard" };
@@ -296,7 +303,6 @@ export class CodexApp extends LitElement {
     this.#mobileMedia.addEventListener("change", this.#onViewportChange);
     this.#request = new AbortController();
     this.authority = { state: "checking" };
-    this.campaignState = { state: "loading" };
     this.sessionRecovery = false;
     this.sessionRecoveryError = "";
     this.sessionRestored = false;
@@ -324,7 +330,6 @@ export class CodexApp extends LitElement {
     this.#cancelSessionCheck();
     this.#request = undefined;
     this.busy = false;
-    this.#campaignData.reset();
     this.#events.close();
     window.removeEventListener("hashchange", this.#onHashChange);
     window.removeEventListener("beforeunload", this.#onBeforeUnload);
@@ -558,7 +563,7 @@ export class CodexApp extends LitElement {
     }
 
     const authority = this.authority;
-    await this.#loadCampaign(signal);
+    await this.#campaign.load(signal);
     if (signal.aborted || this.authority !== authority) return;
     this.#startEventStream();
     if (this.#authenticated()) {
@@ -567,45 +572,6 @@ export class CodexApp extends LitElement {
       } catch (cause: unknown) {
         if (!signal.aborted)
           this.errorMessage = uiText("Add-ons could not start: {0}", { "0": errorMessage(cause) });
-      }
-    }
-  }
-
-  async #loadCampaign(signal: AbortSignal, retainCurrent = false): Promise<void> {
-    if (signal.aborted) return;
-    if (
-      this.sessionRecovery ||
-      (retainCurrent &&
-        this.#authenticated() &&
-        !isPlayerPreview() &&
-        !(await this.#checkSession()))
-    )
-      return;
-    if (signal.aborted) return;
-    if (!retainCurrent || this.campaignState.state !== "ready") {
-      this.campaignState = { state: "loading" };
-    }
-    try {
-      const campaign = await this.#campaignData.refresh(signal);
-      if (!signal.aborted && this.#campaignData.current() === campaign) {
-        applyCampaignTheme(campaign);
-        applyBrandingFavicon(campaignBranding(campaign));
-        this.campaignState = { state: "ready", campaign };
-        await this.updateComplete;
-        if (signal.aborted || this.#campaignData.current() !== campaign) return;
-        this.#articleOutlet?.refresh();
-        this.#navigationOutlet?.refresh();
-        this.#routeOutlet?.refresh();
-      }
-    } catch (cause: unknown) {
-      if (signal.aborted || cause instanceof CampaignDataRefreshInvalidatedError) return;
-      const current = this.#campaignData.current();
-      if (retainCurrent && current !== undefined) {
-        applyCampaignTheme(current);
-        this.campaignState = { state: "ready", campaign: current };
-        this.errorMessage = uiText("Campaign refresh failed: {0}", { "0": errorMessage(cause) });
-      } else {
-        this.campaignState = { state: "unavailable", message: errorMessage(cause) };
       }
     }
   }
@@ -640,12 +606,10 @@ export class CodexApp extends LitElement {
       addons?.dataChanges.handleEvent(event);
       if (event.cause === "addon-data-changed") return;
       if (event.cause === "campaign-restored") {
-        const restore = ++this.#restoreRequest;
-        this.#campaignData.reset();
-        await waitForSignal(this.#loadCampaign(signal, true), signal);
+        const latest = await waitForSignal(this.#campaign.restored(signal), signal);
         // A newer restore owns the recovery decision, even when its read has
         // invalidated this request without replacing the add-on composition.
-        if (!isCurrent() || restore !== this.#restoreRequest) return;
+        if (!isCurrent() || !latest) return;
         const edits = addons?.contributions.edits.state();
         if (this.#edits.dirty || this.#edits.saving || edits?.dirty || edits?.saving) {
           this.errorMessage = this.#ui.t("recovery.openEdits");
@@ -661,7 +625,7 @@ export class CodexApp extends LitElement {
         event.cause === "campaign-data-changed" ||
         event.cause === "reset"
       )
-        await waitForSignal(this.#loadCampaign(signal, true), signal);
+        await waitForSignal(this.#campaign.load(signal, true), signal);
       if (isCurrent()) await addons?.session.handleEvent(event);
     } catch (cause: unknown) {
       if (isCurrent())
@@ -806,7 +770,7 @@ export class CodexApp extends LitElement {
       this.sessionRestored = true;
       this.errorMessage = "";
       form.reset();
-      await this.#loadCampaign(signal, true);
+      await this.#campaign.load(signal, true);
       if (!signal.aborted && !this.sessionRecovery) {
         this.#startEventStream();
         if (this.#addons) await this.#addons.session.start();
@@ -862,8 +826,7 @@ export class CodexApp extends LitElement {
       this.sessionRecoveryError = "";
       this.sessionRestored = false;
       browserDiagnostics.enable(false);
-      this.#campaignData.reset();
-      await this.#loadCampaign(signal);
+      await this.#campaign.reload(signal);
       if (signal.aborted) return;
       this.#startEventStream();
       if (this.route.kind === "addon") window.location.hash = "#/";
@@ -916,8 +879,7 @@ export class CodexApp extends LitElement {
     this.#events.close();
     this.sessionRestored = false;
     browserDiagnostics.enable(false);
-    this.#campaignData.reset();
-    await this.#loadCampaign(signal);
+    await this.#campaign.reload(signal);
     if (signal.aborted) return;
     this.#startEventStream();
     try {
@@ -1006,9 +968,9 @@ export class CodexApp extends LitElement {
         this.#acceptAuthority(anonymousAuth());
         browserDiagnostics.enable(false);
         this.addonState = { state: "idle" };
-        this.#campaignData.reset();
+        this.#campaign.reset();
         this.#startEventStream();
-        if (this.#request !== undefined) void this.#loadCampaign(this.#request.signal);
+        if (this.#request !== undefined) void this.#campaign.load(this.#request.signal);
       },
     });
     this.#addons = composition;
@@ -1744,10 +1706,10 @@ export class CodexApp extends LitElement {
         signal,
       );
       signal.throwIfAborted();
-      const receipt = await this.#campaignMutations.commit(prepared.mutations, csrfToken, signal);
+      const receipt = await this.#campaign.mutations.commit(prepared.mutations, csrfToken, signal);
       writeConfirmed = true;
       signal.throwIfAborted();
-      await this.#loadCampaign(signal, true);
+      await this.#campaign.load(signal, true);
       signal.throwIfAborted();
       const campaign =
         this.campaignState.state === "ready" ? this.campaignState.campaign : undefined;
@@ -1795,7 +1757,7 @@ export class CodexApp extends LitElement {
         (cause instanceof CampaignRecordEditError && cause.kind === "stale") ||
         (cause instanceof CampaignMutationHTTPError && cause.status === 409);
       if (!signal.aborted && cause instanceof CampaignMutationHTTPError && cause.status === 409)
-        await this.#loadCampaign(signal, true);
+        await this.#campaign.load(signal, true);
       respond({
         ok: false,
         conflict,
@@ -1836,9 +1798,9 @@ export class CodexApp extends LitElement {
     this.busy = true;
     const { signal, csrfToken } = write;
     try {
-      const receipt = await this.#campaignMutations.mutateTwin(mutation, csrfToken, signal);
+      const receipt = await this.#campaign.mutations.mutateTwin(mutation, csrfToken, signal);
       signal.throwIfAborted();
-      await this.#loadCampaign(signal, true);
+      await this.#campaign.load(signal, true);
       signal.throwIfAborted();
       const campaign =
         this.campaignState.state === "ready" ? this.campaignState.campaign : undefined;
@@ -1854,7 +1816,7 @@ export class CodexApp extends LitElement {
         message: uiText(verified && !signal.aborted ? "twins.saved" : "twins.failed"),
       });
     } catch (cause: unknown) {
-      if (!signal.aborted) await this.#loadCampaign(signal, true);
+      if (!signal.aborted) await this.#campaign.load(signal, true);
       respond({
         ok: false,
         message: uiText(
@@ -1905,8 +1867,8 @@ export class CodexApp extends LitElement {
     try {
       prepared = await attachCharacterPortrait(prepared, event.detail, csrfToken, signal);
       signal.throwIfAborted();
-      await this.#campaignMutations.commit(prepared.mutations, csrfToken, signal);
-      await this.#loadCampaign(signal, true);
+      await this.#campaign.mutations.commit(prepared.mutations, csrfToken, signal);
+      await this.#campaign.load(signal, true);
       signal.throwIfAborted();
       settle();
       this.editCompletion += 1;
@@ -1972,7 +1934,7 @@ export class CodexApp extends LitElement {
     this.errorMessage = "";
     try {
       await run(write.campaign, csrfToken, signal);
-      await this.#loadCampaign(signal, true);
+      await this.#campaign.load(signal, true);
       signal.throwIfAborted();
       settle();
       this.editCompletion += 1;
@@ -1994,7 +1956,7 @@ export class CodexApp extends LitElement {
       "edit",
       async (campaign, csrfToken, signal) => {
         prepared = prepareCampaignRecordDelete(campaign, event.detail);
-        await this.#campaignMutations.commit(prepared.mutations, csrfToken, signal);
+        await this.#campaign.mutations.commit(prepared.mutations, csrfToken, signal);
       },
       (cause) =>
         cause instanceof CampaignRecordEditError
@@ -2018,7 +1980,7 @@ export class CodexApp extends LitElement {
       "manage",
       async (campaign, csrfToken, signal) => {
         const mutation = prepareCampaignEnumSave(campaign, event.detail);
-        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
       },
       (cause) =>
         cause instanceof CampaignSettingsEditError
@@ -2041,7 +2003,7 @@ export class CodexApp extends LitElement {
       "manage",
       async (campaign, csrfToken, signal) => {
         const mutation = prepareCampaignEnumDelete(campaign, event.detail);
-        await this.#campaignMutations.deleteEnumItem(mutation, csrfToken, signal);
+        await this.#campaign.mutations.deleteEnumItem(mutation, csrfToken, signal);
       },
       (cause) =>
         cause instanceof CampaignSettingsEditError
@@ -2064,7 +2026,7 @@ export class CodexApp extends LitElement {
       manage ? "manage" : "edit",
       async (campaign, csrfToken, signal) => {
         const mutation = prepareMapSave(campaign, event.detail);
-        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
       },
       (cause) => this.#mapErrorMessage(cause),
     );
@@ -2094,7 +2056,7 @@ export class CodexApp extends LitElement {
       event,
       "edit",
       (_campaign, csrfToken, signal) =>
-        this.#campaignMutations.commit(mutations, csrfToken, signal),
+        this.#campaign.mutations.commit(mutations, csrfToken, signal),
       (cause) =>
         this.#ui.t(
           cause instanceof CampaignMutationHTTPError && cause.status === 409
@@ -2136,9 +2098,9 @@ export class CodexApp extends LitElement {
           expectedRevision,
           media.url,
         );
-        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
       }
-      await this.#loadCampaign(signal, true);
+      await this.#campaign.load(signal, true);
       signal.throwIfAborted();
       this.editCompletion += 1;
     } catch (cause) {
@@ -2189,7 +2151,7 @@ export class CodexApp extends LitElement {
       "manage",
       async (campaign, csrfToken, signal) => {
         const mutation = prepareCampaignIdentitySave(campaign, event.detail);
-        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
       },
       (cause) =>
         this.#ui.t(
@@ -2211,7 +2173,7 @@ export class CodexApp extends LitElement {
         const mutations = [prepareSidebarSave(campaign, event.detail)];
         if (event.detail.addonVisibility !== undefined)
           mutations.push(prepareAddonSidebarSave(campaign, event.detail.addonVisibility));
-        await this.#campaignMutations.commit(mutations, csrfToken, signal);
+        await this.#campaign.mutations.commit(mutations, csrfToken, signal);
       },
       (cause) =>
         this.#ui.t(
@@ -2244,7 +2206,7 @@ export class CodexApp extends LitElement {
           signal.throwIfAborted();
           mutation = prepareBrandingSave(campaign, { ...event.detail, logoUrl: media.url });
         }
-        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
       },
       (cause) =>
         this.#ui.t(
@@ -2266,7 +2228,7 @@ export class CodexApp extends LitElement {
       "manage",
       async (campaign, csrfToken, signal) => {
         const mutation = prepareCampaignPartySave(campaign, event.detail);
-        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
       },
       (cause) =>
         this.#ui.t(
@@ -2288,7 +2250,7 @@ export class CodexApp extends LitElement {
       "manage",
       async (campaign, csrfToken, signal) => {
         const mutation = prepareCampaignAppearanceSave(campaign, event.detail);
-        await this.#campaignMutations.commit([mutation], csrfToken, signal);
+        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
       },
       (cause) =>
         cause instanceof CampaignAppearanceEditError
@@ -2374,8 +2336,7 @@ export class CodexApp extends LitElement {
 
   readonly #retryCampaign = (): void => {
     if (this.#request === undefined) return;
-    this.#campaignData.reset();
-    void this.#loadCampaign(this.#request.signal);
+    void this.#campaign.reload(this.#request.signal);
   };
 }
 
