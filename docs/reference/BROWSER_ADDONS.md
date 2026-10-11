@@ -81,9 +81,11 @@ the same exact durable graph restores the deterministic projection.
 
 ## HTTP delivery
 
-The generation-scoped service SDK supports `includeOwn: true`.
-`service-client.ts` carries the boolean to the existing authenticated
-connection endpoint. The manager can then
+The generation-scoped service SDK supports `includeOwn: true` and
+`services.own(contract)`. `service-client.ts` carries `includeOwn` or `own` to
+the existing authenticated connection endpoint; an own connection needs no
+consumer declaration, only a worker provider of that contract in the active
+manifest. The manager can then
 include the caller's declared native worker without adding a worker dependency
 on itself. The public service guide defines ambiguity, actor and stale-handle
 behavior. Typed worker errors map to fixed HTTP codes/messages so import

@@ -94,7 +94,10 @@ describe("BrowserContributionRegistry", () => {
 
   it("creates one generation-scoped service API for add-on code", async () => {
     const handle = { available: true } as BrowserServiceHandle;
-    const serviceAPI: BrowserServiceAPI = { connect: vi.fn(async () => handle) };
+    const serviceAPI: BrowserServiceAPI = {
+      connect: vi.fn(async () => handle),
+      own: vi.fn(async () => handle),
+    };
     const createServiceAPI = vi.fn(() => serviceAPI);
     const source = descriptor("dnd-sheets", [route]);
     const scope = new GenerationScope("dnd-sheets@generation");

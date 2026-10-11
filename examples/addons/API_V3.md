@@ -881,6 +881,20 @@ ordinary optional result intact. External provider selection and operator
 bindings remain unchanged. A `one` connection with both an external and own
 provider is ambiguous; use `many` and select from the returned handles.
 
+To reach only your own worker, for example the service behind your own UI,
+require capability `services.own` and use `own`:
+
+```ts
+const sheets = await context.services.own("dnd5e.character", { signal: context.signal });
+const loaded = await sheets.call("load", request);
+```
+
+The manifest must provide that contract with `transport: "worker"`; no consumer
+declaration is needed and calls need no `providerAddonId`. The handle's `range`
+is the provided version, and `available` is false while the worker is stopped.
+A contract used only this way is private in practice: no other package needs
+to consume it, so its version and schema can change with your own UI.
+
 This is browser discovery, not an additional permission or a worker dependency.
 Workers continue to exclude themselves from service resolution and initialization
 bindings. Own-worker calls retain schema validation, deadlines, idempotency,

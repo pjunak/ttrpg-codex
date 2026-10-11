@@ -55,8 +55,17 @@ export interface BrowserServiceHandle {
   ): Promise<TResponse>;
 }
 
+export interface BrowserServiceOwnOptions {
+  readonly signal?: AbortSignal;
+}
+
 export interface BrowserServiceAPI {
   connect(contract: string, options: BrowserServiceConnectOptions): Promise<BrowserServiceHandle>;
+  /**
+   * Connects to this package's own worker provider of `contract`. No consumer
+   * declaration is needed; the handle has no provider while the worker is down.
+   */
+  own(contract: string, options?: BrowserServiceOwnOptions): Promise<BrowserServiceHandle>;
 }
 
 export type AddonServiceFetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -103,6 +112,7 @@ export class BrowserAddonServiceClient {
     return Object.freeze({
       connect: (contract: string, options: BrowserServiceConnectOptions) =>
         this.connect(contract, options),
+      own: (contract: string, options?: BrowserServiceOwnOptions) => this.own(contract, options),
     });
   }
 
@@ -130,12 +140,30 @@ export class BrowserAddonServiceClient {
       },
       options.signal,
     );
-    const connection = parseConnection(value, contract, options.range, options.cardinality);
+    return this.#handle(parseConnection(value, contract, options.range, options.cardinality));
+  }
+
+  async own(
+    contract: string,
+    options: BrowserServiceOwnOptions = {},
+  ): Promise<BrowserServiceHandle> {
+    if (!contractPattern.test(contract)) {
+      throw new BoundaryValidationError("add-on service connect", "request is invalid");
+    }
+    const value = await this.#request(
+      "connect",
+      { contractVersion: "addon-service-connect.v1", contract, own: true },
+      options.signal,
+    );
+    return this.#handle(parseConnection(value, contract, undefined, "one"));
+  }
+
+  #handle(connection: ParsedConnection): BrowserServiceHandle {
     const providers = Object.freeze([...connection.providers]);
     return Object.freeze({
-      contract,
-      range: options.range,
-      cardinality: options.cardinality,
+      contract: connection.contract,
+      range: connection.range,
+      cardinality: connection.cardinality,
       providers,
       available: providers.length > 0,
       call: <TResponse = unknown>(
@@ -236,10 +264,11 @@ interface ParsedConnection {
   readonly providers: readonly BrowserServiceProvider[];
 }
 
+/** `range` is undefined for an own connection, whose range is the provided version. */
 function parseConnection(
   value: unknown,
   contract: string,
-  range: string,
+  range: string | undefined,
   cardinality: BrowserServiceCardinality,
 ): ParsedConnection {
   if (
@@ -247,7 +276,10 @@ function parseConnection(
     !hasOnlyKeys(value, connectionKeys) ||
     value["contractVersion"] !== "addon-service-connection.v1" ||
     value["contract"] !== contract ||
-    value["range"] !== range ||
+    typeof value["range"] !== "string" ||
+    (range === undefined
+      ? value["range"].length === 0 || value["range"].length > 200
+      : value["range"] !== range) ||
     value["cardinality"] !== cardinality ||
     !Array.isArray(value["providers"])
   ) {
@@ -285,7 +317,12 @@ function parseConnection(
       "cardinality-one response is ambiguous",
     );
   }
-  return Object.freeze({ contract, range, cardinality, providers: Object.freeze(providers) });
+  return Object.freeze({
+    contract,
+    range: value["range"],
+    cardinality,
+    providers: Object.freeze(providers),
+  });
 }
 
 function selectProvider(

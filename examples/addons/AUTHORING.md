@@ -62,6 +62,7 @@ saved-data and integration namespaces. Display names may change.
 | `ui.markdown`, `ui.rule-details` | Shared Markdown rendering and rule-detail popovers |
 | `worker.native` | A native Go worker per target platform |
 | `data.transactions` | Multi-document transactions on your collections |
+| `services.own` | `context.services.own(contract)` to call your own worker from your UI |
 
 See [what is available](API_V3.md#what-is-available) before relying on a
 surface. Package-owned collections, record extensions, schema-validated

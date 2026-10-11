@@ -434,11 +434,10 @@ function unavailableContentAPI(): BrowserContentAPI {
 }
 
 function unavailableServiceAPI(): BrowserServiceAPI {
-  return Object.freeze({
-    connect: (): never => {
-      throw new BrowserSDKAuthorityError("browser add-on service API is unavailable");
-    },
-  });
+  const unavailable = (): never => {
+    throw new BrowserSDKAuthorityError("browser add-on service API is unavailable");
+  };
+  return Object.freeze({ connect: unavailable, own: unavailable });
 }
 
 function capabilityAPI(

@@ -78,12 +78,16 @@ func (s *server) browserServiceConnect(w http.ResponseWriter, r *http.Request) {
 		Range           string `json:"range"`
 		Cardinality     string `json:"cardinality"`
 		IncludeOwn      bool   `json:"includeOwn,omitempty"`
+		Own             bool   `json:"own,omitempty"`
 	}
 	if !decodeBoundedJSON(w, r, &request, 16<<10, "browser service connect") {
 		return
 	}
-	if request.ContractVersion != browserServiceConnectVersion || request.Contract == "" ||
-		request.Range == "" || request.Cardinality != "one" && request.Cardinality != "many" {
+	// A declared connection repeats the manifest's consumer requirement; an own
+	// connection names only a contract the package's worker provides.
+	declared := !request.Own && request.Range != "" && (request.Cardinality == "one" || request.Cardinality == "many")
+	own := request.Own && request.Range == "" && request.Cardinality == "" && !request.IncludeOwn
+	if request.ContractVersion != browserServiceConnectVersion || request.Contract == "" || !declared && !own {
 		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "browser service connection is invalid")
 		return
 	}
@@ -91,7 +95,7 @@ func (s *server) browserServiceConnect(w http.ResponseWriter, r *http.Request) {
 		r.Context(), addonID, generationID,
 		packagemanager.BrowserServiceRequest{
 			Contract: request.Contract, Range: request.Range, Cardinality: request.Cardinality,
-			IncludeOwn: request.IncludeOwn,
+			IncludeOwn: request.IncludeOwn, Own: request.Own,
 		},
 	)
 	if err != nil {

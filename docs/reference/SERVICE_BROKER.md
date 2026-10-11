@@ -84,11 +84,16 @@ initialization, operator bindings, or dependency ordering. Ordinary resolution
 still excludes the consumer itself. External selections remain unchanged, and a
 single-provider connection with two candidates fails as ambiguous.
 
+An `own` connection (`context.services.own`) skips the consumer declaration: the
+manager only requires that the active manifest provides the contract with a
+worker transport, and returns that own handle or none.
+
 Own handles use the same call pipeline, compiled schemas and actor leases as
 external handles. Validation checks the current catalog/runtime both before
 execution and after the response. The manager also checks the exact active UI
-generation and manifest consumer requirement for every browser call. The optional
-discovery flag does not grant authority beyond those reviewed declarations.
+generation for every browser call, and that the manifest provides the contract
+from its worker. Neither flag grants authority beyond those reviewed
+declarations.
 
 A resolved handle captures the consumer, contract and range, cardinality,
 selection policy, scope, provider, exact contract version, transport,

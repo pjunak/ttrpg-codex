@@ -77,6 +77,58 @@ describe("BrowserAddonServiceClient", () => {
     expect(fetchService).toHaveBeenCalledTimes(2);
   });
 
+  it("connects to its own worker without a consumer requirement or provider ID", async () => {
+    const ownConnection = {
+      contractVersion: "addon-service-connection.v1",
+      contract: "dnd5e.character",
+      range: "3.0.0",
+      cardinality: "one",
+      providers: [
+        {
+          addonId: "dnd-sheets",
+          contractVersion: "3.0.0",
+          generation: generationId,
+          bindingRevision: 0,
+        },
+      ],
+    };
+    const fetchService = vi.fn<AddonServiceFetch>(async (_url, init) =>
+      JSON.parse(requestBodyText(init.body)).contractVersion === "addon-service-connect.v1"
+        ? jsonResponse(ownConnection)
+        : jsonResponse({
+            contractVersion: "addon-service-result.v1",
+            providerAddonId: "dnd-sheets",
+            providerGeneration: generationId,
+            result: { saved: true },
+          }),
+    );
+    const handle = await createClient(fetchService).api().own("dnd5e.character");
+    expect(JSON.parse(requestBodyText(fetchService.mock.calls[0]?.[1].body))).toEqual({
+      contractVersion: "addon-service-connect.v1",
+      contract: "dnd5e.character",
+      own: true,
+    });
+    expect(handle).toMatchObject({ range: "3.0.0", cardinality: "one", available: true });
+    await expect(handle.call("save", {})).resolves.toEqual({ saved: true });
+    expect(JSON.parse(requestBodyText(fetchService.mock.calls[1]?.[1].body))).toMatchObject({
+      contract: "dnd5e.character",
+      providerAddonId: "dnd-sheets",
+      providerVersion: "3.0.0",
+    });
+
+    const stopped = vi.fn<AddonServiceFetch>(async () =>
+      jsonResponse({ ...ownConnection, providers: [] }),
+    );
+    const unavailable = await createClient(stopped).api().own("dnd5e.character");
+    expect(unavailable.available).toBe(false);
+    const empty = vi.fn<AddonServiceFetch>(async () =>
+      jsonResponse({ ...ownConnection, range: "" }),
+    );
+    await expect(createClient(empty).api().own("dnd5e.character")).rejects.toThrow(
+      BoundaryValidationError,
+    );
+  });
+
   it("connects and calls one exact schema-validated provider binding", async () => {
     const fetchService = vi.fn<AddonServiceFetch>(async (_input, init) => {
       const request = JSON.parse(requestBodyText(init.body)) as { contractVersion: string };

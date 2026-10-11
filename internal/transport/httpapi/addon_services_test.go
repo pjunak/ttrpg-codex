@@ -83,6 +83,21 @@ func TestBrowserServiceBoundaryRejectsUnauthorizedMalformedAndStaleCalls(t *test
 	if malformed.Code != http.StatusBadRequest || source.connectCalls != 0 {
 		t.Fatalf("malformed response/calls = %d, %d", malformed.Code, source.connectCalls)
 	}
+	for _, body := range []string{
+		`{"contractVersion":"addon-service-connect.v1","contract":"dnd5e.character","own":true,"range":"^3.0.0","cardinality":"one"}`,
+		`{"contractVersion":"addon-service-connect.v1","contract":"dnd5e.character","own":true,"includeOwn":true}`,
+	} {
+		if mixed := serveBrowserServiceRequest(allowed, path, body); mixed.Code != http.StatusBadRequest || source.connectCalls != 0 {
+			t.Fatalf("own connection with a consumer requirement = %d, calls %d", mixed.Code, source.connectCalls)
+		}
+	}
+	own := serveBrowserServiceRequest(allowed, path,
+		`{"contractVersion":"addon-service-connect.v1","contract":"dnd5e.character","own":true}`,
+	)
+	if own.Code != http.StatusOK || !source.connectRequest.Own || source.connectRequest.Contract != "dnd5e.character" {
+		t.Fatalf("own connection = %d, %+v", own.Code, source.connectRequest)
+	}
+	source.connectCalls = 0
 
 	source.connectError = servicebroker.ErrStaleBinding
 	stale := serveBrowserServiceRequest(allowed, path,

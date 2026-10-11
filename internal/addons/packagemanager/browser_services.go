@@ -13,12 +13,15 @@ import (
 
 // BrowserServiceRequest repeats a package-owned consumer declaration at the
 // browser boundary. The manager accepts it only when it exactly matches the
-// active manifest; browser code cannot widen its own service authority.
+// active manifest; browser code cannot widen its own service authority. Own
+// instead asks for the package's own worker provider of that contract, which
+// needs no consumer declaration.
 type BrowserServiceRequest struct {
 	Contract    string
 	Range       string
 	Cardinality string
 	IncludeOwn  bool
+	Own         bool
 }
 
 type BrowserServiceProvider struct {
@@ -60,6 +63,9 @@ func (manager *Manager) ConnectBrowserService(
 	active, ok := manager.browserServiceRuntime(addonID, generationID)
 	if !ok {
 		return BrowserServiceConnection{}, ErrNotActive
+	}
+	if request.Own {
+		return manager.connectOwnBrowserService(ctx, active, addonID, generationID, request.Contract)
 	}
 	declaration, ok := consumedService(active.report.Manifest, request.Contract)
 	if !ok || declaration.Range != request.Range || declaration.Cardinality != request.Cardinality {
@@ -122,8 +128,8 @@ func (manager *Manager) CallBrowserService(
 	}
 	var selected *servicebroker.Handle
 	if target.ProviderAddonID == addonID {
-		if declaration, ok := consumedService(active.report.Manifest, target.Contract); ok {
-			own, err := manager.broker.ConnectOwnBrowserService(ctx, addonID, generationID, target.Contract, declaration.Range)
+		if declaration, ok := ownWorkerService(active.report.Manifest, target.Contract); ok {
+			own, err := manager.broker.ConnectOwnBrowserService(ctx, addonID, generationID, target.Contract, declaration.Version)
 			if err == nil && own.ContractVersion == target.ContractVersion && own.Generation == target.Generation && own.BindingRevision == target.BindingRevision {
 				selected = &own
 			}
@@ -154,6 +160,49 @@ func (manager *Manager) browserServiceRuntime(
 	active, ok := manager.runtimes[addonID]
 	return active, ok && active.generation.GenerationID == generationID &&
 		active.report.Manifest.Runtime != nil && active.report.Manifest.Runtime.UI != nil
+}
+
+// connectOwnBrowserService returns the package's own worker provider of a
+// contract it provides. A stopped worker yields an empty provider list.
+func (manager *Manager) connectOwnBrowserService(
+	ctx context.Context,
+	active activeRuntime,
+	addonID string,
+	generationID string,
+	contract string,
+) (BrowserServiceConnection, error) {
+	declaration, ok := ownWorkerService(active.report.Manifest, contract)
+	if !ok {
+		return BrowserServiceConnection{}, fmt.Errorf(
+			"%w: the package does not provide %s from its worker",
+			ErrServiceResolution, contract,
+		)
+	}
+	providers := make([]BrowserServiceProvider, 0, 1)
+	own, err := manager.broker.ConnectOwnBrowserService(ctx, addonID, generationID, contract, declaration.Version)
+	if err != nil && !errors.Is(err, servicebroker.ErrServiceUnavailable) {
+		return BrowserServiceConnection{}, err
+	}
+	if err == nil {
+		providers = append(providers, BrowserServiceProvider{AddonID: own.ProviderAddonID,
+			ContractVersion: own.ContractVersion, Generation: own.Generation, BindingRevision: own.BindingRevision})
+	}
+	return BrowserServiceConnection{
+		Contract: contract, Range: declaration.Version,
+		Cardinality: string(servicebroker.CardinalityOne), Providers: providers,
+	}, nil
+}
+
+func ownWorkerService(
+	manifest packageinspect.Manifest,
+	contract string,
+) (packageinspect.ProvidedService, bool) {
+	for _, declaration := range manifest.Services.Provides {
+		if declaration.Contract == contract && declaration.Transport == string(servicebroker.TransportWorker) {
+			return declaration, true
+		}
+	}
+	return packageinspect.ProvidedService{}, false
 }
 
 func consumedService(
