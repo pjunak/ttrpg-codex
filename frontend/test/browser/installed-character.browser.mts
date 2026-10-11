@@ -164,17 +164,13 @@ async function call(method: string, params: Record<string, unknown>) {
         data: {
           contractVersion: "addon-service-connect.v1",
           contract: "dnd5e.character",
-          range: "^3.0.0",
-          cardinality: "many",
-          includeOwn: true,
+          own: true,
         },
       });
       evidence.status = response.status();
       const connection = await jsonResponse(response);
-      const target = connection.providers.find(
-        (provider: { addonId: string }) => provider.addonId === "dnd-sheets",
-      );
-      assert.ok(target);
+      const [target] = connection.providers;
+      assert.equal(target?.addonId, "dnd-sheets");
       return target;
     },
     method,
