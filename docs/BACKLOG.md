@@ -97,8 +97,6 @@ not obvious. Move an entry between sections instead of duplicating it.
 Only start one of these for a concrete need, and design the review UI and docs
 with it.
 
-- **Update all add-ons at once** `ttrpg-codex` — Each add-on is updated through
-  its own review; one combined review could update several.
 - **Cloud backup add-on** — Workers have no network access and cannot read
   backup archives; both would be new, reviewed host capabilities.
 - **Value-transforming add-on data migrations** `ttrpg-codex` — Updates can

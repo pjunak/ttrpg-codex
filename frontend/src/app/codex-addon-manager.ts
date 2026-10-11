@@ -19,6 +19,7 @@ import "./codex-addon-schema-upgrade.js";
 import "./codex-package-storage.js";
 import { AddonGitHubController } from "./addon-github-controller.js";
 import { AddonGitHubClient, type GitHubDiscovery } from "../core/addon-github.js";
+import { updateAll, updateTargets } from "./addon-update-all.js";
 import { githubTokenHelp } from "./github-access.js";
 import { githubCandidateDetails } from "./github-candidate-details.js";
 import {
@@ -239,6 +240,7 @@ export class CodexAddonManager extends LitElement {
         this.canManage
           ? html`<div id="addon-management-panel" role=${tabbed ? "tabpanel" : nothing} aria-labelledby=${tabbed ? "addon-tab-management" : nothing} tabindex=${tabbed ? 0 : nothing} ?hidden=${selected !== ""}>
         <div class="addon-actions addon-toolbar"><button ?disabled=${this.#busy} @click=${() => this.#checkUpdates()}>${t(this.#github.pending ? "github.checking" : "github.check")}</button>
+          ${updateTargets(this.#github.results).length > 1 ? html`<button ?disabled=${this.#busy} @click=${() => this.#updateAll()}>${t(this.pending ? "github.updatingAll" : "github.updateAll")}</button>` : nothing}
           <button class="addon-primary" ?disabled=${this.#busy} @click=${() => this.#openInstall()}>${t("github.add")}</button></div>
         ${this.installOpen ? this.#installDialog() : nothing}
         ${this.removal ? this.#uninstallPanel(this.removal) : nothing}
@@ -431,6 +433,40 @@ export class CodexAddonManager extends LitElement {
       this.snapshots = await client.inventory();
       this.review = await client.review(this.staged.addonId, this.staged.generationId);
       this.grants = [...new Set([...this.review.required, ...this.review.suggested])];
+    });
+  }
+  /** Updates every checked add-on that asks for nothing new; the rest keep their review. */
+  #updateAll(): void {
+    const targets = updateTargets(this.#github.results);
+    if (!targets.length || !this.#confirmLifecycle()) return;
+    void this.#run(async (client) => {
+      const github = new AddonGitHubClient(this.csrfToken, this.#request.signal);
+      const result = await updateAll(targets, {
+        stage: (target) =>
+          github.stage(target.discovery.source, target.candidateId, target.addonId),
+        review: (addonId, generationId) => client.review(addonId, generationId),
+        activate: (review, grants) => client.activate(review, grants),
+      });
+      for (const addonId of result.updated) this.#github.clear(addonId);
+      this.snapshots = await client.inventory();
+      const name = (addonId: string) => {
+        const snapshot = this.snapshots.find((item) => item.state.addonId === addonId);
+        const active = snapshot?.generations.find(
+          (generation) => generation.generationId === snapshot.state.activeGenerationId,
+        );
+        return active?.name || addonId;
+      };
+      const t = this.#ui.t.bind(this.#ui);
+      this.message = [
+        result.updated.length
+          ? t("github.updatedAll", { names: result.updated.map(name).join(", ") })
+          : t("github.nothingUpdated"),
+        result.needsReview.length
+          ? t("github.updateNeedsReview", { names: result.needsReview.map(name).join(", ") })
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
     });
   }
   #tokens() {

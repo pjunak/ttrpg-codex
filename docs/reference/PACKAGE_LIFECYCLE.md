@@ -53,7 +53,15 @@ and uncertain responses.
 Other checked updates remain actionable without checking every repository again.
 GitHub downloads
 enter the same inert staging and exact permission-review flow as ZIP uploads;
-they never activate automatically or compile repository source.
+they never activate without an explicit action or compile repository source.
+
+After a check, **Update all** appears when more than one linked add-on has a
+single new package. It downloads each one, prepares its ordinary activation
+review and approves it with the existing grants only when the review has no
+blockers and no new or changed permissions; it tries blocked add-ons once more
+after the others, so a consumer can follow its provider. Anything else, such as
+saved data that needs a decision, stays for the usual one-by-one review, and
+the result message names it. `addon-update-all.ts` owns that decision.
 
 Two sources are supported:
 

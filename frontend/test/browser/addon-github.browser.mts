@@ -3,7 +3,7 @@ import { before, after, test } from "node:test";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
-import type { Browser } from "playwright";
+import type { Browser, Page } from "playwright";
 import { chromium } from "playwright";
 import { preview, type PreviewServer } from "vite";
 import { visualFixturePlugin } from "./visual-fixture.mts";
@@ -443,6 +443,102 @@ for (const mobile of [false, true])
     );
   });
 
+/** Two linked add-ons, each with one newer release; returns the fixture state. */
+async function routeTwoUpdates(page: Page) {
+  const ids = ["first", "second"];
+  const active: Record<string, string> = { first: "a".repeat(64), second: "b".repeat(64) };
+  const target: Record<string, string> = { first: "c".repeat(64), second: "d".repeat(64) };
+  const generations = new Map(
+    ids.map((addonId) => [
+      addonId,
+      [
+        {
+          addonId,
+          generationId: active[addonId]!,
+          version: "1.0.0",
+          installedAt: "2026-09-10T10:00:00Z",
+        },
+      ],
+    ]),
+  );
+  const links = ids.map((addonId) => ({
+    addonId,
+    revision: 1,
+    source: { repo: `owner/${addonId}`, channel: "release", branch: "", artifact: "" },
+  }));
+  const checked: string[] = [];
+  const review = (addonId: string, status = "prepared") => ({
+    reviewId: addonId,
+    addonId,
+    generationId: target[addonId],
+    proposalSha256: "e".repeat(64),
+    status,
+    proposal: {
+      addonId,
+      generationId: target[addonId],
+      targetManifest: { id: addonId, name: addonId, version: "2.0.0", permissions: [] },
+      currentManifest: { version: "1.0.0" },
+      changes: { runtimeChanged: true },
+      requiredPermissionIds: [],
+      restartedAddonIds: [],
+      blockers: [],
+    },
+  });
+  await page.route("**/api/admin/**", async (route) => {
+    const req = route.request(),
+      path = new URL(req.url()).pathname;
+    const body = req.postData() ? (req.postDataJSON() as Record<string, unknown>) : {};
+    if (req.method() === "POST") assert.equal(req.headers()["x-codex-csrf"], "x".repeat(32));
+    let value: unknown;
+    const addonId = path.split("/")[4]!;
+    if (path === "/api/admin/addon-github")
+      value = {
+        contractVersion: "addon-github.v1",
+        sources: links,
+        credentials: { defaultSource: "none", repositories: [] },
+      };
+    else if (path.endsWith("/addon-github/discover")) {
+      const id = String(body.addonId);
+      checked.push(id);
+      value = {
+        source: links.find((link) => link.addonId === id)!.source,
+        candidates: [{ id: target[id], name: id, version: "2.0.0", digest: "", active: false }],
+      };
+    } else if (path.endsWith("/addon-github/stage")) {
+      const id = String(body.addonId);
+      assert.equal(body.candidateId, target[id]);
+      const generation = {
+        addonId: id,
+        generationId: target[id]!,
+        version: "2.0.0",
+        installedAt: "2026-09-14T10:00:00Z",
+      };
+      if (!generations.get(id)!.some((g) => g.generationId === target[id]))
+        generations.get(id)!.push(generation);
+      value = generation;
+    } else if (path === "/api/admin/addons")
+      value = { contractVersion: "addon-inventory.v1", addonIds: ids };
+    else if (path.endsWith("/activation-reviews")) value = review(addonId);
+    else if (path.endsWith("/update/cancel")) value = { cancelled: true };
+    else if (path.endsWith("/approval")) value = review(addonId, "approved");
+    else if (path.endsWith("/activation")) {
+      active[addonId] = target[addonId]!;
+      value = { state: { addonId, activeGenerationId: active[addonId] } };
+    } else if (ids.includes(addonId))
+      value = {
+        state: { addonId, revision: 1, activeGenerationId: active[addonId] },
+        generations: generations.get(addonId),
+        events: [],
+      };
+    else {
+      await route.fulfill({ status: 404, json: { error: { kind: "NOT_FOUND" } } });
+      return;
+    }
+    await route.fulfill({ json: value });
+  });
+  return { ids, active, target, checked };
+}
+
 for (const mobile of [false, true])
   void test(`one update check supports consecutive add-on updates (${mobile ? "phone" : "desktop"})`, async (t) => {
     const context = await browser.newContext({
@@ -456,97 +552,7 @@ for (const mobile of [false, true])
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     t.after(() => assert.deepEqual(errors, []));
-    const ids = ["first", "second"];
-    const active: Record<string, string> = { first: "a".repeat(64), second: "b".repeat(64) };
-    const target: Record<string, string> = { first: "c".repeat(64), second: "d".repeat(64) };
-    const generations = new Map(
-      ids.map((addonId) => [
-        addonId,
-        [
-          {
-            addonId,
-            generationId: active[addonId]!,
-            version: "1.0.0",
-            installedAt: "2026-09-10T10:00:00Z",
-          },
-        ],
-      ]),
-    );
-    const links = ids.map((addonId) => ({
-      addonId,
-      revision: 1,
-      source: { repo: `owner/${addonId}`, channel: "release", branch: "", artifact: "" },
-    }));
-    const checked: string[] = [];
-    const review = (addonId: string, status = "prepared") => ({
-      reviewId: addonId,
-      addonId,
-      generationId: target[addonId],
-      proposalSha256: "e".repeat(64),
-      status,
-      proposal: {
-        addonId,
-        generationId: target[addonId],
-        targetManifest: { id: addonId, name: addonId, version: "2.0.0", permissions: [] },
-        currentManifest: { version: "1.0.0" },
-        changes: { runtimeChanged: true },
-        requiredPermissionIds: [],
-        restartedAddonIds: [],
-        blockers: [],
-      },
-    });
-    await page.route("**/api/admin/**", async (route) => {
-      const req = route.request(),
-        path = new URL(req.url()).pathname;
-      const body = req.postData() ? (req.postDataJSON() as Record<string, unknown>) : {};
-      if (req.method() === "POST") assert.equal(req.headers()["x-codex-csrf"], "x".repeat(32));
-      let value: unknown;
-      const addonId = path.split("/")[4]!;
-      if (path === "/api/admin/addon-github")
-        value = {
-          contractVersion: "addon-github.v1",
-          sources: links,
-          credentials: { defaultSource: "none", repositories: [] },
-        };
-      else if (path.endsWith("/addon-github/discover")) {
-        const id = String(body.addonId);
-        checked.push(id);
-        value = {
-          source: links.find((link) => link.addonId === id)!.source,
-          candidates: [{ id: target[id], name: id, version: "2.0.0", digest: "", active: false }],
-        };
-      } else if (path.endsWith("/addon-github/stage")) {
-        const id = String(body.addonId);
-        assert.equal(body.candidateId, target[id]);
-        const generation = {
-          addonId: id,
-          generationId: target[id]!,
-          version: "2.0.0",
-          installedAt: "2026-09-14T10:00:00Z",
-        };
-        if (!generations.get(id)!.some((g) => g.generationId === target[id]))
-          generations.get(id)!.push(generation);
-        value = generation;
-      } else if (path === "/api/admin/addons")
-        value = { contractVersion: "addon-inventory.v1", addonIds: ids };
-      else if (path.endsWith("/activation-reviews")) value = review(addonId);
-      else if (path.endsWith("/update/cancel")) value = { cancelled: true };
-      else if (path.endsWith("/approval")) value = review(addonId, "approved");
-      else if (path.endsWith("/activation")) {
-        active[addonId] = target[addonId]!;
-        value = { state: { addonId, activeGenerationId: active[addonId] } };
-      } else if (ids.includes(addonId))
-        value = {
-          state: { addonId, revision: 1, activeGenerationId: active[addonId] },
-          generations: generations.get(addonId),
-          events: [],
-        };
-      else {
-        await route.fulfill({ status: 404, json: { error: { kind: "NOT_FOUND" } } });
-        return;
-      }
-      await route.fulfill({ json: value });
-    });
+    const { ids, active, target, checked } = await routeTwoUpdates(page);
     await page.goto(`${origin}/#/settings`);
     await page.locator('[data-category="addons"]').click();
     const manager = page.locator("codex-addon-manager"),
@@ -579,6 +585,33 @@ for (const mobile of [false, true])
     await manager.getByText("Add-on state updated.", { exact: true }).waitFor();
     assert.equal(active.second, target.second);
     assert.deepEqual(checked, ids, "both updates use the original single check");
+  });
+
+for (const mobile of [false, true])
+  void test(`update all approves every checked update that asks for nothing new (${mobile ? "phone" : "desktop"})`, async (t) => {
+    const context = await browser.newContext({
+      viewport: mobile ? { width: 390, height: 844 } : { width: 1400, height: 1000 },
+      extraHTTPHeaders: { "X-Fixture-Role": "dm" },
+    });
+    t.after(() => context.close());
+    const page = await context.newPage();
+    page.setDefaultTimeout(7000);
+    await page.addInitScript(() => localStorage.setItem("codex_lang", "en"));
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    t.after(() => assert.deepEqual(errors, []));
+    const { active, target } = await routeTwoUpdates(page);
+    await page.goto(`${origin}/#/settings`);
+    await page.locator('[data-category="addons"]').click();
+    const manager = page.locator("codex-addon-manager");
+    const updateAll = manager.getByRole("button", { name: "Update all", exact: true });
+    assert.equal(await updateAll.count(), 0, "nothing to update before a check");
+    await manager.getByRole("button", { name: "Check for updates", exact: true }).click();
+    await updateAll.click();
+    await manager.getByText("Updated: first, second.", { exact: true }).waitFor();
+    assert.deepEqual(active, target);
+    assert.equal(await updateAll.count(), 0, "updated add-ons no longer offer their packages");
+    await page.screenshot({ path: `${output}update-all-${mobile ? "phone" : "desktop"}.png` });
   });
 
 for (const mobile of [false, true])
