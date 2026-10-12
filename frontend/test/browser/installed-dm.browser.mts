@@ -617,7 +617,8 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     await dashboard.getByRole("alert").waitFor();
     await dashboard.getByRole("link", { name: /Story Planner/ }).waitFor();
     await page.unroute(queryPattern);
-    await dashboard.getByRole("button", { name: "Refresh overview" }).click();
+    // DM Tools 3.0.0 says "Refresh overview"; later builds offer the retry only after an error.
+    await dashboard.getByRole("button", { name: /^(Refresh overview|Try again)$/u }).click();
     await dashboard
       .locator('[data-stat="total"] .dm-dashboard-value')
       .filter({ hasText: /^2$/u })
