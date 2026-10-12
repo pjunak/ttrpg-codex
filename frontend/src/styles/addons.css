@@ -135,6 +135,20 @@ codex-addon-markdown {
   border-radius: var(--radius);
   font: inherit;
 }
+.addon-configuration .configuration-status,
+.addon-configuration .configuration-ruleset {
+  color: var(--text-light);
+}
+.addon-configuration .configuration-contract code {
+  color: var(--text-muted);
+}
+.addon-configuration .configuration-pending {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-left: 3px solid var(--gold);
+  background: rgba(var(--accent-gold-rgb), 0.08);
+  color: var(--text-light);
+}
 .configuration-review {
   border: 2px solid var(--addon-border);
   padding: 1rem;

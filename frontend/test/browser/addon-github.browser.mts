@@ -615,7 +615,7 @@ for (const mobile of [false, true])
   });
 
 for (const mobile of [false, true])
-  void test(`package storage explains automatic cleanup (${mobile ? "phone" : "desktop"})`, async (t) => {
+  void test(`package storage retries and reports pending cleanup (${mobile ? "phone" : "desktop"})`, async (t) => {
     const context = await browser.newContext({
       viewport: mobile ? { width: 390, height: 844 } : { width: 1400, height: 1000 },
       extraHTTPHeaders: { "X-Fixture-Role": "dm" },
@@ -658,8 +658,9 @@ for (const mobile of [false, true])
     const storage = page.locator("codex-addon-manager codex-package-storage");
     await storage.getByRole("alert").waitFor();
     await storage.getByRole("button", { name: "Try again", exact: true }).click();
-    await storage.getByText(/Every build stays available as a GitHub release/u).waitFor();
     await storage.getByRole("status").waitFor();
+    // Automatic cleanup is explained in the update review instead of a standing note.
+    assert.equal(await storage.getByText(/Every build stays available/u).count(), 0);
     assert.equal(storageReads, 2);
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),

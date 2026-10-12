@@ -54,6 +54,9 @@ export class CodexPackageStorage extends LitElement {
     this.failed = false;
     try {
       this.storage = await new AddonStorageClient(this.csrfToken, request.signal).status();
+      this.dispatchEvent(
+        new CustomEvent("package-storage-mode", { detail: this.storage.automatic, bubbles: true }),
+      );
     } catch (error) {
       if (request.signal.aborted) return;
       this.storage = undefined;
@@ -68,7 +71,8 @@ export class CodexPackageStorage extends LitElement {
       return html`<p role="alert">${t("storage.failed")}</p>
         <button @click=${() => void this.#load()}>${t("github.retry")}</button>`;
     if (!storage) return nothing;
-    return html`<p class="settings-hint">${t(storage.automatic ? "storage.automatic" : "storage.manual")}</p>
+    // Automatic cleanup is explained in the update review, where it happens.
+    return html`${storage.automatic ? nothing : html`<p class="settings-hint">${t("storage.manual")}</p>`}
       ${storage.pending ? html`<p role="status">${t("storage.pending")}</p>` : nothing}`;
   }
 }

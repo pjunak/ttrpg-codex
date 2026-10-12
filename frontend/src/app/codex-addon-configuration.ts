@@ -125,6 +125,28 @@ export class CodexAddonConfiguration extends LitElement {
     this.requestUpdate();
     this.#dirty();
   }
+  /** Rows that need the DM: a real choice, a problem, or an earlier explicit choice. */
+  #needsAttention(row: ServiceSelection): boolean {
+    const usable = row.candidates.filter(
+      (candidate) => candidate.compatible && candidate.activeGeneration,
+    );
+    return (
+      this.#providers.has(serviceKey(row)) ||
+      row.resolution.staleTargets.length > 0 ||
+      row.resolution.binding !== null ||
+      row.resolution.status === "ambiguous" ||
+      (row.requirement.required && row.resolution.status !== "resolved") ||
+      (row.requirement.selection === "operator" && usable.length > 1)
+    );
+  }
+  #addonName(addonId: string): string {
+    return (
+      this.policy?.sources.find((source) => source.addonId === addonId)?.addonName ??
+      this.services?.services.find((row) => row.requirement.consumerAddonId === addonId)
+        ?.consumerName ??
+      addonId
+    );
+  }
   #sourceEnabled(source: SourceTarget & { enabled: boolean }): boolean {
     return this.#selected?.has(sourceKey(source)) ?? source.enabled;
   }
@@ -137,22 +159,35 @@ export class CodexAddonConfiguration extends LitElement {
     this.requestUpdate();
     this.#dirty();
   }
+  #setAllSources(enabled: boolean): void {
+    for (const source of this.policy?.sources.filter(
+      (source) => source.addonId === this.addonId && !source.required,
+    ) ?? [])
+      this.#toggleSource(source, enabled);
+  }
   protected override render() {
     const t = this.#ui.t.bind(this.#ui),
       policy = this.policy;
     const sources = policy?.sources.filter((source) => source.addonId === this.addonId) ?? [];
     const services =
-      this.services?.services.filter((row) => row.requirement.consumerAddonId === this.addonId) ??
-      [];
+      this.services?.services.filter(
+        (row) => row.requirement.consumerAddonId === this.addonId && this.#needsAttention(row),
+      ) ?? [];
     if (!sources.length && !services.length) return nothing;
+    const pending = sources.filter((source) => source.pending).length;
     return html`<section class="addon-configuration" aria-busy=${this.pending}>
       ${this.error ? html`<p role="alert">${this.error}</p>` : nothing}${this.message ? html`<p role="status">${this.message}</p>` : nothing}
-      <div class="addon-actions"><button ?disabled=${this.#blocked} @click=${() => this.refresh()}>${t("configuration.refresh")}</button>
-      ${this.#hasDraft ? html`<button ?disabled=${this.#blocked} @click=${this.#reset}>${t("configuration.reset")}</button><span role="status">${t("configuration.draft")}</span>` : nothing}</div>
+      ${
+        this.error || this.#hasDraft
+          ? html`<div class="addon-actions">${this.error ? html`<button ?disabled=${this.#blocked} @click=${() => this.refresh()}>${t("configuration.refresh")}</button>` : nothing}
+      ${this.#hasDraft ? html`<button ?disabled=${this.#blocked} @click=${this.#reset}>${t("configuration.reset")}</button><span role="status">${t("configuration.draft")}</span>` : nothing}</div>`
+          : nothing
+      }
       ${
         policy && sources.length
           ? html`
-      <p class="configuration-ruleset">${policy.ruleset ? html`<strong>${policy.ruleset.name}</strong><br>${t("configuration.definedBy", { addon: policy.ruleset.addonId })}` : t("configuration.noRules")}</p>
+      <p class="configuration-ruleset">${policy.ruleset ? html`${t("configuration.rulesetLabel")} <strong>${policy.ruleset.name}</strong> · ${t("configuration.definedBy", { addon: this.#addonName(policy.ruleset.addonId) })}` : t("configuration.noRules")}</p>
+      ${pending ? html`<p class="configuration-pending" role="status">${this.#ui.plural("configuration.pendingBooks", pending)}</p>` : nothing}
       <fieldset ?disabled=${this.#blocked || !!this.review}><legend>${t("configuration.books")}</legend><p>${t("configuration.booksHelp")}</p>
         ${
           sources.length > 8
@@ -164,7 +199,10 @@ export class CodexAddonConfiguration extends LitElement {
             : nothing
         }
         ${this.#sourceGroups()}
-        <button ?disabled=${!policy.sources.length || (!this.#selected && !policy.sources.some((source) => source.pending))} @click=${() => {
+        <div class="addon-actions">
+        <button type="button" @click=${() => this.#setAllSources(true)}>${t("configuration.selectAll")}</button>
+        <button type="button" @click=${() => this.#setAllSources(false)}>${t("configuration.clearOptional")}</button>
+        <button class="addon-primary" ?disabled=${!policy.sources.length || (!this.#selected && !policy.sources.some((source) => source.pending))} @click=${() => {
           this.review = {
             kind: "sources",
             snapshot: policy,
@@ -173,7 +211,7 @@ export class CodexAddonConfiguration extends LitElement {
               .map(({ addonId, setId, id }) => ({ addonId, setId, id })),
           };
           this.#dirty();
-        }}>${t("configuration.reviewBooks")}</button>
+        }}>${t("configuration.reviewBooks")}</button></div>
       </fieldset>`
           : nothing
       }
@@ -203,6 +241,11 @@ export class CodexAddonConfiguration extends LitElement {
       ) => html`<fieldset class="configuration-books"><legend>${visible.find((source) => source.addonId === id)?.addonName}</legend>
       ${visible
         .filter((source) => source.addonId === id)
+        .sort(
+          (a, b) =>
+            Number(b.required) - Number(a.required) ||
+            a.name.localeCompare(b.name, this.#ui.locale),
+        )
         .map(
           (
             source,
@@ -220,9 +263,8 @@ export class CodexAddonConfiguration extends LitElement {
     const inputId = `configuration-provider-${row.requirement.consumerAddonId}-${row.generationId}-${row.requirement.contract}`;
     return html`<fieldset class="configuration-service" data-service=${serviceKey(row)} ?disabled=${this.#blocked || !!this.review}>
       <legend>${row.consumerName} · ${row.version}${row.active ? "" : ` · ${t("configuration.staged")}`}</legend>
-      <p><strong>${row.requirement.contract}</strong> ${row.requirement.range}${row.requirement.required ? "" : ` · ${t("configuration.optional")}`}</p>
-      <p>${row.resolution.status === "resolved" ? t("configuration.ready") : row.resolution.status === "ambiguous" ? t("configuration.ambiguous") : row.resolution.status === "unavailable" ? t("configuration.missing") : t("configuration.unresolved")}</p>
-      <p>${t("configuration.current", { providers: row.resolution.providers.join(", ") || t("configuration.none") })}</p>
+      <p class="configuration-status">${row.resolution.status === "resolved" ? t("configuration.current", { providers: row.resolution.providers.map((id) => this.#addonName(id)).join(", ") }) : row.resolution.status === "ambiguous" ? t("configuration.ambiguous") : row.resolution.status === "unavailable" ? t("configuration.missing") : t("configuration.unresolved")}</p>
+      <p class="configuration-contract"><code>${row.requirement.contract} ${row.requirement.range}</code>${row.requirement.required ? "" : ` · ${t("configuration.optional")}`}</p>
       ${row.resolution.staleTargets.length ? html`<p role="status">${t("configuration.stale", { providers: row.resolution.staleTargets.join(", ") })}</p>` : nothing}
       ${
         !operator
@@ -309,7 +351,8 @@ export class CodexAddonConfiguration extends LitElement {
       const addons = new Map<string, ConfigurationAddon>();
       for (const source of policy.sources)
         addons.set(source.addonId, { id: source.addonId, name: source.addonName });
-      for (const row of services.services)
+      // Only add-ons with something to configure get a settings tab.
+      for (const row of services.services.filter((row) => this.#needsAttention(row)))
         addons.set(row.requirement.consumerAddonId, {
           id: row.requirement.consumerAddonId,
           name: row.consumerName,
@@ -317,6 +360,13 @@ export class CodexAddonConfiguration extends LitElement {
       this.dispatchEvent(
         new CustomEvent("addon-configuration-discovered", {
           detail: [...addons.values()],
+          bubbles: true,
+          composed: true,
+        }),
+      );
+      this.dispatchEvent(
+        new CustomEvent("addon-services-discovered", {
+          detail: services,
           bubbles: true,
           composed: true,
         }),

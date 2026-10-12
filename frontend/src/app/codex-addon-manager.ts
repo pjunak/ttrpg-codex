@@ -26,8 +26,8 @@ import {
   type CodexAddonConfiguration,
   type ConfigurationAddon,
 } from "./codex-addon-configuration.js";
+import type { ServiceSelections } from "../core/addon-configuration.js";
 import "./codex-addon-configuration.js";
-import { addonSettingsHash } from "./routes.js";
 import "./codex-addon-settings.js";
 import type { InstalledGeneration } from "../core/addon-admin.js";
 import type { AddonDisableReview } from "../core/addon-disable.js";
@@ -57,6 +57,8 @@ export class CodexAddonManager extends LitElement {
     activeTab: { state: true },
     configurationAddons: { state: true },
     configurationError: { state: true },
+    services: { state: true },
+    automaticCleanup: { state: true },
   };
   declare csrfToken: string;
   declare registry: BrowserContributionRegistry | undefined;
@@ -70,6 +72,8 @@ export class CodexAddonManager extends LitElement {
   declare private activeTab: string;
   declare private configurationError: string;
   declare private configurationAddons: readonly ConfigurationAddon[];
+  declare private services: ServiceSelections | undefined;
+  declare private automaticCleanup: boolean;
   #visibleTab = "";
   #inventoryLoaded = false;
   declare private snapshots: AddonSnapshot[];
@@ -103,6 +107,7 @@ export class CodexAddonManager extends LitElement {
     this.activeTab = "";
     this.configurationAddons = [];
     this.configurationError = "";
+    this.automaticCleanup = false;
     this.canManage = false;
     this.snapshots = [];
     this.review = undefined;
@@ -138,6 +143,7 @@ export class CodexAddonManager extends LitElement {
     if (changed.has("addonTarget")) this.activeTab = this.addonTarget ?? "";
     if (changed.has("canManage")) {
       this.configurationAddons = [];
+      this.services = undefined;
       this.configurationError = "";
       this.#request.abort();
       this.#request = new AbortController();
@@ -252,13 +258,16 @@ export class CodexAddonManager extends LitElement {
           (snapshot) => this.#addonRow(snapshot),
         )}</div>
         <codex-package-storage .csrfToken=${this.csrfToken}
+          @package-storage-mode=${(event: CustomEvent<boolean>) => {
+            this.automaticCleanup = event.detail;
+          }}
           .inventoryRevision=${JSON.stringify(this.snapshots.map((snapshot) => [snapshot.state, snapshot.generations.map((item) => item.generationId)]))}></codex-package-storage>
         ${this.#tokens()}
       </div>`
           : nothing
       }
       <div id="addon-settings-panel" role=${tabbed ? "tabpanel" : nothing} aria-labelledby=${tabbed && selected ? `addon-tab-addon-${selected}` : nothing} tabindex=${tabbed ? 0 : nothing} ?hidden=${!selected}>
-        ${selected ? html`<h3>${tabs.find((tab) => tab.id === selected)?.name}</h3><a class="addon-settings-link" href=${addonSettingsHash(selected)}>${t("addons.settingsLink")}</a>` : nothing}
+        ${selected ? html`<h3>${tabs.find((tab) => tab.id === selected)?.name}</h3>` : nothing}
         ${
           this.canManage
             ? html`<codex-addon-configuration .csrfToken=${this.csrfToken} .addonId=${selected} .disabled=${this.pending || this.#github.pending || this.#installBusy}
@@ -267,6 +276,9 @@ export class CodexAddonManager extends LitElement {
           }}
           @addon-configuration-discovered=${(event: CustomEvent<readonly ConfigurationAddon[]>) => {
             this.configurationAddons = event.detail;
+          }}
+          @addon-services-discovered=${(event: CustomEvent<ServiceSelections>) => {
+            this.services = event.detail;
           }}
           @addon-lifecycle-request=${(event: Event) => {
             if (!this.#confirmLifecycle()) event.preventDefault();
@@ -392,22 +404,55 @@ export class CodexAddonManager extends LitElement {
       await this.#github.checkAll();
     }, false);
   }
+  #checkResult(addonId: string) {
+    const result = this.#github.results[addonId];
+    if (result === undefined) return nothing;
+    return html`<div class="github-source">${typeof result === "string" ? html`<p role="alert">${result}</p>` : this.#candidates(result, addonId)}</div>`;
+  }
   #source(addonId: string) {
     const t = this.#ui.t.bind(this.#ui),
-      link = this.#github.status?.sources.find((link) => link.addonId === addonId),
-      result = this.#github.results[addonId];
-    return html`<div class="github-source" data-github-addon=${addonId}>
-      ${typeof result === "string" ? html`<p role="alert">${result}</p>` : result ? this.#candidates(result, addonId) : nothing}
-      <details><summary>${t("github.updateSource")}${link ? ` · ${link.source.repo}` : ""}</summary>
-        ${
-          link
-            ? html`<p><a href=${`https://github.com/${link.source.repo}`} target="_blank" rel="noreferrer">${link.source.repo}</a> · ${t(link.source.channel === "actions" ? "github.actions" : "github.release")}</p>
+      link = this.#github.status?.sources.find((link) => link.addonId === addonId);
+    return html`<section class="addon-row-section"><h4>${t("github.updateSource")}</h4>
+      ${
+        link
+          ? html`<p><a href=${`https://github.com/${link.source.repo}`} target="_blank" rel="noreferrer">${link.source.repo}</a> · ${t(link.source.channel === "actions" ? "github.actions" : "github.release")}</p>
           <p>${t("github.token")}: ${t(this.#github.status?.credentials.repositories.includes(link.source.repo) ? "github.scopedToken" : `github.token.${this.#github.status?.credentials.defaultSource ?? "none"}`)}</p>`
-            : html`<p>${t("github.manualSource")}</p>`
-        }
-        <div class="addon-actions"><button ?disabled=${this.#busy} @click=${() => this.#openInstall(addonId)}>${t(link ? "github.editSource" : "github.connectSource")}</button>
-          ${link ? html`<button ?disabled=${this.#busy} @click=${() => this.#github.unlink(link)}>${t("github.unlink")}</button>` : nothing}</div>
-      </details></div>`;
+          : html`<p>${t("github.manualSource")}</p>`
+      }
+      <div class="addon-actions"><button ?disabled=${this.#busy} @click=${() => this.#openInstall(addonId)}>${t(link ? "github.editSource" : "github.connectSource")}</button>
+        ${link ? html`<button ?disabled=${this.#busy} @click=${() => this.#github.unlink(link)}>${t("github.unlink")}</button>` : nothing}</div>
+    </section>`;
+  }
+  /** Which active add-ons this one uses and is used by, from the service graph. */
+  #links(addonId: string) {
+    const t = this.#ui.t.bind(this.#ui),
+      rows = this.services?.services.filter((row) => row.active) ?? [];
+    const uses = new Set<string>(),
+      usedBy = new Set<string>();
+    let missing = false;
+    for (const row of rows) {
+      if (row.requirement.consumerAddonId === addonId) {
+        for (const provider of row.resolution.providers)
+          if (provider !== addonId) uses.add(provider);
+        if (row.requirement.required && row.resolution.status !== "resolved") missing = true;
+      } else if (row.resolution.providers.includes(addonId)) {
+        usedBy.add(row.requirement.consumerAddonId);
+      }
+    }
+    if (!uses.size && !usedBy.size && !missing) return nothing;
+    const names = (ids: Set<string>) => [...ids].map((id) => this.#name(id)).join(", ");
+    return html`<p class="addon-row-links">
+      ${uses.size ? html`<span>${t("addons.uses", { names: names(uses) })}</span>` : nothing}
+      ${usedBy.size ? html`<span>${t("addons.usedBy", { names: names(usedBy) })}</span>` : nothing}
+      ${missing ? html`<span class="addon-chip" data-tone="danger">${t("addons.missingService")}</span>` : nothing}
+    </p>`;
+  }
+  #name(addonId: string): string {
+    const snapshot = this.snapshots.find((item) => item.state.addonId === addonId);
+    const active = snapshot?.generations.find(
+      (generation) => generation.generationId === snapshot.state.activeGenerationId,
+    );
+    return (active ?? snapshot?.generations[0])?.name || addonId;
   }
   #candidates(result: GitHubDiscovery, addonId: string) {
     const t = this.#ui.t.bind(this.#ui);
@@ -515,12 +560,13 @@ export class CodexAddonManager extends LitElement {
     const found = discovery && typeof discovery !== "string" ? discovery : undefined;
     const update = found?.candidates.find((candidate) => !candidate.active);
     const failed = snapshot.runtimeState === "failed" || Boolean(active?.lastError);
+    const settings = this.#tabs().some((tab) => tab.id && tab.id === state.addonId);
     const status = !active
       ? { tone: "off", label: t("addons.disabled") }
       : failed
         ? { tone: "danger", label: t("addons.notRunning") }
         : { tone: "ok", label: t("addons.active") };
-    return html`<article class="addon-row" data-addon-id=${state.addonId}
+    return html`<article class="addon-row" data-addon-id=${state.addonId} data-github-addon=${state.addonId}
       @contextmenu=${(event: MouseEvent) => {
         if (this.#busy || (event.target as Element).closest("a, button, input, summary")) return;
         event.preventDefault();
@@ -535,10 +581,12 @@ export class CodexAddonManager extends LitElement {
             ${update ? html`<span class="addon-chip" data-tone="info">${t("addons.updateAvailable", { version: update.version })}</span>` : nothing}
           </div>
           ${shown?.description ? html`<p class="addon-row-description">${shown.description}</p>` : nothing}
+          ${this.#links(state.addonId)}
           ${failed ? html`<p role="alert">${t("addons.notRunningHelp")}</p>` : nothing}
         </div>
         <div class="addon-actions">
           ${found && update ? html`<button class="addon-primary" ?disabled=${this.#busy} @click=${() => this.#stageCandidate(found, update.id, state.addonId)}>${t("addons.updateTo", { version: update.version })}</button>` : nothing}
+          ${settings ? html`<button ?disabled=${this.#busy} @click=${() => this.#selectTab(state.addonId)}>${t("addons.settings")}</button>` : nothing}
           ${
             active
               ? html`<button ?disabled=${this.#busy} @click=${() => this.#prepareDisable(state.addonId)}>${t("addons.disable")}</button>`
@@ -554,14 +602,15 @@ export class CodexAddonManager extends LitElement {
             }}>⋯</button>
         </div>
       </header>
-      ${this.#source(state.addonId)}
+      ${this.#checkResult(state.addonId)}
       <details class="addon-row-details"><summary>${t("addons.details")}</summary>
-        <p class="addon-row-id">${state.addonId}${active ? html` · ${t("addons.generation")}: <code title=${active.generationId}>${active.generationId.slice(0, 12)}</code>` : nothing}</p>
+        <p class="addon-row-id">${state.addonId}</p>
+        ${this.#source(state.addonId)}
         <section class="addon-row-section"><h4>${t("addons.versions")}</h4><p>${t("addons.versionsHint")}</p><ul>${snapshot.generations.map(
           (generation) => html`<li data-generation=${generation.generationId}>
-          <div><strong>${generation.version}</strong> ${t(generation.generationId === state.activeGenerationId ? "addons.active" : "addons.savedInactive")}<small>${this.#ui.relativeDate(generation.installedAt)}</small>
-            ${generation.lastError ? html`<p role="alert">${t("addons.failed")}</p><details><summary>${uiText("Technical details")}</summary><p>${generation.lastError}</p></details>` : nothing}<details><summary>${t("addons.generation")}</summary><code>${generation.generationId}</code></details></div>
-          ${generation.generationId !== state.activeGenerationId ? html`<button ?disabled=${this.#busy} @click=${() => this.#prepare(state.addonId, generation.generationId)}>${t(active ? "addons.rollback" : "addons.review")}</button>` : nothing}</li>`,
+          <div><strong>${generation.version}</strong> ${t(generation.generationId === state.activeGenerationId ? "addons.active" : "addons.savedInactive")}<small>${this.#ui.relativeDate(generation.installedAt)} · ${t("addons.generation")} <code title=${generation.generationId}>${generation.generationId.slice(0, 12)}</code></small>
+            ${generation.lastError ? html`<p role="alert">${t("addons.failed")}</p><details><summary>${uiText("Technical details")}</summary><p>${generation.lastError}</p></details>` : nothing}</div>
+          ${generation.generationId !== state.activeGenerationId ? html`<button ?disabled=${this.#busy} @click=${() => this.#prepare(state.addonId, generation.generationId)}>${t(!active ? "addons.review" : snapshot.generations.indexOf(generation) < snapshot.generations.indexOf(active) ? "addons.reviewUpdate" : "addons.rollback")}</button>` : nothing}</li>`,
         )}</ul></section>
         <codex-runtime-diagnostics .snapshot=${snapshot}></codex-runtime-diagnostics>
         ${snapshot.events.length ? html`<details><summary>${t("addons.history")}</summary><ul>${snapshot.events.map((event) => html`<li><div>${uiSourceLabel(event.kind)}<small>${this.#ui.relativeDate(event.occurredAt)}</small>${event.message ? html`<details><summary>${uiText("Technical details")}</summary><p>${event.message}</p></details>` : nothing}</div></li>`)}</ul></details>` : nothing}
@@ -575,8 +624,7 @@ export class CodexAddonManager extends LitElement {
     point: { x: number; y: number },
   ): void {
     const t = this.#ui.t.bind(this.#ui),
-      addonId = snapshot.state.addonId,
-      linked = this.#github.status?.sources.some((link) => link.addonId === addonId);
+      addonId = snapshot.state.addonId;
     openContextMenu(
       this.ownerDocument,
       point,
@@ -584,11 +632,6 @@ export class CodexAddonManager extends LitElement {
         ...(snapshot.state.activeGenerationId
           ? [{ label: t("addons.reload"), icon: "↻", run: () => this.#action(snapshot, "reload") }]
           : []),
-        {
-          label: t(linked ? "github.editSource" : "github.connectSource"),
-          icon: "🔗",
-          run: () => this.#openInstall(addonId),
-        },
         {
           label: t("addons.uninstall"),
           icon: "🗑",
@@ -610,6 +653,7 @@ export class CodexAddonManager extends LitElement {
     return html`<section class="addon-review" aria-labelledby="addon-review-title">
       <h3 id="addon-review-title" tabindex="-1">${t("addons.review")}: ${review.name}</h3>
       <p>${review.currentVersion ? `${t("addons.current")}: ${review.currentVersion} → ` : ""}${t("addons.target")}: ${review.version}</p>
+      ${review.currentVersion && this.automaticCleanup ? html`<p class="settings-hint">${t("storage.automatic")}</p>` : nothing}
       <details><summary>${t("addons.generation")}</summary><code>${review.generationId}</code></details>
       ${review.rulesetName ? html`<p>${t("configuration.defines", { ruleset: review.rulesetName })}</p>` : review.supportedRulesets.length ? html`<p>${t("configuration.supports", { rulesets: review.supportedRulesets.join(", ") })}</p>` : nothing}
       ${review.disabledSources.length ? html`<p>${t("configuration.initialOff", { books: review.disabledSources.join(", ") })}</p>` : nothing}

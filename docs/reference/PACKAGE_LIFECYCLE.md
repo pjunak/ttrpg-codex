@@ -78,8 +78,9 @@ Two sources are supported:
 
 The candidate list shows the release tag, resolved source commit when available,
 Actions run ID/attempt, publication time, and exact remote digest or candidate
-identity. Installed rows also show their active package fingerprint, so matching
-manifest versions do not make distinct builds indistinguishable. Release notes
+identity. Each installed row's technical details list every saved package with
+its fingerprint, so matching manifest versions do not make distinct builds
+indistinguishable. Release notes
 are plain text behind a disclosure, limited to 4,000 Unicode characters with an
 explicit truncation notice and a link to the complete release. Missing notes or
 commit metadata have explicit fallback states. The install wizard and update

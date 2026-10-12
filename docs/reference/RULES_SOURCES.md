@@ -46,8 +46,11 @@ There is no legacy startup path, campaign conversion or reset operation here.
 ## Source selection
 
 Settings → Add-ons gives each configurable add-on its own tab, after the
-Management tab. Sourcebook checkboxes and the instance ruleset appear in the
-source package's tab; provider controls appear in the consuming add-on's tab.
+Management tab; each card there has a **Settings** button for it and lists
+which add-ons it uses and is used by. Sourcebook checkboxes and the instance
+ruleset appear in the source package's tab, required books first, with **Select
+all**, **Clear optional** and a count of new books awaiting review. Provider
+controls appear in the consuming add-on's tab.
 An add-on with both kinds of configuration or custom settings shares one tab.
 Tabs retain unapplied source and provider choices. Sourcebook review covers
 the shared policy and lists changed and pending choices from every add-on
@@ -82,9 +85,13 @@ immutable browser cache entries.
 
 ## Provider selection and lifecycle
 
-Each consuming add-on's settings tab shows active and newest staged consumers,
-declared version ranges, compatible and unavailable providers, current connections and stale
-selections. A `one` consumer automatically uses the sole compatible active
+A consuming add-on's settings tab shows a service only when there is something
+to decide or fix: several usable providers for an operator-selected service, an
+ambiguous, stale or explicitly chosen connection, or a required service without
+a provider. A service connected automatically to its sole provider, or an
+optional one with no provider, is not shown. Shown services list the active and
+newest staged consumers, declared version ranges, compatible and unavailable
+providers and the current connection. A `one` consumer automatically uses the sole compatible active
 provider. Several providers remain ambiguous until the operator chooses one.
 The operator can explicitly select or return to Automatic. An unavailable
 selected provider never silently changes to another provider.

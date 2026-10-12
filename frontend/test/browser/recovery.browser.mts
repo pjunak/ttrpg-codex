@@ -381,10 +381,21 @@ for (const mobile of [false, true])
     );
     const inventory = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
     assert.equal(inventory.generations.length, 1);
+    // The update review explains automatic cleanup before a newer package replaces this one.
+    const third = graphPackage({ id, version: "3.0.0" });
+    const staged = await jsonResponse(
+      await admin.post("/api/admin/addons/generations", {
+        headers: { ...headers, "Content-Type": "application/zip" },
+        data: third,
+      }),
+    );
     const { page } = await open(t, mobile);
     await page.locator("[data-category=addons]").click();
-    const storage = page.locator("codex-addon-manager codex-package-storage");
-    await storage
+    const row = page.locator(`codex-addon-manager [data-addon-id="${id}"]`);
+    await row.locator(".addon-row-details > summary").click();
+    await row.locator(`[data-generation="${staged.generationId}"] button`).click();
+    const update = page.locator(".addon-install-dialog");
+    await update
       .getByText(
         mobile
           ? "Po úspěšné aktualizaci server odstraní"
@@ -392,9 +403,23 @@ for (const mobile of [false, true])
         { exact: false },
       )
       .waitFor();
+    await update
+      .getByRole("button", { name: mobile ? "Zrušit kontrolu" : "Cancel review", exact: true })
+      .click();
+    await update.waitFor({ state: "detached" });
+    assert.equal(
+      await page
+        .locator("codex-package-storage")
+        .getByText(mobile ? "Po úspěšné aktualizaci" : "After a successful update", {
+          exact: false,
+        })
+        .count(),
+      0,
+      "automatic cleanup needs no standing note",
+    );
     const saved = await jsonResponse(await admin.post("/api/recovery", { headers, data: {} }));
     const pointId = saved.points[0].id;
-    await installReviewedPackage(admin, csrf, id, graphPackage({ id, version: "3.0.0" }), perms);
+    await installReviewedPackage(admin, csrf, id, third, perms);
     await page.reload();
     await page.locator("[data-category=addons]").click();
     await assert.rejects(stat(generationPath(second.state.activeGenerationId)), { code: "ENOENT" });

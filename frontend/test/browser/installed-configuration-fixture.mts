@@ -264,7 +264,7 @@ export async function exerciseConfiguration({
     .catch(async () => assert.fail(await config.innerText()));
   await provider.getByRole("button", { name: "Review provider choice" }).click();
   await config.getByRole("button", { name: "Apply changes" }).click();
-  await provider.getByText("Currently connected: source-extra", { exact: true }).waitFor();
+  await provider.getByText("Connected to source-extra.", { exact: true }).waitFor();
   await provider.getByLabel("Provider", { exact: true }).selectOption("");
   await provider.getByRole("button", { name: "Review provider choice" }).click();
   await config.getByRole("button", { name: "Apply changes" }).click();

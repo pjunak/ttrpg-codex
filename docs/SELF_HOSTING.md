@@ -142,7 +142,7 @@ Select **Download and review**, or **Inspect ZIP** for a local file, to continue
 to the permission and compatibility review in the same popup. Only **Approve
 and activate** changes the active version when saved data is compatible.
 For an installed add-on, click **Update to …** on its row, or **Update**
-beside a build in its update source. The review
+beside a build listed after **Check for updates**. The review
 shows compatibility, required dependencies/services, requested privileges and
 affected running add-ons. Required and previously approved privileges are
 selected for review; new optional privileges remain unchecked.
@@ -167,8 +167,8 @@ schema application or second activation step is needed. The downloadable JSON
 is scoped recovery evidence, not a full backup ZIP or a general import file;
 [snapshot details](reference/ADDON_DATA.md#recovery-and-retention) explain its use.
 
-Update results appear directly on each installed add-on. Open **Update source**
-on that add-on to connect or edit its repository, replace repository access, or
+Update results appear directly on each installed add-on. Open its **Technical
+details** to connect or edit its repository, replace repository access, or
 unlink it. Unlinking keeps installed versions and campaign data. Uploaded ZIPs
 can also be linked to GitHub this way. Checking for updates never automatically
 installs a package. A new commit can offer an update with the same package

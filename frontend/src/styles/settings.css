@@ -599,6 +599,13 @@ codex-addon-manager {
   margin: 0;
   color: var(--text-light);
 }
+.addon-manager .addon-row-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
 .addon-row .addon-actions {
   margin: 0;
   align-items: center;
@@ -626,6 +633,7 @@ codex-addon-manager {
   font: 1.05rem var(--font-title);
 }
 .addon-manager p {
+  color: var(--text-muted);
   font: 0.8rem/1.5 var(--font-ui);
 }
 .addon-manager small {
@@ -687,6 +695,8 @@ codex-addon-manager {
 }
 .addon-settings-tabs {
   display: flex;
+  /* Scroll instead of wrapping onto several rows on narrow screens. */
+  flex-wrap: nowrap;
   gap: 0.25rem;
   overflow-x: auto;
   scrollbar-width: thin;
@@ -734,12 +744,6 @@ codex-addon-settings {
 }
 .addon-settings {
   margin: 0.75rem 0;
-}
-.addon-settings-link {
-  display: inline-block;
-  margin: 0.75rem 0;
-  font-size: 0.8rem;
-  color: var(--gold);
 }
 [data-addon-settings-outlet] {
   display: grid;

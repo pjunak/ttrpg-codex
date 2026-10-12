@@ -54,7 +54,7 @@ export const githubEn = {
   "github.checking": "Checking for updates…",
   "github.checked": "Update check finished. Results are shown on each add-on.",
   "github.noSources":
-    "No GitHub repositories are linked yet. Open an add-on's Update source to connect one.",
+    "No GitHub repositories are linked yet. Open an add-on's Technical details to connect one.",
   "github.manualSource":
     "This add-on uses uploaded ZIP packages. Connect a GitHub repository to check for updates here.",
   "github.updateSource": "Update source",
@@ -167,7 +167,7 @@ export const githubCs: Record<keyof typeof githubEn, string> = {
   "github.checking": "Kontrola aktualizací…",
   "github.checked": "Kontrola aktualizací dokončena. Výsledky jsou uvedeny u jednotlivých doplňků.",
   "github.noSources":
-    "Zatím nejsou připojeny žádné repozitáře GitHub. Pro připojení otevřete Zdroj aktualizací u doplňku.",
+    "Zatím nejsou připojeny žádné repozitáře GitHub. Pro připojení otevřete Technické podrobnosti u doplňku.",
   "github.manualSource":
     "Tento doplněk používá nahrané ZIP balíčky. Pro kontrolu aktualizací připojte repozitář GitHub.",
   "github.updateSource": "Zdroj aktualizací",
