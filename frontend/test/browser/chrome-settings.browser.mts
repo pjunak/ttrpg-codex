@@ -1,4 +1,4 @@
-import { required, fixtureCollection, fixtureRecord } from "./fixture-types.mts";
+import { answerNextDialog, required, fixtureCollection, fixtureRecord } from "./fixture-types.mts";
 import type { Browser, Page } from "playwright";
 import type { TestContext } from "node:test";
 import type { PreviewServer } from "vite";
@@ -353,9 +353,9 @@ void test("branding drafts survive live refresh and category navigation, and the
   await page.getByRole("alert").filter({ hasText: "Branding changed" }).waitFor();
   assert.equal(await name.inputValue(), "Kept draft");
   assert.equal(writes.length, 0);
-  const leaving = page.waitForEvent("dialog");
+  const leaving = answerNextDialog(page, "dismiss");
   await openCategory(page, "sidebar");
-  await (await leaving).dismiss();
+  await leaving;
   assert.equal(await name.inputValue(), "Kept draft");
   page.once("dialog", (dialog) => dialog.accept());
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -432,9 +432,9 @@ void test("phone sidebar conflicts keep the draft and cancel reloads the current
   await page.getByRole("alert").filter({ hasText: "sidebar changed" }).waitFor();
   assert.equal(await name.inputValue(), "My layout");
   assert.equal(writes.length, 0);
-  const leaving = page.waitForEvent("dialog");
+  const leaving = answerNextDialog(page, "dismiss");
   await openCategory(page, "language");
-  await (await leaving).dismiss();
+  await leaving;
   assert.equal(await name.inputValue(), "My layout");
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.evaluate(() => scrollTo(0, 0));

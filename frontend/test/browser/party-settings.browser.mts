@@ -1,4 +1,4 @@
-import { required, fixtureCollection, fixtureRecord } from "./fixture-types.mts";
+import { answerNextDialog, required, fixtureCollection, fixtureRecord } from "./fixture-types.mts";
 import type { Browser, Page } from "playwright";
 import type { TestContext } from "node:test";
 import type { PreviewServer } from "vite";
@@ -288,9 +288,9 @@ void test("live changes protect the draft; cancel reloads and the next save uses
   await page.getByRole("alert").filter({ hasText: "Your draft is kept" }).waitFor();
   assert.equal(await name.inputValue(), "My draft");
   assert.equal(writes.length, 0);
-  const leaving = page.waitForEvent("dialog");
+  const leaving = answerNextDialog(page, "dismiss");
   await page.locator('[data-category="appearance"]').click();
-  await (await leaving).dismiss();
+  await leaving;
   assert.equal(await name.inputValue(), "My draft");
   page.once("dialog", (dialog) => dialog.dismiss());
   await panel(page).getByRole("link", { name: /Ryn/ }).click();
@@ -338,9 +338,9 @@ void test("server conflicts keep the mobile draft, and discarding a category cle
   await page.getByRole("alert").filter({ hasText: "Your draft is kept" }).waitFor();
   assert.equal(await name.inputValue(), "Phone draft");
   assert.equal(writes.length, 1);
-  const leaving = page.waitForEvent("dialog");
+  const leaving = answerNextDialog(page, "accept");
   await page.locator('[data-category="language"]').dispatchEvent("click");
-  await (await leaving).accept();
+  await leaving;
   await page.locator(".settings-personal-panel").waitFor();
   await page.locator('[data-category="playerParty"]').dispatchEvent("click");
   assert.equal(await name.inputValue(), "Ember Company");

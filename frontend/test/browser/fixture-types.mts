@@ -2,6 +2,19 @@ import type { TestContext } from "node:test";
 import type { APIRequestContext, Page } from "playwright";
 import assert from "node:assert/strict";
 
+/**
+ * Answers the next dialog as soon as it opens. A link click waits for the
+ * navigation that an unsaved-changes confirmation holds up, so the answer
+ * cannot wait until the click returns.
+ */
+export function answerNextDialog(page: Page, answer: "accept" | "dismiss"): Promise<void> {
+  return new Promise((resolve, reject) => {
+    page.once("dialog", (dialog) => {
+      (answer === "accept" ? dialog.accept() : dialog.dismiss()).then(resolve, reject);
+    });
+  });
+}
+
 export function required<T>(value: T | null | undefined): T {
   assert.ok(value !== null && value !== undefined, "Expected fixture value to exist");
   return value;

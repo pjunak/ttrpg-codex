@@ -1,4 +1,4 @@
-import { required, fixtureCollection, fixtureRecord } from "./fixture-types.mts";
+import { answerNextDialog, required, fixtureCollection, fixtureRecord } from "./fixture-types.mts";
 import type { Browser, Page } from "playwright";
 import type { TestContext } from "node:test";
 import type { PreviewServer } from "vite";
@@ -1090,9 +1090,9 @@ void test("map setting drafts survive live updates and protect category and map 
   const { page, writes } = await fixture(t);
   await page.goto(`${origin}/#/settings/maps`);
   await setScale(page, 0.6);
-  const leaving = page.waitForEvent("dialog");
+  const leaving = answerNextDialog(page, "dismiss");
   await page.locator('[data-category="appearance"]').click();
-  await (await leaving).dismiss();
+  await leaving;
   assert.equal(await page.locator('[data-category="maps"]').getAttribute("aria-current"), "page");
   page.once("dialog", (dialog) => dialog.dismiss());
   await page

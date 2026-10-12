@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
-import type { InstalledFixture } from "./fixture-types.mts";
+import { answerNextDialog, type InstalledFixture } from "./fixture-types.mts";
 import { installReviewedPackage, jsonResponse, zip } from "./installed-graph-fixture.mts";
 import { reportBrowserFailure } from "./failure-diagnostics.mts";
 
@@ -214,9 +214,9 @@ export async function exerciseSettings({
   assert.equal(await management.getAttribute("aria-selected"), "true");
   assert.equal(await management.evaluate((element) => element === document.activeElement), true);
   assert.equal(await dropdown.isVisible(), false);
-  const leaving = page.waitForEvent("dialog");
+  const leaving = answerNextDialog(page, "dismiss");
   await page.locator('[data-category="language"]').dispatchEvent("click");
-  await (await leaving).dismiss();
+  await leaving;
   try {
     assert.equal(await tab.count(), 1, "category navigation respects drafts in hidden tabs");
   } catch (cause) {
