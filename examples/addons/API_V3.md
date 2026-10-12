@@ -643,11 +643,12 @@ unchanged widgets connected during campaign refresh. Leaving the route,
 changing role, replacing a generation, or disabling it disposes the old outlet.
 
 Below the contributions the host always shows hidden-record counts and browser
-add-on status with reload. When no dashboard mounts, or an add-on reports a
-display failure, the host also links to active role-allowed add-on routes,
-independent of the optional sidebar preference. A dashboard should therefore
-link its own add-on's tools. None of this replaces the administrative package
-inspector or the add-on's own workflow pages.
+add-on status, with a reload action while an add-on is not ready. When no
+dashboard mounts, or an add-on reports a display failure, the host also links
+to active role-allowed add-on routes, independent of the optional sidebar
+preference. A dashboard should therefore link its own add-on's tools. None of
+this replaces the administrative package inspector or the add-on's own
+workflow pages.
 
 ### Mind Palace graph providers
 

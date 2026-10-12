@@ -373,8 +373,9 @@ typing during a pending read, and retry after failed reads.
 
 The [DM dashboard contract](../../examples/addons/API_V3.md#dm-dashboard)
 uses `codex-dm-dashboard` at `#/dm`. Only real/effective DMs mount its exact
-`dm:dashboard` slots. Core hidden-content counts, browser lifecycle status and
-reload always follow the contributions. Empty, failed, and disabled
+`dm:dashboard` slots. Core hidden-content counts and browser lifecycle status
+always follow the contributions, with reload while an add-on is not ready.
+Empty, failed, and disabled
 contributions add links to the active DM routes; sidebar hiding does not
 prevent them. The UI uses the panel/card geometry and bundled English/Czech
 messages.

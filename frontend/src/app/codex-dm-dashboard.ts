@@ -157,7 +157,11 @@ export class CodexDmDashboard extends LitElement {
           )}</ul>`
         }
         <div class="dm-actions">
-          <button ?disabled=${this.loading} @click=${() => this.dispatchEvent(new CustomEvent("dm-retry-addons", { bubbles: true, composed: true }))}>${this.#ui.t("dm.retry")}</button>
+          ${
+            this.degraded || this.failed || this.health.some((addon) => addon.state !== "ready")
+              ? html`<button ?disabled=${this.loading} @click=${() => this.dispatchEvent(new CustomEvent("dm-retry-addons", { bubbles: true, composed: true }))}>${this.#ui.t("dm.retry")}</button>`
+              : nothing
+          }
           <a href="#/settings/addons">${this.#ui.t("addons.title")}</a>
         </div>
       </section>`;
