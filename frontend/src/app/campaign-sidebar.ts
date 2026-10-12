@@ -91,11 +91,16 @@ export function sidebarPage(canonical: string) {
     return {
       id: "graph-relationships",
       route: canonical,
-      label: uiText("graph.relationships"),
+      label: `${uiText("graph.title")}: ${uiText("graph.relationships")}`,
       icon: "☁",
     };
   if (canonical === "/graph/mysteries")
-    return { id: "graph-mysteries", route: canonical, label: uiText("graph.mysteries"), icon: "☁" };
+    return {
+      id: "graph-mysteries",
+      route: canonical,
+      label: `${uiText("graph.title")}: ${uiText("graph.mysteries")}`,
+      icon: "☁",
+    };
   if (canonical === "/map/world")
     return { id: "map", route: canonical, label: uiText("map.world"), icon: "🗺" };
   const page = campaignPages.find((page) => `/${page.id}` === canonical);

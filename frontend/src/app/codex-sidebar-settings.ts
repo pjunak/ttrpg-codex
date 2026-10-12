@@ -112,7 +112,7 @@ export class CodexSidebarSettings extends LitElement {
           this.#drag = undefined;
         }}>⠿</span>
         <label><span class="visually-hidden">${this.#ui.t("sidebar.sectionName")}</span><input class="sb-sec-label" maxlength="200" .value=${section.label} @input=${(event: Event) => this.#field(section.id, { label: (event.target as HTMLInputElement).value })} /></label>
-        <label><span class="visually-hidden">${this.#ui.t("sidebar.icon")}</span><input class="sb-sec-icon" maxlength="100" .value=${section.icon} @input=${(event: Event) => this.#field(section.id, { icon: (event.target as HTMLInputElement).value })} /></label>
+        <label><span class="visually-hidden">${this.#ui.t("sidebar.icon")}</span><input class="sb-sec-icon" maxlength="100" placeholder=${this.#ui.t("sidebar.iconPlaceholder")} title=${this.#ui.t("sidebar.icon")} .value=${section.icon} @input=${(event: Event) => this.#field(section.id, { icon: (event.target as HTMLInputElement).value })} /></label>
         <span class="sb-order-controls"><button type="button" aria-label=${this.#ui.t("sidebar.sectionUp", { name: section.label })} ?disabled=${index === 0} @click=${() => this.#moveSection(section.id, index - 1)}>↑</button>
           <button type="button" aria-label=${this.#ui.t("sidebar.sectionDown", { name: section.label })} ?disabled=${index === this.layout!.sections.length - 1} @click=${() => this.#moveSection(section.id, index + 1)}>↓</button></span>
         <button type="button" aria-label=${this.#ui.t("sidebar.deleteSection", { name: section.label })} @click=${() => this.#delete(section.id)}>🗑</button>
@@ -139,9 +139,15 @@ export class CodexSidebarSettings extends LitElement {
         <span class="sb-page-label">${page?.icon ?? "·"} ${name}</span>
         <span class="sb-order-controls"><button type="button" aria-label=${this.#ui.t("sidebar.pageUp", { name })} ?disabled=${index === 0} @click=${() => this.#movePage(route, section, index - 1)}>↑</button>
           <button type="button" aria-label=${this.#ui.t("sidebar.pageDown", { name })} ?disabled=${index === pages.length - 1} @click=${() => this.#movePage(route, section, index + 1)}>↓</button></span>
-        <select aria-label=${this.#ui.t("sidebar.movePage", { name })} @change=${(event: Event) => this.#movePage(route, (event.target as HTMLSelectElement).value, 128)}>
-          ${this.layout!.sections.map((group) => html`<option value=${group.id} ?selected=${section === group.id}>${group.label || this.#ui.t("sidebar.newSection")}</option>`)}
-          <option value="__hidden__" ?selected=${section === "__hidden__"}>${this.#ui.t("sidebar.hidden")}</option>
+        <select class="sb-move" aria-label=${this.#ui.t("sidebar.movePage", { name })} @change=${(
+          event: Event,
+        ) => {
+          const target = (event.target as HTMLSelectElement).value;
+          if (target) this.#movePage(route, target, 128);
+        }}>
+          <option value="" selected>${this.#ui.t("sidebar.moveTo")}</option>
+          ${this.layout!.sections.filter((group) => group.id !== section).map((group) => html`<option value=${group.id}>${group.label || this.#ui.t("sidebar.newSection")}</option>`)}
+          ${section === "__hidden__" ? nothing : html`<option value="__hidden__">${this.#ui.t("sidebar.hidden")}</option>`}
         </select>
       </li>`;
       },
