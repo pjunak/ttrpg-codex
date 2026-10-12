@@ -115,8 +115,7 @@ and packages together.
 
 | Workflow | When | What |
 | --- | --- | --- |
-| Build and dispatch | Push to `main`, pull requests, manual | `npm run check`, image build and start-up check; on `main` also runs the installed add-on smoke test, then publishes the image and deploys both sites |
-| Deploy published release | Manual | Redeploys an earlier successful build to one site |
+| Build and dispatch | Push to `main`, pull requests, manual | `npm run check`, image build and start-up check; on `main` also runs the installed add-on smoke test, then publishes the image and hands it to infra for both sites |
 | Installed add-on smoke test | Nightly, manual, before each deployment | Latest published add-ons on this host |
 | Quality maintenance | Weekly, manual | npm audit, actionlint, Go vulnerabilities |
 | Secret scan | Push, pull request | Gitleaks |

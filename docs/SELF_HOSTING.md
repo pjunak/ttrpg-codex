@@ -406,13 +406,12 @@ The main-branch workflow links publication and deployment, but each stage has
 its own result:
 
 - A skipped **Build image** job publishes nothing. If that job failed, inspect
-  the publication and metadata steps before treating its image as a release.
+  the publication step before treating its image as a release.
 - A manual check-only run leaves the websites unchanged. A superseded push also
   skips publication and deployment, with a notice in its summary.
-- A failed **Check deployment configuration** job blocks the image build. Check
-  the repository variables, token permissions and infrastructure workflow state.
-- A completed deployment must identify the selected instance and pass its
-  infrastructure health check. Verify the served frontend and the intended
+- A failed **Resolve deployment targets** job means `INFRA_SERVICE` names no
+  known campaign. A failed dispatch usually means the token lacks access.
+- A deployment succeeds when its Deploy run in infra passes the health check. Verify the served frontend and the intended
   feature afterward; HTTP 200 and the release health version (`2.0.0`) do not
   identify the source commit.
 
@@ -431,26 +430,17 @@ Other installations can build the Docker image and follow the ordinary update
 procedure below.
 
 A push to `main` runs the host checks, checks that the packaged runtime starts,
-publishes an immutable image, and deploys it to **both Asurai and Tiamat**.
-Pushes that change only documentation do not build or deploy. The workflow stays active until both infrastructure runs
-finish. A failed deployment makes the application run fail; accepting the
-request alone is insufficient. Each deployment summary records the source
-commit, image digest and infrastructure run link.
-
-The infrastructure repository is `pjunak/infra`. Host tooling calls infra's main-only
-`workflow_dispatch` with `service`, full source `sha`, immutable `image_ref` and
-unique `request_id`. It verifies the returned run ID and waits for that run.
-Infra's `registry/deployments.json` approves both campaign targets for the
-`ttrpg-codex` image; adding a new campaign requires matching registration there.
-The [infra deployment contract](https://github.com/pjunak/infra/blob/main/docs/application-deployments.md)
-owns server rollout, shared locking and publication-retry integration.
+publishes an immutable image and hands it to **both Asurai and Tiamat**: for
+each campaign it starts infra's **Deploy** workflow (`pjunak/infra`) with
+`service` and the image digest. Pushes that change only documentation do not
+build or deploy. This run finishes once infra accepts the requests; each
+deployment's result is its Deploy run in infra, and GitHub emails on failure.
+Adding a campaign needs its own stack in infra and its name in `INFRA_SERVICE`.
 
 Automatic and manual releases share a queue so a new push cannot interrupt an
-active deployment. Before publishing an automatic release, the workflow checks
-that its commit is still the current `main`. A superseded run continues its
-checks but skips publication and deployment, with an explanatory summary.
-GitHub orders this queue by arrival, so the revision check also protects against
-rerunning an old push. See [GitHub's concurrency documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
+earlier one. Before publishing an automatic release, the workflow checks that
+its commit is still the current `main`; a superseded run continues its checks
+but skips publication and deployment.
 
 ### Releasing add-ons
 
@@ -479,24 +469,14 @@ Actions** and configure:
 | `INFRA_DISPATCH_TOKEN` | Secret | A fine-grained GitHub token scoped to the infrastructure repository |
 
 When creating the token, select the infrastructure repository's owner and
-**Only select repositories → infra**. Give it **Contents: read-only** and
-**Actions: read and write** (to start the deployment workflow and follow its
-returned run ID). Set an expiry that fits your maintenance
-schedule and replace the stored secret before it expires. If an organization
-requires token approval, obtain that approval too. Use the GitHub secret form;
-never place the token in source, logs or chat.
+**Only select repositories → infra**, with **Actions: read and write** (to start
+the Deploy workflow). Replace the stored secret before the token expires. Use
+the GitHub secret form; never place the token in source, logs or chat.
 
-The early **Check deployment configuration** job verifies target names, token
-access and that the infrastructure **Deploy** workflow is enabled. This read
-check cannot prove Actions-write permission without sending a real dispatch;
-a dispatch permission failure still fails the deployment. If the check returns
-403 or 404, verify the token's repository selection, permissions, expiry and
-owner approval, then update `INFRA_DISPATCH_TOKEN`. Merely rerunning with the
-same inaccessible token will not repair it. Install and validate the matching
-infrastructure workflow before enabling this application workflow.
+If a dispatch fails with 403 or 404, check the token's repository selection,
+permission and expiry, then update `INFRA_DISPATCH_TOKEN`.
 
-See GitHub's [fine-grained token guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
-and [workflow dispatch permissions](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
+See GitHub's [fine-grained token guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
 
 ### Manual checks and recovery
 
@@ -504,19 +484,13 @@ A manual **Build and dispatch** run defaults to checks only. Selecting
 `publish` publishes without deploying; selecting Asurai, Tiamat or `configured`
 publishes and deploys that build. Publication and deployment require `main`.
 
-Each published build stores a `release-metadata` artifact for 90 days. To reuse
-it, run **Deploy published release** on `main`, enter the **Build and dispatch**
-run ID, and select the campaign. This verifies the source, image and build
-provenance without rerunning the build. A run whose deployment failed remains
-eligible if its **Build image** job succeeded; a failed image build is rejected.
-This also lets you retry only the campaign that failed after checking its
-infrastructure run. Explicitly selecting an older release is a rollback and
-requires the usual compatibility and backup review.
+To retry one campaign or roll back without rebuilding, run infra's **Deploy**
+workflow on `main` with that campaign and the image digest shown in this
+workflow's summary (every build is also tagged `:sha-<commit>`). Explicitly
+selecting an older release is a rollback and needs the usual compatibility and
+backup review.
 
-For a timeout or interrupted connection, inspect the linked infrastructure run
-before retrying: the deployment may still be running or may already have
-succeeded. Requests with an uncertain outcome are never automatically sent
-again. A failed health check leaves diagnostic state available; it does not
+A failed health check leaves diagnostic state available; it does not
 automatically roll back campaign data.
 
 For a failed build, open the job log. Failed host browser tests upload their

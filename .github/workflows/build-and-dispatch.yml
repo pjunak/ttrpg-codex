@@ -3,7 +3,7 @@ name: Build and dispatch
 # Main pushes validate, publish an immutable image, and deploy every configured
 # campaign. Manual runs are check-only unless publication/deployment is selected.
 # Required Actions configuration:
-#   INFRA_DISPATCH_TOKEN: fine-grained token for infra, Contents read + Actions write
+#   INFRA_DISPATCH_TOKEN: fine-grained token for infra, Actions write
 #   INFRA_REPO: owner/infra-repo
 #   INFRA_SERVICE: space/comma-separated targets; use "asurai tiamat" for both sites.
 
@@ -37,9 +37,8 @@ permissions:
   packages: write
 
 concurrency:
-  # Share the release queue with Deploy published release. A newer push must
-  # never cancel a workflow that has already asked infrastructure to deploy.
-  # PRs use independent groups and do not hold the production queue.
+  # A newer push must never cancel a workflow that has already asked
+  # infrastructure to deploy. PRs use independent groups.
   group: ${{ github.event_name == 'pull_request' && format('check-{0}', github.run_id) || 'codex-production-release' }}
   cancel-in-progress: false
   queue: max
@@ -109,10 +108,17 @@ jobs:
       - name: Check automatic release is still current
         id: current
         if: github.event_name == 'push'
-        run: node scripts/deploy-release.mts current
         env:
           GH_TOKEN: ${{ github.token }}
-          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          if [[ "$main_sha" == "$GITHUB_SHA" ]]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::A newer main revision exists; publication and deployment skipped.'
+          fi
 
       - name: Log in to GHCR
         if: ${{ steps.current.outputs.current != 'false' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
@@ -188,48 +194,32 @@ jobs:
             ${{ steps.img.outputs.name }}:sha-${{ github.sha }}
           cache-from: type=gha
 
-      - name: Record published release identity
-        if: ${{ steps.current.outputs.current != 'false' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
-        env:
-          IMAGE_REF: ${{ steps.img.outputs.name }}@${{ steps.publish_image.outputs.digest }}
-        run: |
-          mkdir -p release
-          node scripts/write-release-metadata.mts
-
-      - uses: actions/upload-artifact@v7
-        if: ${{ steps.current.outputs.current != 'false' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish || inputs.deploy_target != 'none')) }}
-        with:
-          name: release-metadata
-          path: release/release.json
-          retention-days: 90
-          if-no-files-found: error
-
-  # Run before the image build so missing/expired credentials fail early.
-  # Non-deployment runs complete this job without receiving deployment secrets.
   resolve-targets:
-    name: Check deployment configuration
+    name: Resolve deployment targets
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       services: ${{ steps.list.outputs.services }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-      - name: Resolve targets and verify infrastructure access
+      - name: List the campaigns to deploy
         id: list
         if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' && inputs.deploy_target != 'none') }}
-        run: node scripts/deploy-release.mts prepare
         env:
-          GH_TOKEN: ${{ secrets.INFRA_DISPATCH_TOKEN }}
-          INFRA_REPO: ${{ vars.INFRA_REPO }}
-          INFRA_SERVICE: ${{ vars.INFRA_SERVICE }}
-          DEPLOY_TARGET: ${{ github.event_name == 'push' && 'configured' || inputs.deploy_target }}
+          TARGET: ${{ github.event_name == 'push' && 'configured' || inputs.deploy_target }}
+          CONFIGURED: ${{ vars.INFRA_SERVICE }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == configured ]]; then targets="${CONFIGURED//,/ }"; else targets="$TARGET"; fi
+          read -ra names <<<"$targets"
+          (( ${#names[@]} > 0 )) || { echo '::error::INFRA_SERVICE lists no deployment targets'; exit 1; }
+          for name in "${names[@]}"; do
+            [[ "$name" =~ ^(asurai|tiamat)$ ]] || { echo "::error::Unknown deployment target: $name"; exit 1; }
+          done
+          echo "services=$(jq -cn '$ARGS.positional | unique' --args "${names[@]}")" >> "$GITHUB_OUTPUT"
 
   dispatch:
-    name: Deploy and verify (${{ matrix.service }})
-    timeout-minutes: 35
+    name: Hand the image to infra (${{ matrix.service }})
+    timeout-minutes: 5
     needs: [build, resolve-targets, installed-addons]
     if: ${{ needs.build.outputs.image_ref != '' && needs.resolve-targets.outputs.services != '' }}
     runs-on: ubuntu-latest
@@ -238,15 +228,13 @@ jobs:
       matrix:
         service: ${{ fromJson(needs.resolve-targets.outputs.services) }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-      - name: Deploy and wait for infrastructure health
-        run: node scripts/deploy-release.mts
+      - name: Dispatch infra's Deploy
         env:
           GH_TOKEN: ${{ secrets.INFRA_DISPATCH_TOKEN }}
           INFRA_REPO: ${{ vars.INFRA_REPO }}
-          DEPLOY_TARGET: ${{ matrix.service }}
-          DEPLOY_SHA: ${{ github.sha }}
-          DEPLOY_IMAGE: ${{ needs.build.outputs.image_ref }}
+          SERVICE: ${{ matrix.service }}
+          IMAGE_REF: ${{ needs.build.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          gh workflow run deploy.yml --repo "$INFRA_REPO" --ref main -f service="$SERVICE" -f image_ref="$IMAGE_REF"
+          echo "Deploying \`$IMAGE_REF\` to $SERVICE; result: https://github.com/$INFRA_REPO/actions/workflows/deploy.yml" >> "$GITHUB_STEP_SUMMARY"
