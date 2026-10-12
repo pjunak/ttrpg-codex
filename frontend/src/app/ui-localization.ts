@@ -198,8 +198,6 @@ const enCatalog = {
   "addons.noChanges": "No declaration changes.",
   "dm.title": "DM panel",
   "dm.refusal": "This page is available only in DM view.",
-  "dm.fallback":
-    "Your campaign tools and hidden content remain accessible here when no add-on dashboard is available.",
   "dm.tools": "Campaign tools",
   "dm.addonHealth": "Add-on status",
   "dm.addonHealthHint": "Status of the browser add-ons loaded for this session.",
@@ -770,8 +768,6 @@ const csCatalog = {
   "addons.noChanges": "Žádné změny deklarací.",
   "dm.title": "DM panel",
   "dm.refusal": "Tato stránka je dostupná pouze v pohledu DM.",
-  "dm.fallback":
-    "Nástroje kampaně a skrytý obsah jsou zde dostupné i bez funkčního přehledu doplňku.",
   "dm.tools": "Nástroje kampaně",
   "dm.addonHealth": "Stav doplňků",
   "dm.addonHealthHint": "Stav doplňků načtených v prohlížeči pro toto přihlášení.",

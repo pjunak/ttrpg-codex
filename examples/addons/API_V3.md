@@ -637,16 +637,17 @@ declares broader roles. It passes the frozen host context
 bodies; add-ons read their own collections through the public SDK.
 These named slots do not also appear on the campaign overview.
 
-Successful contributions appear below the original DM panel heading, without
+Successful contributions appear directly below the DM panel heading, without
 generic contribution headings or cards. The host owns slot lifetime and keeps
 unchanged widgets connected during campaign refresh. Leaving the route,
 changing role, replacing a generation, or disabling it disposes the old outlet.
 
-When no dashboard mounts, or an add-on reports a display failure, the core
-fallback retains hidden-record counts, browser add-on status and reload, and
-links to active role-allowed add-on routes. These links are independent of the
-optional sidebar preference. This fallback does not replace the complete
-administrative package inspector or the add-on's own workflow dashboard.
+Below the contributions the host always shows hidden-record counts and browser
+add-on status with reload. When no dashboard mounts, or an add-on reports a
+display failure, the host also links to active role-allowed add-on routes,
+independent of the optional sidebar preference. A dashboard should therefore
+link its own add-on's tools. None of this replaces the administrative package
+inspector or the add-on's own workflow pages.
 
 ### Mind Palace graph providers
 

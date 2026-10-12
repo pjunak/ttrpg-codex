@@ -17,9 +17,8 @@
   margin: 2rem 0;
 }
 .dm-section h2 {
-  font-size: 1.2rem;
   margin: 0 0 0.5rem;
-  color: var(--text-light);
+  color: var(--accent-gold);
 }
 .dm-section-hint {
   color: var(--text-muted);
@@ -121,12 +120,16 @@
   cursor: wait;
   opacity: 0.6;
 }
+/* Dashboards share the panel's column, so they align with the host sections below them. */
 .dm-panel [data-dm-dashboard-slot] > .addon-contribution {
   padding: 0;
-  margin: 0;
+  margin: 2rem 0 0;
   background: transparent;
   border: 0;
   box-shadow: none;
+}
+.dm-panel [data-dm-dashboard-slot] > .addon-contribution > * {
+  padding: 0;
 }
 .route-dm {
   padding: 0 0 2rem;

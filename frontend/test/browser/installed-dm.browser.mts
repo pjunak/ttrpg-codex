@@ -381,7 +381,10 @@ void test(`installed DM dashboard mounts only in the DM route and cleans up on r
         .evaluate((element: HTMLElement & { addonState: unknown }) => element.addonState),
     ),
   );
-  await page.locator('[data-dm-collection="events"]').waitFor({ state: "detached" });
+  // A mounted dashboard links its own tools; the host sections stay below it.
+  await page.locator("#dm-tools-title").waitFor({ state: "detached" });
+  await page.locator('[data-dm-collection="events"]').waitFor();
+  await page.locator(`[data-addon-health="${id}"]`).waitFor();
   await slot.getByLabel("Fixture notes").fill("Keep these notes");
   const campaign = await jsonResponse(await admin.get("/api/campaign"));
   const event = campaign.collections
@@ -440,7 +443,7 @@ void test(`installed DM dashboard mounts only in the DM route and cleans up on r
   await installDmPackage(admin, csrf, { id, version: "1.0.1" });
   await slotRoot(page).getByRole("heading", { name: "Fixture DM workspace 1.0.1" }).waitFor();
   await disable(id);
-  await page.locator('[data-dm-collection="events"]').waitFor();
+  await page.locator(`[data-addon-health="${id}"]`).waitFor({ state: "detached" });
   assert.equal(await page.locator(`[data-dm-dashboard-slot] [data-addon-id="${id}"]`).count(), 0);
 });
 
@@ -480,7 +483,7 @@ void test("failed dashboard rendering and activation retain useful DM fallback a
   await page.locator(`[data-addon-health="${id}"] .failed`).waitFor();
   await installDmPackage(admin, csrf, { id, version: "1.0.2" });
   await slotRoot(page).getByRole("heading", { name: "Fixture DM workspace 1.0.2" }).waitFor();
-  await page.locator('[data-dm-collection="events"]').waitFor({ state: "detached" });
+  await page.locator("#dm-tools-title").waitFor({ state: "detached" });
 });
 
 if (process.env.CODEX_DM_TOOLS_ZIP)

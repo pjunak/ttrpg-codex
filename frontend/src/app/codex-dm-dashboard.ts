@@ -14,7 +14,7 @@ export interface DmAddonHealth {
   readonly state: "ready" | "blocked" | "failed";
 }
 
-/** Core recovery surface remains available when an add-on cannot supply its dashboard. */
+/** Add-on dashboards first, then host sections that stay available whatever the add-ons do. */
 export class CodexDmDashboard extends LitElement {
   static override properties = {
     campaign: { attribute: false },
@@ -120,15 +120,49 @@ export class CodexDmDashboard extends LitElement {
         <div data-dm-dashboard-slot></div>
         ${this.failed || this.degraded ? html`<p class="dm-stub" role="alert">${this.#ui.t("dm.failed")}</p>` : nothing}
         ${this.loading ? html`<p class="dm-stub" role="status">${this.#ui.t("dm.loading")}</p>` : nothing}
-        ${this.count === 0 || this.failed || this.degraded ? this.#fallback() : nothing}
+        ${this.count === 0 || this.failed || this.degraded ? this.#toolLinks() : nothing}
+        ${this.#hiddenContent()}
+        ${this.#addonStatus()}
       `
       }
     </section>`;
   }
-  #fallback() {
+  /** Add-on dashboards link their own tools; without one, the host links every DM route. */
+  #toolLinks() {
     const routes =
       this.registry?.list("route", "dm").filter((active) => active.binding.kind === "element") ??
       [];
+    if (routes.length === 0) return nothing;
+    return html`<section class="dm-section" aria-labelledby="dm-tools-title">
+        <h2 id="dm-tools-title">${this.#ui.t("dm.tools")}</h2>
+        <nav class="dm-grid" aria-label=${this.#ui.t("dm.tools")}>${routes.map(
+          (active) => html`
+          <a class="dm-count-card" href=${browserAddonRouteHash(active)}><strong>${contributionLabel(active.descriptor, this.#ui.locale)}</strong><span class="dm-count-meta">${active.addonId}</span></a>
+        `,
+        )}</nav>
+      </section>`;
+  }
+  #addonStatus() {
+    return html`<section class="dm-section" aria-labelledby="dm-addon-health-title">
+        <h2 id="dm-addon-health-title">${this.#ui.t("dm.addonHealth")}</h2>
+        <p class="dm-section-hint">${this.#ui.t("dm.addonHealthHint")}</p>
+        ${
+          this.health.length === 0
+            ? html`<p class="dm-stub">${this.#ui.t("dm.noAddons")}</p>`
+            : html`
+          <ul class="dm-addon-diagnostics">${this.health.map(
+            (addon) => html`<li data-addon-health=${addon.id}>
+            <strong>${addon.id}</strong><span>${addon.version}</span><span class=${`dm-addon-state ${addon.state}`}>${this.#ui.t(`dm.state.${addon.state}`)}</span>
+          </li>`,
+          )}</ul>`
+        }
+        <div class="dm-actions">
+          <button ?disabled=${this.loading} @click=${() => this.dispatchEvent(new CustomEvent("dm-retry-addons", { bubbles: true, composed: true }))}>${this.#ui.t("dm.retry")}</button>
+          <a href="#/settings/addons">${this.#ui.t("addons.title")}</a>
+        </div>
+      </section>`;
+  }
+  #hiddenContent() {
     const pages = [
       "characters",
       "locations",
@@ -155,38 +189,7 @@ export class CodexDmDashboard extends LitElement {
           });
     const totalHidden = counts.reduce((sum, count) => sum + count.hidden, 0);
     const number = (value: number) => new Intl.NumberFormat(this.#ui.locale).format(value);
-    return html`<p class="dm-stub">${this.#ui.t("dm.fallback")}</p>
-      ${
-        routes.length === 0
-          ? nothing
-          : html`<section class="dm-section" aria-labelledby="dm-tools-title">
-        <h2 id="dm-tools-title">${this.#ui.t("dm.tools")}</h2>
-        <nav class="dm-grid" aria-label=${this.#ui.t("dm.tools")}>${routes.map(
-          (active) => html`
-          <a class="dm-count-card" href=${browserAddonRouteHash(active)}><strong>${contributionLabel(active.descriptor, this.#ui.locale)}</strong><span class="dm-count-meta">${active.addonId}</span></a>
-        `,
-        )}</nav>
-      </section>`
-      }
-      <section class="dm-section" aria-labelledby="dm-addon-health-title">
-        <h2 id="dm-addon-health-title">${this.#ui.t("dm.addonHealth")}</h2>
-        <p class="dm-section-hint">${this.#ui.t("dm.addonHealthHint")}</p>
-        ${
-          this.health.length === 0
-            ? html`<p class="dm-stub">${this.#ui.t("dm.noAddons")}</p>`
-            : html`
-          <ul class="dm-addon-diagnostics">${this.health.map(
-            (addon) => html`<li data-addon-health=${addon.id}>
-            <strong>${addon.id}</strong><span>${addon.version}</span><span class=${`dm-addon-state ${addon.state}`}>${this.#ui.t(`dm.state.${addon.state}`)}</span>
-          </li>`,
-          )}</ul>`
-        }
-        <div class="dm-actions">
-          <button ?disabled=${this.loading} @click=${() => this.dispatchEvent(new CustomEvent("dm-retry-addons", { bubbles: true, composed: true }))}>${this.#ui.t("dm.retry")}</button>
-          <a href="#/settings">${this.#ui.t("shell.settings")}</a>
-        </div>
-      </section>
-      <section class="dm-section" aria-labelledby="dm-hidden-title">
+    return html`<section class="dm-section" aria-labelledby="dm-hidden-title">
         <h2 id="dm-hidden-title">${this.#ui.t("dm.hiddenContent")}</h2>
         <p class="dm-section-hint">${totalHidden === 0 ? this.#ui.t("dm.hiddenEmpty") : this.#ui.plural("dm.hiddenCount", totalHidden)}</p>
         <div class="dm-grid">${counts.map(
