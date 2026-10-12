@@ -94,7 +94,7 @@ describe("UI localization", () => {
     expect(uiPlural("dashboard.characterCount", 1)).toBe("1 postava");
     expect(uiPlural("dashboard.characterCount", 3)).toBe("3 postavy");
     expect(uiPlural("dashboard.characterCount", 8)).toBe("8 postav");
-    expect(uiPlural("shell.addonGenerationsActive", 3)).toBe("Aktivní jsou 3 generace doplňků");
+    expect(uiPlural("shell.browserAddonsRunning", 3)).toBe("Běží 3 doplňky prohlížeče");
     expect(uiText("search.empty", { query: "drak" })).toContain("drak");
   });
 

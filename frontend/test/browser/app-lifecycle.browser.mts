@@ -49,10 +49,9 @@ void test(
     );
     await page.goto("/#/characters", { waitUntil: "domcontentloaded" });
     await page.getByText("Ryn", { exact: true }).waitFor();
-    await page.locator(".account-menu > summary").click();
     const opened = context.waitForEvent("page");
     await page
-      .locator(".account-panel")
+      .locator(".sidebar-footer")
       .getByRole("button", { name: "View as player", exact: true })
       .click();
     const popup = await opened;
@@ -165,15 +164,13 @@ for (const action of ["login", "logout", "view-as", "player-preview"] as const) 
         if (action === "login") {
           await account.locator('input[name="password"]').fill("synthetic-password");
           await account.getByRole("button", { name: "Sign in", exact: true }).click();
+        } else if (action === "logout") {
+          await account.getByRole("button", { name: "Sign out", exact: true }).click();
         } else {
-          await account
+          await page
+            .locator(".sidebar-footer")
             .getByRole("button", {
-              name:
-                action === "logout"
-                  ? "Sign out"
-                  : action === "view-as"
-                    ? "View as DM"
-                    : "View as player",
+              name: action === "view-as" ? "View as DM" : "View as player",
               exact: true,
             })
             .click();

@@ -262,6 +262,19 @@ void test("DM panel preserves the fallback cards and hidden sidebar tool access 
   for (const mobile of [false, true]) {
     const page = await open(t, "dm", mobile);
     await page.locator(`[data-addon-health="${id}"]`).waitFor();
+    if (mobile) await page.locator("[data-menu-toggle]").click();
+    // The pinned sidebar footer keeps the DM link on screen without scrolling the navigation.
+    assert.equal(
+      await page.locator('.sidebar-footer a[href="#/dm"]').evaluate((link) => {
+        const box = link.getBoundingClientRect();
+        const bar = document.querySelector(".mobile-navigation")!;
+        const limit =
+          getComputedStyle(bar).display === "none" ? innerHeight : bar.getBoundingClientRect().top;
+        return box.top >= 0 && box.bottom <= limit;
+      }),
+      true,
+    );
+    if (mobile) await page.keyboard.press("Escape");
     assert.equal(await page.locator(".dm-count-card[data-dm-collection]").count(), 8);
     assert.match(
       await page.locator('[data-dm-collection="events"]').textContent().then(required),
@@ -1107,7 +1120,6 @@ void test("player preview opens in a separate tab with player data, media and li
       context = dm.context();
     const original = await jsonResponse(await context.request.get("/api/auth"));
     if (mobile) await dm.locator("[data-menu-toggle]").click();
-    await dm.locator(".account-menu summary").click();
     const opened = context.waitForEvent("page");
     await dm.getByRole("button", { name: "View as player", exact: true }).click();
     const preview = await opened;
@@ -1253,7 +1265,6 @@ void test("player preview fails closed after missing storage or DM logout and re
   assert.equal(await blank.locator(".dm-count-card").count(), 0);
   assert.equal(await blank.locator('.account-panel input[name="password"]').count(), 0);
   await blank.close();
-  await dm.locator(".account-menu summary").click();
   await dm.evaluate(() => {
     window.savedOpen = window.open;
     window.open = () => null;

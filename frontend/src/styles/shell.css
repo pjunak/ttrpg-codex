@@ -27,7 +27,6 @@ codex-app,
   width: var(--sidebar-width);
   flex-direction: column;
   overflow-y: auto;
-  padding-bottom: 2rem;
   border-right: 1px solid var(--chrome-divider);
   background: var(--bg-surface);
   font-family: var(--font-ui);
@@ -137,7 +136,8 @@ codex-app,
 
 .core-navigation a,
 .addon-navigation-link,
-.sidebar-footer > a {
+.sidebar-footer > a,
+.sidebar-footer-action {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -156,7 +156,8 @@ codex-app,
 
 .core-navigation a:hover,
 .addon-navigation-link:hover,
-.sidebar-footer > a:hover {
+.sidebar-footer > a:hover,
+.sidebar-footer-action:hover:not(:disabled) {
   color: var(--gold);
   background: rgba(var(--accent-gold-rgb), 0.08);
 }
@@ -168,9 +169,26 @@ codex-app,
   background: rgba(var(--accent-gold-rgb), 0.12);
 }
 
+/* Pinned so DM tools, settings and the account stay reachable however long the navigation is. */
 .sidebar-footer {
+  position: sticky;
+  bottom: 0;
   margin-top: auto;
-  padding-top: 1rem;
+  padding: 0.5rem 0 1rem;
+  border-top: 1px solid var(--chrome-divider);
+  background: var(--bg-surface);
+}
+
+.sidebar-footer-action {
+  width: calc(100% - 1rem);
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.sidebar-footer-action:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .account-menu {
@@ -362,7 +380,10 @@ codex-app,
     width: min(320px, 86vw);
     transform: translateX(-100%);
     transition: transform 0.2s ease;
-    padding-bottom: calc(var(--bottom-nav-h) + 1rem);
+  }
+  /* The bottom navigation overlays the drawer. */
+  .sidebar-footer {
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 0.75rem);
   }
   .campaign-sidebar.is-open {
     transform: translateX(0);

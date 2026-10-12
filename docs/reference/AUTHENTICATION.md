@@ -115,8 +115,9 @@ CSRF header; same-origin cookie policy and the strict DM check remain required.
 
 ## Separate-tab player preview
 
-The DM account menu's **View as player** action opens a separate tab. It calls
-`POST /api/player-preview` with the current DM CSRF token and an empty body.
+The sidebar's **View as player** action, shown to a signed-in DM, opens a
+separate tab. It calls `POST /api/player-preview` with the current DM CSRF
+token and an empty body.
 The response is `player-preview.v1` with `token` and `expiresAt`; it never sets
 or rotates a cookie. The existing view-as API remains available for deliberate
 session-wide transitions and for returning an already-switched session to DM.

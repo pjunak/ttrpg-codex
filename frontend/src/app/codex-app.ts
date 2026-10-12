@@ -367,9 +367,10 @@ export class CodexApp extends LitElement {
           </section>
           <footer class="sidebar-footer">
             ${this.#canManageCampaign() ? html`<a href="#/dm" aria-current=${this.route.kind === "dm" ? "page" : nothing}>🛡 ${this.#ui.t("dm.title")}</a>` : nothing}
+            ${this.#viewAsTemplate()}
             <a href="#/settings" aria-current=${this.#coreRouteActive("settings") ? "page" : nothing}>⚙ ${this.#ui.t("shell.settings")}</a>
             <details class="account-menu">
-              <summary>${this.#mobileAccountLabel()}</summary>
+              <summary>${this.#accountMenuLabel()}</summary>
               ${this.#accountTemplate()}
               <div class="content-statusbar">
                 ${this.#hostStatusTemplate()}
@@ -1357,24 +1358,25 @@ export class CodexApp extends LitElement {
         </section>
       `;
     }
-    const auth = this.authority.auth;
     return html`
       <section class="account-panel signed-in">
-        <p><span class="authority-mark" aria-hidden="true"></span>${this.#ui.t("shell.viewingAs")} <strong>${auth.role === "dm" ? uiText("DM") : this.#ui.t("shell.player")}</strong></p>
-        ${
-          auth.realRole === "dm"
-            ? html`
-          <button class="text-button" type="button" @click=${() => (auth.role === "dm" ? this.#openPreview() : this.#switchRole())} ?disabled=${this.busy}
-            title=${auth.role === "dm" ? this.#ui.t("preview.openHint") : nothing}>
-            ${this.#ui.t("shell.viewAs", { role: auth.role === "dm" ? this.#ui.t("shell.player") : uiText("DM") })}
-          </button>
-        `
-            : nothing
-        }
         <button class="text-button" type="button" @click=${() => this.#logout()} ?disabled=${this.busy}>${this.#ui.t("shell.signOut")}</button>
         <small title=${this.#addonStateTitle()}>${this.#addonStateLabel()}</small>
       </section>
     `;
+  }
+
+  /** Role switching stays outside the account menu because DMs use it during play. */
+  #viewAsTemplate() {
+    if (isPlayerPreview() || this.authority.state !== "known") return nothing;
+    const auth = this.authority.auth;
+    if (!auth.authenticated || auth.realRole !== "dm") return nothing;
+    const toPlayer = auth.role === "dm";
+    return html`<button class="sidebar-footer-action" type="button"
+      @click=${() => (toPlayer ? this.#openPreview() : this.#switchRole())} ?disabled=${this.busy}
+      title=${toPlayer ? this.#ui.t("preview.openHint") : nothing}>
+      <span aria-hidden="true">👁</span>${this.#ui.t("shell.viewAs", { role: toPlayer ? this.#ui.t("shell.player") : uiText("DM") })}
+    </button>`;
   }
 
   #addonStateLabel(): string {
@@ -1386,7 +1388,7 @@ export class CodexApp extends LitElement {
         return this.#ui.t("shell.addonsLoading");
       case "ready":
         return state.failures === 0
-          ? this.#ui.plural("shell.addonGenerationsActive", state.active)
+          ? this.#ui.plural("shell.browserAddonsRunning", state.active)
           : this.#ui.t("shell.addonsActiveFailed", {
               active: state.active,
               failed: state.failures,
@@ -1402,12 +1404,12 @@ export class CodexApp extends LitElement {
     return this.#addonStateLabel();
   }
 
-  #mobileAccountLabel(): string {
+  #accountMenuLabel(): string {
     if (this.authority.state === "checking") return this.#ui.t("shell.menu");
     if (!this.authority.auth.authenticated) return this.#ui.t("shell.signIn");
     return this.authority.auth.role === "dm"
-      ? this.#ui.t("shell.dmMenu")
-      : this.#ui.t("shell.playerMenu");
+      ? this.#ui.t("shell.signedInDm")
+      : this.#ui.t("shell.signedInPlayer");
   }
 
   #hostStatusTemplate() {
