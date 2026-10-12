@@ -104,6 +104,16 @@
     white-space: normal;
     width: 100%;
   }
+  [data-codex-ui] input.ui-control[type="file"]::file-selector-button {
+    margin-inline-end: 0.75rem;
+    padding: 0.3rem 0.75rem;
+    border: 1px solid var(--ui-accent);
+    border-radius: var(--ui-radius);
+    background: transparent;
+    color: var(--ui-accent);
+    font: inherit;
+    cursor: pointer;
+  }
   [data-codex-ui] input.ui-control[type="search"]::-webkit-search-cancel-button {
     appearance: none;
   }

@@ -38,6 +38,7 @@ import type { BrowserNavigationEntry } from "../addons/navigation.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { AddonContributionsController } from "./addon-contributions-controller.js";
+import { UIControlsController } from "../ui/controller.js";
 import { mapSettingsHash, settingsHash, type SettingsSlug } from "./routes.js";
 
 type SettingsCategory =
@@ -123,6 +124,7 @@ export class CodexSettings extends LitElement {
 
   constructor() {
     super();
+    new UIControlsController(this);
     this.addonPages = [];
     this.campaign = undefined;
     this.mapTarget = undefined;
@@ -362,7 +364,7 @@ export class CodexSettings extends LitElement {
         <header class="settings-page-heading">
           <p class="page-kicker">${this.#ui.t("settings.kicker")}</p>
           <h1>${this.#ui.t("settings.title")}</h1>
-          <p>${this.#ui.t("settings.intro")}</p>
+          <p>${this.#ui.t(this.canManageCampaign ? "settings.intro" : "settings.introPlayer")}</p>
         </header>
         <a class="settings-back" href="#/settings">← ${this.#ui.t("settings.allSettings")}</a>
         <div class="settings-workspace">

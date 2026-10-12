@@ -511,7 +511,9 @@ const enCatalog = {
   "settings.title": "Settings",
   "settings.allSettings": "All settings",
   "settings.intro":
-    "Choose your reading language and manage the campaign’s shared presentation and vocabulary.",
+    "Choose your reading language, and manage the campaign’s look, vocabulary, add-ons, access and backups.",
+  "settings.introPlayer":
+    "Choose your reading language and the options your campaign’s add-ons offer.",
   "settings.categories": "Settings categories",
   "settings.groupPersonal": "This browser",
   "settings.groupCampaign": "Campaign",
@@ -1101,7 +1103,9 @@ const csCatalog = {
   "settings.kicker": "Správa kampaně",
   "settings.title": "Kniha nastavení",
   "settings.allSettings": "Všechna nastavení",
-  "settings.intro": "Vyber jazyk rozhraní a spravuj společný vzhled a pojmy kampaně.",
+  "settings.intro":
+    "Vyber jazyk rozhraní a spravuj vzhled kampaně, pojmy, doplňky, přístup a zálohy.",
+  "settings.introPlayer": "Vyber jazyk rozhraní a volby, které nabízejí doplňky kampaně.",
   "settings.categories": "Kategorie nastavení",
   "settings.groupPersonal": "Tento prohlížeč",
   "settings.groupCampaign": "Kampaň",
