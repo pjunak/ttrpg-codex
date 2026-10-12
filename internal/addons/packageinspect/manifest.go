@@ -5,6 +5,7 @@ type Manifest struct {
 	ID               string            `json:"id"`
 	Name             string            `json:"name"`
 	Version          string            `json:"version"`
+	Description      string            `json:"description,omitempty"`
 	Compatibility    Compatibility     `json:"compatibility"`
 	Capabilities     Capabilities      `json:"capabilities"`
 	Runtime          *Runtime          `json:"runtime,omitempty"`

@@ -59,8 +59,9 @@ func TestStagePublishesContentAddressedGenerationWithoutActivation(t *testing.T)
 		len(snapshot.Generations) != 1 || len(snapshot.Events) != 1 || snapshot.Events[0].Kind != "staged" {
 		t.Fatalf("staging changed authority or produced incomplete diagnostics: %+v", snapshot)
 	}
-	if snapshot.Generations[0].Name != "notes-addon" {
-		t.Fatalf("generation name = %q, want the manifest name", snapshot.Generations[0].Name)
+	if snapshot.Generations[0].Name != "notes-addon" ||
+		snapshot.Generations[0].Description != "Test package notes-addon." {
+		t.Fatalf("generation = %+v, want the manifest name and description", snapshot.Generations[0])
 	}
 	providers, err := broker.ListProviders(context.Background(), "codex.notes")
 	if err != nil {
@@ -1257,6 +1258,7 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 		"id":            spec.ID,
 		"name":          spec.ID,
 		"version":       spec.Version,
+		"description":   "Test package " + spec.ID + ".",
 		"compatibility": map[string]any{
 			"host": ">=2.0.0 <3.0.0", "addonApi": "^3.0.0",
 		},
