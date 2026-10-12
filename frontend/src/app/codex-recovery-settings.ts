@@ -81,6 +81,7 @@ export class CodexRecoverySettings extends LitElement {
           <button type="button" ?disabled=${this.busy} @click=${() => void this.#request()}>↻ ${this.#ui.t("recovery.refresh")}</button>
         </div>
       </header>
+      <p class="settings-hint">${this.#ui.t("recovery.offline")}</p>
       <p class="settings-hint">${this.#ui.t("recovery.intro")}</p>
       <div class="settings-revert-row" data-ui-toolbar><label data-ui-field><span>${this.#ui.t("recovery.scope")}</span><select id="recovery-scope" .value=${this.selection} ?disabled=${this.busy || !!this.review} @change=${(
         event: Event,
@@ -90,7 +91,6 @@ export class CodexRecoverySettings extends LitElement {
         <option value="campaign">${this.#ui.t("recovery.campaign")}</option>
         ${addons.map((addon) => html`<option value=${`addon:${addon}`}>${this.#ui.t("recovery.addon", { addon })}</option>`)}
       </select></label></div>
-      <p class="settings-hint">${this.#ui.t("recovery.offline")}</p>
       ${this.busy ? html`<p role="status">${this.#ui.t("recovery.busy")}</p>` : nothing}
       ${this.message ? html`<p role=${this.#failed ? "alert" : "status"}>${this.#ui.t(this.message)}</p>` : nothing}
       ${

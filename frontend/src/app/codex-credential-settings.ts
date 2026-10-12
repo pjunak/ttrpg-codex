@@ -67,8 +67,8 @@ export class CodexCredentialSettings extends LitElement {
       <header class="settings-ledger-heading"><div><span class="settings-category-mark" aria-hidden="true">🖥</span><div>
         <h2 id="credentials-title">${this.#ui.t("credentials.title")}</h2><p>${this.#ui.t("credentials.intro")}</p>
       </div></div></header>
-      <button type="button" ?disabled=${this.loading || this.saving} @click=${() => void this.#load()}>${this.#ui.t(this.loading ? "credentials.loading" : "credentials.refresh")}</button>
       ${this.message ? html`<p role=${this.#success ? "status" : "alert"}>${this.#message()}</p>` : nothing}
+      ${this.message && !this.#success ? html`<button type="button" ?disabled=${this.loading || this.saving} @click=${() => void this.#load()}>${this.#ui.t(this.loading ? "credentials.loading" : "credentials.refresh")}</button>` : nothing}
       ${this.status ? html`${this.#form("dm")}${this.#form("player")}` : nothing}
     </section>`;
   }
@@ -100,13 +100,9 @@ export class CodexCredentialSettings extends LitElement {
     const draft = this.#drafts[role];
     return html`<form class="settings-password-card" data-role=${role} @submit=${(event: SubmitEvent) => void this.#save(event, role)}>
       <div class="settings-password-card-head"><h3>${this.#ui.t(role === "dm" ? "credentials.dm" : "credentials.player")}</h3>
-        <span class="settings-password-status">${this.#ui.t(role === "dm" || this.status?.playerEnabled ? "credentials.enabled" : "credentials.disabled")}</span></div>
+        <span class="settings-password-status" data-tone=${role === "dm" || this.status?.playerEnabled ? "ok" : "off"}>${this.#ui.t(role === "dm" || this.status?.playerEnabled ? "credentials.enabled" : "credentials.disabled")}</span></div>
       <p class="settings-hint">${this.#ui.t(role === "dm" ? "credentials.dmEffect" : "credentials.playerEffect")}</p>
-      <fieldset ?disabled=${this.saving || this.loading}><div class="settings-password-fields">
-        ${this.#field(role, "current", this.#ui.t("credentials.current"), "current-password")}
-        ${this.#field(role, "password", this.#ui.t("credentials.new"), "new-password")}
-        ${this.#field(role, "confirmation", this.#ui.t("credentials.confirm"), "new-password")}
-      </div>
+      <fieldset ?disabled=${this.saving || this.loading}>
       ${
         role === "player"
           ? html`<label class="settings-password-disable"><input type="checkbox" .checked=${draft.disable} @change=${(
@@ -120,6 +116,11 @@ export class CodexCredentialSettings extends LitElement {
             }} />${this.#ui.t("credentials.disable")}</label>`
           : nothing
       }
+      <div class="settings-password-fields">
+        ${this.#field(role, "current", this.#ui.t("credentials.current"), "current-password")}
+        ${this.#field(role, "password", this.#ui.t("credentials.new"), "new-password")}
+        ${this.#field(role, "confirmation", this.#ui.t("credentials.confirm"), "new-password")}
+      </div>
       <button class="primary" type="submit" ?disabled=${this.#reloadRequired}>${this.#ui.t(this.saving ? "settings.saving" : draft.disable ? "credentials.disableSave" : "credentials.save")}</button>
       </fieldset>
     </form>`;

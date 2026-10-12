@@ -183,7 +183,7 @@ for (const mobile of [false, true])
     if (!mobile) {
       await attemptHash(page, "#/dashboard");
       assert.equal(
-        await form(page, "player").locator("input").nth(1).inputValue(),
+        await form(page, "player").locator("input[type=password]").nth(1).inputValue(),
         `player-${mobile}`,
       );
     }

@@ -180,10 +180,6 @@ codex-credential-settings {
   color: var(--accent-gold);
   font-family: var(--font-title);
 }
-.settings-password-status {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
 .settings-password-card .settings-hint {
   font: 0.8rem/1.5 var(--font-ui);
   color: var(--text-muted);
@@ -576,17 +572,20 @@ codex-addon-manager {
   color: var(--text-muted);
   font: var(--text-xs) var(--font-ui);
 }
-.addon-chip {
+.addon-chip,
+.settings-password-status {
   padding: 0.05rem var(--space-2);
   border: 1px solid currentColor;
   border-radius: var(--radius-pill);
   font: 600 var(--text-xs) / 1.5 var(--font-ui);
   white-space: nowrap;
 }
-.addon-chip[data-tone="ok"] {
+.addon-chip[data-tone="ok"],
+.settings-password-status[data-tone="ok"] {
   color: var(--color-success);
 }
-.addon-chip[data-tone="off"] {
+.addon-chip[data-tone="off"],
+.settings-password-status[data-tone="off"] {
   color: var(--text-muted);
 }
 .addon-chip[data-tone="danger"] {
