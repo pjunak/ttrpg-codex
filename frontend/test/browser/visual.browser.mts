@@ -406,7 +406,7 @@ void test("desktop sidebar, phone menu and settings remain usable across resize"
     fullPage: true,
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByRole("button", { name: "Appearance", exact: true }).click();
+  await page.getByRole("link", { name: "Appearance", exact: true }).click();
   assert.equal(
     (await style(page, ".theme-sample-classic .settings-theme-sample", ["background-color"]))[
       "background-color"

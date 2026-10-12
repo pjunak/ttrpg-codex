@@ -98,7 +98,6 @@ export async function exerciseAddonManager({
     .click();
   await row.getByText("Disabled", { exact: true }).waitFor();
   await page.reload();
-  await page.locator('[data-category="addons"]').click();
   await row.waitFor();
   await row.locator(".addon-row-details > summary").click();
   assert.equal(await row.locator("[data-generation]").count(), 2);
@@ -177,7 +176,6 @@ export async function exerciseAddonManager({
   });
   await page.evaluate(() => localStorage.setItem("codex_lang", "cs"));
   await page.reload();
-  await page.locator('[data-category="addons"]').click();
   await manager.getByRole("button", { name: "Přidat doplněk", exact: true }).waitFor();
   const player = await open(t, "player");
   await player.goto("/#/settings");

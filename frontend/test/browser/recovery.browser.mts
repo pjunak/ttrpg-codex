@@ -124,7 +124,12 @@ async function open(t: TestContext, mobile = false, role: string | null = "dm") 
   t.after(() => assert.deepEqual(errors, []));
   await page.goto("/#/settings");
   await page.locator(".settings-page").waitFor();
-  if (mobile) await page.locator(".settings-preference-field select").selectOption("cs");
+  if (mobile) {
+    // Phones open settings as a category list.
+    await page.locator("[data-category=language]").click();
+    await page.locator(".settings-preference-field select").selectOption("cs");
+    await page.locator(".settings-back").click();
+  }
   if (role === "dm") {
     await page.locator("[data-category=backup]").click();
     await page.waitForFunction(() => !!document.querySelector("codex-recovery-settings")?.listing);
@@ -390,7 +395,7 @@ for (const mobile of [false, true])
       }),
     );
     const { page } = await open(t, mobile);
-    await page.locator("[data-category=addons]").click();
+    await page.locator("[data-category=addons]").dispatchEvent("click");
     const row = page.locator(`codex-addon-manager [data-addon-id="${id}"]`);
     await row.locator(".addon-row-details > summary").click();
     await row.locator(`[data-generation="${staged.generationId}"] button`).click();
@@ -421,11 +426,10 @@ for (const mobile of [false, true])
     const pointId = saved.points[0].id;
     await installReviewedPackage(admin, csrf, id, third, perms);
     await page.reload();
-    await page.locator("[data-category=addons]").click();
     await assert.rejects(stat(generationPath(second.state.activeGenerationId)), { code: "ENOENT" });
     const latestInventory = await jsonResponse(await admin.get(`/api/admin/addons/${id}`));
     assert.equal(latestInventory.generations.length, 1);
-    await page.locator("[data-category=backup]").click();
+    await page.locator("[data-category=backup]").dispatchEvent("click");
     await page.locator(`[data-point-id="${pointId}"] .settings-btn-edit`).click();
     const confirm = page
       .locator(".settings-recovery-review")

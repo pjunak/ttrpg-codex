@@ -214,8 +214,9 @@ export async function exerciseSettings({
   assert.equal(await management.getAttribute("aria-selected"), "true");
   assert.equal(await management.evaluate((element) => element === document.activeElement), true);
   assert.equal(await dropdown.isVisible(), false);
-  page.once("dialog", (dialog) => dialog.dismiss());
-  await page.locator('[data-category="language"]').click();
+  const leaving = page.waitForEvent("dialog");
+  await page.locator('[data-category="language"]').dispatchEvent("click");
+  await (await leaving).dismiss();
   try {
     assert.equal(await tab.count(), 1, "category navigation respects drafts in hidden tabs");
   } catch (cause) {
@@ -274,7 +275,7 @@ export async function exerciseSettings({
   await view.getByLabel("Saved option").fill("Durable option");
   await view.getByRole("button", { name: "Save option", exact: true }).click();
   await view.getByText("Saving option", { exact: true }).waitFor();
-  await page.locator('[data-category="language"]').click();
+  await page.locator('[data-category="language"]').dispatchEvent("click");
   assert.equal(await dropdown.count(), 1);
   await management.click();
   await row.getByRole("button", { name: "More actions", exact: true }).click();
@@ -318,9 +319,9 @@ export async function exerciseSettings({
     JSON.parse((await playerView.getByLabel("Settings context").textContent())!).role,
     "player",
   );
-  await player.locator('[data-category="language"]').click();
+  await player.locator('[data-category="language"]').dispatchEvent("click");
   await player.locator(".settings-preference-field select").selectOption("cs");
-  await player.locator('[data-category="addons"]').click();
+  await player.goBack();
   // A single add-on settings page needs no tab strip.
   await player.locator("#addon-settings-panel h3").getByText(id, { exact: true }).waitFor();
   assert.equal(await player.getByRole("tab", { name: id, exact: true }).count(), 0);
@@ -332,18 +333,19 @@ export async function exerciseSettings({
     JSON.parse((await playerView.getByLabel("Settings context").textContent())!).locale,
     "cs",
   );
-  await player.locator('[data-category="language"]').click();
+  await player.locator('[data-category="language"]').dispatchEvent("click");
   await player.locator(".settings-preference-field select").selectOption("en");
-  await player.locator('[data-category="addons"]').click();
+  await player.goBack();
 
   await view.getByLabel("Saved option").fill("Retired generation draft");
   await install("1.0.1");
   await view.getByRole("heading", { name: "Shared preferences 1.0.1", exact: true }).waitFor();
   await view.getByText("Options ready", { exact: true }).waitFor();
   assert.equal(await view.getByLabel("Saved option").inputValue(), "Durable option");
-  await page.locator('[data-category="language"]').click();
+  await page.locator('[data-category="language"]').dispatchEvent("click");
   await dropdown.waitFor({ state: "detached" });
-  await page.locator('[data-category="addons"]').click();
+  // Back returns to this add-on's settings tab.
+  await page.goBack();
   await view.getByText("Options ready", { exact: true }).waitFor();
   await disable();
   await tab.waitFor({ state: "detached" });

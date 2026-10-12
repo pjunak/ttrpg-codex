@@ -189,7 +189,6 @@ export async function exerciseDisable({
     404,
   );
   await page.reload();
-  await page.locator('[data-category="addons"]').click();
   await row.getByText(mobile ? "Vypnuto" : "Disabled", { exact: true }).waitFor();
   await installDmPackage(admin, csrf, { id, live: true });
   const retained = await jsonResponse(

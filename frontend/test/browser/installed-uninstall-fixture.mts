@@ -166,7 +166,6 @@ export async function exerciseUninstall({
     false,
   );
   await page.reload();
-  await page.locator('[data-category="addons"]').click();
   await manager.locator('.addon-manager[aria-busy="false"]').waitFor();
   assert.equal(await row.count(), 0);
   // Reinstallation validates and exposes retained records through the real data owner.
@@ -201,7 +200,6 @@ export async function exerciseUninstall({
     if (language === "cs") {
       await page.evaluate(() => localStorage.setItem("codex_lang", "cs"));
       await page.reload();
-      await page.locator('[data-category="addons"]').click();
     }
     await row.locator(".addon-row-details > summary").click();
     await row
@@ -237,7 +235,6 @@ export async function exerciseUninstall({
   }
   await page.evaluate(() => localStorage.setItem("codex_lang", "en"));
   await page.reload();
-  await page.locator('[data-category="addons"]').click();
   await installDmPackage(admin, csrf, { id, live: true });
   const retained = await jsonResponse(
     await admin.post(`${data}/query`, {
@@ -255,7 +252,6 @@ export async function exerciseUninstall({
   await manager.getByRole("button", { name: "Check for updates", exact: true }).click();
   await page.evaluate(() => localStorage.setItem("codex_lang", "cs"));
   await page.reload();
-  await page.locator('[data-category="addons"]').click();
   await row.getByRole("button", { name: "Další akce", exact: true }).click();
   await page.getByRole("menuitem", { name: /Odinstalovat/u }).click();
   await review

@@ -38,6 +38,7 @@ import type { BrowserNavigationEntry } from "../addons/navigation.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { AddonContributionsController } from "./addon-contributions-controller.js";
+import { mapSettingsHash, settingsHash, type SettingsSlug } from "./routes.js";
 
 type SettingsCategory =
   | "language"
@@ -49,6 +50,33 @@ type SettingsCategory =
   | "account"
   | "backup"
   | CampaignEnumCategory;
+
+const categorySlugs: Record<Exclude<SettingsCategory, "addons" | "maps">, SettingsSlug> = {
+  language: "language",
+  appearance: "appearance",
+  playerParty: "party",
+  sidebar: "sidebar",
+  relationshipTypes: "relationships",
+  genders: "genders",
+  pinTypes: "map-markers",
+  characterStatuses: "character-statuses",
+  eventPriorities: "event-priorities",
+  attitudes: "attitudes",
+  account: "access",
+  backup: "backup",
+};
+
+function categoryHash(category: SettingsCategory): string {
+  if (category === "addons") return "#/settings/addons";
+  if (category === "maps") return mapSettingsHash(null);
+  return settingsHash(categorySlugs[category]);
+}
+
+function slugCategory(slug: SettingsSlug): SettingsCategory {
+  return (Object.keys(categorySlugs) as (keyof typeof categorySlugs)[]).find(
+    (category) => categorySlugs[category] === slug,
+  )!;
+}
 
 export class CodexSettings extends LitElement {
   static override properties = {
@@ -65,6 +93,7 @@ export class CodexSettings extends LitElement {
     registry: { attribute: false },
     actorRole: { attribute: false },
     addonTarget: { attribute: false },
+    category: { attribute: false },
   };
 
   declare campaign: CampaignDataset | undefined;
@@ -80,6 +109,8 @@ export class CodexSettings extends LitElement {
   declare registry: BrowserContributionRegistry | undefined;
   declare actorRole: BrowserRole | undefined;
   declare addonTarget: string | null | undefined;
+  /** The category named by the route; maps and add-ons use their own route targets. */
+  declare category: SettingsSlug | undefined;
   readonly #contributions = new AddonContributionsController(this, () => ({
     registry: this.registry,
     role: this.actorRole,
@@ -109,14 +140,28 @@ export class CodexSettings extends LitElement {
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
     if (
-      (changed.has("mapTarget") || changed.has("canManageCampaign")) &&
-      this.mapTarget !== undefined &&
-      this.canManageCampaign
+      changed.has("category") ||
+      changed.has("mapTarget") ||
+      changed.has("addonTarget") ||
+      changed.has("canManageCampaign")
     ) {
-      this.activeCategory = "maps";
+      const requested: SettingsCategory =
+        this.mapTarget !== undefined && this.canManageCampaign
+          ? "maps"
+          : this.addonTarget !== undefined
+            ? "addons"
+            : this.category !== undefined
+              ? slugCategory(this.category)
+              : "language";
+      const next = this.#visibleCategory(requested) ? requested : "language";
+      if (next !== this.activeCategory) {
+        this.activeCategory = next;
+        this.#editCampaign = next === "appearance" ? this.campaign : undefined;
+        this.editingId = null;
+        this.deleteId = null;
+        this.#setDirty(false);
+      }
     }
-    if (changed.has("addonTarget") && this.addonTarget !== undefined)
-      this.activeCategory = "addons";
     if (
       changed.has("canManageCampaign") &&
       !this.canManageCampaign &&
@@ -309,13 +354,17 @@ export class CodexSettings extends LitElement {
       vocabulary: "settings.groupVocabulary",
       system: "settings.groupSystem",
     } as const;
+    const busy = this.saving || this.#credentialsSaving;
+    const detail =
+      this.category !== undefined || this.addonTarget !== undefined || this.mapTarget !== undefined;
     return html`
-      <section class="settings-page">
+      <section class=${`settings-page ${detail ? "is-detail" : "is-index"}`}>
         <header class="settings-page-heading">
           <p class="page-kicker">${this.#ui.t("settings.kicker")}</p>
           <h1>${this.#ui.t("settings.title")}</h1>
           <p>${this.#ui.t("settings.intro")}</p>
         </header>
+        <a class="settings-back" href="#/settings">← ${this.#ui.t("settings.allSettings")}</a>
         <div class="settings-workspace">
           <nav class="settings-index" aria-label=${this.#ui.t("settings.categories")}>
             ${groups.map(
@@ -323,12 +372,15 @@ export class CodexSettings extends LitElement {
               ${groups.length > 1 ? html`<p class="settings-index-group" aria-hidden="true">${this.#ui.t(groupLabels[group])}</p>` : nothing}
               ${items.map(
                 (category) => html`
-                <button type="button" data-category=${category.id}
+                <a href=${categoryHash(category.id)} data-category=${category.id}
                   aria-current=${category.id === this.activeCategory ? "page" : nothing}
-                  @click=${this.#selectCategory} ?disabled=${this.saving || this.#credentialsSaving}>
+                  aria-disabled=${busy ? "true" : nothing}
+                  @click=${(event: Event) => {
+                    if (busy) event.preventDefault();
+                  }}>
                   <span aria-hidden="true">${category.icon}</span>
                   <span>${category.label}</span>
-                </button>
+                </a>
               `,
               )}`,
             )}
@@ -572,22 +624,6 @@ export class CodexSettings extends LitElement {
         }
       </section>`;
   }
-
-  readonly #selectCategory = (event: Event): void => {
-    const category = (event.currentTarget as HTMLButtonElement).dataset["category"] as
-      SettingsCategory | undefined;
-    if (
-      category === undefined ||
-      category === this.activeCategory ||
-      !this.#visibleCategory(category) ||
-      !this.#confirmDiscard()
-    )
-      return;
-    this.activeCategory = category;
-    this.#editCampaign = category === "appearance" ? this.campaign : undefined;
-    this.editingId = null;
-    this.deleteId = null;
-  };
 
   readonly #startCreate = (): void => {
     if (this.saving || this.editingId !== null) return;

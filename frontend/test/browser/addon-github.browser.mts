@@ -414,7 +414,6 @@ for (const mobile of [false, true])
     await reviewPanel.getByRole("button", { name: "Cancel review" }).click();
     assert.equal(active, target);
     await page.reload();
-    await page.locator('[data-category="addons"]').click();
     await sourceRow.waitFor();
     const tokensPanel = manager.locator(".github-tokens");
     await tokensPanel.locator(":scope > summary").click();
@@ -430,7 +429,6 @@ for (const mobile of [false, true])
     await manager.screenshot({ path: `${output}/${mobile ? "phone" : "desktop"}.png` });
     await page.evaluate(() => localStorage.setItem("codex_lang", "cs"));
     await page.reload();
-    await page.locator('[data-category="addons"]').click();
     await manager.getByRole("button", { name: "Zkontrolovat aktualizace", exact: true }).waitFor();
     await sourceRow.locator(":scope > details > summary").click();
     await sourceRow.getByRole("button", { name: "Odpojit repozitář", exact: true }).click();

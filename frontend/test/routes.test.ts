@@ -8,6 +8,7 @@ import {
   locationMapHash,
   mapSettingsHash,
   addonSettingsHash,
+  settingsHash,
 } from "../src/app/routes.js";
 
 describe("application routes", () => {
@@ -71,6 +72,11 @@ describe("application routes", () => {
     });
     expect(parseAppRoute("#/characters/new")).toMatchObject({ kind: "record", key: "new" });
     expect(parseAppRoute("#/settings")).toEqual({ kind: "settings" });
+    expect(parseAppRoute(settingsHash("map-markers"))).toEqual({
+      kind: "settings",
+      category: "map-markers",
+    });
+    expect(parseAppRoute("#/settings/unknown").kind).toBe("not-found");
     expect(parseAppRoute("#/dm")).toEqual({ kind: "dm" });
     expect(parseAppRoute("#/map/world")).toEqual({ kind: "map", parentId: null });
     expect(parseAppRoute("#/map/local/gate%2Fupper")).toEqual({

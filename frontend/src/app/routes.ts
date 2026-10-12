@@ -54,6 +54,7 @@ export type AppRoute =
     }
   | {
       readonly kind: "settings";
+      readonly category?: SettingsSlug;
       readonly mapParentId?: string | null;
       readonly addonId?: string | null;
     }
@@ -177,6 +178,8 @@ export function parseAppRoute(hash: string): AppRoute {
   if (hash === "#/settings") {
     return { kind: "settings" };
   }
+  const settingsCategory = /^#\/settings\/([a-z-]+)$/u.exec(hash)?.[1];
+  if (isSettingsSlug(settingsCategory)) return { kind: "settings", category: settingsCategory };
   if (hash === "#/settings/addons") return { kind: "settings", addonId: null };
   const addonSettings = /^#\/settings\/addons\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)$/u.exec(hash);
   if (addonSettings && addonSettings[1]!.length <= 100)
@@ -238,6 +241,29 @@ export function parseAppRoute(hash: string): AppRoute {
   } catch {
     return { kind: "not-found", path };
   }
+}
+
+/** URL names of the settings categories that have no route of their own. */
+export const settingsSlugs = [
+  "language",
+  "appearance",
+  "party",
+  "sidebar",
+  "relationships",
+  "genders",
+  "map-markers",
+  "character-statuses",
+  "event-priorities",
+  "attitudes",
+  "access",
+  "backup",
+] as const;
+export type SettingsSlug = (typeof settingsSlugs)[number];
+function isSettingsSlug(value: string | undefined): value is SettingsSlug {
+  return settingsSlugs.includes(value as SettingsSlug);
+}
+export function settingsHash(category: SettingsSlug): string {
+  return `#/settings/${category}`;
 }
 
 export function addonSettingsHash(addonId: string): string {

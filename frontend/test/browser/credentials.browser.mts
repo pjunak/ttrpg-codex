@@ -145,7 +145,12 @@ async function open(t: TestContext, mobile = false, password: string | null = dm
   page.setDefaultTimeout(12_000);
   await page.goto("/#/settings");
   await page.locator(".settings-page").waitFor();
-  if (mobile) await page.locator(".settings-preference-field select").selectOption("cs");
+  if (mobile) {
+    // Phones open settings as a category list.
+    await page.locator("[data-category=language]").click();
+    await page.locator(".settings-preference-field select").selectOption("cs");
+    await page.locator(".settings-back").click();
+  }
   return { page, context };
 }
 const form = (page: Page, role: string) =>
@@ -237,7 +242,7 @@ void test("password writes block navigation and uncertain outcomes retain the re
   await page.evaluate(() => {
     location.hash = "#/dashboard";
   });
-  await page.waitForURL("**/#/settings");
+  await page.waitForURL("**/#/settings/access");
   release();
   await page.getByRole("alert").filter({ hasText: "Could not confirm" }).waitFor();
   dmPassword = "rotated-local-dm";
@@ -372,7 +377,7 @@ for (const mobile of [false, true]) {
       ["", "", ""],
     );
     assert.equal(await unloadBlocked(page), false);
-    await page.locator("[data-category=language]").click();
+    await page.locator("[data-category=language]").dispatchEvent("click");
     await page.locator(".settings-personal-panel").waitFor();
   });
 }

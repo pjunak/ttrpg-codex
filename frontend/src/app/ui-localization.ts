@@ -509,6 +509,7 @@ const enCatalog = {
   "search.count": { one: "{n} entry found", other: "{n} entries found" },
   "settings.kicker": "Campaign administration",
   "settings.title": "Settings",
+  "settings.allSettings": "All settings",
   "settings.intro":
     "Choose your reading language and manage the campaign’s shared presentation and vocabulary.",
   "settings.categories": "Settings categories",
@@ -1099,6 +1100,7 @@ const csCatalog = {
   },
   "settings.kicker": "Správa kampaně",
   "settings.title": "Kniha nastavení",
+  "settings.allSettings": "Všechna nastavení",
   "settings.intro": "Vyber jazyk rozhraní a spravuj společný vzhled a pojmy kampaně.",
   "settings.categories": "Kategorie nastavení",
   "settings.groupPersonal": "Tento prohlížeč",

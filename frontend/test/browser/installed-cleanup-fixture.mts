@@ -106,7 +106,6 @@ export async function exercisePackageCleanup({
   for (const cs of [false, true]) {
     await page.evaluate((cs) => localStorage.setItem("codex_lang", cs ? "cs" : "en"), cs);
     await page.reload();
-    await page.locator('[data-category="addons"]').click();
     await manager.locator('.addon-manager[aria-busy="false"]').waitFor();
     assert.equal(
       await manager

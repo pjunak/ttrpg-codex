@@ -50,8 +50,14 @@ const fixture: EditorFixtureApi = {
   async mount(value: unknown, route?: string) {
     campaign = parseCampaignDataset(value);
     if (route === undefined) {
-      editor = new CodexSettings();
-      editor.canManageCampaign = true;
+      const settings = new CodexSettings();
+      settings.canManageCampaign = true;
+      // The app passes the routed category; category links change only the hash.
+      window.addEventListener("hashchange", () => {
+        const parsed = parseAppRoute(window.location.hash);
+        if (parsed.kind === "settings") settings.category = parsed.category;
+      });
+      editor = settings;
     } else {
       editor = new CodexRecordPage();
       editor.actorRole = "dm";

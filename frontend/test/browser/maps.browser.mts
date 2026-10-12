@@ -1090,8 +1090,9 @@ void test("map setting drafts survive live updates and protect category and map 
   const { page, writes } = await fixture(t);
   await page.goto(`${origin}/#/settings/maps`);
   await setScale(page, 0.6);
-  page.once("dialog", (dialog) => dialog.dismiss());
+  const leaving = page.waitForEvent("dialog");
   await page.locator('[data-category="appearance"]').click();
+  await (await leaving).dismiss();
   assert.equal(await page.locator('[data-category="maps"]').getAttribute("aria-current"), "page");
   page.once("dialog", (dialog) => dialog.dismiss());
   await page

@@ -221,8 +221,9 @@ async function fixture(
   }
   return { page, writes, uploads };
 }
+/** Phones hide the category list on a category page; its links still navigate. */
 async function openCategory(page: Page, category: string) {
-  await page.locator(`[data-category="${category}"]`).click();
+  await page.locator(`[data-category="${category}"]`).dispatchEvent("click");
 }
 async function saved(page: Page, key: string, revision: number) {
   await page.waitForFunction(
@@ -352,8 +353,9 @@ void test("branding drafts survive live refresh and category navigation, and the
   await page.getByRole("alert").filter({ hasText: "Branding changed" }).waitFor();
   assert.equal(await name.inputValue(), "Kept draft");
   assert.equal(writes.length, 0);
-  page.once("dialog", (dialog) => dialog.dismiss());
+  const leaving = page.waitForEvent("dialog");
   await openCategory(page, "sidebar");
+  await (await leaving).dismiss();
   assert.equal(await name.inputValue(), "Kept draft");
   page.once("dialog", (dialog) => dialog.accept());
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -430,8 +432,9 @@ void test("phone sidebar conflicts keep the draft and cancel reloads the current
   await page.getByRole("alert").filter({ hasText: "sidebar changed" }).waitFor();
   assert.equal(await name.inputValue(), "My layout");
   assert.equal(writes.length, 0);
-  page.once("dialog", (dialog) => dialog.dismiss());
+  const leaving = page.waitForEvent("dialog");
   await openCategory(page, "language");
+  await (await leaving).dismiss();
   assert.equal(await name.inputValue(), "My layout");
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.evaluate(() => scrollTo(0, 0));
@@ -439,6 +442,28 @@ void test("phone sidebar conflicts keep the draft and cancel reloads the current
   page.once("dialog", (dialog) => dialog.accept());
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal(await name.inputValue(), "Remote layout");
+});
+
+void test("settings categories are linkable, and phones open a category list with a way back", async (t) => {
+  const desktop = (await fixture(t)).page;
+  await desktop.goto(`${origin}/#/settings/map-markers`);
+  await desktop.locator('[data-category="pinTypes"][aria-current="page"]').waitFor();
+  const { page } = await fixture(t, { mobile: true });
+  const list = page.locator(".settings-index");
+  assert.equal(await list.isVisible(), true);
+  assert.equal(await page.locator(".settings-personal-panel").isVisible(), false);
+  await page.locator('[data-category="sidebar"]').click();
+  await page.waitForURL(/#\/settings\/sidebar$/u);
+  await page.locator("codex-sidebar-settings").waitFor();
+  assert.equal(await list.isVisible(), false);
+  await page.reload();
+  await page.locator("codex-sidebar-settings").waitFor();
+  await page.locator(".settings-back").click();
+  await page.waitForURL(/#\/settings$/u);
+  await list.waitFor();
+  await page.goBack();
+  await page.locator("codex-sidebar-settings").waitFor();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 });
 
 void test("add-on sidebar pages remain opt-in and hide without disabling their route", async (t) => {
