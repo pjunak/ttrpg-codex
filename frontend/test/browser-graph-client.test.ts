@@ -84,6 +84,14 @@ describe("parseBrowserGenerationSet", () => {
     expect(parsed.addons).not.toBe(graph.addons);
   });
 
+  it("keeps the optional manifest display name", () => {
+    const named = { ...graph, addons: [{ ...descriptor, addonName: "DM Tools" }] };
+    expect(parseBrowserGenerationSet(named).addons[0]?.addonName).toBe("DM Tools");
+    expect(() =>
+      parseBrowserGenerationSet({ ...graph, addons: [{ ...descriptor, addonName: 3 }] }),
+    ).toThrow(BoundaryValidationError);
+  });
+
   it.each([
     { ...graph, contractVersion: 1 },
     { ...graph, graphRevision: "not-a-digest" },

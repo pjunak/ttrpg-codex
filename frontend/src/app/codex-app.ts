@@ -924,11 +924,15 @@ export class CodexApp extends LitElement {
         this.#dmAddonHealth = [
           ...result.lifecycle.active.map((addon) => ({
             id: addon.addonId,
+            name: addon.addonName ?? "",
             version: addon.addonVersion,
             state: "ready" as const,
           })),
           ...result.lifecycle.activationFailures.map((failure) => ({
             id: failure.addonId,
+            name:
+              result.transport.graph.addons.find((addon) => addon.addonId === failure.addonId)
+                ?.addonName ?? "",
             version:
               result.transport.graph.addons.find((addon) => addon.addonId === failure.addonId)
                 ?.addonVersion ?? "",

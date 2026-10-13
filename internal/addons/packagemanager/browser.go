@@ -87,6 +87,7 @@ func (manager *Manager) browserGraphLocked(ctx context.Context) (BrowserGraph, e
 		}
 		generation := BrowserGeneration{
 			AddonID: state.AddonID, AddonVersion: active.generation.Version,
+			AddonName:     active.report.Manifest.Name,
 			GenerationID:  active.generation.GenerationID,
 			EntryURL:      browserAssetURL(state.AddonID, active.generation.GenerationID, ui.Entry),
 			StyleURLs:     make([]string, 0, len(ui.Styles)),

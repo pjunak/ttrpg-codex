@@ -50,6 +50,8 @@ export interface BrowserContributionDescriptor {
 export interface BrowserGenerationDescriptor {
   readonly addonId: string;
   readonly addonVersion: string;
+  /** The manifest display name; empty when the host did not send one. */
+  readonly addonName?: string;
   readonly generationId: string;
   readonly entryUrl: string;
   readonly styleUrls: readonly string[];
@@ -491,6 +493,9 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
     if (!validToken(input.addonVersion, 100)) {
       throw new BrowserGenerationPlanError(`invalid add-on version for ${input.addonId}`);
     }
+    if (input.addonName !== undefined && input.addonName.length > 100) {
+      throw new BrowserGenerationPlanError(`invalid add-on name for ${input.addonId}`);
+    }
     if (!validSameOriginPath(input.entryUrl) || !hasAssetExtension(input.entryUrl, ".js", ".mjs")) {
       throw new BrowserGenerationPlanError(`invalid entry URL for ${input.addonId}`);
     }
@@ -532,6 +537,7 @@ function normalizeGenerationSet(target: BrowserGenerationSet): NormalizedGenerat
     addons.set(input.addonId, {
       addonId: input.addonId,
       addonVersion: input.addonVersion,
+      ...(input.addonName ? { addonName: input.addonName } : {}),
       generationId: input.generationId,
       entryUrl: input.entryUrl,
       styleUrls,
@@ -589,6 +595,7 @@ function sameDescriptor(
   return (
     left.addonId === right.addonId &&
     left.addonVersion === right.addonVersion &&
+    left.addonName === right.addonName &&
     left.generationId === right.generationId &&
     left.entryUrl === right.entryUrl &&
     sameStrings(left.styleUrls, right.styleUrls) &&

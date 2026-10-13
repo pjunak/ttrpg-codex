@@ -18,6 +18,7 @@ const graphKeys = new Set(["contractVersion", "graphRevision", "addons"]);
 const descriptorKeys = new Set([
   "addonId",
   "addonVersion",
+  "addonName",
   "generationId",
   "mode",
   "entryUrl",
@@ -192,6 +193,10 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
   }
   const addonId = requiredString(value["addonId"], `${location}.addonId`);
   const addonVersion = requiredString(value["addonVersion"], `${location}.addonVersion`);
+  const addonName =
+    value["addonName"] === undefined
+      ? undefined
+      : requiredString(value["addonName"], `${location}.addonName`);
   const generationId = requiredString(value["generationId"], `${location}.generationId`);
   if (!isSha256(generationId)) {
     throw new BoundaryValidationError(
@@ -237,6 +242,7 @@ function parseDescriptor(value: unknown, index: number): BrowserGenerationDescri
   return {
     addonId,
     addonVersion,
+    ...(addonName === undefined ? {} : { addonName }),
     generationId,
     entryUrl,
     styleUrls,

@@ -939,6 +939,7 @@ func TestBrowserGraphProjectsRecoveredUIGenerationsAndChangesOnReload(t *testing
 		t.Fatalf("activation publications = %+v", publisher.publications)
 	}
 	if graph.Addons[0].AddonID != "character-sheets" ||
+		graph.Addons[0].AddonName != "character-sheets" ||
 		!reflect.DeepEqual(graph.Addons[0].Dependencies, []string{"rules-addon"}) {
 		t.Fatalf("consumer browser generation = %+v", graph.Addons[0])
 	}

@@ -189,6 +189,7 @@ type BrowserGraph struct {
 type BrowserGeneration struct {
 	AddonID       string                `json:"addonId"`
 	AddonVersion  string                `json:"addonVersion"`
+	AddonName     string                `json:"addonName,omitempty"`
 	GenerationID  string                `json:"generationId"`
 	EntryURL      string                `json:"entryUrl"`
 	StyleURLs     []string              `json:"styleUrls"`

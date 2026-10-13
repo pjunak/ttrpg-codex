@@ -10,6 +10,7 @@ import { UiLocalizationController, uiCollectionLabel } from "./ui-localization.j
 
 export interface DmAddonHealth {
   readonly id: string;
+  readonly name: string;
   readonly version: string;
   readonly state: "ready" | "blocked" | "failed";
 }
@@ -152,7 +153,7 @@ export class CodexDmDashboard extends LitElement {
             : html`
           <ul class="dm-addon-diagnostics">${this.health.map(
             (addon) => html`<li data-addon-health=${addon.id}>
-            <strong>${addon.id}</strong><span>${addon.version}</span><span class=${`dm-addon-state ${addon.state}`}>${this.#ui.t(`dm.state.${addon.state}`)}</span>
+            <strong>${addon.name || addon.id}</strong><span>${addon.version}</span><span class=${`dm-addon-state ${addon.state}`}>${this.#ui.t(`dm.state.${addon.state}`)}</span>
           </li>`,
           )}</ul>`
         }
