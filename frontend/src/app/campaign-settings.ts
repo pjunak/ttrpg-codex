@@ -1,6 +1,6 @@
 import { cssHexColor } from "./campaign-projection.js";
 import { isRecord } from "../core/boundary.js";
-import { uiSourceLabel } from "./ui-localization.js";
+import { uiSourceLabel, uiText } from "./ui-localization.js";
 import {
   campaignCollection,
   type CampaignCollectionName,
@@ -237,6 +237,157 @@ export function prepareCampaignEnumSave(
   const value = normalizedEnumValue(descriptor, id, detail.fields, existing);
   if (existingIndex < 0) values.push(value);
   else values[existingIndex] = value;
+  return Object.freeze({
+    operation: "put",
+    collection: "settings",
+    key: detail.category,
+    expectedRevision,
+    value: Object.freeze(values),
+  });
+}
+
+export interface CampaignEnumStarterDetail {
+  readonly category: CampaignEnumCategory;
+  readonly expectedRevision: number;
+}
+
+const relationship = (
+  id: string,
+  label: string,
+  color: string,
+  style: string,
+  dirs: readonly string[],
+  target = "character",
+) => ({ id, label, color, style, target, dirs });
+const marker = (id: string, label: string, size: number) => ({
+  id,
+  label,
+  defaultIconId: "",
+  size,
+});
+
+/**
+ * Suggested definitions for an empty category. Labels use the DM's interface
+ * language when added; IDs match the ones the host already understands.
+ */
+export function campaignEnumStarter(
+  category: CampaignEnumCategory,
+): readonly Readonly<Record<string, unknown>>[] {
+  switch (category) {
+    case "relationshipTypes":
+      return [
+        relationship("commands", uiText("commands"), "#c8a040", "solid", ["from", "to"]),
+        relationship("ally", uiText("ally"), "#4caf50", "solid", ["from", "to", "both"]),
+        relationship("enemy", uiText("enemy"), "#e05252", "solid", ["from", "to", "both"]),
+        relationship("negotiates", uiText("negotiates"), "#5aa0d6", "dashed", [
+          "from",
+          "to",
+          "both",
+        ]),
+        relationship("history", uiText("history"), "#9a8660", "dotted", ["from", "to", "both"]),
+        relationship("mystery", uiText("mystery"), "#9c4dcc", "dashed", ["from", "to", "both"]),
+        relationship("captured_by", uiText("captured by"), "#d08a3a", "dashed", ["from", "to"]),
+        relationship("uncertain", uiText("uncertain bond"), "#8a8a8a", "dotted", [
+          "from",
+          "to",
+          "both",
+        ]),
+        relationship("mission", uiText("mission"), "#6aa064", "dashed", ["from"], "location"),
+      ];
+    case "genders":
+      return [
+        { id: "female", label: uiText("Female") },
+        { id: "male", label: uiText("Male") },
+        { id: "nonbinary", label: uiText("Non-binary") },
+        { id: "unknown", label: uiText("Unknown") },
+      ];
+    case "pinTypes":
+      return [
+        marker("major_city", uiText("Major city"), 38),
+        marker("city", uiText("City"), 32),
+        marker("town", uiText("Town"), 28),
+        marker("village", uiText("Village"), 26),
+        marker("castle", uiText("Castle"), 36),
+        marker("fortress", uiText("Fortress"), 36),
+        marker("tower", uiText("Tower"), 26),
+        marker("temple", uiText("Temple"), 28),
+        marker("shrine", uiText("Shrine"), 26),
+        marker("tavern", uiText("Tavern"), 24),
+        marker("port", uiText("Port"), 30),
+        marker("camp", uiText("Camp"), 24),
+        marker("dungeon", uiText("Dungeon"), 28),
+        marker("cave", uiText("Cave"), 24),
+        marker("ruin", uiText("Ruin"), 26),
+        marker("landmark", uiText("Landmark"), 26),
+        marker("forest", uiText("Forest"), 26),
+        marker("mountain", uiText("Mountain"), 30),
+      ];
+    case "characterStatuses":
+      return [
+        { id: "alive", label: uiText("Alive"), icon: "●", color: "#4caf50" },
+        { id: "dead", label: uiText("Dead"), icon: "✝", color: "#b04040" },
+        { id: "missing", label: uiText("Missing"), icon: "?", color: "#d0a040" },
+        { id: "unknown", label: uiText("Unknown"), icon: "·", color: "#9a8660" },
+      ];
+    case "eventPriorities":
+      return [
+        { id: "low", label: uiText("Low"), color: "#6f8f6f" },
+        { id: "normal", label: uiText("Normal"), color: "#9a8660" },
+        { id: "high", label: uiText("High"), color: "#d0a040" },
+        { id: "critical", label: uiText("Critical"), color: "#e05252" },
+      ];
+    case "attitudes":
+      return [
+        {
+          id: "friendly",
+          label: uiText("Friendly"),
+          bg: "#2e7d32",
+          fg: "#ffffff",
+          labelColor: "#81c784",
+          strength: 0.6,
+        },
+        {
+          id: "neutral",
+          label: uiText("Neutral"),
+          bg: "#616161",
+          fg: "#ffffff",
+          labelColor: "#bdbdbd",
+          strength: 0.3,
+        },
+        {
+          id: "wary",
+          label: uiText("Wary"),
+          bg: "#b26a00",
+          fg: "#ffffff",
+          labelColor: "#ffb74d",
+          strength: 0.5,
+        },
+        {
+          id: "hostile",
+          label: uiText("Hostile"),
+          bg: "#b71c1c",
+          fg: "#ffffff",
+          labelColor: "#e57373",
+          strength: 0.7,
+        },
+      ];
+  }
+}
+
+/** Fills an empty category with its starter set as one reviewed write. */
+export function prepareCampaignEnumStarter(
+  campaign: CampaignDataset,
+  detail: CampaignEnumStarterDetail,
+): CampaignMutation {
+  const descriptor = campaignEnumDescriptor(detail.category);
+  const record = campaignEnumRecord(campaign, detail.category);
+  const expectedRevision = record?.revision ?? 0;
+  if (!Number.isSafeInteger(detail.expectedRevision)) throw invalidEdit();
+  if (detail.expectedRevision !== expectedRevision) throw staleEdit();
+  if (campaignEnumItems(campaign, detail.category).length > 0) throw staleEdit();
+  const values = campaignEnumStarter(detail.category).map((fields) =>
+    normalizedEnumValue(descriptor, boundedIdentity(fields["id"]), fields, {}),
+  );
   return Object.freeze({
     operation: "put",
     collection: "settings",

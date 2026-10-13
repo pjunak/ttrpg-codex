@@ -182,6 +182,10 @@ campaign's own IDs; do not invent new ones.
 | `attitudes[].id` | Attitudes |
 | Relationship `type` | Relationship types |
 
+An empty list in Settings offers a starter set that the DM can add and edit.
+Its IDs include `alive`, `dead`, `ally`, `enemy`, `city` and `hostile`, but a
+campaign may have changed or replaced them, so read the actual list.
+
 ## Planning in the same bundle
 
 Add one `addonImports` entry for DM Tools:

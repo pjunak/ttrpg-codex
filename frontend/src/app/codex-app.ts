@@ -73,7 +73,9 @@ import {
   CampaignSettingsEditError,
   prepareCampaignEnumDelete,
   prepareCampaignEnumSave,
+  prepareCampaignEnumStarter,
   type CampaignEnumSaveDetail,
+  type CampaignEnumStarterDetail,
 } from "./campaign-settings.js";
 import {
   confirmDiscardUnsavedEdit,
@@ -1495,6 +1497,7 @@ export class CodexApp extends LitElement {
           .editCompletion=${this.editCompletion}
           @campaign-edit-dirty=${this.#onEditDirty}
           @campaign-enum-save=${this.#saveCampaignEnum}
+          @campaign-enum-starter=${this.#addCampaignEnumStarter}
           @campaign-enum-delete=${this.#deleteCampaignEnum}
           @campaign-appearance-save=${this.#saveCampaignAppearance}
           @campaign-party-save=${this.#saveCampaignParty}
@@ -1999,6 +2002,24 @@ export class CodexApp extends LitElement {
           : cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? uiText("Settings changed while saving. Reload the current definition and try again.")
             : uiText("The definition could not be saved: {0}", { "0": errorMessage(cause) }),
+    );
+  };
+
+  readonly #addCampaignEnumStarter = async (
+    event: CustomEvent<CampaignEnumStarterDetail>,
+  ): Promise<void> => {
+    await this.#write(
+      event,
+      "manage",
+      async (campaign, csrfToken, signal) => {
+        const mutation = prepareCampaignEnumStarter(campaign, event.detail);
+        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
+      },
+      (cause) =>
+        (cause instanceof CampaignSettingsEditError && cause.kind === "stale") ||
+        (cause instanceof CampaignMutationHTTPError && cause.status === 409)
+          ? uiText("This category was filled elsewhere. Review the current entries.")
+          : uiText("The starter set could not be added: {0}", { "0": errorMessage(cause) }),
     );
   };
 

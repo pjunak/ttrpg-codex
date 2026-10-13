@@ -13,7 +13,9 @@ import {
 } from "../../src/app/campaign-record-editor.js";
 import {
   prepareCampaignEnumSave,
+  prepareCampaignEnumStarter,
   type CampaignEnumSaveDetail,
+  type CampaignEnumStarterDetail,
 } from "../../src/app/campaign-settings.js";
 import {
   prepareCampaignAppearanceSave,
@@ -131,6 +133,11 @@ const fixture: EditorFixtureApi = {
     });
     editor.addEventListener("campaign-enum-save", (event) =>
       submit(event, (detail: CampaignEnumSaveDetail) => prepareCampaignEnumSave(campaign, detail)),
+    );
+    editor.addEventListener("campaign-enum-starter", (event) =>
+      submit(event, (detail: CampaignEnumStarterDetail) =>
+        prepareCampaignEnumStarter(campaign, detail),
+      ),
     );
     editor.addEventListener("campaign-appearance-save", (event) =>
       submit(event, (detail: CampaignAppearanceSaveDetail) =>

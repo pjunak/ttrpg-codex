@@ -6,6 +6,7 @@ import {
   campaignEnumUsageCount,
   prepareCampaignEnumDelete,
   prepareCampaignEnumSave,
+  prepareCampaignEnumStarter,
 } from "../src/app/campaign-settings.js";
 import type {
   CampaignCollection,
@@ -23,6 +24,24 @@ describe("campaign settings", () => {
       "eventPriorities",
       "attitudes",
     ]);
+  });
+
+  it("offers a valid starter set only for an empty, current category", () => {
+    for (const { category } of campaignEnumDescriptors) {
+      const mutation = prepareCampaignEnumStarter(dataset({}), { category, expectedRevision: 0 });
+      const values = mutation.operation === "put" ? (mutation.value as { id: string }[]) : [];
+      expect(values.length).toBeGreaterThan(2);
+      expect(new Set(values.map(({ id }) => id)).size).toBe(values.length);
+    }
+    const genders = dataset({
+      settings: [{ key: "genders", revision: 2, value: [{ id: "custom", label: "Custom" }] }],
+    });
+    expect(() =>
+      prepareCampaignEnumStarter(genders, { category: "genders", expectedRevision: 2 }),
+    ).toThrow(/stale/);
+    expect(() =>
+      prepareCampaignEnumStarter(dataset({}), { category: "genders", expectedRevision: 1 }),
+    ).toThrow(/stale/);
   });
 
   it("updates a definition without changing its ID or extension fields", () => {

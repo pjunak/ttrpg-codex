@@ -998,6 +998,19 @@ void test("enum drafts retain values and revisions, including remote removal", a
   assert.equal(await page.locator('[name="label"]').inputValue(), "My label");
 });
 
+void test("an empty vocabulary offers a starter set saved as one write", async (t) => {
+  const page = await fixture(t, dataset({}));
+  await page.locator('[data-category="genders"]').click();
+  await page.getByRole("button", { name: "Add a starter set", exact: true }).click();
+  const result = required(await submission(page));
+  assert.equal(result.error, undefined);
+  assert.equal(result.detail.expectedRevision, 0);
+  assert.deepEqual(
+    (result.mutation as unknown as { value: { id: string }[] }).value.map(({ id }) => id),
+    ["female", "male", "nonbinary", "unknown"],
+  );
+});
+
 void test("theme choices save immediately against the current appearance revision", async (t) => {
   const page = await fixture(t, dataset({ settings: [appearance()] }));
   await page.locator('[data-category="appearance"]').click();

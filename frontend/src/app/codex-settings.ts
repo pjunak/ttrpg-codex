@@ -13,10 +13,12 @@ import {
   campaignEnumDescriptors,
   campaignEnumItems,
   campaignEnumRecord,
+  campaignEnumStarter,
   campaignEnumUsageCount,
   CampaignSettingsEditError,
   type CampaignEnumItem,
   type CampaignEnumSaveDetail,
+  type CampaignEnumStarterDetail,
   type CampaignSettingField,
 } from "./campaign-settings.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
@@ -266,7 +268,11 @@ export class CodexSettings extends LitElement {
         ${this.editingId === "__new__" ? this.#editForm(undefined, record?.revision ?? 0) : nothing}
         ${
           items.length === 0 && this.editingId !== "__new__"
-            ? html`<p class="settings-empty">${uiText("No {0} are defined yet.", { "0": descriptor.label.toLocaleLowerCase() })}</p>`
+            ? html`<div class="settings-empty">
+                <p>${uiText("No {0} are defined yet.", { "0": descriptor.label.toLocaleLowerCase() })}</p>
+                <p class="settings-hint">${uiText("Adds {0} common entries that you can edit or delete afterwards.", { "0": campaignEnumStarter(descriptor.category).length })}</p>
+                <button type="button" ?disabled=${this.saving} @click=${(event: Event) => this.#addStarter(descriptor.category, record?.revision ?? 0, event.currentTarget as HTMLElement)}>${uiText("Add a starter set")}</button>
+              </div>`
             : html`<div class="settings-definition-list">
               ${items.map((item) =>
                 this.editingId === item.id
@@ -741,6 +747,17 @@ export class CodexSettings extends LitElement {
     const locale = (event.currentTarget as HTMLSelectElement).value;
     if (locale === "en" || locale === "cs") this.#ui.setLocale(locale);
   };
+
+  #addStarter(category: CampaignEnumCategory, expectedRevision: number, source: HTMLElement): void {
+    if (this.saving || !this.canManageCampaign) return;
+    source.dispatchEvent(
+      new CustomEvent<CampaignEnumStarterDetail>("campaign-enum-starter", {
+        detail: Object.freeze({ category, expectedRevision }),
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
 
   /** A theme is a reversible shared choice, so it saves as soon as it is picked. */
   #applyTheme(theme: CampaignThemeID, source: HTMLElement): void {
