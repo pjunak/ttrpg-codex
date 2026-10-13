@@ -560,7 +560,10 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
         await view.evaluate(() => localStorage.setItem("codex_lang", "cs"));
         await view.reload();
         await view.getByRole("heading", { name: "Plánování kampaně", exact: true }).waitFor();
-        await view.getByRole("link", { name: /Plánovač příběhu/ }).waitFor();
+        await view
+          .locator(".dm-tools-dashboard")
+          .getByRole("link", { name: /Plánovač příběhu/ })
+          .waitFor();
       }
     }
     await recent.click();
