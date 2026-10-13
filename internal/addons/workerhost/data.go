@@ -584,7 +584,11 @@ func decodeExact[T any](body json.RawMessage) (T, error) {
 }
 
 func dataError(err error) error {
+	var deleted *addondatastore.DeletedError
 	switch {
+	case errors.As(err, &deleted):
+		return workerrpc.NewRPCError(workerrpc.JSONRPCApplication, workerrpc.KindNotFound,
+			"The add-on document was deleted.", false, map[string]int64{"deletedRevision": deleted.Revision})
 	case errors.Is(err, addondata.ErrUnauthorized):
 		return workerrpc.NewRPCError(workerrpc.JSONRPCApplication, workerrpc.KindUnauthorized,
 			"The worker is not allowed to access this add-on data.", false, nil)

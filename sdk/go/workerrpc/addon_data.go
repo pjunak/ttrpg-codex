@@ -125,6 +125,22 @@ func (client *AddonDataClient) Get(
 	}, nil
 }
 
+// DeletedRevision reads the tombstone revision from a Get NOT_FOUND error. A
+// deleted key is recreated by a put expecting this revision, not zero.
+func DeletedRevision(err error) (int64, bool) {
+	var failure *RPCError
+	if !errors.As(err, &failure) || failure.Data == nil || failure.Data.Kind != KindNotFound || len(failure.Data.Details) == 0 {
+		return 0, false
+	}
+	var details struct {
+		DeletedRevision int64 `json:"deletedRevision"`
+	}
+	if json.Unmarshal(failure.Data.Details, &details) != nil || details.DeletedRevision < 1 {
+		return 0, false
+	}
+	return details.DeletedRevision, true
+}
+
 func (client *AddonDataClient) Query(
 	ctx context.Context,
 	meta *Meta,

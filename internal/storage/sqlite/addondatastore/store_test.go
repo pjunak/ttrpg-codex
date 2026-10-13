@@ -112,6 +112,13 @@ func TestStoreKeepsTombstoneRevisionAndStableOrdering(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	var deleted *DeletedError
+	if _, err := store.Get(ctx, "dm-tools", datacontract.Collection, "notes", "first"); !errors.Is(err, ErrNotFound) || !errors.As(err, &deleted) || deleted.Revision != 2 {
+		t.Fatalf("deleted document read = %v", err)
+	}
+	if _, err := store.Get(ctx, "dm-tools", datacontract.Collection, "notes", "never"); err != ErrNotFound {
+		t.Fatalf("never-written document read = %v", err)
+	}
 	if _, err := store.Transact(ctx, Transaction{
 		AddonID: "dm-tools", GenerationID: testGeneration, ActorID: "worker:dm-tools",
 		Mutations: []Mutation{{Kind: Put, Definition: definition, Key: "first", Value: json.RawMessage(`{"id":"first","restored":true}`), ExpectedRevision: 2, Audience: events.AudiencePublic}},

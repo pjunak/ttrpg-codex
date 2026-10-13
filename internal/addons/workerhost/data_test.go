@@ -149,6 +149,30 @@ func TestWorkerDataMethodsMapSafeApplicationFailures(t *testing.T) {
 	}
 }
 
+func TestWorkerDataGetReportsDeletedRevision(t *testing.T) {
+	t.Parallel()
+	dispatcher := testDispatcher(t, &dataStub{err: &addondatastore.DeletedError{Revision: 30}}, "dm")
+	_, err := dispatcher.HandleRPC(context.Background(), rpcRequest("host/data.get", `{
+		"contractVersion":"host-data-get.v1","kind":"collection","dataId":"notes","key":"n1"
+	}`))
+	assertRPCError(t, err, workerrpc.KindNotFound)
+	// The worker receives the error as JSON, so check the decoded form.
+	body, marshalErr := json.Marshal(err)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	var received workerrpc.RPCError
+	if unmarshalErr := json.Unmarshal(body, &received); unmarshalErr != nil {
+		t.Fatal(unmarshalErr)
+	}
+	if revision, ok := workerrpc.DeletedRevision(&received); !ok || revision != 30 {
+		t.Fatalf("deleted revision = %d, %v; error %s", revision, ok, body)
+	}
+	if _, ok := workerrpc.DeletedRevision(workerrpc.NewRPCError(workerrpc.JSONRPCApplication, workerrpc.KindNotFound, "missing", false, nil)); ok {
+		t.Fatal("a never-written key reported a deleted revision")
+	}
+}
+
 type dataStub struct {
 	calls       int
 	access      addondata.Access

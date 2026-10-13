@@ -174,6 +174,13 @@ func (store *Store) Get(
 		return Document{}, err
 	}
 	if !found {
+		revision, deleted, versionFound, err := readDocumentVersion(ctx, store.database, addonID, kind, dataID, key)
+		if err != nil {
+			return Document{}, err
+		}
+		if versionFound && deleted {
+			return Document{}, &DeletedError{Revision: revision}
+		}
 		return Document{}, ErrNotFound
 	}
 	return document, nil
@@ -523,6 +530,18 @@ func (err *ConflictError) Error() string {
 }
 
 func (err *ConflictError) Unwrap() error { return ErrConflict }
+
+// DeletedError is a missing document whose key keeps a tombstone. Recreating it
+// must expect Revision, so a writer that never saw the deletion still conflicts.
+type DeletedError struct {
+	Revision int64
+}
+
+func (err *DeletedError) Error() string {
+	return fmt.Sprintf("add-on document was deleted at revision %d", err.Revision)
+}
+
+func (err *DeletedError) Unwrap() error { return ErrNotFound }
 
 func prepareTransaction(input Transaction) ([]preparedMutation, error) {
 	if !addonv3.ValidAddonID(input.AddonID) || !validGenerationID(input.GenerationID) ||

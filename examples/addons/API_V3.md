@@ -1190,6 +1190,11 @@ invented actor or generation metadata is rejected. Go workers can use
 `workerrpc.NewAddonDataClient(peer)` instead of constructing these envelopes
 by hand.
 
+A `host/data.get` for a deleted key fails with `NOT_FOUND` whose
+`data.details` is `{"deletedRevision": N}`. Revisions never restart, so a put
+that recreates the key must expect `N`; a key that never existed expects `0`.
+Go workers read it with `workerrpc.DeletedRevision(err)`.
+
 `host/service.call` accepts only service handles that the package manager bound
 to the exact worker generation. Omitting `providerAddonId` is valid when the
 contract resolves to one handle; a cardinality-many consumer supplies it to

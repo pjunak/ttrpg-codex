@@ -25,7 +25,7 @@ consistency; there is no per-document history.
 | Keep writes understandable | A transaction contains at most 256 operations, 256 KiB per document, and 2 MiB total JSON. Optimistic document revisions fail the whole transaction on conflict. |
 | Preserve meaningful ordering | First insertion receives a stable position. Updates retain it; a delete followed by recreation appends as a new item. |
 | Keep browsing bounded | Queries return at most 200 documents, scan at most 10,000 candidates, and stop before their JSON values exceed 1.5 MiB. Opaque cursors use monotonically allocated positions that are never reused after deletion. Predicates are exact matches on declared JSON-pointer indexes only. |
-| Retain delete history | Document-version tombstones keep revisions monotonic, so a stale writer cannot recreate deleted data at revision zero. |
+| Retain delete history | Document-version tombstones keep revisions monotonic, so a stale writer cannot recreate deleted data at revision zero. A worker read of a deleted key reports the tombstone revision that a recreating put must expect. |
 | Avoid leaking record contents through events | Durable `addon-data-changed` events contain only scope and revision. Public, DM, and system audiences are derived by the host. |
 | Keep `private` truly internal | Public data is visible to all authenticated roles, DM data to DM/system, and private data only to system/worker authority. |
 | Keep list collection identity stable | A non-keyed collection document must be a JSON object whose `id` exactly equals its outer document key. Keyed collections may use any value accepted by their schema. |
