@@ -1065,6 +1065,8 @@ export class CodexApp extends LitElement {
         root: routeRoot,
         registry: composition.contributions,
         surface: "route",
+        // Add-on pages carry their own title; the sidebar already names their add-on.
+        compact: true,
         role: auth.role,
         include: (active) =>
           browserAddonRouteHash(active) ===
