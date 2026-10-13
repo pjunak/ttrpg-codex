@@ -384,26 +384,6 @@ codex-inline-field .inline-edit-actions button:hover:enabled,
   color: var(--color-danger);
   font-size: var(--text-xs);
 }
-codex-inline-field .inline-edit-button,
-.direct-character .inline-edit-button {
-  display: inline-grid;
-  place-items: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  margin-inline-start: 0.25rem;
-  padding: 0;
-  vertical-align: middle;
-  border: 1px solid transparent;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-codex-inline-field .inline-edit-button:hover,
-.direct-character .inline-edit-button:hover {
-  border-color: rgba(var(--accent-gold-rgb), 0.35);
-  color: var(--accent-gold);
-}
 .direct-character .character-section-heading {
   justify-content: flex-start;
   gap: 0.3rem;
@@ -443,9 +423,7 @@ codex-inline-field .inline-edit-button:hover,
 }
 @media (pointer: coarse) {
   codex-inline-field .inline-edit-actions button,
-  .direct-character .inline-edit-actions button,
-  codex-inline-field .inline-edit-button,
-  .direct-character .inline-edit-button {
+  .direct-character .inline-edit-actions button {
     width: 2.5rem;
     height: 2.5rem;
   }

@@ -18,6 +18,7 @@ import {
   type CampaignIdentitySaveDetail,
 } from "./campaign-identity.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
+import { pencilIcon } from "./edit-icon.js";
 
 export class CodexDashboard extends LitElement {
   static override properties = {
@@ -117,10 +118,10 @@ export class CodexDashboard extends LitElement {
       : html`
       <div class="campaign-identity-row">
         ${text}
-        <button class="campaign-identity-pen" type="button" aria-label=${label}
+        <button class="campaign-identity-pen inline-edit-button" type="button" aria-label=${label}
           title=${this.authenticated && !this.canManageCampaign ? this.#ui.t("dashboard.dmIdentity") : label}
           ?disabled=${this.saving || this.editing !== undefined || (this.authenticated && !this.canManageCampaign)}
-          @click=${() => this.#startIdentity(field, value)}>✏</button>
+          @click=${() => this.#startIdentity(field, value)}>${pencilIcon()}</button>
       </div>`;
   }
 

@@ -122,13 +122,12 @@ function classicDesign(viewport: "desktop" | "mobile"): Record<string, Record<st
       "text-align": "center",
     },
     ".campaign-identity-pen": {
-      width: "26px",
-      height: "26px",
+      width: "25.5938px",
+      height: "25.5938px",
       "border-radius": "50%",
-      "font-size": "12px",
-      color: "rgb(139, 105, 20)",
-      opacity: "0.45",
-      "border-top-color": "rgba(200, 160, 64, 0.25)",
+      color: "rgb(154, 134, 96)",
+      opacity: "1",
+      "border-top-color": "rgba(0, 0, 0, 0)",
     },
     ".party-add": {
       padding: "4px 9.6px",

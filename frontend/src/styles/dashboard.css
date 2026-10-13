@@ -49,34 +49,6 @@ codex-dashboard {
 .campaign-identity-row > :first-child {
   min-width: 0;
 }
-.campaign-identity-pen {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background: transparent;
-  border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
-  color: var(--accent-gold-dim);
-  font-size: 0.75rem;
-  opacity: 0.45;
-  cursor: pointer;
-  transition:
-    opacity 0.15s,
-    background 0.15s,
-    border-color 0.15s,
-    color 0.15s;
-}
-.campaign-identity-row:hover .campaign-identity-pen:not(:disabled),
-.campaign-identity-pen:focus-visible {
-  opacity: 1;
-  background: rgba(var(--accent-gold-rgb), 0.1);
-  border-color: var(--gold);
-  color: var(--gold);
-}
 .campaign-identity-form input {
   display: block;
   width: 100%;
