@@ -666,8 +666,9 @@ campaign-relationship-editor {
 }
 
 .record-editor-actions {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.6rem;
   margin-top: 1.4rem;
   padding-top: 1rem;
@@ -1225,8 +1226,8 @@ campaign-relationship-editor {
   .record-editor .wide-field {
     grid-column: 1;
   }
-  .record-editor-actions {
-    grid-template-columns: 1fr 1fr;
+  .record-editor-actions > button {
+    flex: 1 1 0;
   }
   .record-editor-actions > span {
     display: none;
@@ -1610,7 +1611,9 @@ campaign-relationship-editor {
 .record-facts:empty {
   display: none;
 }
+/* The status takes the free space, so the buttons keep their size with or without Delete. */
 .record-form-status {
+  flex: 1 1 12rem;
   font: 0.8rem/1.5 var(--font-ui);
   color: var(--text-muted);
   overflow-wrap: anywhere;
@@ -1622,13 +1625,46 @@ campaign-relationship-editor {
   font: 0.85rem/1.5 var(--font-ui);
   color: var(--text-parchment);
 }
+/* A save confirmation floats over the page and fades, so it never pushes the
+   record down or lingers beside the record's own saved state. */
+.record-save-toast {
+  position: fixed;
+  z-index: 150;
+  inset-block-end: 1.5rem;
+  inset-inline-end: 1.5rem;
+  max-width: min(24rem, calc(100vw - 2rem));
+  margin: 0;
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  animation: record-save-toast 5s ease-in forwards;
+}
+@keyframes record-save-toast {
+  0%,
+  85% {
+    opacity: 1;
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .record-save-toast {
+    animation-timing-function: step-end;
+  }
+}
+@media (max-width: 768px) {
+  .record-save-toast {
+    inset-inline: 1rem;
+    inset-block-end: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 0.75rem);
+  }
+}
 .investigation-jump {
   margin-bottom: 1rem;
 }
 @media (max-width: 700px) {
-  .record-form-status {
-    grid-column: 1 / -1;
-  }
   .record-ledger {
     grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   }

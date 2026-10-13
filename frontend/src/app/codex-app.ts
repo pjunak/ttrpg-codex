@@ -404,7 +404,7 @@ export class CodexApp extends LitElement {
             </p>
           `
           }
-          ${this.recordSaveState === "saved" && this.#canEdit() ? html`<p class="record-save-confirmation" role="status">${uiText("save.entrySaved")}</p>` : nothing}
+          ${this.recordSaveState === "saved" && this.#canEdit() ? html`<p class="record-save-confirmation record-save-toast" role="status">${uiText("save.entrySaved")}</p>` : nothing}
           <p class="context-notice" role="status" ?hidden=${this.contextNotice === ""}>${this.contextNotice}</p>
           ${this.#characterTabs()}
           <div id="character-profile-panel" role=${this.#hasCharacterTabs ? "tabpanel" : nothing}
