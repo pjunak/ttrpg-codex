@@ -255,7 +255,7 @@ void test(`installed rule details preserve drafts, keyboard focus and generation
   await dialog.waitFor({ state: "detached" });
 });
 
-void test("DM panel preserves the fallback cards and hidden sidebar tool access on desktop and phone", async (t) => {
+void test("DM panel preserves the fallback cards and its tool links on desktop and phone", async (t) => {
   const id = "dm-fallback";
   await installDmPackage(admin, csrf, { id, slot: false });
   t.after(() => disable(id));
@@ -282,7 +282,6 @@ void test("DM panel preserves the fallback cards and hidden sidebar tool access 
     );
     const tool = page.locator(".dm-panel").getByRole("link", { name: /Fixture planner/ });
     await tool.waitFor();
-    assert.equal(await page.locator("[data-addon-navigation] a").count(), 0);
     const style = await page.locator("#dm-page-title").evaluate((element) => ({
       color: getComputedStyle(element).color,
       font: getComputedStyle(element).fontFamily,

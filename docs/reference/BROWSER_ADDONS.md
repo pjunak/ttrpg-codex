@@ -45,11 +45,12 @@ is remembered per character for the browser session. This presentation does not
 change contribution descriptors, role projection, or lifecycle ownership.
 
 The host's Sidebar settings provide a further presentation filter after the
-normal generation/role projection. Pages start hidden and may be opted into
-Everyone or DM-only navigation using the stable `<addonId>:<route>` key in
-`settings/addonSidebarVisibility`. This does not change package permissions,
-route access, activation, or contribution descriptors. Preference changes
-refresh the existing outlet; hidden links do not dispose the underlying route.
+normal generation/role projection. Pages start as Everyone (still limited by
+each add-on's roles) and may be limited to DM-only or hidden using the stable
+`<addonId>:<route>` key in `settings/addonSidebarVisibility`. This does not
+change package permissions, route access, activation, or contribution
+descriptors. Preference changes refresh the existing outlet; hidden links do
+not dispose the underlying route.
 Saved keys for inactive or renamed routes remain available for later review.
 
 `packagemanager.BrowserGraph` builds the deterministic projection from durable

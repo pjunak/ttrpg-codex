@@ -41,7 +41,8 @@ export function addonSidebarMode(
 ): SidebarAddonMode {
   const value = campaign === undefined ? undefined : addonSidebarRecord(campaign)?.value;
   const mode = isRecord(value) ? value[key] : undefined;
-  return mode === "everyone" || mode === "dm" ? mode : "hidden";
+  // Unchosen pages follow the add-on's own role restrictions.
+  return mode === "dm" || mode === "hidden" ? mode : "everyone";
 }
 export function prepareAddonSidebarSave(
   campaign: CampaignDataset,

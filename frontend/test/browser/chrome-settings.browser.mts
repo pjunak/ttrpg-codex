@@ -466,14 +466,14 @@ void test("settings categories are linkable, and phones open a category list wit
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 });
 
-void test("add-on sidebar pages remain opt-in and hide without disabling their route", async (t) => {
+void test("add-on sidebar pages show by default and hide without disabling their route", async (t) => {
   const { page, writes } = await fixture(t, { addon: true });
   await openCategory(page, "sidebar");
   const panel = page.locator("codex-sidebar-settings"),
     mode = panel.getByLabel("Visibility of Fixture tools", { exact: true });
   await mode.waitFor();
-  assert.equal(await mode.inputValue(), "hidden");
-  assert.equal(await page.locator(".addon-navigation-link").count(), 0);
+  assert.equal(await mode.inputValue(), "everyone");
+  await page.locator(".addon-navigation-link").waitFor();
   await mode.selectOption("dm");
   await panel.getByRole("button", { name: "Save", exact: true }).click();
   await saved(page, "addonSidebarVisibility", 1);

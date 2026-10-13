@@ -483,12 +483,13 @@ fallback navigation. Collapse choices use the original per-browser
 `sidebar_section_open:<id>` keys.
 
 `settings/addonSidebarVisibility` holds `everyone`, `dm`, or `hidden` per
-`<addonId>:<route>` key. Installed v3 pages default to hidden; the DM opts them
-into the sidebar. An optional host navigation filter runs after the existing
+`<addonId>:<route>` key. Pages without a saved choice show as `everyone`, which
+still follows each add-on's own role restrictions; the DM can limit them to DM
+view or hide them. An optional host navigation filter runs after the existing
 generation and role checks, so settings cannot grant access. Layout and changed
 visibility preferences save atomically with separate opening revisions, keeping
-inactive route keys. Changing a package's route identity requires reviewing its
-new opt-in entry.
+inactive route keys. Changing a package's route identity gives it a new key, so
+an earlier choice for that page no longer applies.
 
 The production browser scenarios in `chrome-settings.browser.mts` and the unit
 checks in `campaign-chrome.test.ts` cover the controls, extensions, stale/deleted

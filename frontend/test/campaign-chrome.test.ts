@@ -115,7 +115,7 @@ describe("curated sidebar layout", () => {
         value: { "retired:/old/path": "dm", [key]: "dm" },
       },
     ]);
-    expect(addonSidebarMode(undefined, key)).toBe("hidden");
+    expect(addonSidebarMode(undefined, key)).toBe("everyone");
     expect(addonSidebarMode(campaign, key)).toBe("dm");
     expect(
       prepareAddonSidebarSave(campaign, { expectedRevision: 4, modes: { [key]: "everyone" } }),
