@@ -221,6 +221,12 @@ for (const asset of ["graph", "stylesheet", "module"] as const) {
           await page.locator("link[data-codex-addon]").count(),
           asset === "stylesheet" ? 1 : 0,
         );
+        assert.equal(
+          await page.locator(".account-menu").evaluate((node) => (node as HTMLDetailsElement).open),
+          false,
+          "signing in closes the account menu",
+        );
+        await page.locator(".account-menu > summary").click();
         await account.getByRole("button", { name: "Sign out", exact: true }).click();
         await account.getByRole("button", { name: "Sign in", exact: true }).waitFor();
         assert.equal(await page.locator("visual-fixture-addon").count(), 0);

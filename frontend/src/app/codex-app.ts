@@ -804,6 +804,9 @@ export class CodexApp extends LitElement {
       if (!auth.authenticated) throw new Error("sign-in did not create a session");
       this.#acceptAuthority(auth);
       form.reset();
+      // The account menu opened only to sign in; give its room back to the navigation.
+      const account = this.querySelector<HTMLDetailsElement>(".account-menu");
+      if (account !== null) account.open = false;
       await this.#reloadForAuthority(signal);
     } catch (cause: unknown) {
       if (!signal.aborted)
