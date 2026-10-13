@@ -215,14 +215,24 @@
     inset: auto;
     margin: 0;
     padding: 0.3rem;
-    overflow: auto;
-    overscroll-behavior: contain;
+    overflow: hidden;
     border: 2px solid var(--ui-border);
     border-radius: var(--ui-radius);
     box-shadow: var(--shadow-md);
     background: var(--ui-surface);
     color: var(--ui-text);
     font: var(--ui-font-size)/1.5 var(--ui-font);
+  }
+  /* Only the list scrolls; status and details stay in view under it. */
+  .ui-popup:popover-open {
+    display: flex;
+    flex-direction: column;
+  }
+  .ui-popup > [role="listbox"] {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
   }
   .ui-option {
     padding: 0.55rem 0.65rem;
@@ -234,8 +244,40 @@
   }
   .ui-option small {
     display: block;
-    color: inherit;
+    color: var(--ui-muted);
     font-size: 0.875rem;
+  }
+  .ui-option-clear {
+    color: var(--ui-muted);
+    font-style: italic;
+  }
+  .ui-option-current {
+    color: var(--ui-accent);
+    font-weight: 600;
+  }
+  /* A fixed height keeps the list still while the highlighted option changes. */
+  .ui-option-details {
+    flex: none;
+    block-size: min(9rem, 30vh);
+    overflow: auto;
+    margin-block-start: 0.3rem;
+    padding: 0.5rem 0.65rem;
+    border-block-start: 1px solid var(--ui-border);
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+  .ui-option-details[hidden] {
+    display: none;
+  }
+  .ui-option-details strong:not([hidden]) {
+    display: block;
+  }
+  .ui-option-details p {
+    margin: 0.2rem 0 0;
+    white-space: pre-line;
+  }
+  .ui-option-hint p {
+    color: var(--ui-muted);
   }
   .ui-option.ui-active {
     border-color: var(--ui-focus);

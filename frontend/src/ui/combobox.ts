@@ -1,4 +1,11 @@
-import { highlightRow, labelWords, placePopup, trackPopup } from "./popup.js";
+import {
+  highlightRow,
+  labelWords,
+  optionDetails,
+  optionRow,
+  placePopup,
+  trackPopup,
+} from "./popup.js";
 import { folded, messages, onFormReset, setAttribute, type ControlHandle } from "./messages.js";
 
 let sequence = 0;
@@ -16,7 +23,8 @@ export function enhanceCombobox(select: HTMLSelectElement): ControlHandle {
   const popup = document.createElement("div"),
     list = document.createElement("div"),
     status = document.createElement("p"),
-    error = document.createElement("small");
+    error = document.createElement("small"),
+    details = optionDetails(document, () => messages(select).details);
   const labels = [...(select.labels ?? [])].map((label) => ({
     label,
     forValue: label.getAttribute("for"),
@@ -53,7 +61,7 @@ export function enhanceCombobox(select: HTMLSelectElement): ControlHandle {
   error.className = "ui-error";
   error.hidden = true;
   error.setAttribute("role", "alert");
-  popup.append(list, status);
+  popup.append(list, status, details.element);
   wrapper.append(input, toggle, error, popup);
   select.after(wrapper);
   // Keep the real select successful for FormData/required/reset; invalid focus is redirected below.
@@ -71,11 +79,23 @@ export function enhanceCombobox(select: HTMLSelectElement): ControlHandle {
   const blocked = (): boolean =>
     select.matches(":disabled") ||
     ["loading", "error"].includes(select.dataset["uiOptionsState"] ?? "");
-  const selectedLabel = (): string => select.selectedOptions[0]?.label ?? "";
+  // An empty first option is the "nothing chosen" state: it reads as the field's
+  // placeholder and is listed only as a way back from a chosen, optional value.
+  const placeholder = (): HTMLOptionElement | undefined => {
+    const first = select.options[0];
+    return first?.value === "" && first.parentElement === select ? first : undefined;
+  };
+  const selectedLabel = (): string => {
+    const selected = select.selectedOptions[0];
+    return selected === undefined || selected === placeholder() ? "" : selected.label;
+  };
   const position = (): void => {
     if (!open) return;
     const rect = input.getBoundingClientRect();
-    placePopup(window, rect, popup, { width: rect.width + toggle.offsetWidth, maxHeight: 360 });
+    placePopup(window, rect, popup, {
+      width: rect.width + toggle.offsetWidth,
+      maxHeight: details.element.hidden ? 360 : 460,
+    });
   };
   const close = (): void => {
     open = false;
@@ -92,6 +112,8 @@ export function enhanceCombobox(select: HTMLSelectElement): ControlHandle {
   const highlight = (index: number): void => {
     active = index;
     highlightRow(list, input, index);
+    const selected = select.selectedOptions[0];
+    details.update(shown, shown[index] ?? (selected === placeholder() ? undefined : selected));
   };
   const disabledOption = (option: HTMLOptionElement): boolean =>
     option.disabled ||
@@ -112,10 +134,12 @@ export function enhanceCombobox(select: HTMLSelectElement): ControlHandle {
   const render = (): void => {
     const previous = shown[active],
       state = select.dataset["uiOptionsState"],
+      empty = placeholder(),
       all = [...select.options].filter(
         (option) =>
           !option.hidden &&
           !option.closest("optgroup[hidden]") &&
+          (option !== empty || (!select.required && !option.selected)) &&
           folded(`${option.label} ${option.dataset["uiKeywords"] ?? ""}`).includes(folded(query)),
       );
     const labelCounts = new Map<string, number>();
@@ -124,26 +148,18 @@ export function enhanceCombobox(select: HTMLSelectElement): ControlHandle {
     shown = blocked() ? [] : all.slice(0, 100);
     list.replaceChildren();
     shown.forEach((option, index) => {
-      const row = document.createElement("div");
-      row.id = `${id}-${option.index}`;
-      row.className = "ui-option";
-      row.setAttribute("role", "option");
-      row.setAttribute("aria-label", option.label);
+      const row = optionRow(
+        document,
+        `${id}-${option.index}`,
+        option,
+        (labelCounts.get(option.label) ?? 0) > 1 ? option.value : "",
+      );
+      row.classList.toggle("ui-option-clear", option === empty);
+      row.classList.toggle("ui-option-current", option.selected && option !== empty);
       row.setAttribute("aria-disabled", String(disabledOption(option)));
-      row.append(document.createTextNode(option.label));
-      const description =
-        option.title || ((labelCounts.get(option.label) ?? 0) > 1 ? option.value : "");
-      if (description) {
-        const detail = document.createElement("small");
-        detail.textContent = description;
-        detail.id = `${row.id}-description`;
-        row.append(detail);
-        row.setAttribute("aria-describedby", detail.id);
-      }
-      row.addEventListener("pointerdown", (event) => event.preventDefault());
       row.addEventListener("click", () => choose(option));
       row.addEventListener("pointermove", () => {
-        if (!disabledOption(option)) highlight(index);
+        if (!disabledOption(option) && active !== index) highlight(index);
       });
       list.append(row);
     });
@@ -178,6 +194,7 @@ export function enhanceCombobox(select: HTMLSelectElement): ControlHandle {
     if (disposed) return;
     input.disabled = toggle.disabled = select.matches(":disabled");
     toggle.setAttribute("aria-label", messages(select).show);
+    setAttribute(input, "placeholder", placeholder()?.label ?? null);
     const labelText = labels.map(({ label }) => labelWords(label)).join(" ");
     setAttribute(input, "aria-label", select.getAttribute("aria-label") ?? (labelText || null));
     setAttribute(input, "aria-labelledby", select.getAttribute("aria-labelledby"));

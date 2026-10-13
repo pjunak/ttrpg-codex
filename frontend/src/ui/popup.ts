@@ -51,6 +51,77 @@ export function trackPopup(
   window.visualViewport?.addEventListener("scroll", position, { signal });
 }
 
+/**
+ * One listbox row for a native option. The row shows only the label and, for
+ * duplicate labels, a short identifier; the option's description is announced
+ * from a hidden node and shown in the shared details area instead.
+ */
+export function optionRow(
+  document: Document,
+  id: string,
+  option: HTMLOptionElement,
+  identifier = "",
+): HTMLElement {
+  const row = document.createElement("div"),
+    described: string[] = [];
+  row.id = id;
+  row.className = "ui-option";
+  row.setAttribute("role", "option");
+  row.setAttribute("aria-label", option.label);
+  row.append(document.createTextNode(option.label));
+  if (identifier) {
+    const small = document.createElement("small");
+    small.id = `${id}-identifier`;
+    small.textContent = identifier;
+    row.append(small);
+    described.push(small.id);
+  }
+  if (option.title) {
+    const description = document.createElement("span");
+    description.id = `${id}-description`;
+    description.hidden = true;
+    description.textContent = option.title;
+    row.append(description);
+    described.push(description.id);
+  }
+  if (described.length) row.setAttribute("aria-describedby", described.join(" "));
+  row.addEventListener("pointerdown", (event) => event.preventDefault());
+  return row;
+}
+
+export interface OptionDetails {
+  readonly element: HTMLElement;
+  /** Describes `subject`, or shows the hint while any shown option has a description. */
+  update(shown: readonly HTMLOptionElement[], subject: HTMLOptionElement | undefined): void;
+}
+
+/**
+ * A fixed area under a listbox that describes the highlighted option, so long
+ * descriptions never push the other options out of view. Rows carry their own
+ * descriptions for assistive technology; this area is visual only.
+ */
+export function optionDetails(document: Document, hint: () => string): OptionDetails {
+  const element = document.createElement("div"),
+    title = document.createElement("strong"),
+    text = document.createElement("p");
+  element.className = "ui-option-details";
+  element.hidden = true;
+  element.setAttribute("aria-hidden", "true");
+  element.append(title, text);
+  return {
+    element,
+    update(shown, subject) {
+      element.hidden = !shown.some((option) => option.title);
+      if (element.hidden) return;
+      title.textContent = subject?.label ?? "";
+      title.hidden = subject === undefined;
+      text.textContent = subject ? subject.title : hint();
+      element.classList.toggle("ui-option-hint", subject === undefined);
+      element.scrollTop = 0;
+    },
+  };
+}
+
 /** Marks one listbox row active for an input that owns the list. */
 export function highlightRow(list: HTMLElement, input: HTMLElement, index: number): void {
   [...list.children].forEach((row, at) => {

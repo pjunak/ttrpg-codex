@@ -144,7 +144,8 @@ void test("context menus nest, filter and return focus with the keyboard", async
 void test("combo separates editing from native selection and skips disabled choices", async (t) => {
   const page = await fixture(t),
     combo = page.getByRole("combobox", { name: "Origin", exact: true });
-  assert.equal(await combo.inputValue(), "Choose…");
+  assert.equal(await combo.inputValue(), "", "the empty choice reads as the placeholder");
+  assert.equal(await combo.getAttribute("placeholder"), "Choose…");
   await combo.fill("alf");
   assert.equal(await page.getByRole("listbox").getByRole("option").count(), 1);
   assert.equal(await page.locator("[name=origin]").inputValue(), "");
@@ -154,7 +155,11 @@ void test("combo separates editing from native selection and skips disabled choi
   assert.equal(await combo.inputValue(), "Álfheim");
   assert.equal(await page.evaluate(() => window.uiControlsFixture.changes), 1);
   await combo.click();
-  await combo.press("ArrowDown");
+  assert.equal(
+    await page.getByRole("option", { name: "Choose…" }).count(),
+    0,
+    "a required field never offers its placeholder",
+  );
   await combo.press("ArrowDown");
   await combo.press("ArrowDown");
   assert.equal(await page.locator(".ui-active").getAttribute("aria-label"), "Dwarf");
@@ -166,6 +171,33 @@ void test("combo separates editing from native selection and skips disabled choi
   await page.getByLabel("Notes", { exact: true }).fill("Authored notes");
   await page.getByRole("button", { name: "Apply filters", exact: true }).click();
   assert.equal((await page.evaluate(() => window.uiControlsFixture.submissions))[0]?.origin, "a");
+});
+void test("combo describes only the highlighted option and offers the empty choice to clear", async (t) => {
+  const page = await fixture(t),
+    combo = page.getByRole("combobox", { name: "Origin", exact: true }),
+    details = page.locator(".ui-popup:popover-open .ui-option-details");
+  await combo.click();
+  assert.equal(await details.isVisible(), true);
+  assert.equal(await details.textContent(), "Highlight an option to read its description.");
+  const dwarf = page.getByRole("option", { name: "Dwarf", exact: true });
+  assert.equal(await dwarf.textContent().then((text) => text?.includes("Mountain home")), true);
+  assert.equal(await dwarf.getByText("Mountain home").isVisible(), false, "rows stay one line");
+  await dwarf.hover();
+  assert.equal(await details.locator("strong").textContent(), "Dwarf");
+  assert.equal(await details.locator("p").textContent(), "Mountain home");
+  await page.getByRole("option", { name: "Elf", exact: true }).hover();
+  assert.equal(await details.locator("strong").textContent(), "Elf");
+  assert.equal(await details.locator("p").textContent(), "");
+  await page.getByRole("option", { name: "Elf", exact: true }).click();
+  await page.evaluate(() => {
+    document.querySelector<HTMLSelectElement>("[name=origin]")!.required = false;
+  });
+  await combo.click();
+  const clear = page.getByRole("option", { name: "Choose…", exact: true });
+  assert.equal(await clear.evaluate((node) => node.classList.contains("ui-option-clear")), true);
+  await clear.click();
+  assert.equal(await page.locator("[name=origin]").inputValue(), "");
+  assert.equal(await combo.inputValue(), "");
 });
 void test("required, form reset and disabled state retain native semantics and focus", async (t) => {
   const page = await fixture(t),
@@ -179,9 +211,9 @@ void test("required, form reset and disabled state retain native semantics and f
   assert.equal(await combo.getAttribute("aria-invalid"), null);
   await page.getByRole("button", { name: "Reset", exact: true }).click();
   await page.waitForFunction(
-    () => document.querySelector<HTMLInputElement>("[role=combobox]")?.value === "Choose…",
+    () => document.querySelector<HTMLInputElement>("[role=combobox]")?.value === "",
   );
-  assert.equal(await combo.inputValue(), "Choose…");
+  assert.equal(await combo.getAttribute("placeholder"), "Choose…");
   await page.evaluate(() => window.uiControlsFixture.disabled(true));
   assert.equal(await combo.isDisabled(), true);
   await page.evaluate(() => window.uiControlsFixture.disabled(false));

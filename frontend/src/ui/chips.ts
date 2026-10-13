@@ -1,5 +1,12 @@
 import { folded, messages, onFormReset, setAttribute, type ControlHandle } from "./messages.js";
-import { highlightRow, labelWords, placePopup, trackPopup } from "./popup.js";
+import {
+  highlightRow,
+  labelWords,
+  optionDetails,
+  optionRow,
+  placePopup,
+  trackPopup,
+} from "./popup.js";
 
 let sequence = 0;
 const shownLimit = 100;
@@ -25,7 +32,8 @@ export function enhanceChips(select: HTMLSelectElement): ControlHandle {
     input = document.createElement("input"),
     popup = document.createElement("div"),
     list = document.createElement("div"),
-    status = document.createElement("p");
+    status = document.createElement("p"),
+    details = optionDetails(document, () => messages(input).details);
   const labels = [...(select.labels ?? [])].map((label) => ({
     label,
     forValue: label.getAttribute("for"),
@@ -53,7 +61,7 @@ export function enhanceChips(select: HTMLSelectElement): ControlHandle {
   status.className = "ui-help";
   status.setAttribute("role", "status");
   status.setAttribute("aria-atomic", "true");
-  popup.append(list, status);
+  popup.append(list, status, details.element);
   wrapper.append(chips, input, popup);
   select.after(wrapper);
   select.hidden = true;
@@ -78,7 +86,10 @@ export function enhanceChips(select: HTMLSelectElement): ControlHandle {
   const position = (): void => {
     if (!open) return;
     const rect = input.getBoundingClientRect();
-    placePopup(window, rect, popup, { width: rect.width, maxHeight: 320 });
+    placePopup(window, rect, popup, {
+      width: rect.width,
+      maxHeight: details.element.hidden ? 320 : 420,
+    });
   };
   const close = (): void => {
     open = false;
@@ -93,6 +104,7 @@ export function enhanceChips(select: HTMLSelectElement): ControlHandle {
   const highlight = (index: number): void => {
     active = index;
     highlightRow(list, input, index);
+    details.update(shown, shown[index]);
   };
   const renderList = (): void => {
     const query = folded(input.value.trim());
@@ -106,19 +118,12 @@ export function enhanceChips(select: HTMLSelectElement): ControlHandle {
     shown = candidates.slice(0, shownLimit);
     list.replaceChildren(
       ...shown.map((option, index) => {
-        const row = document.createElement("div");
-        row.id = `${id}-option-${index}`;
-        row.className = "ui-option";
-        row.setAttribute("role", "option");
+        const row = optionRow(document, `${id}-option-${index}`, option);
         row.setAttribute("aria-selected", "false");
-        row.textContent = option.label;
-        if (option.title) {
-          const detail = document.createElement("small");
-          detail.textContent = option.title;
-          row.append(detail);
-        }
-        row.addEventListener("pointerdown", (event) => event.preventDefault());
         row.addEventListener("click", () => add(option));
+        row.addEventListener("pointermove", () => {
+          if (active !== index) highlight(index);
+        });
         return row;
       }),
     );
@@ -128,7 +133,7 @@ export function enhanceChips(select: HTMLSelectElement): ControlHandle {
         : ""
       : messages(input).empty;
     status.hidden = status.textContent === "";
-    // Nothing is highlighted until the user types or navigates, so Enter never adds by surprise.
+    // Nothing is highlighted until the user navigates with the arrows or pointer, so Enter never adds by surprise.
     highlight(active >= 0 && shown.length ? Math.min(active, shown.length - 1) : -1);
     position();
   };
