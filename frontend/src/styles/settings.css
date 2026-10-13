@@ -237,6 +237,7 @@ codex-sidebar-settings {
   color: var(--gold);
 }
 .settings-branding .settings-hint,
+.settings-theme-form .settings-hint,
 .settings-sidebar-panel .settings-hint {
   color: var(--text-muted);
   font: 0.78rem/1.5 var(--font-ui);

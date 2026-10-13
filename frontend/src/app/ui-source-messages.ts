@@ -416,8 +416,8 @@ export const sourceCs = {
     "Definice se nyní používá nebo se změnilo nastavení. Zkontrolujte kategorii a zkuste to znovu.",
   "Settings changed while deleting. Review the category and try again.":
     "Nastavení se během odstraňování změnilo. Zkontrolujte kategorii a zkuste to znovu.",
-  "Appearance changed. Your choice is kept; reopen Appearance to review the current theme before saving.":
-    "Vzhled se změnil. Vaše volba zůstala zachována; před uložením znovu otevřete Vzhled a zkontrolujte aktuální motiv.",
+  "Appearance changed elsewhere. Review the current theme and pick again.":
+    "Vzhled se mezitím změnil. Zkontrolujte aktuální motiv a vyberte znovu.",
   "The appearance setting is invalid.": "Nastavení vzhledu není platné.",
   "Appearance changed while saving. Review the current theme and try again.":
     "Vzhled se během ukládání změnil. Zkontrolujte aktuální motiv a zkuste to znovu.",

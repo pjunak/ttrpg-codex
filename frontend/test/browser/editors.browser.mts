@@ -998,18 +998,17 @@ void test("enum drafts retain values and revisions, including remote removal", a
   assert.equal(await page.locator('[name="label"]').inputValue(), "My label");
 });
 
-void test("appearance drafts keep the reviewed revision and reset after save completion", async (t) => {
+void test("theme choices save immediately against the current appearance revision", async (t) => {
   const page = await fixture(t, dataset({ settings: [appearance()] }));
   await page.locator('[data-category="appearance"]').click();
   await page.locator('[name="theme"][value="moonlit"]').check();
+  const first = required(await submission(page));
+  assert.equal(first.detail.expectedRevision, 1);
+  assert.equal(first.error, undefined);
   await refresh(page, dataset({ settings: [appearance(2, "moonlit")] }));
-  assert.equal(await page.locator('[name="theme"][value="moonlit"]').isChecked(), true);
-  await page.locator('button[type="submit"]').click();
-  assert.equal(required(await submission(page)).detail.expectedRevision, 1);
-  assert.match(required(required(await submission(page)).error), /revision is stale/);
-  assert.equal(required(await submission(page)).mutation, undefined);
   await page.evaluate(() => window.editorFixture.complete());
-  await page.locator('button[type="submit"]').click();
+  assert.equal(await page.locator('[name="theme"][value="moonlit"]').isChecked(), true);
+  await page.locator('[name="theme"][value="classic"]').check();
   assert.equal(required(await submission(page)).detail.expectedRevision, 2);
 });
 

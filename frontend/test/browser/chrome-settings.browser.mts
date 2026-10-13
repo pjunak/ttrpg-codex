@@ -12,6 +12,7 @@ import { chromium } from "playwright";
 import { preview } from "vite";
 import { visualCampaign, visualFixturePlugin } from "./visual-fixture.mts";
 import { reportBrowserFailure } from "./failure-diagnostics.mts";
+import { unloadBlocked } from "./installed-planner-navigation-fixture.mts";
 
 let server: PreviewServer,
   browser: Browser,
@@ -278,7 +279,8 @@ for (const mobile of [false, true])
     assert.equal(uploads.length, 0, "the selected file is saved with the reviewed form");
     assert.equal(
       await page.locator('.settings-theme-form input[value="moonlit"]').isDisabled(),
-      true,
+      false,
+      "a branding draft does not lock the theme",
     );
     await panel.getByRole("button", { name: "Save", exact: true }).click();
     await saved(page, "branding", 4);
@@ -339,7 +341,7 @@ void test("failed logo uploads retain the file for retry and do not publish part
   assert.equal(writes.length, 1);
 });
 
-void test("branding drafts survive live refresh and category navigation, and theme drafts cannot be discarded by another save", async (t) => {
+void test("branding drafts survive live refresh, category navigation and theme saves", async (t) => {
   const { page, writes } = await fixture(t);
   await openCategory(page, "appearance");
   const panel = page.locator("codex-branding-settings"),
@@ -360,9 +362,13 @@ void test("branding drafts survive live refresh and category navigation, and the
   page.once("dialog", (dialog) => dialog.accept());
   await panel.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal(await name.inputValue(), "Remote");
+  // A theme applies at once and leaves the separate branding draft alone.
+  await name.fill("Kept through a theme save");
   await page.locator('.settings-theme-form input[value="moonlit"]').check();
-  assert.equal(await name.isDisabled(), true);
-  assert.equal(await panel.getByRole("button", { name: "Save", exact: true }).isDisabled(), true);
+  await saved(page, "appearance", 1);
+  assert.equal(await name.inputValue(), "Kept through a theme save");
+  assert.equal(await name.isDisabled(), false);
+  assert.equal(await unloadBlocked(page), true);
 });
 
 for (const mobile of [false, true])

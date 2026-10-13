@@ -2,6 +2,7 @@ import { cssHexColor } from "./campaign-projection.js";
 import { formText, formTextValues } from "../core/forms.js";
 import { uiText } from "./ui-localization.js";
 import { LitElement, html, nothing } from "lit";
+import { live } from "lit/directives/live.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import type {
   CampaignEnumCategory,
@@ -120,6 +121,8 @@ export class CodexSettings extends LitElement {
   #dirty = false;
   #credentialsSaving = false;
   #brandingDirty = false;
+  /** The theme being saved, shown until that save finishes or fails. */
+  #pendingTheme: CampaignThemeID | undefined;
   #editCampaign: CampaignDataset | undefined;
 
   constructor() {
@@ -176,11 +179,13 @@ export class CodexSettings extends LitElement {
       this.#editCampaign = undefined;
       this.#setDirty(false);
     }
+    if (changed.has("saving") && changed.get("saving") === true && !this.saving)
+      this.#pendingTheme = undefined;
     if (changed.has("editCompletion")) {
       this.editingId = null;
       this.deleteId = null;
       this.#editCampaign = this.activeCategory === "appearance" ? this.campaign : undefined;
-      this.#setDirty(false);
+      if (!this.#brandingDirty) this.#setDirty(false);
     }
   }
 
@@ -419,9 +424,7 @@ export class CodexSettings extends LitElement {
 
   #appearancePanel() {
     if (this.campaign === undefined || !this.canManageCampaign) return nothing;
-    const campaign = this.#editCampaign ?? this.campaign;
-    const record = campaignAppearanceRecord(campaign);
-    const current = campaignTheme(campaign);
+    const current = this.#pendingTheme ?? campaignTheme(this.campaign);
     return html`
       <section class="settings-ledger settings-personal-panel" aria-labelledby="settings-appearance-title">
         <header class="settings-ledger-heading">
@@ -433,26 +436,22 @@ export class CodexSettings extends LitElement {
             </div>
           </div>
         </header>
-        <form class="settings-theme-form" @submit=${this.#saveAppearance} @input=${this.#markDirty}>
-          <fieldset ?disabled=${this.saving || this.#brandingDirty}>
+        <form class="settings-theme-form" @submit=${(event: Event) => event.preventDefault()}>
+          <fieldset ?disabled=${this.saving}>
             <legend>${this.#ui.t("settings.appearanceLabel")}</legend>
             <div class="settings-theme-list">
               ${campaignThemes.map(
                 (theme) => html`
                 <label class=${`settings-theme-choice theme-sample-${theme.id}`}>
-                  <input type="radio" name="theme" value=${theme.id} .checked=${theme.id === current} />
+                  <input type="radio" name="theme" value=${theme.id} .checked=${live(theme.id === current)}
+                    @change=${(event: Event) => this.#applyTheme(theme.id, event.currentTarget as HTMLElement)} />
                   <span class="settings-theme-sample" aria-hidden="true"><i></i><b></b><em></em></span>
                   <span><strong>${this.#ui.t(theme.labelKey)}</strong><small>${this.#ui.t(theme.hintKey)}</small></span>
                 </label>`,
               )}
             </div>
           </fieldset>
-          <input type="hidden" name="expectedRevision" value=${String(record?.revision ?? 0)} />
-          <div class="settings-edit-actions">
-            <button class="primary" type="submit" ?disabled=${this.saving || this.#brandingDirty}>
-              ${this.saving ? this.#ui.t("settings.saving") : this.#ui.t("settings.saveAppearance")}
-            </button>
-          </div>
+          <p class="settings-hint" role="status">${this.saving ? this.#ui.t("settings.saving") : this.#ui.t("settings.themeApplies")}</p>
         </form>
         <codex-branding-settings .campaign=${this.campaign} .saving=${this.saving} .blocked=${this.#dirty && !this.#brandingDirty} .editCompletion=${this.editCompletion}
           @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
@@ -743,30 +742,25 @@ export class CodexSettings extends LitElement {
     if (locale === "en" || locale === "cs") this.#ui.setLocale(locale);
   };
 
-  readonly #saveAppearance = (event: SubmitEvent): void => {
-    event.preventDefault();
-    if (
-      this.saving ||
-      this.#brandingDirty ||
-      this.campaign === undefined ||
-      !this.canManageCampaign
-    )
-      return;
-    const data = new FormData(event.currentTarget as HTMLFormElement);
-    const theme = formText(data, "theme") as CampaignThemeID;
-    if (!campaignThemes.some(({ id }) => id === theme)) return;
+  /** A theme is a reversible shared choice, so it saves as soon as it is picked. */
+  #applyTheme(theme: CampaignThemeID, source: HTMLElement): void {
+    if (this.saving || this.campaign === undefined || !this.canManageCampaign) return;
+    if (theme === campaignTheme(this.campaign)) return;
+    this.#pendingTheme = theme;
     const detail: CampaignAppearanceSaveDetail = Object.freeze({
       theme,
-      expectedRevision: Number(data.get("expectedRevision")),
+      expectedRevision: campaignAppearanceRecord(this.campaign)?.revision ?? 0,
     });
-    this.dispatchEvent(
+    // Sent from the radio: a confirmed save settles its source's edit state, which
+    // must not be this view while it also carries an unsaved branding draft.
+    source.dispatchEvent(
       new CustomEvent<CampaignAppearanceSaveDetail>("campaign-appearance-save", {
         detail,
         bubbles: true,
         composed: true,
       }),
     );
-  };
+  }
 
   #visibleCategory(category: SettingsCategory): boolean {
     return (

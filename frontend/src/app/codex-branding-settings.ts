@@ -43,11 +43,12 @@ export class CodexBrandingSettings extends LitElement {
     return this;
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (
-      this.draft === undefined ||
-      changed.has("editCompletion") ||
-      (changed.has("campaign") && !this.dirty)
-    )
+    // Other settings saves also complete edits; only a changed branding record ends this draft.
+    const savedBranding =
+      changed.has("editCompletion") &&
+      this.campaign !== undefined &&
+      (brandingRecord(this.campaign)?.revision ?? 0) !== this.draft?.expectedRevision;
+    if (this.draft === undefined || savedBranding || (changed.has("campaign") && !this.dirty))
       this.#reset();
   }
   protected override render() {

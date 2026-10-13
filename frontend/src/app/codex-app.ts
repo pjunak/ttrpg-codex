@@ -2262,9 +2262,7 @@ export class CodexApp extends LitElement {
       (cause) =>
         cause instanceof CampaignAppearanceEditError
           ? cause.kind === "stale"
-            ? uiText(
-                "Appearance changed. Your choice is kept; reopen Appearance to review the current theme before saving.",
-              )
+            ? uiText("Appearance changed elsewhere. Review the current theme and pick again.")
             : uiText("The appearance setting is invalid.")
           : cause instanceof CampaignMutationHTTPError && cause.status === 409
             ? uiText("Appearance changed while saving. Review the current theme and try again.")

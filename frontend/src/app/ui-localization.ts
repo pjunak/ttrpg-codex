@@ -534,7 +534,7 @@ const enCatalog = {
     "The original dark brown canvas, parchment text, and gold headings.",
   "settings.appearanceMoonlit": "Moonlit archive",
   "settings.appearanceMoonlitHint": "Dark slate surfaces with silver blue headings.",
-  "settings.saveAppearance": "Save appearance",
+  "settings.themeApplies": "A theme changes for everyone as soon as you pick it.",
   "branding.title": "Site branding",
   "branding.intro":
     "Choose the logo and wordmark shown in the sidebar and the browser tab. Save to apply your changes.",
@@ -1126,7 +1126,7 @@ const csCatalog = {
   "settings.appearanceClassicHint": "Původní tmavě hnědé pozadí, pergamenový text a zlaté nadpisy.",
   "settings.appearanceMoonlit": "Měsíční archiv",
   "settings.appearanceMoonlitHint": "Tmavé břidlicové plochy se stříbřitě modrými nadpisy.",
-  "settings.saveAppearance": "Uložit vzhled",
+  "settings.themeApplies": "Motiv se změní pro všechny hned po výběru.",
   "branding.title": "Značka webu",
   "branding.intro":
     "Vyberte logo a název v postranním panelu a na kartě prohlížeče. Změny potvrďte uložením.",
