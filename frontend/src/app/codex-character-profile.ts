@@ -301,6 +301,8 @@ export class CodexCharacterProfile extends LitElement {
 
   #hasValue(key: string): boolean {
     const value = recordValue(this.#drafts.get(key)?.base ?? this.record)[key];
+    // New characters store the reserved "No faction" choice; it is not a connection.
+    if (key === "faction" && value === "neutral") return false;
     return typeof value === "string"
       ? value.trim() !== ""
       : Array.isArray(value)
