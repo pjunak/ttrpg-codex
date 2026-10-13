@@ -218,7 +218,7 @@ codex-dashboard {
   display: block;
   margin-top: 0.15rem;
   color: var(--text-muted);
-  font: 0.72rem/1.6 var(--font-ui);
+  font: var(--text-xs)/1.6 var(--font-ui);
 }
 
 .status-mark {
@@ -278,7 +278,7 @@ codex-dashboard {
 
 .companion > span:last-child {
   color: var(--text-muted);
-  font: 0.68rem/1.6 var(--font-ui);
+  font: var(--text-xs)/1.6 var(--font-ui);
 }
 
 .session-number {
@@ -286,7 +286,7 @@ codex-dashboard {
   background: rgb(255 255 255 / 5%);
   border-radius: var(--radius-pill);
   padding: 0.15em 0.6em;
-  font: 0.7rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
   letter-spacing: 0.08em;
 }
 
@@ -323,7 +323,7 @@ codex-dashboard {
 
 .session-events small {
   margin-top: 0.3rem;
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
 }
 
 .recent-ledger {
@@ -360,7 +360,7 @@ codex-dashboard {
 .recent-ledger time {
   flex-shrink: 0;
   color: var(--text-muted);
-  font: 0.7rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
 }
 
 .empty-state {

@@ -64,7 +64,7 @@ codex-timeline-slot {
 }
 .tl-hint {
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   margin-left: auto;
 }
@@ -247,7 +247,7 @@ codex-timeline-slot {
   border: 1px solid var(--border-subtle);
   border-radius: 3px;
   padding: 0.2rem 0.4rem;
-  font: 0.7rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
 }
 .tl-card-actions select {
   flex: 1;
@@ -274,7 +274,7 @@ codex-timeline-slot {
 }
 .tl-col-count {
   font-family: var(--font-ui);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   padding: 1px 7px;
   border-radius: 10px;
@@ -325,7 +325,7 @@ codex-timeline-slot {
   border: 1px dashed rgba(var(--accent-gold-rgb), 0.3);
   border-radius: 5px;
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.05em;
   cursor: pointer;
   transition:
@@ -381,7 +381,7 @@ codex-timeline-slot {
 }
 .tl-card-desc {
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   line-height: 1.45;
   color: rgba(212, 196, 154, 0.78);
   margin-bottom: 6px;
@@ -398,7 +398,7 @@ codex-timeline-slot {
 .tl-card-chars,
 .tl-card-loc {
   font-family: var(--font-ui);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   line-height: 1.45;
   color: var(--text-muted);
   overflow: hidden;

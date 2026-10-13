@@ -114,7 +114,7 @@ codex-character-profile {
 .character-inline-editor small {
   display: block;
   margin-top: 0.4rem;
-  font: 0.68rem/1.4 var(--font-ui);
+  font: var(--text-xs)/1.4 var(--font-ui);
   color: var(--text-muted);
 }
 .character-inline-editor [role="alert"] {
@@ -374,7 +374,7 @@ codex-inline-field .inline-edit-actions button:hover:enabled,
 }
 .character-inline-editor small.character-edit-hint {
   margin-top: 0.25rem;
-  font-size: 0.66rem;
+  font-size: var(--text-xs);
 }
 .direct-character .character-inline-editor .inline-edit-remove {
   margin-top: 0.3rem;
@@ -382,7 +382,7 @@ codex-inline-field .inline-edit-actions button:hover:enabled,
   border-color: transparent;
   background: transparent;
   color: var(--color-danger);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
 }
 codex-inline-field .inline-edit-button,
 .direct-character .inline-edit-button {
@@ -418,7 +418,7 @@ codex-inline-field .inline-edit-button:hover,
   padding: 0;
   border: 0;
   color: var(--accent-gold);
-  font: 500 0.74rem/1.4 var(--font-title);
+  font: 500 var(--text-xs)/1.4 var(--font-title);
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
@@ -520,7 +520,7 @@ codex-inline-field:has(.inline-field-editor) {
   display: block;
   margin-top: 0.25rem;
   color: var(--text-muted);
-  font: 0.66rem/1.4 var(--font-ui);
+  font: var(--text-xs)/1.4 var(--font-ui);
 }
 .inline-edit-error {
   display: block;

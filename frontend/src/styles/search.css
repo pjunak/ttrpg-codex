@@ -87,7 +87,7 @@
 .search-count {
   margin-bottom: 1.6rem;
   font-family: var(--ui-font);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   font-style: normal;
   font-weight: 750;
   letter-spacing: 0.08em;
@@ -124,7 +124,7 @@
 
 .search-group > header > span {
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
 }
 
 .search-group > div {
@@ -157,7 +157,7 @@
 .search-result small {
   margin-inline-start: 0.5rem;
   color: var(--text-muted);
-  font: 0.7rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
 }
 
 .search-result p {

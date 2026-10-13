@@ -107,7 +107,7 @@ codex-collection-browser {
   align-items: center;
   gap: 0.45rem;
   color: var(--text-muted);
-  font: 0.7rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -233,7 +233,7 @@ codex-collection-browser {
   border-radius: var(--radius-pill);
   background: var(--bg-raised);
   color: var(--text-muted);
-  font: 0.7rem/1.6 var(--font-ui);
+  font: var(--text-xs)/1.6 var(--font-ui);
   letter-spacing: 0;
 }
 /* Grouped tile lists flow into columns so many small groups stay on one screen. */

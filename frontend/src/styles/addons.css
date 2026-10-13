@@ -72,7 +72,7 @@ codex-addon-markdown {
 
 .addon-contribution-heading span {
   color: var(--addon-meta-text);
-  font-size: 0.66rem;
+  font-size: var(--text-xs);
 }
 
 .addon-contribution > :not(.addon-contribution-heading) {

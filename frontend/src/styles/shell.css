@@ -79,7 +79,7 @@ codex-app,
 .campaign-brand small {
   display: block;
   color: var(--text-muted);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -103,7 +103,7 @@ codex-app,
   padding: 0 0.25rem;
   border: 1px solid var(--border-subtle);
   border-radius: 3px;
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   white-space: nowrap;
 }
 
@@ -113,7 +113,7 @@ codex-app,
   margin: 0.5rem 0 0;
   border-top: 1px solid var(--border-faint);
   color: var(--text-muted);
-  font: 500 0.65rem/1.6 var(--font-ui);
+  font: 500 var(--text-xs)/1.6 var(--font-ui);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -255,7 +255,7 @@ codex-app,
 
 .account-panel small {
   display: block;
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
 }
 
 .account-panel.signed-in p {
@@ -267,7 +267,7 @@ codex-app,
   flex-wrap: wrap;
   gap: 0.75rem;
   margin-top: 1rem;
-  font: 0.65rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
   color: var(--text-muted);
 }
 
@@ -361,7 +361,7 @@ codex-app,
 
 .page-kicker {
   color: var(--text-muted);
-  font: 0.72rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -424,7 +424,7 @@ codex-app,
     color: var(--text-muted);
     border: 0;
     background: transparent;
-    font: 0.6rem var(--font-ui);
+    font: var(--text-xs) var(--font-ui);
     text-decoration: none;
   }
   .mobile-navigation span {

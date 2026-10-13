@@ -52,7 +52,7 @@
 }
 .cm-shell .map-hint {
   font-family: var(--font-ui);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   padding-left: 0.5rem;
   margin-left: auto;
@@ -70,7 +70,7 @@
   border: 1px solid rgba(var(--accent-gold-rgb), 0.2);
   border-radius: var(--radius);
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   backdrop-filter: blur(4px);
   z-index: 8;
   max-height: min(70%, 34rem);
@@ -401,7 +401,7 @@
   padding: 0.22rem 0.5rem;
   border-radius: 12px;
   font-family: var(--font-ui);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   cursor: pointer;
   white-space: nowrap;
   transition:
@@ -437,7 +437,7 @@
   padding: 0.28rem 0.6rem;
   border-radius: var(--radius-sm);
   font-family: var(--font-ui);
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -453,7 +453,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   color: var(--text-light);
 }
 .cm-shell .cm-focus-hops input[type="range"] {

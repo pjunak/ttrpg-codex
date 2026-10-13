@@ -162,7 +162,7 @@ function classicDesign(viewport: "desktop" | "mobile"): Record<string, Record<st
     },
     ".party-member-copy > span": {
       "font-family": inter,
-      "font-size": "11.52px",
+      "font-size": "12px",
       color: "rgb(154, 134, 96)",
     },
     ".record-row": {

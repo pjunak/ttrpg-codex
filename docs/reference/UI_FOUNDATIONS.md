@@ -220,6 +220,8 @@ coarse pointers keep 2.75rem touch targets.
 
 `data-ui-tone="paper"` is a supported reading-surface variant. The dark/default
 variant inherits Classic/Moonlit. Typography and spacing use relative units.
+Interface text is never smaller than `--text-xs` (12px at default size); only
+map and graph labels that scale with their canvas zoom go below it.
 Theme changes affect CSS without replacing controls or authored values. Do not
 target generated popup/input class names or depend on their DOM structure.
 Domain styles may set layout widths, spacing and specialized illustrations.
