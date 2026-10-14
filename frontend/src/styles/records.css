@@ -362,7 +362,7 @@
   margin: 1.6rem 0;
   padding: 1.25rem;
   border: 1px solid var(--chrome-field-border);
-  border-top: 4px solid var(--crimson);
+  border-top: 2px solid var(--gold);
   background: var(--bg-raised);
 }
 
@@ -386,14 +386,6 @@
   font-weight: 550;
 }
 
-.record-editor > header p:last-child {
-  max-width: 42rem;
-  margin: 0.5rem 0 0;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  line-height: 1.5;
-}
-
 .record-editor-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -415,7 +407,9 @@
   text-transform: uppercase;
 }
 
-.record-editor input,
+/* The chip picker's own field sits inside its bordered box, so it keeps the
+   shared control's borderless style. */
+.record-editor input:not(.ui-chip-input),
 .record-editor textarea,
 .record-editor select {
   width: 100%;
@@ -665,14 +659,21 @@ campaign-relationship-editor {
   outline-offset: 2px;
 }
 
+/* Every editor keeps Save and Cancel in reach while its form scrolls. */
 .record-editor-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
   margin-top: 1.4rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--chrome-field-border);
+  padding: 0.8rem;
+  border: 1px solid var(--chrome-field-border);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.18);
 }
 
 .location-map-actions {
@@ -1146,16 +1147,6 @@ campaign-relationship-editor {
 .character-editor .character-editor-description textarea {
   min-height: 32rem;
 }
-.character-editor .record-editor-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 20;
-  padding: 0.8rem;
-  background: var(--bg-raised);
-  border: 1px solid var(--chrome-field-border);
-  border-radius: 6px;
-  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.18);
-}
 
 @media (max-width: 1200px) {
   .character-editor-layout {
@@ -1172,7 +1163,7 @@ campaign-relationship-editor {
   .character-editor {
     padding: 0.8rem;
   }
-  .codex-shell .character-editor .record-editor-actions {
+  .codex-shell .record-editor-actions {
     bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
   }
 }

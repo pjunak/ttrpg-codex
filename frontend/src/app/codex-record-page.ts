@@ -605,11 +605,7 @@ export class CodexRecordPage extends LitElement {
     return html`
       <form class=${`record-editor ${character ? "character-editor" : ""}`} @submit=${this.#submitEditor} @input=${this.#markDirty} @change=${this.#markDirty}>
         <header>
-          <div>
-            ${character ? nothing : html`<p class="page-kicker">${creating ? uiText("New entry") : uiText("Revision {0}", { "0": record.revision })}</p>`}
-            <h2 id="record-editor-title">${creating ? uiText("Add {0}", { "0": route.page.singular.toLocaleLowerCase() }) : uiText("Edit {0}", { "0": text(value["name"]) || route.page.singular.toLocaleLowerCase() })}</h2>
-            ${character ? nothing : html`<p>${uiText("Only the fields shown here are changed. Other campaign and add-on data remains untouched.")}</p>`}
-          </div>
+          <h2 id="record-editor-title">${creating ? uiText("Add {0}", { "0": route.page.singular.toLocaleLowerCase() }) : uiText("Edit {0}", { "0": text(value["name"]) || route.page.singular.toLocaleLowerCase() })}</h2>
         </header>
         ${
           character

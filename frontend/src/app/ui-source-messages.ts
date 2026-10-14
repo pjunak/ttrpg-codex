@@ -369,11 +369,8 @@ export const sourceCs = {
   "In this entry": "V tomto záznamu",
   "Article contents": "Obsah článku",
   "This entry does not have article text yet.": "Tento záznam zatím nemá text článku.",
-  "Only the fields shown here are changed. Other campaign and add-on data remains untouched.":
-    "Změní se pouze zobrazená pole. Ostatní data kampaně a doplňků zůstanou zachována.",
   Cancel: "Zrušit",
   "New entry": "Nový záznam",
-  "Revision {0}": "Revize {0}",
   "Edit {0}": "Upravit: {0}",
   Delete: "Odstranit",
   "Saving…": "Ukládám…",
