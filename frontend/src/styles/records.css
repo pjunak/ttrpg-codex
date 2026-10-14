@@ -1657,7 +1657,8 @@ campaign-relationship-editor {
   color: var(--text-parchment);
 }
 /* A save confirmation floats over the page and fades, so it never pushes the
-   record down or lingers beside the record's own saved state. */
+   record down or lingers beside the record's own saved state. The delay holds
+   it in view: reduced motion shortens only the fade, so it then simply goes. */
 .record-save-toast {
   position: fixed;
   z-index: 150;
@@ -1668,22 +1669,12 @@ campaign-relationship-editor {
   background: var(--bg-raised);
   box-shadow: var(--shadow-md);
   pointer-events: none;
-  animation: record-save-toast 5s ease-in forwards;
+  animation: record-save-toast 0.6s ease-in 4.4s forwards;
 }
 @keyframes record-save-toast {
-  0%,
-  85% {
-    opacity: 1;
-    visibility: visible;
-  }
-  100% {
+  to {
     opacity: 0;
     visibility: hidden;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .record-save-toast {
-    animation-timing-function: step-end;
   }
 }
 @media (max-width: 768px) {

@@ -1644,10 +1644,14 @@ void test("campaign save feedback distinguishes dirty, pending, confirmed and fa
   assert.ok(await dm.page.getByRole("button", { name: "Cancel", exact: true }).isDisabled());
   release();
   await dm.page.getByRole("heading", { name: "Feedback saved", exact: true }).waitFor();
-  await dm.page
+  const saved = dm.page
     .locator(".record-save-confirmation")
-    .getByText("Entry saved to campaign.", { exact: true })
-    .waitFor();
+    .getByText("Entry saved to campaign.", { exact: true });
+  await saved.waitFor();
+  // This context prefers reduced motion, which shortens animations to nothing;
+  // the confirmation must still stay readable before it goes.
+  await dm.page.waitForTimeout(1000);
+  assert.equal(await saved.isVisible(), true);
   await dm.page.unroute("**/api/campaign/transactions");
   await dm.page.getByRole("button", { name: "Edit", exact: true }).click();
   await dm.page.getByLabel("Name", { exact: true }).fill("A later draft");
