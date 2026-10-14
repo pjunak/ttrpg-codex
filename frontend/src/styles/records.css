@@ -1441,11 +1441,14 @@ campaign-relationship-editor {
   flex: 1;
   min-width: 0;
 }
+/* Cards in one roster row share a height, whether or not a member has a title. */
 .party-record-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  align-self: start;
+}
+.party-record-card > .party-member {
+  flex: 1 0 auto;
 }
 .creation-context {
   color: var(--text-muted);

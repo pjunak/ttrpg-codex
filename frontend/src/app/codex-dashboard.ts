@@ -105,7 +105,9 @@ export class CodexDashboard extends LitElement {
     `
       : value || (this.authenticated ? this.#ui.t("dashboard.taglinePlaceholder") : "");
     const text =
-      field === "name" ? html`<h1 id="campaign-title">${content}</h1>` : html`<p>${content}</p>`;
+      field === "name"
+        ? html`<h1 id="campaign-title">${content}</h1>`
+        : html`<p class=${!editing && !value ? "is-placeholder" : ""}>${content}</p>`;
     return editing
       ? html`
       <form class=${`campaign-identity-form identity-${field}`} @submit=${this.#saveIdentity} @keydown=${this.#identityKey}>

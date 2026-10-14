@@ -29,6 +29,11 @@ codex-dashboard {
   font: 0.92rem/1.6 var(--font-ui);
   letter-spacing: 0.08em;
 }
+/* The empty tagline invites an edit; it must not read as the campaign's own words. */
+.campaign-title-page p.is-placeholder {
+  font-style: italic;
+  opacity: 0.6;
+}
 
 .campaign-title-rule {
   display: block;
