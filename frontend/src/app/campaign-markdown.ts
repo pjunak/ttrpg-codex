@@ -96,6 +96,30 @@ export function parseCampaignMarkdown(source: string): CampaignMarkdownDocument 
   return parseCampaignMarkdownDocuments([source])[0] ?? emptyDocument();
 }
 
+const plainTextCache = new Map<string, string>();
+
+/**
+ * A Markdown source's readable words on one line, for excerpts and search:
+ * no heading marks, emphasis markers or link syntax. Projections call this for
+ * every record on each search, so results are cached by source.
+ */
+export function campaignMarkdownText(source: string): string {
+  const cached = plainTextCache.get(source);
+  if (cached !== undefined) return cached;
+  const blocks = (tokens: readonly Token[]): string[] =>
+    tokens.flatMap((token) =>
+      token.type === "list"
+        ? (token as Tokens.List).items.flatMap((item) => blocks(item.tokens))
+        : token.type === "space" || token.type === "hr" || token.type === "html"
+          ? []
+          : [inlineText([token])],
+    );
+  const result = blocks(markdown.lexer(source)).join(" ").replace(/\s+/gu, " ").trim();
+  if (plainTextCache.size >= 2_000) plainTextCache.clear();
+  plainTextCache.set(source, result);
+  return result;
+}
+
 export function campaignMarkdownOutline(
   documents: readonly CampaignMarkdownDocument[],
 ): readonly CampaignMarkdownOutlineItem[] {

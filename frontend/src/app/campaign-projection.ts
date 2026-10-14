@@ -11,6 +11,7 @@ import { campaignPages, recordHash, type CampaignPageDefinition } from "./routes
 import { campaignEnumDisplayLabel } from "./campaign-settings.js";
 import { attitudeRing, attitudeFilter } from "./campaign-attitude-glow.js";
 import { campaignPartyIdentity, type CampaignPartyIdentity } from "./campaign-party.js";
+import { campaignMarkdownText } from "./campaign-markdown.js";
 
 export interface CampaignIdentity {
   readonly name: string;
@@ -166,9 +167,8 @@ function projectEntityWithContext(
     key: record.key,
     name: nonEmptyText(value["name"]) ?? record.key,
     title: firstText(value, secondaryFields[page.collection] ?? []),
-    excerpt: firstExcerpt(
-      value,
-      excerptFields[page.collection] ?? ["description", "summary", "body"],
+    excerpt: campaignMarkdownText(
+      firstExcerpt(value, excerptFields[page.collection] ?? ["description", "summary", "body"]),
     ),
     portrait: safeMediaURL(value["portrait"]),
     icon: partyIdentity?.badge ?? shortIcon(value["icon"] ?? value["badge"]),

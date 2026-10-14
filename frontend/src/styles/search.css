@@ -149,6 +149,11 @@
   min-width: 0;
 }
 
+.search-result > .dm-badge {
+  grid-area: 1 / 2;
+  justify-self: end;
+}
+
 .search-result strong {
   font-family: var(--book-font);
   font-size: 0.98rem;

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   campaignMarkdownOutline,
+  campaignMarkdownText,
   parseCampaignMarkdown,
   parseCampaignMarkdownDocuments,
   renderCampaignMarkdown,
@@ -14,6 +15,14 @@ import type {
 } from "../src/core/campaign-data.js";
 
 describe("campaign markdown", () => {
+  it("reduces Markdown to one line of readable words for excerpts", () => {
+    expect(
+      campaignMarkdownText(
+        "## Motivace\n\nChce **ochránit** [[Anežka|characters]] a [Radov](#/locations/radov).\n\n- jedna\n- dvě",
+      ),
+    ).toBe("Motivace Chce ochránit Anežka a Radov. jedna dvě");
+    expect(campaignMarkdownText("Plain text stays as it is.")).toBe("Plain text stays as it is.");
+  });
   it("offers only unresolved visible wiki references to the add-on resolver", () => {
     const addonWiki = vi.fn(() => ({
       status: "resolved" as const,
