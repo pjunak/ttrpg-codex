@@ -60,37 +60,11 @@ codex-character-profile {
 .direct-character .record-facts dd {
   overflow-wrap: anywhere;
 }
-.direct-character .character-edit-value {
-  display: inline;
-  padding: 0.15rem 0.2rem;
-  margin: -0.15rem -0.2rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  font: inherit;
-  line-height: inherit;
-  cursor: text;
-  overflow-wrap: anywhere;
-  max-width: 100%;
-}
-.direct-character .character-edit-value:hover {
-  background: var(--bg-raised);
-  border-color: var(--chrome-field-border);
-}
 .direct-character button:focus-visible,
-.direct-character summary:focus-visible,
-.character-inline-editor :focus-visible {
+.direct-character summary:focus-visible {
   outline: 2px solid var(--accent-gold);
   outline-offset: 3px;
 }
-.character-inline-editor {
-  display: block;
-}
-.character-inline-editor input,
-.character-inline-editor textarea,
-.character-inline-editor select,
 .character-section-editor select {
   display: block;
   width: 100%;
@@ -102,26 +76,6 @@ codex-character-profile {
   border-radius: var(--radius-sm);
   padding: 0.4rem 0.5rem;
   font: inherit;
-}
-.character-inline-editor textarea {
-  min-height: 100px;
-  resize: vertical;
-  font: 0.9rem/1.6 var(--font-body);
-}
-.character-inline-editor select {
-  font: 0.85rem var(--font-ui);
-}
-.character-inline-editor small {
-  display: block;
-  margin-top: 0.4rem;
-  font: var(--text-xs)/1.4 var(--font-ui);
-  color: var(--text-muted);
-}
-.character-inline-editor [role="alert"] {
-  display: block;
-  font: 0.8rem/1.5 var(--font-ui);
-  color: var(--text-parchment);
-  margin-top: 0.5rem;
 }
 .character-subtitle {
   margin: 0.5rem 0;
@@ -161,7 +115,6 @@ codex-character-profile {
 }
 .character-more button,
 .character-local-actions button,
-.character-inline-editor button,
 .character-save-status button,
 .character-add {
   border: 1px solid var(--chrome-field-border);
@@ -282,40 +235,6 @@ codex-character-profile {
   }
 }
 
-/* In-place editing: values read as text, reveal a pencil on hover or focus,
-   and turn into a control with the same typography when activated. */
-.direct-character .character-edit-value {
-  position: relative;
-  padding: 0.1rem 0.3rem;
-  margin: -0.1rem -0.3rem;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-}
-.direct-character .character-edit-value::after {
-  content: "";
-  display: inline-block;
-  width: 0.75em;
-  height: 0.75em;
-  margin-inline-start: 0.4em;
-  vertical-align: -0.04em;
-  background-color: var(--accent-gold);
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m15 5 4 4M4 20l1-5L16 4a2.83 2.83 0 0 1 4 4L9 19l-5 1Z'/%3E%3C/svg%3E")
-    center / contain no-repeat;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.direct-character .character-edit-value:is(:hover, :focus-visible) {
-  background: rgba(var(--accent-gold-rgb), 0.08);
-  border-color: rgba(var(--accent-gold-rgb), 0.25);
-}
-.direct-character .character-edit-value:is(:hover, :focus-visible)::after {
-  opacity: 0.85;
-}
-.direct-character .character-edit-value.is-empty {
-  color: var(--text-muted);
-  font-style: italic;
-}
 .inline-edit-row {
   display: flex;
   align-items: center;
@@ -326,31 +245,12 @@ codex-character-profile {
   flex: 1 1 auto;
   min-width: 0;
 }
-.inline-field-editor :is(input, select),
-.character-inline-editor :is(input, textarea, select) {
-  padding: 0.15rem 0.4rem;
-  border-color: rgba(var(--accent-gold-rgb), 0.7);
-  box-shadow: 0 0 0 3px rgba(var(--accent-gold-rgb), 0.12);
-}
-.inline-field-editor select,
-.character-inline-editor select {
-  min-height: 2rem;
-}
-.inline-field-editor.is-pending :is(input, select),
-.character-inline-editor.is-pending :is(input, textarea, select) {
-  opacity: 0.65;
-}
-.character-inline-editor .ui-combobox input {
-  font: 0.85rem var(--font-ui);
-}
-codex-inline-field .inline-edit-actions,
-.direct-character .inline-edit-actions {
+.inline-edit-actions {
   display: inline-flex;
   flex: 0 0 auto;
   gap: 0.2rem;
 }
-codex-inline-field .inline-edit-actions button,
-.direct-character .inline-edit-actions button {
+.inline-edit-actions button {
   display: inline-grid;
   place-items: center;
   width: 1.75rem;
@@ -362,21 +262,15 @@ codex-inline-field .inline-edit-actions button,
   color: var(--text-muted);
   font: 0.85rem/1 var(--font-ui);
 }
-codex-inline-field .inline-edit-actions .inline-edit-confirm,
-.direct-character .inline-edit-actions .inline-edit-confirm {
+.inline-edit-actions .inline-edit-confirm {
   border-color: rgba(var(--accent-gold-rgb), 0.6);
   color: var(--accent-gold);
 }
-codex-inline-field .inline-edit-actions button:hover:enabled,
-.direct-character .inline-edit-actions button:hover:enabled {
+.inline-edit-actions button:hover:enabled {
   background: var(--bg-raised);
   color: var(--text-parchment);
 }
-.character-inline-editor small.character-edit-hint {
-  margin-top: 0.25rem;
-  font-size: var(--text-xs);
-}
-.direct-character .character-inline-editor .inline-edit-remove {
+.inline-field-editor .inline-edit-remove {
   margin-top: 0.3rem;
   padding: 0.15rem 0.5rem;
   border-color: transparent;
@@ -422,14 +316,15 @@ codex-inline-field .inline-edit-actions button:hover:enabled,
   margin: 0.5rem 0;
 }
 @media (pointer: coarse) {
-  codex-inline-field .inline-edit-actions button,
-  .direct-character .inline-edit-actions button {
+  .inline-edit-actions button {
     width: 2.5rem;
     height: 2.5rem;
   }
 }
 
-/* Generic in-place fields on other record pages share the character profile's look. */
+/* In-place fields on every record page: a value reads as text and reveals a
+   pencil on hover or focus; activating it swaps in a control that keeps the
+   value's typography, so editing does not change how the page reads. */
 codex-inline-field {
   display: inline;
   min-width: 0;
@@ -486,13 +381,45 @@ codex-inline-field:has(.inline-field-editor) {
 .inline-field-editor {
   display: block;
 }
-.inline-field-editor :is(input, select) {
+.inline-field-editor :is(input:not(.ui-chip-input), select, textarea) {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
+  min-height: 1.9rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid rgba(var(--accent-gold-rgb), 0.7);
   border-radius: var(--radius-sm);
   background: var(--bg-base);
   color: var(--text-parchment);
   font: inherit;
+}
+.inline-field-editor textarea {
+  min-height: 6rem;
+  resize: vertical;
+  line-height: 1.6;
+}
+.inline-field-editor :focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+/* The open control already reads as active; focus thickens its border instead
+   of drawing a second ring around it. */
+.inline-field-editor :is(input:not(.ui-chip-input), select, textarea):focus-visible,
+.inline-field-editor .ui-combobox:focus-within input {
+  outline: none;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 1px var(--accent-gold);
+}
+@media (forced-colors: active) {
+  .inline-field-editor :is(input, select, textarea):focus-visible {
+    outline: 2px solid Highlight;
+  }
+}
+.inline-field-editor .ui-combo-toggle {
+  min-height: 1.9rem;
+}
+.inline-field-editor.is-pending :is(input, select, textarea) {
+  opacity: 0.65;
 }
 .inline-edit-hint {
   display: block;

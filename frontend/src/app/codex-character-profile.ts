@@ -410,13 +410,13 @@ export class CodexCharacterProfile extends LitElement {
       key === "unknown" ? uiText(part === "answer" ? "Answer" : "Question") : field.label;
     if (!this.canEdit) return html`<span>${value || "—"}</span>`;
     if (!active)
-      return html`<button type="button" class=${`character-edit-value${value ? "" : " is-empty"}`} data-edit-field=${key} aria-label=${uiText("Edit {0}", { "0": label })}
+      return html`<button type="button" class=${`inline-field-value${value ? "" : " is-empty"}`} data-edit-field=${key} aria-label=${uiText("Edit {0}", { "0": label })}
       @click=${() => this.#begin(key, row, part)}>${value || uiText(part === "answer" ? "Add answer" : "Add {0}", { "0": label.toLocaleLowerCase() })}</button>`;
     const options = editorOptionsFor(this.campaign, field, this.record.key);
     const auto = key === "circumstances" || part === "answer";
     const choice = field.kind === "enum" || field.kind === "reference";
     const searchable = choice && options.length >= 12;
-    return html`<span class=${`character-inline-editor${draft.pending ? " is-pending" : ""}`} data-field=${key}
+    return html`<span class=${`inline-field-editor${draft.pending ? " is-pending" : ""}`} data-field=${key}
       @focusout=${searchable ? (event: FocusEvent) => this.#leaveSearchable(event, key) : nothing}
       @keydown=${
         searchable
@@ -464,7 +464,7 @@ export class CodexCharacterProfile extends LitElement {
           ?disabled=${draft.pending} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => this.#cancelField(key)}>✕</button>
       </span>`
       }</span>
-      ${draft.pending ? html`<small class="character-edit-hint">${uiText("Saving…")}</small>` : auto ? html`<small class="character-edit-hint">${uiText("Saves after a short pause")}</small>` : nothing}
+      ${draft.pending ? html`<small class="inline-edit-hint">${uiText("Saving…")}</small>` : auto ? html`<small class="inline-edit-hint">${uiText("Saves after a short pause")}</small>` : nothing}
       ${
         row !== undefined
           ? html`<button type="button" class="inline-edit-remove" ?disabled=${draft.pending} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => {
@@ -475,19 +475,22 @@ export class CodexCharacterProfile extends LitElement {
       }
       ${
         draft.error
-          ? html`<span role="alert">${draft.error}</span>${
+          ? html`<span class="inline-edit-error" role="alert">${draft.error}</span>${
               draft.conflict
-                ? html`<small>${uiText("Current saved value")}: ${this.#display(key, this.#initial(key))}</small>
-        <button type="button" @click=${() => {
-          draft.base = this.record;
-          draft.original = this.#initial(key);
-          draft.conflict = false;
-          draft.error = "";
-          this.requestUpdate();
-        }}>${uiText("Keep my draft")}</button>`
+                ? html`<small class="inline-edit-hint">${uiText("Current saved value")}: ${this.#display(key, this.#initial(key))}</small>`
+                : nothing
+            }<span class="inline-edit-recovery">${
+              draft.conflict
+                ? html`<button type="button" @click=${() => {
+                    draft.base = this.record;
+                    draft.original = this.#initial(key);
+                    draft.conflict = false;
+                    draft.error = "";
+                    this.requestUpdate();
+                  }}>${uiText("Keep my draft")}</button>`
                 : html`<button type="button" @click=${() => this.#saveField(key, true)}>${uiText("Retry")}</button>`
             }
-        <button type="button" @click=${() => this.#cancelField(key)}>${uiText("Use current value")}</button>`
+        <button type="button" @click=${() => this.#cancelField(key)}>${uiText("Use current value")}</button></span>`
           : nothing
       }
     </span>`;
@@ -785,7 +788,7 @@ export class CodexCharacterProfile extends LitElement {
 
   #panelValue(panel: string, label: string) {
     return this.canEdit
-      ? html`<button type="button" class=${`character-edit-value${label ? "" : " is-empty"}`} @click=${() => this.#openPanel(panel)}>${label || uiText("Add {0}", { "0": panel === "relationships" ? uiText("Relationships").toLocaleLowerCase() : this.#field(panel).label.toLocaleLowerCase() })}</button>`
+      ? html`<button type="button" class=${`inline-field-value${label ? "" : " is-empty"}`} @click=${() => this.#openPanel(panel)}>${label || uiText("Add {0}", { "0": panel === "relationships" ? uiText("Relationships").toLocaleLowerCase() : this.#field(panel).label.toLocaleLowerCase() })}</button>`
       : html`<span>${label || "—"}</span>`;
   }
   #openPanel(panel: string): void {
