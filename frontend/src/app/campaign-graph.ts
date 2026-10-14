@@ -289,6 +289,17 @@ export function graphNodeStates(
   );
 }
 
+/** A card's footprint before the page has measured it; also its rendered width. */
+export function graphCardSize(node: Pick<GraphNode, "kind">): {
+  readonly width: number;
+  readonly height: number;
+} {
+  return { width: node.kind === "faction" ? 210 : 168, height: 126 };
+}
+
+/** Space kept between cards, matching the collision gap used while dragging. */
+export const graphCardGap = 28;
+
 /** Deterministic starting positions; existing browser arrangements always win. */
 export function initialGraphPositions(
   graph: CampaignGraph,
@@ -342,7 +353,58 @@ export function initialGraphPositions(
         });
       }
   }
+  // The forces treat cards as points, so linked cards can settle on top of
+  // each other; saved cards stay where the reader put them.
+  if (iterations > 0)
+    separateGraphCards(
+      graph,
+      result,
+      new Set(graph.nodes.filter((node) => !saved.has(node.key)).map((node) => node.key)),
+      graphCardSize,
+    );
   return result;
+}
+
+/**
+ * Push overlapping cards apart along their shorter overlap, moving only the
+ * `movable` cards. Bounded passes; the graph is limited to a few hundred cards.
+ */
+export function separateGraphCards(
+  graph: CampaignGraph,
+  positions: Map<string, GraphPoint>,
+  movable: ReadonlySet<string>,
+  size: (node: GraphNode) => { readonly width: number; readonly height: number },
+): void {
+  if (movable.size === 0 || graph.nodes.length > 200) return;
+  for (let pass = 0; pass < 60; pass++) {
+    let moved = false;
+    for (let i = 0; i < graph.nodes.length; i++)
+      for (let j = i + 1; j < graph.nodes.length; j++) {
+        const a = graph.nodes[i]!,
+          b = graph.nodes[j]!,
+          movesA = movable.has(a.key),
+          movesB = movable.has(b.key),
+          p = positions.get(a.key),
+          q = positions.get(b.key);
+        if ((!movesA && !movesB) || !p || !q) continue;
+        const dx = q.x - p.x,
+          dy = q.y - p.y,
+          sizeA = size(a),
+          sizeB = size(b),
+          ox = (sizeA.width + sizeB.width) / 2 + graphCardGap - Math.abs(dx),
+          oy = (sizeA.height + sizeB.height) / 2 + graphCardGap - Math.abs(dy);
+        if (ox <= 0 || oy <= 0) continue;
+        moved = true;
+        const horizontal = ox < oy,
+          push = ((horizontal ? ox : oy) + 0.5) / (movesA && movesB ? 2 : 1),
+          sign = Math.sign(horizontal ? dx : dy) || 1;
+        const shift = (point: GraphPoint, by: number): GraphPoint =>
+          horizontal ? { x: point.x + by, y: point.y } : { x: point.x, y: point.y + by };
+        if (movesA) positions.set(a.key, shift(p, -sign * push));
+        if (movesB) positions.set(b.key, shift(q, sign * push));
+      }
+    if (!moved) break;
+  }
 }
 export function stepGraphZoom(current: number, direction: number): number {
   const index = graphZoomLevels.reduce(

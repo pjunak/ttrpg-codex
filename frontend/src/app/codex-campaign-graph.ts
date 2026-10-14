@@ -7,7 +7,9 @@ import {
   graphEdgeOffsets,
   graphNodeStates,
   graphZoomLevels,
+  graphCardSize,
   initialGraphPositions,
+  separateGraphCards,
   parseGraphFilter,
   parseGraphPositions,
   stepGraphZoom,
@@ -85,6 +87,8 @@ export class CodexCampaignGraph extends LitElement {
   #graph: CampaignGraph = { nodes: [], edges: [] };
   #nodeByKey = new Map<string, GraphNode>();
   #sizes = new Map<string, { width: number; height: number }>();
+  /** Cards this view placed itself, still waiting for a spread by their real size. */
+  readonly #unplaced = new Set<string>();
   #observer: ResizeObserver | undefined;
   #gesture: Gesture | undefined;
   #motion: GraphMotion | undefined;
@@ -190,7 +194,7 @@ export class CodexCampaignGraph extends LitElement {
         this.#readPreferences();
         this.#scheduleFit(0.8);
       }
-      this.positions = initialGraphPositions(this.#graph, this.positions);
+      this.#place(this.positions);
       if (!this.#graph.nodes.some((node) => node.key === this.focusId)) this.focusId = undefined;
       if (!this.#graph.nodes.some((node) => node.key === this.contextMenu?.key))
         this.contextMenu = undefined;
@@ -249,10 +253,7 @@ export class CodexCampaignGraph extends LitElement {
         edges: [...base.edges, ...models.flatMap((model) => model.graph.edges)],
       };
       this.#nodeByKey = new Map(this.#graph.nodes.map((node) => [node.key, node]));
-      this.positions = initialGraphPositions(
-        this.#graph,
-        new Map([...models.flatMap((model) => [...model.positions]), ...this.positions]),
-      );
+      this.#place(new Map([...models.flatMap((model) => [...model.positions]), ...this.positions]));
       if (models.length && this.#fitAddonsOnArrival) {
         this.#fitAddonsOnArrival = false;
         this.#scheduleFit(0.8);
@@ -295,6 +296,7 @@ export class CodexCampaignGraph extends LitElement {
         resized = true;
       }
     }
+    if (resized) this.#spreadUnplaced();
     if (this.#fitPasses > 0) {
       this.#fitPasses--;
       this.#fit();
@@ -478,7 +480,7 @@ export class CodexCampaignGraph extends LitElement {
               state = states.get(node.key)!;
             return html`<a class="cm-node" data-key=${node.key} data-kind=${node.kind} href=${node.route || nothing} role=${node.route ? nothing : "button"} tabindex="0"
             draggable="false" aria-label=${node.kind === "addon" ? `${node.name}. ${node.hint}` : node.name} aria-describedby="cm-keyboard-help"
-            style=${`left:${Math.round(box.x - box.width / 2)}px;top:${Math.round(box.y - box.height / 2)}px;--cc:${node.color};--cw:${node.kind === "faction" ? 210 : 168}px`}
+            style=${`left:${Math.round(box.x - box.width / 2)}px;top:${Math.round(box.y - box.height / 2)}px;--cc:${node.color};--cw:${graphCardSize(node).width}px`}
             @click=${(event: MouseEvent) => this.#nodeClick(event, node)} @contextmenu=${(event: MouseEvent) => this.#openMenu(event, node.key)}>
             <div class=${`cm-cloud${node.kind === "faction" ? " cm-faction-hub" : ` cm-${node.kind}`}${node.status === "dead" ? " cm-dead" : ""}${state.dim ? " cm-vfilter-dim" : ""}${this.focusId === node.key ? " cm-highlighted" : ""}`}>
               <div class="cm-strip">${node.kind === "addon" ? `${node.badge} ${node.title}` : node.kind === "character" ? `${node.badge} ${node.factionName}` : node.kind === "faction" ? `${node.badge} ${this.#ui.t("graph.factionStrip")}` : node.kind === "location" ? `📍 ${this.#ui.t("graph.placeStrip")}` : `❓ ${this.#ui.t("graph.mysteryStrip")}`}</div>
@@ -609,9 +611,11 @@ export class CodexCampaignGraph extends LitElement {
     return layout;
   }
   #box(key: string): GraphBox {
-    const pill = this.#nodeByKey.get(key)?.kind === "faction";
+    const kind = this.#nodeByKey.get(key)?.kind ?? "character",
+      pill = kind === "faction",
+      card = graphCardSize({ kind });
     const p = this.#motion?.positions.get(key) ?? this.positions.get(key) ?? { x: 0, y: 0 },
-      size = this.#sizes.get(key) ?? { width: (pill ? 210 : 168) * this.zoom, height: 126 };
+      size = this.#sizes.get(key) ?? { width: card.width * this.zoom, height: card.height };
     return { x: this.pan.x + p.x * this.zoom, y: this.pan.y + p.y * this.zoom, ...size, pill };
   }
   #scheduleFit(cap: number): void {
@@ -646,6 +650,8 @@ export class CodexCampaignGraph extends LitElement {
     };
   }
   #setZoom(next: number, anchor?: GraphPoint): void {
+    // Cards change size with zoom; never rearrange them while the reader zooms.
+    this.#unplaced.clear();
     this.#interruptMotion();
     this.#fitPasses = 0;
     this.#fitAddonsOnArrival = false;
@@ -742,6 +748,8 @@ export class CodexCampaignGraph extends LitElement {
       gesture.capture.releasePointerCapture(gesture.pointer);
   };
   #moveNode(key: string, point: GraphPoint): void {
+    // The reader now owns the arrangement; stop spreading cards on their behalf.
+    this.#unplaced.clear();
     if (validCoordinate(point.x) && validCoordinate(point.y)) {
       const positions = new Map(this.positions);
       positions.set(key, point);
@@ -901,6 +909,28 @@ export class CodexCampaignGraph extends LitElement {
       this.storageError = true;
     }
   }
+  #place(saved: ReadonlyMap<string, GraphPoint>): void {
+    this.positions = initialGraphPositions(this.#graph, saved);
+    for (const node of this.#graph.nodes) if (!saved.has(node.key)) this.#unplaced.add(node.key);
+  }
+  /**
+   * Starting positions assume a standard card, but cards grow with their
+   * content after the first paint. Whenever measured sizes change, spread the
+   * cards this view placed so none sits on another, until the reader moves a
+   * card; cards the reader arranged never move.
+   */
+  #spreadUnplaced(): void {
+    const unplaced = new Set([...this.#unplaced].filter((key) => this.positions.has(key)));
+    if (unplaced.size === 0) return;
+    const positions = new Map(this.positions);
+    separateGraphCards(this.#graph, positions, unplaced, (node) => {
+      const measured = this.#sizes.get(node.key);
+      return measured
+        ? { width: measured.width / this.zoom, height: measured.height / this.zoom }
+        : graphCardSize(node);
+    });
+    this.positions = positions;
+  }
   #readPreferences(): void {
     const keys = graphPreferenceKeys(this.mode);
     const read = (key: string): unknown => {
@@ -910,7 +940,8 @@ export class CodexCampaignGraph extends LitElement {
         return undefined;
       }
     };
-    this.positions = initialGraphPositions(this.#graph, parseGraphPositions(read(keys.positions)));
+    this.#unplaced.clear();
+    this.#place(parseGraphPositions(read(keys.positions)));
     this.filters = parseGraphFilter(read(keys.filters));
     const factions = read(keys.factions);
     this.hiddenFactions = new Set(
@@ -944,6 +975,7 @@ export class CodexCampaignGraph extends LitElement {
         return [node.key, { width: box.width / this.zoom, height: box.height / this.zoom }];
       }),
     );
+    this.#unplaced.clear();
     this.#motion = new GraphMotion({ nodes, edges }, this.positions, sizes, key);
     this.#motionMode = this.mode;
   }

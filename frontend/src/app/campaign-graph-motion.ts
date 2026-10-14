@@ -1,4 +1,6 @@
 import {
+  graphCardGap,
+  graphCardSize,
   graphEdgeControl,
   graphEdgeOffsets,
   validCoordinate,
@@ -18,7 +20,7 @@ interface Velocity {
   y: number;
 }
 const zero = (): Velocity => ({ x: 0, y: 0 });
-const padding = 14,
+const padding = graphCardGap / 2,
   maxSteps = 180,
   pairBudget = 50_000;
 const bounded = (value: number): number => Math.max(-10_000_000, Math.min(10_000_000, value));
@@ -48,7 +50,7 @@ export class GraphMotion {
     this.#affected = new Set([held]);
     this.#bodies = graph.nodes.map((node) => ({
       key: node.key,
-      ...(sizes.get(node.key) ?? { width: node.kind === "faction" ? 210 : 168, height: 126 }),
+      ...(sizes.get(node.key) ?? graphCardSize(node)),
     }));
     this.#offsets = graphEdgeOffsets(graph.edges);
     this.#snapEdges();

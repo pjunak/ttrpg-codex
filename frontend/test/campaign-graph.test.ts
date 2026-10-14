@@ -6,6 +6,8 @@ import {
   graphNeighborhood,
   graphNodeStates,
   graphZoomLevels,
+  graphCardGap,
+  graphCardSize,
   initialGraphPositions,
   parseGraphFilter,
   parseGraphPositions,
@@ -134,6 +136,46 @@ describe("relationship graph projection and local arrangement", () => {
     expect(
       [...first.values()].every((point) => Number.isFinite(point.x) && Number.isFinite(point.y)),
     ).toBe(true);
+  });
+  it("starts new cards apart even when relationships pull them together", () => {
+    const people = Array.from({ length: 14 }, (_, index) => `p${index}`),
+      base = campaign(),
+      crowded: CampaignDataset = {
+        ...base,
+        collections: base.collections.map((collection) =>
+          collection.name === "characters"
+            ? {
+                ...collection,
+                records: [
+                  row("hub", { name: "Hub", knowledge: 4 }),
+                  ...people.map((key) => row(key, { name: key, knowledge: 4 })),
+                ],
+              }
+            : collection.name === "relationships"
+              ? {
+                  ...collection,
+                  records: people.map((key) =>
+                    row(`r-${key}`, { source: "hub", target: key, type: "ally" }),
+                  ),
+                }
+              : collection,
+        ),
+      };
+    const graph = projectRelationshipGraph(crowded),
+      positions = initialGraphPositions(graph, new Map());
+    expect(graph.nodes.length).toBe(15);
+    for (const [i, a] of graph.nodes.entries())
+      for (const b of graph.nodes.slice(i + 1)) {
+        const p = positions.get(a.key)!,
+          q = positions.get(b.key)!;
+        const apartX =
+            Math.abs(q.x - p.x) >=
+            (graphCardSize(a).width + graphCardSize(b).width) / 2 + graphCardGap - 1,
+          apartY =
+            Math.abs(q.y - p.y) >=
+            (graphCardSize(a).height + graphCardSize(b).height) / 2 + graphCardGap - 1;
+        expect(apartX || apartY, `${a.key} overlaps ${b.key}`).toBe(true);
+      }
   });
   it("keeps valid filter preferences while bounding malformed values", () => {
     expect(parseGraphFilter(null)).toEqual(emptyGraphFilter());
