@@ -197,14 +197,17 @@ export class CodexDmDashboard extends LitElement {
     return html`<section class="dm-section" aria-labelledby="dm-hidden-title">
         <h2 id="dm-hidden-title">${this.#ui.t("dm.hiddenContent")}</h2>
         <p class="dm-section-hint">${totalHidden === 0 ? this.#ui.t("dm.hiddenEmpty") : this.#ui.plural("dm.hiddenCount", totalHidden)}</p>
-        <div class="dm-grid">${counts.map(
-          ({ page, total, hidden }) => html`
+        <div class="dm-grid">${counts
+          // An empty collection has nothing to hide; its "0 / 0" tile only adds noise.
+          .filter(({ total }) => total > 0)
+          .map(
+            ({ page, total, hidden }) => html`
           <a class=${`dm-count-card ${hidden ? "has-dm" : ""}`} data-dm-collection=${page.id} href=${page.id === "events" ? "#/timeline" : collectionHash(page)}>
             <span class="dm-count-label">${uiCollectionLabel(page.id, "other")}</span>
             <span class="dm-count-numbers"><strong>${number(hidden)}</strong> / ${number(total)}</span>
             <span class="dm-count-meta">${this.#ui.t("dm.onlyDm")}</span>
           </a>`,
-        )}</div>
+          )}</div>
       </section>`;
   }
 }

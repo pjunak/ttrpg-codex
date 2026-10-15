@@ -275,7 +275,11 @@ void test("DM panel preserves the fallback cards and its tool links on desktop a
       true,
     );
     if (mobile) await page.keyboard.press("Escape");
-    assert.equal(await page.locator(".dm-count-card[data-dm-collection]").count(), 8);
+    assert.equal(
+      await page.locator('[data-dm-collection="history"]').count(),
+      0,
+      "empty collections have no hidden-content tile",
+    );
     assert.match(
       await page.locator('[data-dm-collection="events"]').textContent().then(required),
       /1\s*\/\s*3/u,
@@ -493,11 +497,6 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     const page = await open(t);
     const panel = page.locator(".dm-panel");
     const dashboard = page.locator(".dm-tools-dashboard");
-    await dashboard
-      .locator('[data-stat="total"] .dm-dashboard-value')
-      .filter({ hasText: /^0$/u })
-      .waitFor();
-    assert.equal(await dashboard.locator(".dm-dashboard-tile").count(), 5);
     await dashboard.getByRole("link", { name: /Story Planner/ }).click();
     await page.getByRole("heading", { name: "Story Planner", exact: true }).waitFor();
     await page.getByRole("button", { name: "+ Quest", exact: true }).click();
@@ -522,6 +521,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
       .locator('[data-stat="total"] .dm-dashboard-value')
       .filter({ hasText: /^2$/u })
       .waitFor();
+    assert.equal(await dashboard.locator(".dm-dashboard-tile").count(), 5);
     assert.equal(
       await dashboard
         .locator('[data-stat="notes"] .dm-dashboard-value')
