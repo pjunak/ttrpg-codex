@@ -143,6 +143,8 @@ export class CodexRecordPage extends LitElement {
   #editCampaign: CampaignDataset | undefined;
   #factionDraft: string | undefined;
   readonly #markdownDrafts = new Map<string, string>();
+  /** Only this long-text field explains local recovery; the others stay quiet. */
+  #firstMarkdownField: string | undefined;
   #submittedMarkdown: readonly { editor: CodexMarkdownEditor; value: string }[] = [];
   #pendingViewHash: string | undefined;
   #disposeRuleDetails: (() => void) | undefined;
@@ -581,6 +583,7 @@ export class CodexRecordPage extends LitElement {
 
   #editorForm(record: CampaignRecord | undefined, route: RecordRoute) {
     const fields = editorFieldsFor(route.page.collection, this.canManageVisibility);
+    this.#firstMarkdownField = fields.find((field) => field.kind === "markdown")?.key;
     const statusField = fields.find(({ key }) => key === "status");
     const value: Readonly<Record<string, unknown>> =
       record === undefined && route.kind === "create" && route.context
@@ -817,6 +820,7 @@ export class CodexRecordPage extends LitElement {
             : undefined
         }
         .saveLabel=${uiText("Save entry")}
+        .quietIdle=${field.key !== this.#firstMarkdownField}
         @markdown-change=${(event: CustomEvent<{ value: string }>) => {
           this.#markdownDrafts.set(field.key, event.detail.value);
           this.#setDirty(true);

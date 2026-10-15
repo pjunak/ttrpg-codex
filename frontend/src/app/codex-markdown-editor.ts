@@ -49,6 +49,7 @@ export class CodexMarkdownEditor extends LitElement {
     maximumLength: { type: Number },
     saveLabel: { type: String },
     draftContext: { attribute: false },
+    quietIdle: { type: Boolean },
     recoveryBusy: { state: true },
     recoveryMessage: { state: true },
     mode: { state: true },
@@ -66,6 +67,8 @@ export class CodexMarkdownEditor extends LitElement {
   declare maximumLength: number;
   declare saveLabel: string | undefined;
   declare draftContext: MarkdownDraftContext | undefined;
+  /** Another editor in the same form already explains local recovery. */
+  declare quietIdle: boolean;
   declare private recoveryBusy: boolean;
   declare private recoveryMessage: string;
   declare private mode: Mode;
@@ -269,6 +272,8 @@ export class CodexMarkdownEditor extends LitElement {
 
   #recoveryStatus() {
     if (!this.draftContext) return nothing;
+    if (this.quietIdle && this.#drafts.status === "idle")
+      return html`<span class="visually-hidden" role="status">${this.recoveryMessage}</span>`;
     return html`<p class="writer-recovery-status" role=${this.#drafts.status === "unavailable" ? "alert" : nothing}>
         ${uiText(({ idle: "draft.enabled", saving: "draft.saving", saved: "draft.saved", unavailable: "draft.unavailable" } as const)[this.#drafts.status])}
         ${this.#drafts.status === "unavailable" ? html`<a download="draft.md" href=${`data:text/markdown;charset=utf-8,${encodeURIComponent(this.value)}`}>${uiText("draft.download")}</a>` : nothing}
