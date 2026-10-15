@@ -55,18 +55,18 @@ codex-timeline-slot {
   flex-wrap: wrap;
   z-index: 10;
 }
+/* The title takes the free space, so the actions stay right with or without the hint. */
 .tl-title {
   font-family: var(--font-title);
   font-size: 0.9rem;
   color: var(--accent-gold);
   letter-spacing: 0.06em;
-  margin: 0 0.4rem 0 0;
+  margin: 0 auto 0 0;
 }
 .tl-hint {
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   color: var(--text-muted);
-  margin-left: auto;
 }
 .tl-add-btn {
   font-family: var(--font-ui);
@@ -297,6 +297,13 @@ codex-timeline-slot {
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--accent-gold-rgb), 0.25) transparent;
   min-height: 40px; /* drop target stays clickable when empty */
+}
+/* A first-event link stays with the empty message in the middle of the column. */
+.tl-col-empty:has(+ .tl-col-add) {
+  margin-bottom: 0;
+}
+.tl-col-empty + .tl-col-add {
+  margin-block: 0 auto;
 }
 .tl-col-empty {
   margin: auto;

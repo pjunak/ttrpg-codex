@@ -411,6 +411,13 @@ void test("empty timelines keep an initial session and a way to create the first
   await column(page, 1).locator(".tl-col-empty").waitFor();
   assert.equal(await page.locator(".tl-card").count(), 0);
   assert.equal(await page.locator(".tl-col").count(), 1);
+  assert.equal(await page.locator(".tl-hint").count(), 0, "no card hint without cards");
+  assert.equal(
+    await column(page, 1)
+      .getByRole("link", { name: "New event", exact: false })
+      .getAttribute("href"),
+    "#/timeline/new/1",
+  );
   await page.getByRole("button", { name: "Edit timeline" }).click();
   await column(page, 1).getByRole("link", { name: "New event", exact: false }).click();
   await page.locator(".record-editor").waitFor();

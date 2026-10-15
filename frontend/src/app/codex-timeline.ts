@@ -167,7 +167,7 @@ export class CodexTimeline extends LitElement {
     return html`<section class=${`tl-shell${this.editing ? " is-editing" : ""}`} aria-label=${this.#ui.t("timeline.title")}>
       <header class="tl-toolbar">
         <h1 class="tl-title">⏳ ${this.#ui.t("timeline.title")}</h1>
-        <span class="tl-hint">${this.#ui.t(this.editing ? "timeline.dragHint" : "timeline.hint")}</span>
+        ${records.size === 0 && !this.editing ? nothing : html`<span class="tl-hint">${this.#ui.t(this.editing ? "timeline.dragHint" : "timeline.hint")}</span>`}
         ${
           this.draft === undefined
             ? nothing
@@ -219,6 +219,12 @@ export class CodexTimeline extends LitElement {
             )}
             <div class="tl-col-body">
               ${ids.length > 0 || phantom ? nothing : html`<p class="tl-col-empty">${this.#ui.t(this.editing ? "timeline.emptyEditing" : "timeline.empty")}</p>`}
+              ${
+                // With no events at all, the first one is a click away instead of behind Edit timeline.
+                records.size === 0 && this.canEdit && !this.editing
+                  ? html`<a class="tl-col-add" href=${`#/timeline/new/${sitting}`}>＋ ${this.#ui.t("timeline.newEvent")}</a>`
+                  : nothing
+              }
               ${repeat(
                 ids,
                 (key) => key,
