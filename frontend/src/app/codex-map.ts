@@ -259,47 +259,15 @@ export class CodexMap extends LitElement {
       const value = recordValue(record);
       return !hasEventPin(value) || eventMapParent(value) === this.route!.parentId;
     });
+    // Without an image there is nothing to find, pan or fit, so only the title,
+    // the way back and the edit toggle stay.
+    const imageless = this.status === "empty" || this.status === "missing",
+      canUpload = this.canEdit && (this.route.parentId !== null || this.canManageCampaign);
     return html`<section class="sc-shell" aria-label=${this.#ui.t("map.world")}>
       <header class="sc-toolbar">
         <h1 class="sc-title">🗺 ${parent === undefined ? this.#ui.t("map.world") : text(recordValue(parent)["name"])}</h1>
         ${parent === undefined ? nothing : html`<a class="sc-btn" href=${mapHash(null)}>↩ ${this.#ui.t("map.world")}</a>`}
-        <div class="sc-search-wrap"><input class="sc-search" type="search" aria-label=${this.#ui.t("map.search")}
-          placeholder=${this.#ui.t("map.search")} .value=${this.query} @input=${(event: Event) => {
-            this.query = (event.target as HTMLInputElement).value;
-          }}
-          @keydown=${(event: KeyboardEvent) => {
-            if (event.key === "Enter" && !event.isComposing && results[0]) {
-              event.preventDefault();
-              this.#select(results[0], true);
-            }
-          }} />
-          ${
-            this.query === ""
-              ? nothing
-              : html`<div class="sc-search-results">${
-                  results.length === 0
-                    ? this.#ui.t("map.noResults")
-                    : results.map(
-                        (location) => html`
-            <button type="button" @click=${() => this.#select(location, true)}>${location.name}</button>`,
-                      )
-                }</div>`
-          }
-        </div>
-        <button class="sc-btn" aria-pressed=${this.eventsVisible} @click=${this.#toggleEvents} ?disabled=${this.status !== "ready"}>📜 ${this.#ui.t("map.eventPaths")}</button>
-        <button class="sc-btn" @click=${this.#fit} ?disabled=${this.status !== "ready"}>🌐 ${this.#ui.t("map.fit")}</button>
-        ${mapViews(this.campaign, this.route.parentId).map(
-          (
-            view,
-          ) => html`<span class="sc-view-preset"><button class="sc-btn" ?disabled=${this.status !== "ready"}
-          @click=${() => this.#fitView(view.bounds)}>${view.icon} ${view.label}</button>
-          ${
-            this.editing && this.canManageCampaign
-              ? html`<button class="sc-btn sc-view-edit" aria-label=${this.#ui.t("map.editView", { name: view.label })}
-            ?disabled=${this.saving} @click=${() => this.#openView(view)}>✎</button>`
-              : nothing
-          }</span>`,
-        )}
+        ${imageless ? nothing : this.#navigationTools(results, mapViews(this.campaign, this.route.parentId))}
         ${
           this.editing
             ? html`
@@ -333,7 +301,7 @@ export class CodexMap extends LitElement {
         `
             : nothing
         }
-        <span class="sc-hint">${this.placing !== null || this.eventDraft?.x === null ? this.#ui.t("map.placeHint") : this.#ui.t("map.panHint")}</span>
+        ${imageless ? nothing : html`<span class="sc-hint">${this.placing !== null || this.eventDraft?.x === null ? this.#ui.t("map.placeHint") : this.#ui.t("map.panHint")}</span>`}
         ${
           this.canEdit
             ? html`<button class="sc-btn" aria-pressed=${this.editing} ?disabled=${this.saving}
@@ -345,14 +313,7 @@ export class CodexMap extends LitElement {
       ${this.viewBoundsUnavailable ? html`<p class="sc-message" role="alert">${this.#ui.t("map.viewBoundsUnavailable")}</p>` : nothing}
       ${this.eventUnavailable ? html`<p class="sc-message" role="alert">${this.#ui.t("map.eventUnavailable")}</p>` : nothing}
       ${this.locationUnavailable ? html`<p class="sc-message" role="alert">${this.#ui.t("map.locationUnavailable")}</p>` : nothing}
-      ${
-        this.editing && (this.route.parentId !== null || this.canManageCampaign)
-          ? html`<label class="sc-upload">
-        ${this.#ui.t("map.upload")} <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-          aria-label=${this.#ui.t("map.upload")} ?disabled=${this.saving || this.draft !== undefined || this.viewDraft !== undefined || this.eventDraft !== undefined} @change=${this.#upload} />
-      </label>`
-          : nothing
-      }
+      ${this.editing && canUpload && !imageless ? this.#uploadControl() : nothing}
       <div class="sc-stage">
         <div class="sc-map" role="region" aria-label=${this.#ui.t("map.canvas")}></div>
         ${
@@ -366,6 +327,7 @@ export class CodexMap extends LitElement {
         </div>`
             : html`<div class="sc-map-state" role="status">${this.#ui.t(this.status === "loading" ? "map.loading" : this.status === "empty" ? "map.empty" : this.status === "missing" ? "map.missing" : "map.failed")}
           ${this.status === "error" ? html`<button class="sc-btn" @click=${() => void this.#loadMap()}>${this.#ui.t("shell.tryAgain")}</button>` : nothing}
+          ${this.status === "empty" && canUpload ? this.#uploadControl() : nothing}
         </div>`
         }
         ${
@@ -1188,6 +1150,51 @@ export class CodexMap extends LitElement {
       expectedRevision: this.viewDraft.expectedRevision,
     });
   };
+  #navigationTools(results: readonly MapLocation[], views: readonly MapView[]) {
+    return html`<div class="sc-search-wrap"><input class="sc-search" type="search" aria-label=${this.#ui.t("map.search")}
+          placeholder=${this.#ui.t("map.search")} .value=${this.query} @input=${(event: Event) => {
+            this.query = (event.target as HTMLInputElement).value;
+          }}
+          @keydown=${(event: KeyboardEvent) => {
+            if (event.key === "Enter" && !event.isComposing && results[0]) {
+              event.preventDefault();
+              this.#select(results[0], true);
+            }
+          }} />
+          ${
+            this.query === ""
+              ? nothing
+              : html`<div class="sc-search-results">${
+                  results.length === 0
+                    ? this.#ui.t("map.noResults")
+                    : results.map(
+                        (location) => html`
+            <button type="button" @click=${() => this.#select(location, true)}>${location.name}</button>`,
+                      )
+                }</div>`
+          }
+        </div>
+        <button class="sc-btn" aria-pressed=${this.eventsVisible} @click=${this.#toggleEvents} ?disabled=${this.status !== "ready"}>📜 ${this.#ui.t("map.eventPaths")}</button>
+        <button class="sc-btn" @click=${this.#fit} ?disabled=${this.status !== "ready"}>🌐 ${this.#ui.t("map.fit")}</button>
+        ${views.map(
+          (
+            view,
+          ) => html`<span class="sc-view-preset"><button class="sc-btn" ?disabled=${this.status !== "ready"}
+          @click=${() => this.#fitView(view.bounds)}>${view.icon} ${view.label}</button>
+          ${
+            this.editing && this.canManageCampaign
+              ? html`<button class="sc-btn sc-view-edit" aria-label=${this.#ui.t("map.editView", { name: view.label })}
+            ?disabled=${this.saving} @click=${() => this.#openView(view)}>✎</button>`
+              : nothing
+          }</span>`,
+        )}`;
+  }
+  #uploadControl() {
+    return html`<label class="sc-upload" data-codex-ui>
+        ${this.#ui.t("map.upload")} <input class="ui-control" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+          aria-label=${this.#ui.t("map.upload")} ?disabled=${this.saving || this.draft !== undefined || this.viewDraft !== undefined || this.eventDraft !== undefined} @change=${this.#upload} />
+      </label>`;
+  }
   readonly #upload = (event: Event): void => {
     const input = event.target as HTMLInputElement,
       file = input.files?.[0];

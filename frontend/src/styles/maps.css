@@ -269,6 +269,10 @@
 .sc-upload input {
   max-width: 100%;
 }
+.sc-map-state .sc-upload {
+  padding: 0;
+  background: none;
+}
 .sc-message {
   color: var(--gold);
 }

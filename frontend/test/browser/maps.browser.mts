@@ -1325,7 +1325,10 @@ void test("saved views and local map upload use the existing optimistic records 
   assert.equal(writes[0][0].expectedRevision, 4);
   assert.equal((writes[0][0].value as unknown as { extension: boolean }[])[0].extension, true);
   await page.goto(`${origin}/#/map/local/unplaced`);
-  await page.getByRole("button", { name: "Edit map", exact: false }).click();
+  // A map without an image offers its upload directly instead of tools that need an image.
+  await page.locator(".sc-map-state").getByLabel("Upload map image").waitFor();
+  assert.equal(await page.getByRole("searchbox", { name: "Find a place…" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: /Whole map/ }).count(), 0);
   await page
     .getByLabel("Upload map image")
     .setInputFiles({ name: "local-map.svg", mimeType: "image/svg+xml", buffer: Buffer.from(svg) });
