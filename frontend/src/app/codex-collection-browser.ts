@@ -61,6 +61,9 @@ export class CodexCollectionBrowser extends LitElement {
   }
   protected override render() {
     if (!this.model) return nothing;
+    // An empty collection has nothing to search, sort or group.
+    if (this.model.entries.length === 0)
+      return html`<p class="empty-state">${uiText("browse.empty")}</p>`;
     const view = this.view;
     const result = queryCollection(this.model, view);
     const facet = this.model.facets.find((facet) => facet.key === this.facetKey);
@@ -181,7 +184,7 @@ export class CodexCollectionBrowser extends LitElement {
     ${group?.multiple && result.groups.length > 1 ? html`<p class="field-help">${uiText("browse.multipleGroups")}</p>` : nothing}
     ${
       result.count === 0
-        ? html`<p class="empty-state">${uiText(this.model.entries.length ? "browse.noMatches" : "browse.empty")}</p>`
+        ? html`<p class="empty-state">${uiText("browse.noMatches")}</p>`
         : html`<div class=${`collection-results${result.groups.length > 1 ? " is-grouped" : ""}`}>${repeat(
             result.groups,
             (group) => group.key,

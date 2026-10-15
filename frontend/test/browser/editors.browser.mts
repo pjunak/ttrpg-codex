@@ -468,6 +468,9 @@ void test("a deleted record's draft remains downloadable from its collection wit
   await page.locator(".writer-source").fill("Text for an entry removed elsewhere");
   await localCopySaved(page);
   await reloadFixture(page, dataset({}), "#/characters");
+  await page.getByText("There are no entries in this collection yet.", { exact: true }).waitFor();
+  // An empty collection has nothing to search, sort or group.
+  assert.equal(await page.locator(".collection-controls").count(), 0);
   await page.locator(".collection-local-drafts > summary").click();
   await page
     .locator(".collection-local-draft > summary")
@@ -488,9 +491,8 @@ void test("a deleted record's draft remains downloadable from its collection wit
   assert.equal(content, "Text for an entry removed elsewhere");
   assert.equal(await page.evaluate(() => window.editorFixture.submissions.length), 0);
   await page.evaluate(() => window.editorFixture.role("player"));
-  await page.locator(".collection-result-count").waitFor();
   // Another role's drafts stay separate, so the player sees no draft library at all.
-  assert.equal(await page.locator(".collection-local-drafts").count(), 0);
+  await page.locator(".collection-local-drafts").waitFor({ state: "detached" });
 });
 
 void test("direct character edits confirm with Enter, cancel with Escape and preserve the article", async (t) => {
