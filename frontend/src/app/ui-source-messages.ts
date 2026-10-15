@@ -400,7 +400,7 @@ export const sourceCs = {
   "{0} editor mode": "Režim editoru: {0}",
   "Nothing to preview yet.": "Zatím není co zobrazit v náhledu.",
   "Not set": "Nenastaveno",
-  "{0} (stored)": "{0} (uloženo)",
+  "{0} (not in the list)": "{0} (není v seznamu)",
   "Delete this {0}? This cannot be undone from this page.":
     "Odstranit záznam typu „{0}“? Z této stránky nelze odstranění vrátit.",
   Overview: "Přehled",

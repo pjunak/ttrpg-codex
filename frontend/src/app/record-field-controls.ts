@@ -49,7 +49,7 @@ export function recordFieldControl(
                 ? html`<option value="" ?selected=${selected === ""}>${uiText("Not set")}</option>`
                 : nothing
             }
-            ${orphaned ? html`<option value=${selected} selected>${uiText("{0} (stored)", { "0": selected })}</option>` : nothing}
+            ${orphaned ? html`<option value=${selected} selected>${uiText("{0} (not in the list)", { "0": selected })}</option>` : nothing}
             ${options.map(
               (option) => html`
               <option value=${option.value} ?selected=${option.value === selected}>${option.label}</option>

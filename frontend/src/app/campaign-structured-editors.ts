@@ -697,7 +697,7 @@ function relationshipTypesIncludingOrphan(
   return Object.freeze([
     Object.freeze({
       value: row.type,
-      label: uiText("{0} (stored)", { "0": row.type }),
+      label: uiText("{0} (not in the list)", { "0": row.type }),
       targetCollection: row.type === "mission" ? ("locations" as const) : ("characters" as const),
       directions: Object.freeze(["from", "to"] as CampaignRelationshipDirection[]),
     }),
