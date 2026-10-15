@@ -1103,11 +1103,8 @@ campaign-relationship-editor {
 .character-view-tabs {
   margin-bottom: 1.5rem;
 }
-.character-sheet-heading h1 {
-  margin: 0 0 1.25rem;
-  color: var(--gold);
-  font: 600 2rem var(--font-title);
-  overflow-wrap: anywhere;
+#character-addons-panel > .addon-article {
+  margin-top: 0;
 }
 .character-profile .record-side {
   position: static;

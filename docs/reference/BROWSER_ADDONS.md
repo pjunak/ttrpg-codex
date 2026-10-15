@@ -41,8 +41,10 @@ separate, keyboard-accessible tabs. The contribution label supplies the second
 tab's title when there is one contribution; multiple contributions share the
 Record add-ons view. Both panels remain mounted when switching views, so core
 and add-on drafts, revision bases, and unload guards survive. The selected view
-is remembered per character for the browser session. This presentation does not
-change contribution descriptors, role projection, or lifecycle ownership.
+is remembered per character for the browser session. The add-on view's page
+heading (the character's name) is visually hidden: a contribution that wants
+the name shows it from its host context. This presentation does not change
+contribution descriptors, role projection, or lifecycle ownership.
 
 The host's Sidebar settings provide a further presentation filter after the
 normal generation/role projection. Pages start as Everyone (still limited by

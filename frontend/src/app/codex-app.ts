@@ -416,7 +416,7 @@ export class CodexApp extends LitElement {
           <div id="character-addons-panel" role=${this.#hasCharacterTabs ? "tabpanel" : nothing}
             aria-labelledby=${this.#hasCharacterTabs ? "character-view-addons" : nothing}
             ?hidden=${this.#hasCharacterTabs && this.characterView === "profile"}>
-            ${this.#hasCharacterTabs ? html`<header class="character-sheet-heading"><h1>${this.#characterName}</h1></header>` : nothing}
+            ${this.#hasCharacterTabs ? html`<h1 class="visually-hidden">${this.#characterName}</h1>` : nothing}
             <section class="addon-article" data-addon-article hidden aria-label=${this.#ui.t("shell.recordAddons")}></section>
           </div>
           <section class="addon-route" data-addon-route-outlet hidden aria-label=${this.#ui.t("shell.addonPage")}></section>
@@ -492,6 +492,7 @@ export class CodexApp extends LitElement {
     );
   }
 
+  /** The add-on tab's page heading; the add-ons show the name in their own layout. */
   get #characterName(): string {
     const context = this.#recordContext();
     return isRecord(context) &&
