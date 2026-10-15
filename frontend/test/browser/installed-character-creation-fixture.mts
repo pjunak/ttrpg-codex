@@ -277,9 +277,11 @@ export function registerCharacterCreationTests(enabled: boolean, fixture: () => 
           );
           const charge = grant.slots.find((id: string) => id.startsWith("charge:"));
           assert.ok(charge);
+          // A substring of the row's only button, so the published Sheets
+          // release ("Seslat získané kouzlo") and newer builds ("Seslat") both match.
           await sheet
             .locator('[data-spell-grant][data-spell-name="Detect Magic"]')
-            .getByRole("button", { name: "Seslat získané kouzlo", exact: true })
+            .getByRole("button", { name: "Seslat" })
             .click();
           stored = await settled();
           assert.equal(stored.state.inputs.play.resourceUses[charge], 1);

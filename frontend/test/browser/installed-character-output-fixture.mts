@@ -19,7 +19,7 @@ const messages = (locale: string) =>
         shield: "Štít",
         damage: "Poškození",
         amount: "Množství",
-        cast: "Seslat získané kouzlo",
+        cast: "Seslat",
         short: "Krátký odpočinek",
         long: "Dlouhý odpočinek",
         tools: "Nástroje",
@@ -44,7 +44,9 @@ const messages = (locale: string) =>
         shield: "Shield",
         damage: "Damage",
         amount: "Amount",
-        cast: "Cast granted spell",
+        // A substring of the row's only button, so the published Sheets
+        // release ("Cast granted spell") and newer builds ("Cast") both match.
+        cast: "Cast",
         short: "Short rest",
         long: "Long rest",
         tools: "Tools",
@@ -222,7 +224,7 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
         const free = grant.slots.find((id: string) => id.startsWith("charge:"));
         await sheet
           .locator('[data-spell-grant][data-spell-name="Detect Magic"]')
-          .getByRole("button", { name: text.cast, exact: true })
+          .getByRole("button", { name: text.cast })
           .click();
         next = await settled();
         assert.equal(next.state.inputs.play.resourceUses[free], 1);
@@ -243,7 +245,7 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
         await sheet
           .locator("[data-spell-grant]")
           .filter({ hasText: "Detect Magic" })
-          .getByRole("button", { name: text.cast, exact: true })
+          .getByRole("button", { name: text.cast })
           .click();
         stored = await settled();
         assert.equal(stored.state.inputs.play.resourceUses[free], 1);
