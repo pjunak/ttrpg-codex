@@ -359,7 +359,8 @@ export class CodexCharacterProfile extends LitElement {
     const field = this.#field(key),
       reference = field.referenceCollection;
     return html`<div><dt>${field.label}</dt><dd>${
-      reference && !this.#drafts.has(key)
+      // An empty reference reads as the usual "Add …" prompt, not an unavailable link.
+      reference && !this.#drafts.has(key) && this.#hasValue(key)
         ? html`${renderArticleReferences(articleReferences(this.campaign, reference, recordValue(this.record)[key]))}
         ${
           this.canEdit
