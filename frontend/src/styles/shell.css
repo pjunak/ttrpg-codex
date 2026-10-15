@@ -154,6 +154,14 @@ codex-app,
   opacity: 0.7;
 }
 
+/* Add-on pages carry no icon of their own; a shared mark keeps their names
+   aligned with the core pages above. */
+.addon-navigation-link::before {
+  content: "🧩" / "";
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
 .core-navigation a:hover,
 .addon-navigation-link:hover,
 .sidebar-footer > a:hover,
