@@ -266,8 +266,8 @@ export const sourceCs = {
   Unassigned: "Nepřiřazeno",
   Character: "Postava",
   Relationships: "Vztahy",
-  "Names and drawing rules used by character relationships and later graph views.":
-    "Názvy a pravidla vykreslování vztahů mezi postavami v přehledech vazeb.",
+  "Names and line styles for relationships between characters, shown on profiles and in the Mind Palace.":
+    "Názvy a styly čar vztahů mezi postavami, zobrazené v profilech a v Myšlenkovém paláci.",
   "Display name": "Zobrazovaný název",
   "Line color": "Barva čáry",
   "Line style": "Styl čáry",
@@ -279,8 +279,8 @@ export const sourceCs = {
   "Choices offered by the character editor. Stored IDs remain unchanged when labels change.":
     "Možnosti v editoru postav. Změna názvu zachová uložená ID.",
   "Map markers": "Značky na mapě",
-  "Marker definitions shared by the map editor. Artwork remains part of the later map workflow.":
-    "Definice značek používané editorem mapy. Obrázky značek se spravují v nastavení map.",
+  "Marker types a location can show on the map.":
+    "Typy značek, kterými se lokace zobrazují na mapě.",
   "Bundled icon ID": "ID vestavěné ikony",
   "Leave blank to use the marker type ID.": "Ponechte prázdné pro použití ID typu značky.",
   "Default size": "Výchozí velikost",

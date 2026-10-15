@@ -69,7 +69,7 @@ export const campaignEnumDescriptors: readonly CampaignEnumDescriptor[] = Object
     "Relationships",
     "relationship",
     "◇",
-    "Names and drawing rules used by character relationships and later graph views.",
+    "Names and line styles for relationships between characters, shown on profiles and in the Mind Palace.",
     [
       field("label", "Display name", "text", true),
       colorField("color", "Line color"),
@@ -100,7 +100,7 @@ export const campaignEnumDescriptors: readonly CampaignEnumDescriptor[] = Object
     "Map markers",
     "marker type",
     "⌖",
-    "Marker definitions shared by the map editor. Artwork remains part of the later map workflow.",
+    "Marker types a location can show on the map.",
     [
       field("label", "Display name", "text", true),
       field("defaultIconId", "Bundled icon ID", "text", false, {
