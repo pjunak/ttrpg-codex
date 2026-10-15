@@ -313,7 +313,9 @@ export class CodexRecordPage extends LitElement {
         </header>
         ${this.editor === "create" ? this.#editorForm(undefined, route) : nothing}
         ${
-          route.page.collection === "mysteries"
+          // The queue sits right under an empty list, so it needs no shortcut then.
+          route.page.collection === "mysteries" &&
+          campaignCollection(this.campaign!, "mysteries").records.length > 0
             ? html`<button type="button" class="record-action investigation-jump" @click=${() => {
                 const queue = this.querySelector<HTMLElement>(".investigation-queue");
                 queue?.scrollIntoView({ block: "start" });

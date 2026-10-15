@@ -27,8 +27,13 @@ export class CodexInvestigationQueue extends LitElement {
     const questions = investigationQueue(this.campaign, this.query);
     const open = questions.filter((item) => !item.answer),
       answered = questions.filter((item) => item.answer);
+    const heading = html`<h2 class="collection-group-title">${uiText("investigation.queue")}</h2>`;
+    // With no questions at all there is nothing to search or look back on.
+    if (questions.length === 0 && this.query === "")
+      return html`<section class="investigation-queue" tabindex="-1" aria-label=${uiText("investigation.queue")}>
+        ${heading}<p class="empty-state">${uiText("investigation.noOpen")}</p></section>`;
     return html`<section class="investigation-queue" tabindex="-1" aria-label=${uiText("investigation.queue")}>
-      <h2 class="collection-group-title">${uiText("investigation.queue")} <span>${open.length}</span></h2>
+      ${heading}
       <div class="investigation-toolbar">
         <label class="investigation-search"><span class="visually-hidden">${uiText("investigation.search")}</span>
           <input type="search" maxlength="512" placeholder=${uiText("investigation.search")} .value=${this.query}

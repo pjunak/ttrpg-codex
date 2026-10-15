@@ -495,6 +495,16 @@ void test("a deleted record's draft remains downloadable from its collection wit
   await page.locator(".collection-local-drafts").waitFor({ state: "detached" });
 });
 
+void test("an empty mysteries page shows its empty states without search tools", async (t) => {
+  const page = await fixture(t, dataset({}), "#/mysteries");
+  await page.getByText("No unanswered questions.", { exact: true }).waitFor();
+  await page.getByText("There are no entries in this collection yet.", { exact: true }).waitFor();
+  assert.equal(
+    await page.locator(".collection-controls, .investigation-jump, .investigation-toolbar").count(),
+    0,
+  );
+});
+
 void test("direct character edits confirm with Enter, cancel with Escape and preserve the article", async (t) => {
   const page = await fixture(
     t,
