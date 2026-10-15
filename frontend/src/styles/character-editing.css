@@ -206,6 +206,19 @@ codex-character-profile {
   .character-save-status {
     flex-wrap: wrap;
   }
+  /* On a phone the back link takes its own line and the record's tools read
+     left to right below it, instead of wrapping into right-aligned rows. */
+  .character-page-heading {
+    flex-wrap: wrap;
+  }
+  .character-heading-tools {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    margin-inline-start: 0;
+  }
+  .character-heading-tools .character-save-status {
+    justify-content: flex-start;
+  }
   .direct-character .record-masthead {
     overflow: visible;
   }
