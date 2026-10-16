@@ -122,7 +122,9 @@ export class CodexAddonRuleDetails extends LitElement {
   #trail: RuleDetails[] = [];
   readonly #id = `rule-detail-${crypto.randomUUID()}`;
   static override styles = css`
-    :host{display:inline;--detail-border:var(--border-subtle,#777)}button,a{font:inherit;color:inherit}button.trigger{border:0;border-bottom:1px dotted currentColor;background:transparent;padding:.1em .15em;cursor:pointer;text-align:inherit;min-height:24px;color:var(--accent-gold,#795400);scroll-margin-block:6rem}
+    :host{display:inline;--detail-border:var(--border-subtle,#777)}button,a{font:inherit;color:inherit}
+    button.trigger{border:0;border-radius:3px;background:transparent;padding:.1em .15em;cursor:help;text-align:inherit;min-height:24px;color:color-mix(in srgb,var(--accent-gold,#795400) 55%,currentColor);scroll-margin-block:6rem;transition:background-color .12s,color .12s}
+    button.trigger:is(:hover,[aria-expanded="true"]){background:rgba(var(--accent-gold-rgb,121,84,0),.16);color:var(--accent-gold,#795400)}
     :is(button,a):focus-visible{outline:2px solid var(--accent-gold,#795400);outline-offset:3px}
     [popover]{position:fixed;inset:auto;margin:0;width:min(26rem,calc(100vw - 2rem));max-height:min(70vh,36rem);overflow:auto;box-sizing:border-box;padding:1rem;border:1px solid var(--detail-border);border-radius:.6rem;background:var(--bg-raised,#fff);color:var(--text-parchment,#222);box-shadow:0 10px 35px #0004;font:400 .95rem/1.5 system-ui}
     h3,p{margin:.25rem 0 .7rem}h3{font-size:1.1rem}button.close{float:right;min-width:32px;min-height:32px;margin-left:1rem}dl{display:grid;grid-template-columns:1fr 1fr;gap:.4rem}dd{margin:0;overflow-wrap:anywhere}.sources{display:flex;gap:.5rem;flex-wrap:wrap}a{display:block;margin-top:.8rem;min-height:24px}small{display:block}
@@ -283,7 +285,7 @@ export class CodexAddonRuleDetails extends LitElement {
     }
     const explanation = data.explanation,
       summary = data.summary ?? (this.link.status === "resolved" ? this.link.description : "");
-    return html`<button type="button" class="trigger" aria-label=${this.compact ? this.#ui.t("ruleDetails.for", { name: data.label }) : data.label} aria-haspopup="dialog" aria-expanded=${this.opened} aria-controls=${this.#id}
+    return html`<button type="button" class="trigger" part="trigger" aria-label=${this.compact ? this.#ui.t("ruleDetails.for", { name: data.label }) : data.label} aria-haspopup="dialog" aria-expanded=${this.opened} aria-controls=${this.#id}
       @pointerenter=${this.#hover} @pointerleave=${this.#leave}
       @focus=${() => this.#show(false)} @blur=${this.#leave} @click=${() => this.#show(true)}>${this.compact ? "ⓘ" : data.label}</button>
       <div id=${this.#id} popover="auto" role="dialog" aria-labelledby=${`${this.#id}-title`} @pointerenter=${() => clearTimeout(this.#hide)} @pointerleave=${this.#leave}

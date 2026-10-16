@@ -319,7 +319,7 @@ export function registerCharacterCreationTests(enabled: boolean, fixture: () => 
         );
         const ability = sheet.locator(".dse-ability").filter({
           has: page
-            .locator(".dse-ability-title > span:first-child")
+            .locator(".dse-ability-title > span")
             .filter({ hasText: wizard ? /^Obratnost$/ : /^Dexterity$/ }),
         });
         const label = ability

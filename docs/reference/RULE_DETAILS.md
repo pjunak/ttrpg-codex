@@ -22,6 +22,10 @@ disabled book.
 
 ## Interaction
 
+The trigger is not underlined: its text takes a gold tint of the surrounding
+text, so it keeps that text's emphasis, and it gains a soft gold highlight while
+hovered or open. Consumers can adjust it locally through `::part(trigger)`.
+
 Mouse hover offers a preview after a 300 ms dwell, so crossing a trigger or
 refreshing nearby results does not immediately cover neighboring controls.
 Pointer departure, activation, dismissal and disposal cancel pending previews.
