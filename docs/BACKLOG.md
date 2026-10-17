@@ -54,10 +54,8 @@ not obvious. Move an entry between sections instead of duplicating it.
   as a saved play value (with the save DC from the Engine), Engine-computed
   advantage/disadvantage so conditions can mark the rolls they affect, and item
   weight with container capacity (a container backed by an item, Bag of Holding
-  contents counting as nothing), weapon range for the attack table, the
-  prepared count and preparation timing for the Spells bar, and coin worth in
-  gold. UI-only gap: the Backpack window still uses the older item rows rather
-  than the mockup's list-and-editor layout.
+  contents counting as nothing). UI-only gap: the Backpack window still uses
+  the older item rows rather than the mockup's list-and-editor layout.
 
 ## Undecided
 
