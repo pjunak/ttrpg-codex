@@ -124,6 +124,22 @@ export function registerCompactTests(enabled: boolean, fixture: () => Fixture): 
         );
         assert.equal(await sheet.locator(".dsc-combat-ability").count(), 6);
         assert.equal(await sheet.locator(".dsc-combat-ability .dse-number").count(), 0);
+        // Reach comes from the Engine: the rules profile's melee reach.
+        const attacks = sheet.locator(".dsc-attack-table");
+        assert.ok(
+          (await attacks.locator("thead").textContent())?.includes(
+            locale === "cs" ? "Dosah" : "Range",
+          ),
+        );
+        assert.equal(
+          await attacks
+            .locator("tbody tr")
+            .filter({ hasText: "Longsword" })
+            .locator("td")
+            .nth(2)
+            .textContent(),
+          "5 ft",
+        );
         await sheet.getByRole("checkbox", { name: text.inspiration, exact: true }).uncheck();
         await status.filter({ hasText: text.saved }).waitFor();
         assert.equal((await read()).state.inputs.play.inspiration, false);
@@ -184,8 +200,12 @@ export function registerCompactTests(enabled: boolean, fixture: () => Fixture): 
         );
         await sheet.locator("#dnd-tab-equipment").click();
         assert.equal(await sheet.getByLabel("GP", { exact: true }).inputValue(), "4");
+        // The Engine converts the coins with the rules profile's coin values.
+        const worth = sheet.locator(".dsc-worth .dsc-cell-value");
+        assert.equal(await worth.textContent(), locale === "cs" ? "55,71 gp" : "55.71 gp");
         await sheet.getByLabel("EP", { exact: true }).fill("17");
         await status.filter({ hasText: text.saved }).waitFor();
+        await worth.filter({ hasText: locale === "cs" ? "62,71 gp" : "62.71 gp" }).waitFor();
         // The body figure opens in a window at the chosen place.
         await sheet.locator(control("placement/body")).click();
         assert.equal(await sheet.getByRole("dialog").locator(".dsc-body-slot").count(), 11);
