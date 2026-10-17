@@ -56,8 +56,7 @@ not obvious. Move an entry between sections instead of duplicating it.
   weight with container capacity (a container backed by an item, Bag of Holding
   contents counting as nothing), weapon range for the attack table, the
   prepared count and preparation timing for the Spells bar, and coin worth in
-  gold. UI-only gaps: the Spells filter chips (All, Action, Bonus action,
-  Concentration), and the Backpack window still uses the older item rows rather
+  gold. UI-only gap: the Backpack window still uses the older item rows rather
   than the mockup's list-and-editor layout.
 
 ## Undecided
