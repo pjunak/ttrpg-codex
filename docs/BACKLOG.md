@@ -76,9 +76,6 @@ not obvious. Move an entry between sections instead of duplicating it.
 - **Tag host versions** `ttrpg-codex` and add-ons — Add-ons require the host by
   Go pseudo-version. Real tags (for example `v0.1.0`) would read better and let
   the add-ons reference the publish action by tag instead of commit SHA.
-- **Apply class damage bonuses to attacks** `addon-dnd-engine`,
-  `addon-dnd-character-sheets` — The Martial Arts die and Rage Damage are shown
-  from the class tables but not yet applied to the attacks they affect.
 - **Align owned-feature filters** `addon-dnd-2024-compendium`,
   `addon-dnd-engine` — The Compendium's owned-feature filter and the Engine's
   ownership rules can disagree; make them match.
