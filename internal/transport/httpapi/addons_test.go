@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -421,5 +422,48 @@ func TestAddonAdministrativeSnapshotRedactsUnstructuredProcessOutput(t *testing.
 	body := response.Body.String()
 	if response.Code != http.StatusOK || strings.Contains(body, "private-token") || strings.Contains(body, "stderrTail") || !strings.Contains(body, "HEALTH_FAILED") {
 		t.Fatalf("unsafe or missing diagnostics: %d %s", response.Code, body)
+	}
+}
+
+type eventLifecycle struct {
+	recordingLifecycle
+	events []packagemanager.Event
+}
+
+func (lifecycle *eventLifecycle) Snapshot(context.Context, string, int) (packagemanager.Snapshot, error) {
+	return packagemanager.Snapshot{State: packagemanager.State{AddonID: "example-addon"}, Events: lifecycle.events}, nil
+}
+
+func TestAddonHistoryShowsFailureCodesWithoutMarkingRoutineEventsFailed(t *testing.T) {
+	events := []struct{ kind, stored, shown string }{
+		{"activated", "review=0123456789abcdef", ""},
+		{"updated", "review=0123456789abcdef", ""},
+		{"update-restored", "review=0123456789abcdef", ""},
+		{"staged", "", ""},
+		{"disabled", "Required dependency removed: example.provider", "Required dependency removed: example.provider"},
+		{"uninstalled", "Campaign data and recovery archives retained", "Campaign data and recovery archives retained"},
+		{"activation-failed", "SPAWN_FAILED: /srv/private-token", "SPAWN_FAILED"},
+		{"worker-unavailable", "private-token", "INTERNAL"},
+		{"future-kind", "private-token", "INTERNAL"},
+	}
+	lifecycle := &eventLifecycle{}
+	for _, event := range events {
+		lifecycle.events = append(lifecycle.events, packagemanager.Event{Kind: event.kind, Message: event.stored})
+	}
+	handler, err := New(Config{AddonLifecycle: lifecycle, AdminAuthorizer: func(*http.Request) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := serveAdminRequest(handler, http.MethodGet, "/api/admin/addons/example-addon", "")
+	var snapshot struct {
+		Events []packagemanager.Event `json:"events"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &snapshot); response.Code != http.StatusOK || err != nil || len(snapshot.Events) != len(events) {
+		t.Fatalf("snapshot = %d %v %s", response.Code, err, response.Body.String())
+	}
+	for i, event := range events {
+		if got := snapshot.Events[i].Message; got != event.shown {
+			t.Errorf("%s event message = %q, want %q", event.kind, got, event.shown)
+		}
 	}
 }

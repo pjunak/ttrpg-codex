@@ -158,9 +158,25 @@ func (s *server) addonSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 	snapshot.Events = append([]packagemanager.Event{}, snapshot.Events...)
 	for i := range snapshot.Events {
-		snapshot.Events[i].Message = workersupervisor.SafeFailureCode(snapshot.Events[i].Message)
+		snapshot.Events[i].Message = administrativeEventMessage(snapshot.Events[i])
 	}
 	writeJSON(w, http.StatusOK, snapshot)
+}
+
+// administrativeEventMessage keeps the host's own notes on routine events and
+// reduces every other message, such as a raw failure cause, to a stable code.
+// Unknown kinds count as failures so new raw text never leaks by default.
+func administrativeEventMessage(event packagemanager.Event) string {
+	switch event.Kind {
+	case "activated", "updated", "update-restored":
+		// Only a reference to the consumed review, which the DM cannot use.
+		return ""
+	case "disabled", "uninstalled":
+		// Fixed text naming the dependency involved, if any.
+		return event.Message
+	default:
+		return workersupervisor.SafeFailureCode(event.Message)
+	}
 }
 
 func (s *server) prepareActivationReview(w http.ResponseWriter, r *http.Request) {

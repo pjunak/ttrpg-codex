@@ -631,7 +631,9 @@ Migrations `0003_addon_package_lifecycle.sql` and
 
 `Snapshot` combines that history with the live supervisor snapshot when a
 worker exists. Package bytes, process handles, service registries, and request
-payloads are not stored in the event log.
+payloads are not stored in the event log. The administrative API reduces
+failure messages to stable codes, keeps the host's fixed notes on disable and
+uninstall events, and omits the review reference on activations and updates.
 
 ## Saved-data compatibility reviews
 
