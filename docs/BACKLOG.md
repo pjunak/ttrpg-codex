@@ -50,12 +50,8 @@ not obvious. Move an entry between sections instead of duplicating it.
   and lending the menu to add-ons through the SDK (a contract change).
 - **Character sheet refinement** `addon-dnd-character-sheets` — Compact has
   per-tab context bars, pips and floating windows; the owner keeps refining it.
-  Parts of the approved mockup still need contract work first: concentration
-  as a saved play value (with the save DC from the Engine), Engine-computed
-  advantage/disadvantage so conditions can mark the rolls they affect, and item
-  weight with container capacity (a container backed by an item, Bag of Holding
-  contents counting as nothing). UI-only gap: the Backpack window still uses
-  the older item rows rather than the mockup's list-and-editor layout.
+  Known gaps: carrying capacity ignores size and features that change it (such
+  as Powerful Build), and Classic shows no carried weight or coin-weight toggle.
 
 ## Undecided
 
