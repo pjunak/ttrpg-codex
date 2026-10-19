@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -181,6 +182,46 @@ func TestCampaignTransactionMapsConflictsWithoutLeakingDerivedTarget(t *testing.
 		!strings.Contains(response.Body.String(), `"kind":"WRITE_CONFLICT"`) ||
 		strings.Contains(response.Body.String(), "private-derived-record") {
 		t.Fatalf("conflict response = %d %s", response.Code, response.Body.String())
+	}
+}
+
+type campaignSnapshot struct{ snapshot campaign.Snapshot }
+
+func (source campaignSnapshot) Snapshot(context.Context, bool) (campaign.Snapshot, error) {
+	return source.snapshot, nil
+}
+
+func (campaignSnapshot) Transact(context.Context, campaign.Transaction) (campaign.Commit, error) {
+	return campaign.Commit{}, errors.New("malformed values must not reach storage")
+}
+
+func TestCampaignTransactionReportsMalformedRecordValuesAsInvalid(t *testing.T) {
+	t.Parallel()
+	service, err := campaigndata.New(campaignSnapshot{campaign.Snapshot{Records: []campaign.Record{
+		{Collection: campaign.Factions, Key: "guild", Revision: 1, Visibility: campaign.VisibilityPublic, Value: json.RawMessage(`{"name":"Guild"}`)},
+		{Collection: campaign.Locations, Key: "town", Revision: 2, Visibility: campaign.VisibilityPublic, Value: json.RawMessage(`{"id":"town"}`)},
+		{Collection: campaign.Settings, Key: "mapViews", Revision: 3, Visibility: campaign.VisibilityPublic, Value: json.RawMessage(`[]`)},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := campaignMutationHandler(t, service, func(*http.Request) (campaigndata.MutationAuthority, error) {
+		return campaigndata.MutationAuthority{ActorID: "session:dm", Role: campaigndata.WriteDM}, nil
+	})
+	const badMapViews = `{"operation":"put","collection":"settings","key":"mapViews","expectedRevision":3,"value":{"town":true}}`
+	for name, mutations := range map[string]string{
+		"record is not an object":         `{"operation":"put","collection":"factions","key":"guild","expectedRevision":1,"value":["Guild"]}`,
+		"location delete reads map views": `{"operation":"delete","collection":"locations","key":"town","expectedRevision":2},` + badMapViews,
+		"activity projects map views":     `{"operation":"put","collection":"characters","key":"alice","expectedRevision":0,"value":{"id":"alice"}},` + badMapViews,
+	} {
+		request := httptest.NewRequest(http.MethodPost, "/api/campaign/transactions", strings.NewReader(
+			`{"contractVersion":"campaign-mutation.v1","mutations":[`+mutations+`]}`))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"kind":"INVALID_REQUEST"`) {
+			t.Fatalf("%s: response = %d %s", name, response.Code, response.Body.String())
+		}
 	}
 }
 

@@ -548,7 +548,7 @@ func (planner *mutationPlanner) removeLocationSettings(id string) error {
 	if record, exists := planner.record(campaign.Settings, "mapViews"); exists {
 		var values []any
 		if err := jsonexact.DecodeValue(record.Value, &values); err != nil {
-			return fmt.Errorf("settings:mapViews is invalid")
+			return fmt.Errorf("%w: settings:mapViews must be an array", campaign.ErrInvalidRecord)
 		}
 		filtered := make([]any, 0, len(values))
 		for _, candidate := range values {
@@ -568,7 +568,7 @@ func (planner *mutationPlanner) removeLocationSettings(id string) error {
 	if record, exists := planner.record(campaign.Settings, "mapConfigs"); exists {
 		var values map[string]any
 		if err := jsonexact.DecodeValue(record.Value, &values); err != nil || values == nil {
-			return fmt.Errorf("settings:mapConfigs is invalid")
+			return fmt.Errorf("%w: settings:mapConfigs must be an object", campaign.ErrInvalidRecord)
 		}
 		key := "local-" + id
 		if _, exists := values[key]; exists {

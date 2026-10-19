@@ -93,7 +93,7 @@ func relationshipTargetKinds(records []campaign.Record) (map[string]campaign.Col
 		}
 		var values []any
 		if err := json.Unmarshal(record.Value, &values); err != nil {
-			return nil, projectionError(record, fmt.Errorf("relationshipTypes must be an array: %w", err))
+			return nil, projectionError(record, fmt.Errorf("%w: relationshipTypes must be an array: %v", campaign.ErrInvalidRecord, err))
 		}
 		for _, candidate := range values {
 			value, ok := candidate.(map[string]any)
@@ -185,7 +185,7 @@ func closeSetting(record campaign.Record, locationIDs map[string]struct{}) (json
 	case "mapViews":
 		var values []any
 		if err := jsonexact.DecodeValue(record.Value, &values); err != nil {
-			return nil, fmt.Errorf("mapViews must be an array: %w", err)
+			return nil, fmt.Errorf("%w: mapViews must be an array: %v", campaign.ErrInvalidRecord, err)
 		}
 		filtered := values[:0]
 		for _, candidate := range values {
@@ -207,7 +207,7 @@ func closeSetting(record campaign.Record, locationIDs map[string]struct{}) (json
 	case "mapConfigs":
 		var values map[string]json.RawMessage
 		if err := json.Unmarshal(record.Value, &values); err != nil || values == nil {
-			return nil, fmt.Errorf("mapConfigs must be an object")
+			return nil, fmt.Errorf("%w: mapConfigs must be an object", campaign.ErrInvalidRecord)
 		}
 		for mapID := range values {
 			const prefix = "local-"
@@ -240,7 +240,7 @@ func transformObject(
 func objectValue(value json.RawMessage) (map[string]any, error) {
 	var object map[string]any
 	if err := jsonexact.DecodeValue(value, &object); err != nil || object == nil {
-		return nil, fmt.Errorf("record value must be an object")
+		return nil, fmt.Errorf("%w: record value must be an object", campaign.ErrInvalidRecord)
 	}
 	return object, nil
 }
