@@ -29,8 +29,8 @@ not obvious. Move an entry between sections instead of duplicating it.
   Add-ons install Engine 5.0.0, then Sheets 5.1.0 (it needs this host) and choose **Remove data and
   update**: existing character sheets are cleared. Re-import the characters
   from the `character-imports/` folder beside the repositories. If DM Tools
-  reports dangling consequence targets, fix those planner entries by hand (it
-  only reports them).
+  reports dangling consequence targets, remove them with the planner's repair
+  buttons once its current build is installed (older builds only report them).
 - **Asurai characters** `addon-dnd-character-sheets` — The players are
   rebuilding Bloodvell, Kael Vor, Ines and Talia in the new builder. The
   September reconstructions are archived with the backups for reference.
@@ -63,22 +63,6 @@ local, git-ignored `docs/plans/quality-pass.md`.
 
 ### 1. Data safety
 
-- **Campaign data fixes** `ttrpg-codex` — The player view hides a DM-only
-  faction but keeps the character's `rank` and `rankChain`; a recovery
-  snapshot over 64 MiB makes every later write fail; a campaign recovery
-  restore fails for points that lack a collection, so the first new core
-  collection would break all of them; records decoded through `float64` lose
-  large integers on edit; malformed record values show as an outage instead of
-  a validation error.
-- **Add-on lifecycle and maintenance fixes** `ttrpg-codex` — Activate, reload
-  and disable keep using the browser request, so closing the tab can leave
-  workers running untracked and add-ons offline until restart; the CLI backup
-  does not verify its own archive; `codex-maintenance restore` is a second
-  restore implementation that deletes server credentials; a manifest without
-  `runtime` crashes the inspector; bundle contributions to private add-on
-  collections pass preview and fail at commit; the offline password reset
-  keeps saved sessions. **Done when** the CLI restore runs the staged-restore
-  code and the old path is deleted.
 - **Lost edits in the record editors** `ttrpg-codex` — The full form stays
   editable during a save and drops what is typed meanwhile; a failed inline
   draft is closed when another field saves; the discard prompt is always
@@ -86,21 +70,10 @@ local, git-ignored `docs/plans/quality-pass.md`.
   rewrites untouched fields, splitting tags that contain commas and multi-line
   list items; the later-overwrite check hides in a call whose result is
   discarded; the dashboard add-on slot gets no locale.
-- **Character Sheets data-safety fixes** `addon-dnd-character-sheets`,
-  `addon-dnd-engine` — Adopting changed rules does not withdraw saved choices
-  the new rules no longer allow, so the sheet stays stuck; grant, amendment and
-  import dialogs close and lose their input when the action cannot run; Sheets
-  accepts 190 KB requests that the Engine rejects at 180 KB, and both answer
-  with generic errors; the unused `inventory` and `spells` operations skip
-  repairs. Guard the stored format: a frozen 5.0.0 state fixture must decode,
-  and CI fails when the stored schema changes without a version bump. **Done
-  when** the guard is in place, before stage 3 changes Engine types.
-- **DM Tools planner lockout** `addon-dm-tools` — One invalid stored record
-  locks the DM out of the planner, imports and the planning export (the DM's
-  own backup), and parallel reads can report a false inconsistency. Read and
-  export without validating, offer revision-guarded repair actions, validate
-  only before writes and previews, align the schemas with the Go validator,
-  and accept any contract-valid receipt token.
+- **Revoke DM grants while rules have changed** `addon-dnd-character-sheets` —
+  DM grant commands still wait for rule adoption, so when a DM grant is what
+  makes the adopted character invalid, the DM cannot revoke or amend it first
+  and the sheet stays stuck. Let revoke and amend run before adoption.
 - **Compendium validation gaps** `addon-dnd-2024-compendium` — The content
   schema does not describe the ruleset record, so a bad ruleset installs and
   then fails every evaluation; the reference test reads lineage spells in the
@@ -253,6 +226,11 @@ local, git-ignored `docs/plans/quality-pass.md`.
   when one of them changes, move it to a shared plan-and-confirm helper that
   checks expected state revisions. Disable is reversible and could confirm with
   a plain dialog plus the target's state revision.
+- **Recovery size limit in Settings** `ttrpg-codex` — An automatic recovery
+  point over 64 MiB is skipped with only a server-log warning, and a manual
+  point or restore over the limit answers a generic "could not complete the
+  recovery request". Show the skip in Settings and give `ErrTooLarge` its own
+  message.
 - **Shared Classic and Compact panels** `addon-dnd-character-sheets` — Both
   layouts implement hit points, combat, equipment and spells separately, with
   different behaviour (Compact parses free-text HP changes, Classic sends play
