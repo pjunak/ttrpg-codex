@@ -31,6 +31,10 @@ not obvious. Move an entry between sections instead of duplicating it.
   from the `character-imports/` folder beside the repositories. If DM Tools
   reports dangling consequence targets, remove them with the planner's repair
   buttons once its current build is installed (older builds only report them).
+- **Quality-pass add-on builds on Asurai** `ttrpg-codex` — The host with the
+  data-safety fixes is deployed to both sites. Download a fresh Asurai backup
+  into `L:\Backups\ttrpg\`, then in Settings → Add-ons update the Engine,
+  Character Sheets and DM Tools to their latest builds, Engine first.
 - **Asurai characters** `addon-dnd-character-sheets` — The players are
   rebuilding Bloodvell, Kael Vor, Ines and Talia in the new builder. The
   September reconstructions are archived with the backups for reference.
