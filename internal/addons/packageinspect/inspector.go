@@ -663,8 +663,9 @@ func validateDeclarations(manifest Manifest, entries map[string]*zip.File, direc
 		}
 	}
 	for index, extension := range manifest.RecordExtensions {
-		if extension.WorkerOnly && manifest.Runtime.Worker == nil {
-			return fmt.Errorf("worker-only record extensions require a worker")
+		if extension.WorkerOnly && (manifest.Runtime == nil || manifest.Runtime.Worker == nil) {
+			return inspectionError(CodeInvalidDeclaration, fmt.Sprintf("recordExtensions[%d].workerOnly", index),
+				errors.New("worker-only record extensions require a worker"))
 		}
 		if err := requireFile(entries, extension.Schema, fmt.Sprintf("recordExtensions[%d].schema", index)); err != nil {
 			return err

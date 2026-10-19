@@ -496,6 +496,40 @@ func contentManifest(t *testing.T) []byte {
 	return body
 }
 
+func TestInspectFileRejectsWorkerOnlyExtensionWithoutWorker(t *testing.T) {
+	t.Parallel()
+	for name, runtime := range map[string]any{
+		"no runtime": nil,
+		"UI only":    map[string]any{"ui": map[string]any{"mode": "integrated", "entry": "web/index.js"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var manifest map[string]any
+			if err := json.Unmarshal(minimalManifest("example-addon"), &manifest); err != nil {
+				t.Fatal(err)
+			}
+			if runtime != nil {
+				manifest["runtime"] = runtime
+			}
+			manifest["recordExtensions"] = []any{map[string]any{
+				"id": "sheet", "target": "characters", "visibility": "dm", "workerOnly": true,
+				"schema": "contracts/sheet.schema.json", "schemaVersion": "1.0.0",
+			}}
+			body, err := json.Marshal(manifest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			packagePath := writePackage(t, map[string][]byte{
+				manifestFilename:              body,
+				"web/index.js":                []byte("export function activate() {}"),
+				"contracts/sheet.schema.json": []byte(`{"type":"object"}`),
+			})
+			_, err = newTestInspector(t).InspectFile(context.Background(), packagePath)
+			assertInspectionCode(t, err, CodeInvalidDeclaration)
+		})
+	}
+}
+
 func newTestInspector(t *testing.T) *Inspector {
 	t.Helper()
 	inspector, err := New(DefaultLimits)
