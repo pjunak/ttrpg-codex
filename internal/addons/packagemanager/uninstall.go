@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"slices"
 	"sort"
-	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packageinspect"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
@@ -220,7 +219,7 @@ func (manager *Manager) Uninstall(ctx context.Context, addonID, reviewSHA256 str
 	}
 	// Once confirmed, a disconnected browser must not interrupt worker shutdown
 	// between withdrawing runtime authority and committing durable removal.
-	transitionCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+	transitionCtx, cancel := detachTransition(ctx)
 	defer cancel()
 	result, err := manager.reconfigureLocked(transitionCtx, func() error { return manager.store.uninstall(transitionCtx, review) })
 	return UninstallResult{ConfigurationResult: result, AddonID: addonID}, err

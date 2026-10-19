@@ -32,6 +32,17 @@ import (
 
 const defaultMaxArchiveBytes int64 = 128 << 20
 
+// transitionTimeout bounds a confirmed lifecycle transition once it no longer
+// follows the browser request that started it.
+const transitionTimeout = 2 * time.Minute
+
+// detachTransition lets a confirmed transition finish after its browser
+// request ends. A worker stopped under a cancelled context is left running
+// and untracked, because Supervisor.Shutdown returns at once.
+func detachTransition(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), transitionTimeout)
+}
+
 type Config struct {
 	DB                    *sql.DB
 	PackageDirectory      string
@@ -361,6 +372,8 @@ func (manager *Manager) activateLocked(
 		return ActivationResult{}, fmt.Errorf("%w: %s", ErrActivationCohort, strings.Join(dependents, ", "))
 	}
 
+	ctx, cancel := detachTransition(ctx)
+	defer cancel()
 	nextRuntime, err := manager.createRuntime(report, generation, permissions, services)
 	if err != nil {
 		_ = manager.store.recordFailure(ctx, plan.AddonID, plan.GenerationID, "activation-failed", err)

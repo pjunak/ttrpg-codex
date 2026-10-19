@@ -191,7 +191,7 @@ func (manager *Manager) ResolveAndActivate(ctx context.Context, id string, input
 		return ActivationResult{}, err
 	}
 	// Once confirmed, a lost HTTP connection must not strand disabled workers.
-	operationCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+	operationCtx, cancel := detachTransition(ctx)
 	defer cancel()
 	coordinator.BlockUpdateWrites(review.AddonID, true)
 	defer func() {

@@ -99,7 +99,7 @@ func (manager *Manager) DisableReviewed(ctx context.Context, addonID, reviewSHA2
 	}
 	// Finish an accepted transition even if the browser disconnects; never replay
 	// an uncertain write automatically. A refresh reveals the durable outcome.
-	transitionCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+	transitionCtx, cancel := detachTransition(ctx)
 	defer cancel()
 	result, err := manager.reconfigureLocked(transitionCtx, func() error { return manager.store.disableReviewed(transitionCtx, review) })
 	return ReviewedDisableResult{ConfigurationResult: result, AddonID: addonID}, err

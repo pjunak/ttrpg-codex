@@ -238,6 +238,10 @@ For an activation, update, or rollback the manager performs:
    in one SQLite transaction, then select the new immutable schema registry.
 7. Make the new runtime manager-owned, then stop the previous runtime.
 
+From step 3 on, the switch no longer follows the browser request. It runs under
+a two-minute context of its own, so closing the tab cannot interrupt a worker
+start or stop halfway and leave a worker running untracked.
+
 If worker start, catalog publication, or the durable commit fails, new routing
 is withdrawn, the previous catalog/runtime is restored, the new worker is
 stopped, and the durable active pointer is unchanged. A failure to stop the old
@@ -277,6 +281,10 @@ After approval, the manager:
    revision, event, and review status;
 3. invokes the normal recovery algorithm, which republishes catalogs and
    starts providers before consumers with new generation-bound handles.
+
+These steps also run detached from the browser request. If the graph does not
+stop, nothing durable changes: the manager restarts the graph that durable
+state still selects and reports the activation as failed.
 
 Unrelated add-ons also restart. With the suite's small fixed add-on count this
 is intentionally simpler than maintaining a shadow provider catalog and two
@@ -322,7 +330,9 @@ advance, invalidating any review prepared against the older operational state.
 An in-flight service result prepared on the previous runtime is rejected with
 `ErrStaleBinding` after the swap, even though its package and catalog still
 match. A later call through an existing consumer handle routes to the replacement.
-This does not replay an operation or undo an already committed write.
+This does not replay an operation or undo an already committed write. Once its
+checks pass, reload starts and stops workers detached from the browser request,
+like activation.
 
 Settings → Add-ons uses an explicit **Review disable** panel in English and
 Czech. It lists required dependents that will also be disabled, affected consumers
@@ -359,7 +369,8 @@ Accepted transitions have a bounded context detached from a browser disconnect.
 The UI discards stale/uncertain confirmations and directs the operator to refresh;
 it never retries them automatically. Reusing an applied fingerprint is stale.
 The older expected-revision `Disable` primitive remains available for single-package
-administrative callers and still refuses live dependents; it never cascades.
+administrative callers and still refuses live dependents; it never cascades. It
+also finishes detached from a browser disconnect once its checks pass.
 
 Coverage: `disable_review_test.go` verifies transitive and optional dependencies,
 alternative selected providers, stop order, data/package/grant/source retention,

@@ -50,6 +50,8 @@ func (manager *Manager) Reload(
 	if !reflect.DeepEqual(normalizedGrants, state.GrantedPermissionIDs) {
 		return ActivationResult{}, ErrReviewStale
 	}
+	ctx, cancel := detachTransition(ctx)
+	defer cancel()
 	next, err := manager.createRuntime(report, generation, permissions, services)
 	if err != nil {
 		return ActivationResult{}, fmt.Errorf("%w: %v", ErrActivationFailed, err)
@@ -125,6 +127,8 @@ func (manager *Manager) Disable(ctx context.Context, plan DisablePlan) (DisableR
 	if recovered && previous.generation.GenerationID != state.ActiveGenerationID {
 		return DisableResult{}, ErrRecoveryRequired
 	}
+	ctx, cancel := detachTransition(ctx)
+	defer cancel()
 	dataTransition := manager.dataLifecycle.BeginDeactivation(plan.AddonID, state.ActiveGenerationID)
 	defer dataTransition.Rollback()
 	manager.broker.DeactivateRuntime(plan.AddonID, state.ActiveGenerationID)

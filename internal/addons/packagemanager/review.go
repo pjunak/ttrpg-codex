@@ -391,9 +391,14 @@ func (manager *Manager) activateReviewedCohortLocked(
 	if err != nil {
 		return ActivationResult{}, err
 	}
+	ctx, cancel := detachTransition(ctx)
+	defer cancel()
 	if err := manager.shutdownLocked(ctx); err != nil {
 		_ = manager.store.recordFailure(ctx, review.AddonID, review.GenerationID, "cohort-stop-failed", err)
-		return ActivationResult{}, fmt.Errorf("%w: stop add-on graph: %v", ErrActivationFailed, err)
+		// Durable state is unchanged, so restart the graph it still selects.
+		_, recoveryErr := manager.recoverLocked(ctx)
+		manager.publishBrowserGraphChangeLocked(ctx, review.AddonID, "activation-stop-failed")
+		return ActivationResult{}, fmt.Errorf("%w: stop add-on graph: %v", ErrActivationFailed, errors.Join(err, recoveryErr))
 	}
 	newState, err := manager.store.setActive(
 		ctx, review.AddonID, review.GenerationID, review.ExpectedStateRevision,
