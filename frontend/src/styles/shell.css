@@ -344,6 +344,14 @@ codex-app,
   text-decoration: underline;
 }
 
+/* A failed save, shown beside the editor that asked for it. */
+.save-failure {
+  margin: var(--space-2) 0;
+  color: var(--color-danger);
+  font: var(--text-sm) / 1.5 var(--font-ui);
+  overflow-wrap: anywhere;
+}
+
 .loading-page,
 .unavailable-page {
   max-width: 44rem;

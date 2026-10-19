@@ -18,6 +18,7 @@ import {
 } from "./campaign-timeline.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
+import { saveCampaign } from "./campaign-writes.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { isTimelineSlot, type TimelineSlot } from "./timeline-contributions.js";
@@ -27,9 +28,9 @@ export class CodexTimeline extends LitElement {
   static override properties = {
     campaign: { attribute: false },
     canEdit: { type: Boolean },
-    saving: { type: Boolean },
-    editCompletion: { type: Number },
-    errorMessage: { type: String },
+    busy: { type: Boolean },
+    saving: { state: true },
+    error: { state: true },
     editing: { state: true },
     draft: { state: true },
     expanded: { state: true },
@@ -49,9 +50,11 @@ export class CodexTimeline extends LitElement {
   #slots = new Set<unknown>();
   #liveEventKeys = new Set<string>();
   declare canEdit: boolean;
-  declare saving: boolean;
-  declare editCompletion: number;
-  declare errorMessage: string;
+  /** The app is saving or otherwise busy, so no write may start. */
+  declare busy: boolean;
+  /** This board's own reorder save is running. */
+  declare private saving: boolean;
+  declare private error: string;
   declare private editing: boolean;
   declare private draft: TimelineDraft | undefined;
   declare private expanded: readonly number[];
@@ -71,9 +74,9 @@ export class CodexTimeline extends LitElement {
     super();
     this.campaign = undefined;
     this.canEdit = false;
+    this.busy = false;
     this.saving = false;
-    this.editCompletion = 0;
-    this.errorMessage = "";
+    this.error = "";
     this.editing = false;
     this.draft = undefined;
     this.expanded = [];
@@ -111,8 +114,7 @@ export class CodexTimeline extends LitElement {
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
     if (changed.has("registry")) this.#subscribe();
-    if (changed.has("editCompletion") || (changed.has("canEdit") && !this.canEdit))
-      this.#clearDraft();
+    if (changed.has("canEdit") && !this.canEdit) this.#clearDraft();
     if (!this.canEdit) this.editing = false;
   }
   protected override updated(): void {
@@ -172,19 +174,19 @@ export class CodexTimeline extends LitElement {
           this.draft === undefined
             ? nothing
             : html`
-          <button class="tl-add-btn" ?disabled=${this.saving} @click=${this.#save}>${this.#ui.t(this.saving ? "dashboard.saving" : "timeline.save")}</button>
-          <button class="tl-add-btn" ?disabled=${this.saving} @click=${this.#cancel}>${this.#ui.t("dashboard.cancel")}</button>`
+          <button class="tl-add-btn" ?disabled=${this.#locked} @click=${this.#save}>${this.#ui.t(this.saving ? "dashboard.saving" : "timeline.save")}</button>
+          <button class="tl-add-btn" ?disabled=${this.#locked} @click=${this.#cancel}>${this.#ui.t("dashboard.cancel")}</button>`
         }
         ${
           this.canEdit
-            ? html`<button class="tl-add-btn" aria-pressed=${this.editing} ?disabled=${this.saving} @click=${this.#toggleEditing}>
+            ? html`<button class="tl-add-btn" aria-pressed=${this.editing} ?disabled=${this.#locked} @click=${this.#toggleEditing}>
           ✎ ${this.#ui.t(this.editing ? "timeline.done" : "timeline.edit")}</button>`
             : nothing
         }
         ${this.editing ? html`<a class="tl-add-btn" href="#/timeline/new/1">＋ ${this.#ui.t("timeline.newEvent")}</a>` : nothing}
         ${this.#slot("timeline:toolbar", null, [])}
       </header>
-      ${this.errorMessage === "" ? nothing : html`<p class="tl-message" role="alert">${this.errorMessage}</p>`}
+      ${this.error === "" ? nothing : html`<p class="tl-message" role="alert">${this.error}</p>`}
       <div class="tl-board-viewport" @scroll=${this.#syncScroll} @wheel=${{ handleEvent: this.#wheel, passive: false }}>
         <div class="tl-board">${repeat(
           this.editing ? editableSessions : sessions,
@@ -243,7 +245,7 @@ export class CodexTimeline extends LitElement {
                   const color = cssHexColor(rawColor) ?? "#8B6914";
                   return html`${key === this.dragging ? nothing : this.#indicator(sitting, ids.slice(0, index).filter((id) => id !== this.dragging).length)}
                   <div class=${`tl-card${this.dragging === key ? " tl-drag-src" : ""}`} data-key=${key} style=${`--tc:${color}`}
-                    draggable=${this.editing && !this.saving ? "true" : "false"} @dragstart=${(event: DragEvent) => this.#dragStart(event, record, sitting)} @dragend=${this.#dragEnd}>
+                    draggable=${this.editing && !this.#locked ? "true" : "false"} @dragstart=${(event: DragEvent) => this.#dragStart(event, record, sitting)} @dragend=${this.#dragEnd}>
                     <a class="tl-card-open" draggable="false" href=${`#/events/${encodeURIComponent(key)}`}
                       @click=${(event: MouseEvent) => {
                         if (this.#lastDrag.key === key && Date.now() < this.#lastDrag.until)
@@ -269,9 +271,9 @@ export class CodexTimeline extends LitElement {
                     ${
                       this.editing
                         ? html`<div class="tl-card-actions">
-                      <button aria-label=${this.#ui.t("timeline.up", { name })} ?disabled=${this.saving || index === 0} @click=${() => this.#move(key, sitting, index - 1)}>↑</button>
-                      <button aria-label=${this.#ui.t("timeline.down", { name })} ?disabled=${this.saving || index === ids.length - 1} @click=${() => this.#move(key, sitting, index + 1)}>↓</button>
-                      <select aria-label=${this.#ui.t("timeline.move", { name })} ?disabled=${this.saving} .value=${String(sitting)}
+                      <button aria-label=${this.#ui.t("timeline.up", { name })} ?disabled=${this.#locked || index === 0} @click=${() => this.#move(key, sitting, index - 1)}>↑</button>
+                      <button aria-label=${this.#ui.t("timeline.down", { name })} ?disabled=${this.#locked || index === ids.length - 1} @click=${() => this.#move(key, sitting, index + 1)}>↓</button>
+                      <select aria-label=${this.#ui.t("timeline.move", { name })} ?disabled=${this.#locked} .value=${String(sitting)}
                         @change=${(event: Event) => {
                           const select = event.target as HTMLSelectElement;
                           this.#move(key, Number(select.value), Number.MAX_SAFE_INTEGER);
@@ -322,7 +324,7 @@ export class CodexTimeline extends LitElement {
   }
   #move(key: string, sitting: number, index: number): void {
     const campaign = this.#baseCampaign ?? this.#dragCampaign ?? this.campaign;
-    if (!this.canEdit || !this.editing || this.saving || campaign === undefined) return;
+    if (!this.canEdit || !this.editing || this.#locked || campaign === undefined) return;
     const draft = moveTimelineEvent(
       this.draft ?? this.#dragBase ?? timelineDraft(campaign),
       key,
@@ -343,7 +345,7 @@ export class CodexTimeline extends LitElement {
     if (
       !this.editing ||
       !this.canEdit ||
-      this.saving ||
+      this.#locked ||
       this.campaign === undefined ||
       event.dataTransfer === null
     ) {
@@ -370,7 +372,7 @@ export class CodexTimeline extends LitElement {
     return index < 0 ? cards.length : index;
   }
   #dragOver(event: DragEvent, sitting: number): void {
-    if (this.dragging === undefined || this.saving) return;
+    if (this.dragging === undefined || this.#locked) return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
     const index = this.#insertionIndex(event);
@@ -392,41 +394,41 @@ export class CodexTimeline extends LitElement {
     this.#dragBase = undefined;
     this.#dragCampaign = undefined;
   };
-  readonly #save = (): void => {
-    if (this.draft !== undefined && !this.saving && this.canEdit)
-      this.dispatchEvent(
-        new CustomEvent("campaign-timeline-save", {
-          detail: this.draft,
-          bubbles: true,
-          composed: true,
-        }),
-      );
+  /** No new write starts while any write runs, this board's own included. */
+  get #locked(): boolean {
+    return this.busy || this.saving;
+  }
+  readonly #save = async (): Promise<void> => {
+    const draft = this.draft;
+    if (draft === undefined || this.#locked || !this.canEdit) return;
+    this.saving = true;
+    this.error = "";
+    const result = await saveCampaign(this, "timeline", draft);
+    this.saving = false;
+    if (!this.isConnected || this.draft !== draft) return;
+    if (result.ok) this.#clearDraft();
+    else this.error = result.message;
   };
   readonly #cancel = (): void => {
     if (
-      !this.saving &&
+      !this.#locked &&
       confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))
     ) {
       this.#clearDraft();
-      this.#clearError();
+      this.error = "";
     }
   };
   readonly #toggleEditing = (): void => {
     if (
       !this.canEdit ||
-      this.saving ||
+      this.#locked ||
       !confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))
     )
       return;
     this.#clearDraft();
-    this.#clearError();
+    this.error = "";
     this.editing = !this.editing;
   };
-  #clearError(): void {
-    this.dispatchEvent(
-      new CustomEvent("campaign-timeline-reset", { bubbles: true, composed: true }),
-    );
-  }
   #clearDraft(): void {
     this.draft = undefined;
     this.#baseCampaign = undefined;

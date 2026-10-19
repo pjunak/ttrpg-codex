@@ -42,7 +42,6 @@ import {
   relationshipBaseFor,
   sameCampaignValue,
   type CampaignEditorField,
-  type CampaignRecordDeleteDetail,
   type CampaignRecordSaveDetail,
 } from "./campaign-record-editor.js";
 import { campaignEnumColor, campaignEnumDisplayLabel } from "./campaign-settings.js";
@@ -90,6 +89,8 @@ import {
 } from "./campaign-map.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
+import { saveCampaign } from "./campaign-writes.js";
+import { saveFailure } from "./save-failure.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { AddonLinksController } from "./addon-links-controller.js";
@@ -109,6 +110,11 @@ import {
 } from "./collection-view.js";
 type RecordRoute = Extract<AppRoute, { kind: "collection" | "record" | "create" }>;
 
+/** Sent after a confirmed full-form save, before the page returns to `destination`. */
+export interface CampaignRecordSavedDetail {
+  readonly destination: string;
+}
+
 export class CodexRecordPage extends LitElement {
   static override properties = {
     campaign: { attribute: false },
@@ -117,14 +123,14 @@ export class CodexRecordPage extends LitElement {
     route: { attribute: false },
     canEdit: { type: Boolean, attribute: "can-edit" },
     canManageVisibility: { type: Boolean, attribute: "can-manage-visibility" },
-    saving: { type: Boolean },
-    saveState: { attribute: false },
-    editCompletion: { type: Number, attribute: false },
+    busy: { type: Boolean },
     collectionView: { state: true },
     viewStorageUnavailable: { state: true },
     editor: { state: true },
     coreSaved: { state: true },
     characterEditorTab: { state: true },
+    formSaving: { state: true },
+    saveError: { state: true },
   };
 
   declare campaign: CampaignDataset | undefined;
@@ -137,15 +143,19 @@ export class CodexRecordPage extends LitElement {
   declare route: RecordRoute | undefined;
   declare canEdit: boolean;
   declare canManageVisibility: boolean;
-  declare saving: boolean;
-  declare saveState: "idle" | "saved" | "failed";
-  declare editCompletion: number;
+  /** The app is saving or otherwise busy, so no write may start. */
+  declare busy: boolean;
   declare private collectionView: CollectionView;
   declare private viewStorageUnavailable: boolean;
   declare private editor: "closed" | "create" | "edit";
   declare private characterEditorTab: "details" | "connections" | "knowledge";
   #dirty = false;
   declare private coreSaved: boolean;
+  /** This form's own save or delete is running. */
+  declare private formSaving: boolean;
+  declare private saveError: string;
+  /** Changes when the form's fields must reload from the saved record. */
+  #formGeneration = 0;
   readonly #ui = new UiLocalizationController(this);
   // Live projections continue updating, but an open form owns its original base.
   #editCampaign: CampaignDataset | undefined;
@@ -164,10 +174,10 @@ export class CodexRecordPage extends LitElement {
     this.route = undefined;
     this.canEdit = false;
     this.canManageVisibility = false;
-    this.saving = false;
-    this.saveState = "idle";
-    this.editCompletion = 0;
+    this.busy = false;
     this.coreSaved = false;
+    this.formSaving = false;
+    this.saveError = "";
     this.collectionView = defaultCollectionView;
     this.viewStorageUnavailable = false;
     this.editor = "closed";
@@ -226,14 +236,6 @@ export class CodexRecordPage extends LitElement {
         );
       if (roleChanged)
         this.#pendingViewHash = `${collectionHash(this.route.page)}?${serializeCollectionView(this.collectionView)}`;
-    }
-    if (changed.has("editCompletion")) {
-      for (const { editor, value } of this.#submittedMarkdown) editor.acknowledgeSave(value);
-      if (!this.registry?.edits.state().dirty && !this.registry?.edits.state().saving)
-        this.editor = "closed";
-      this.#resetEditors();
-      this.coreSaved = this.editor !== "closed";
-      this.#setDirty(false);
     }
     if (
       this.route?.kind === "create" &&
@@ -312,7 +314,7 @@ export class CodexRecordPage extends LitElement {
           ${
             this.canEdit
               ? html`
-            <button class="record-action primary-record-action" type="button" @click=${this.#startCreate} ?disabled=${this.saving || this.editor !== "closed"}>
+            <button class="record-action primary-record-action" type="button" @click=${this.#startCreate} ?disabled=${this.busy || this.editor !== "closed"}>
               <span aria-hidden="true">+</span>${uiText("Add {0}", { "0": route.page.singular.toLocaleLowerCase() })}
             </button>
           `
@@ -378,14 +380,14 @@ export class CodexRecordPage extends LitElement {
           ${this.coreSaved ? html`<p role="status">${this.#ui.t("recordAddons.coreSaved")}</p>` : nothing}
           <codex-record-contributions .registry=${this.registry} .actorRole=${this.actorRole}
             .record=${campaignCollection(this.campaign!, route.page.collection).records.find((item) => item.key === route.key)}
-            .collection=${route.page.collection} .mode=${"editor"} ?inert=${this.saving}></codex-record-contributions>
+            .collection=${route.page.collection} .mode=${"editor"} ?inert=${this.#locked}></codex-record-contributions>
         </article>
       `;
     }
     const twins =
       this.canManageVisibility && this.actorRole === "dm"
         ? html`<codex-record-twins
-      .campaign=${dataset} .record=${record} .page=${route.page} .disabled=${this.saving}></codex-record-twins>`
+      .campaign=${dataset} .record=${record} .page=${route.page} .disabled=${this.busy}></codex-record-twins>`
         : nothing;
     const facts = articleFacts(dataset, route.page.collection, value);
     const editable = this.canEdit
@@ -523,7 +525,7 @@ export class CodexRecordPage extends LitElement {
     label?: string,
   ) {
     return html`<codex-inline-field .campaign=${this.campaign} .record=${record} .collection=${route.page.collection}
-      .field=${field} .label=${label} .canEdit=${this.canEdit && !this.saving}></codex-inline-field>`;
+      .field=${field} .label=${label} .canEdit=${this.canEdit && !this.busy}></codex-inline-field>`;
   }
 
   #mastheadActions(
@@ -535,7 +537,7 @@ export class CodexRecordPage extends LitElement {
       event = route.page.collection === "events";
     const actions = [
       this.canEdit
-        ? html`<button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.saving}>${pencilIcon()} ${uiText("Edit")}</button>`
+        ? html`<button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.busy}>${pencilIcon()} ${uiText("Edit")}</button>`
         : nothing,
       location ? this.#locationPlacementLinks(record) : nothing,
       location && (value["localMap"] || this.canEdit)
@@ -620,7 +622,7 @@ export class CodexRecordPage extends LitElement {
         <header>
           <h2 id="record-editor-title">${creating ? uiText("Add {0}", { "0": route.page.singular.toLocaleLowerCase() }) : uiText("Edit {0}", { "0": text(value["name"]) || route.page.singular.toLocaleLowerCase() })}</h2>
         </header>
-        <fieldset class="record-editor-body" ?disabled=${this.saving}>
+        <fieldset class="record-editor-body" ?disabled=${this.#locked}>
         ${
           character
             ? this.#characterEditorFields(fields, value, record)
@@ -665,18 +667,27 @@ export class CodexRecordPage extends LitElement {
         </div>`
         }
         </fieldset>
+        ${saveFailure(this.saveError)}
         <footer class="record-editor-actions">
           ${
             record === undefined
               ? nothing
               : html`
-            <button class="danger-record-action" type="button" @click=${this.#deleteRecord} ?disabled=${this.saving}>${uiText("Delete")}</button>
+            <button class="danger-record-action" type="button" @click=${this.#deleteRecord} ?disabled=${this.#locked}>${uiText("Delete")}</button>
           `
           }
-          <span class="record-form-status" role=${this.saveState === "failed" ? "alert" : "status"}>${uiText(this.saving ? "Saving…" : this.saveState === "failed" ? "save.failed" : this.#dirty ? "save.draft" : "save.explicit")}</span>
-          <button type="button" @click=${this.#closeEditor} ?disabled=${this.saving}>${uiText("Cancel")}</button>
-          <button class="primary-record-action" type="submit" ?disabled=${this.saving}>
-            ${this.saving ? uiText("Saving…") : uiText("Save entry")}
+          <span class="record-form-status" role="status">${uiText(
+            this.formSaving
+              ? "Saving…"
+              : this.saveError
+                ? "save.failed"
+                : this.#dirty
+                  ? "save.draft"
+                  : "save.explicit",
+          )}</span>
+          <button type="button" @click=${this.#closeEditor} ?disabled=${this.#locked}>${uiText("Cancel")}</button>
+          <button class="primary-record-action" type="submit" ?disabled=${this.#locked}>
+            ${this.formSaving ? uiText("Saving…") : uiText("Save entry")}
           </button>
         </footer>
       </form>
@@ -723,7 +734,7 @@ export class CodexRecordPage extends LitElement {
           ${
             tab === "details"
               ? html`<codex-portrait-editor class="wide-field" .portrait=${value["portrait"]}
-            .creating=${record === undefined} .disabled=${this.saving}></codex-portrait-editor>`
+            .creating=${record === undefined} .disabled=${this.#locked}></codex-portrait-editor>`
               : nothing
           }
           ${fields.filter((field) => field.key !== "description" && group(field.key) === tab).map((field) => this.#editorField(field, value, record?.key ?? ""))}
@@ -731,7 +742,7 @@ export class CodexRecordPage extends LitElement {
             tab === "connections"
               ? html`<campaign-relationship-editor
             .campaign=${this.#editorCampaign} .character=${record} .canManageVisibility=${this.canManageVisibility}
-            .recordIdentity=${`${record?.key ?? "new"}:${this.editCompletion}`}></campaign-relationship-editor>`
+            .recordIdentity=${`${record?.key ?? "new"}:${this.#formGeneration}`}></campaign-relationship-editor>`
               : nothing
           }
           ${
@@ -799,7 +810,7 @@ export class CodexRecordPage extends LitElement {
           .field=${field}
           .record=${value}
           .factionId=${this.#factionDraft ?? editorValue(value["faction"])}
-          .recordIdentity=${`${currentKey || "new"}:${field.key}:${this.editCompletion}`}
+          .recordIdentity=${`${currentKey || "new"}:${field.key}:${this.#formGeneration}`}
         ></campaign-structured-field>
       `;
     }
@@ -814,8 +825,8 @@ export class CodexRecordPage extends LitElement {
         ...(currentKey === "" ? {} : { currentKey }),
       };
       return html`<section class="markdown-editor wide-field"><span class="markdown-editor-label" aria-hidden="true">${field.label}</span><codex-markdown-editor
-        .name=${field.key} .label=${field.label} .value=${source} .identity=${currentKey + ":" + field.key + ":" + this.editCompletion}
-        .context=${context} .disabled=${this.saving} .maximumLength=${field.maximumLength}
+        .name=${field.key} .label=${field.label} .value=${source} .identity=${currentKey + ":" + field.key + ":" + this.#formGeneration}
+        .context=${context} .disabled=${this.#locked} .maximumLength=${field.maximumLength}
         .draftContext=${
           this.actorRole && this.route
             ? {
@@ -867,7 +878,7 @@ export class CodexRecordPage extends LitElement {
   };
 
   readonly #startCreate = (): void => {
-    if (this.canEdit && !this.saving && this.editor === "closed") {
+    if (this.canEdit && !this.busy && this.editor === "closed") {
       this.#resetEditors();
       this.#editCampaign = this.campaign;
       this.#setDirty(false);
@@ -876,7 +887,7 @@ export class CodexRecordPage extends LitElement {
   };
 
   readonly #startEdit = (): void => {
-    if (this.canEdit && !this.saving && this.editor === "closed") {
+    if (this.canEdit && !this.busy && this.editor === "closed") {
       this.#resetEditors();
       this.#editCampaign = this.campaign;
       this.#setDirty(false);
@@ -884,10 +895,15 @@ export class CodexRecordPage extends LitElement {
     }
   };
 
+  /** The form takes no input while any write runs, its own included. */
+  get #locked(): boolean {
+    return this.busy || this.formSaving;
+  }
+
   readonly #closeEditor = (): void => {
     const edits = this.registry?.edits.state();
     if (
-      !this.saving &&
+      !this.#locked &&
       !edits?.saving &&
       confirmDiscardUnsavedEdit(this.#dirty || edits?.dirty === true, (message) =>
         window.confirm(message),
@@ -895,9 +911,6 @@ export class CodexRecordPage extends LitElement {
     ) {
       this.querySelectorAll<CodexMarkdownEditor>("codex-markdown-editor").forEach((editor) =>
         editor.discardDraft(),
-      );
-      this.dispatchEvent(
-        new CustomEvent("campaign-record-reset", { bubbles: true, composed: true }),
       );
       this.#setDirty(false);
       this.editor = "closed";
@@ -926,6 +939,8 @@ export class CodexRecordPage extends LitElement {
 
   #resetEditors(): void {
     this.coreSaved = false;
+    this.saveError = "";
+    this.#formGeneration++;
     this.#submittedMarkdown = [];
     this.#editCampaign = undefined;
     this.#markdownDrafts.clear();
@@ -934,8 +949,9 @@ export class CodexRecordPage extends LitElement {
   }
 
   readonly #markDirty = (): void => {
-    if (this.editor !== "closed" && !this.saving) {
+    if (this.editor !== "closed" && !this.#locked) {
       this.coreSaved = false;
+      this.saveError = "";
       this.#setDirty(true);
     }
   };
@@ -951,7 +967,7 @@ export class CodexRecordPage extends LitElement {
     event.preventDefault();
     if (
       !this.canEdit ||
-      this.saving ||
+      this.#locked ||
       this.registry?.edits.state().saving ||
       this.campaign === undefined ||
       this.route === undefined
@@ -1030,53 +1046,86 @@ export class CodexRecordPage extends LitElement {
         ? { visibility: data.get("visibility") === "dm" ? ("dm" as const) : ("public" as const) }
         : {}),
     };
+    const route = this.route;
+    if (route.kind === "create" && route.context && !creationSource(route, this.campaign)?.record) {
+      this.saveError = uiText("creation.unavailable");
+      return;
+    }
     this.#submittedMarkdown = [
       ...form.querySelectorAll<CodexMarkdownEditor>("codex-markdown-editor"),
     ].map((editor) => ({ editor, value: editor.value }));
+    void this.#save(route, detail);
+  };
+
+  async #save(route: RecordRoute, detail: CampaignRecordSaveDetail): Promise<void> {
+    this.formSaving = true;
+    this.saveError = "";
+    const result = await saveCampaign(this, "record", detail);
+    this.formSaving = false;
+    if (!this.isConnected || this.route !== route) return;
+    if (!result.ok) {
+      this.saveError = result.message;
+      return;
+    }
+    for (const { editor, value } of this.#submittedMarkdown) editor.acknowledgeSave(value);
+    const edits = this.registry?.edits.state();
+    const addonsOpen = edits?.dirty === true || edits?.saving === true;
+    const destination =
+      route.kind === "create" && route.context
+        ? creationBackHash(route, result.campaign)
+        : route.kind === "record" && route.editing && route.returnTo
+          ? route.returnTo
+          : recordHash(route.page, detail.key);
+    this.#resetEditors();
+    this.#setDirty(false);
+    if (addonsOpen) {
+      this.coreSaved = true;
+    } else this.editor = "closed";
     this.dispatchEvent(
-      new CustomEvent<CampaignRecordSaveDetail>("campaign-record-save", {
-        detail,
+      new CustomEvent<CampaignRecordSavedDetail>("campaign-record-saved", {
+        detail: { destination },
         bubbles: true,
         composed: true,
       }),
     );
-  };
+    if (!addonsOpen) window.location.hash = destination;
+  }
 
-  readonly #deleteRecord = (): void => {
-    if (
-      !this.canEdit ||
-      this.saving ||
-      this.campaign === undefined ||
-      this.route?.kind !== "record"
-    )
+  readonly #deleteRecord = async (): Promise<void> => {
+    const route = this.route;
+    if (!this.canEdit || this.#locked || this.campaign === undefined || route?.kind !== "record")
       return;
-    const recordKey = this.route.key;
-    const target = campaignCollection(
-      this.#editorCampaign,
-      this.route.page.collection,
-    ).records.find(({ key }) => key === recordKey);
+    const target = campaignCollection(this.#editorCampaign, route.page.collection).records.find(
+      ({ key }) => key === route.key,
+    );
     if (
       target === undefined ||
       !window.confirm(
         uiText("Delete this {0}? This cannot be undone from this page.", {
-          "0": this.route.page.singular.toLocaleLowerCase(),
+          "0": route.page.singular.toLocaleLowerCase(),
         }),
       )
     ) {
       return;
     }
-    const detail: CampaignRecordDeleteDetail = {
-      collection: this.route.page.collection,
+    this.formSaving = true;
+    this.saveError = "";
+    const result = await saveCampaign(this, "record-delete", {
+      collection: route.page.collection,
       key: target.key,
       expectedRevision: target.revision,
-    };
-    this.dispatchEvent(
-      new CustomEvent<CampaignRecordDeleteDetail>("campaign-record-delete", {
-        detail,
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    });
+    this.formSaving = false;
+    if (!this.isConnected || this.route !== route) return;
+    if (!result.ok) {
+      this.saveError = result.message;
+      return;
+    }
+    this.#setDirty(false);
+    this.editor = "closed";
+    this.#resetEditors();
+    window.location.hash =
+      route.page.collection === "events" ? "#/timeline" : collectionHash(route.page);
   };
 }
 

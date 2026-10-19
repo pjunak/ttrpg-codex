@@ -12,6 +12,8 @@ import {
 } from "./campaign-sidebar.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
+import { saveCampaign } from "./campaign-writes.js";
+import { saveFailure } from "./save-failure.js";
 import {
   addonSidebarKey,
   addonSidebarMode,
@@ -24,16 +26,19 @@ export class CodexSidebarSettings extends LitElement {
   static override properties = {
     campaign: { attribute: false },
     addonPages: { attribute: false },
-    saving: { type: Boolean },
-    editCompletion: { type: Number },
+    busy: { type: Boolean },
     layout: { state: true },
     invalid: { state: true },
+    saving: { state: true },
+    error: { state: true },
   };
   declare campaign: CampaignDataset | undefined;
-  declare saving: boolean;
-  declare editCompletion: number;
+  /** The app is saving or otherwise busy, so no write may start. */
+  declare busy: boolean;
   declare private layout: SidebarLayout | undefined;
   declare private invalid: boolean;
+  declare private saving: boolean;
+  declare private error: string;
   declare addonPages: readonly BrowserNavigationEntry[];
   #visibilityCampaign: CampaignDataset | undefined;
   #visibilityChanges: Readonly<Record<string, SidebarAddonMode>> = {};
@@ -43,8 +48,9 @@ export class CodexSidebarSettings extends LitElement {
   readonly #ui = new UiLocalizationController(this);
   constructor() {
     super();
+    this.busy = false;
     this.saving = false;
-    this.editCompletion = 0;
+    this.error = "";
     this.invalid = false;
     this.addonPages = [];
   }
@@ -52,7 +58,7 @@ export class CodexSidebarSettings extends LitElement {
     return this;
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (changed.has("editCompletion") || (changed.has("campaign") && !this.#dirty)) this.#reset();
+    if (changed.has("campaign") && !this.#dirty) this.#reset();
   }
   protected override render() {
     return html`<section class="settings-ledger settings-sidebar-panel" aria-labelledby="sidebar-editor-title">
@@ -62,7 +68,7 @@ export class CodexSidebarSettings extends LitElement {
       ${
         this.layout === undefined
           ? nothing
-          : html`<fieldset class="settings-sidebar-controls" ?disabled=${this.saving}>
+          : html`<fieldset class="settings-sidebar-controls" ?disabled=${this.#locked}>
         <div class="settings-edit-actions"><button type="button" @click=${this.#add}>＋ ${this.#ui.t("sidebar.addSection")}</button>
           <button type="button" @click=${this.#defaults}>↺ ${this.#ui.t("sidebar.defaults")}</button></div>
         <div class="sb-editor">${repeat(
@@ -98,6 +104,7 @@ export class CodexSidebarSettings extends LitElement {
                 })
           }
         </section>
+        ${saveFailure(this.error)}
         <div class="settings-edit-actions"><button class="primary" type="button" @click=${this.#save}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
           <button type="button" @click=${this.#cancel}>${this.#ui.t("dashboard.cancel")}</button></div>
       </fieldset>`
@@ -153,27 +160,32 @@ export class CodexSidebarSettings extends LitElement {
       },
     )}${pages.length === 0 ? html`<li class="sb-empty">${this.#ui.t("sidebar.dropHere")}</li>` : nothing}</ul>`;
   }
-  #reset(): void {
-    if (this.campaign === undefined) return;
-    this.#revision = sidebarRecord(this.campaign)?.revision ?? 0;
+  #reset(campaign = this.campaign): void {
+    if (campaign === undefined) return;
+    this.#revision = sidebarRecord(campaign)?.revision ?? 0;
     this.invalid = false;
-    this.#visibilityCampaign = this.campaign;
+    this.error = "";
+    this.#visibilityCampaign = campaign;
     this.#visibilityChanges = {};
     try {
-      this.layout = campaignSidebar(this.campaign);
+      this.layout = campaignSidebar(campaign);
     } catch {
       this.layout = undefined;
       this.invalid = true;
     }
     this.#setDirty(false);
   }
+  get #locked(): boolean {
+    return this.busy || this.saving;
+  }
   #setDirty(dirty: boolean): void {
     this.#dirty = dirty;
     reportEditState(this, { dirty });
   }
   #change(layout: SidebarLayout): void {
-    if (!this.saving) {
+    if (!this.#locked) {
       this.layout = layout;
+      this.error = "";
       this.#setDirty(true);
     }
   }
@@ -230,35 +242,35 @@ export class CodexSidebarSettings extends LitElement {
   };
   readonly #cancel = (): void => {
     if (
-      !this.saving &&
+      !this.#locked &&
       confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))
     )
       this.#reset();
   };
-  readonly #save = (): void => {
-    if (!this.saving && this.layout)
-      this.dispatchEvent(
-        new CustomEvent("campaign-sidebar-save", {
-          detail: {
-            expectedRevision: this.#revision,
-            layout: this.layout,
-            ...(Object.keys(this.#visibilityChanges).length > 0 &&
-            this.#visibilityCampaign !== undefined
-              ? {
-                  addonVisibility: {
-                    expectedRevision: addonSidebarRecord(this.#visibilityCampaign)?.revision ?? 0,
-                    modes: this.#visibilityChanges,
-                  },
-                }
-              : {}),
-          },
-          bubbles: true,
-          composed: true,
-        }),
-      );
+  readonly #save = async (): Promise<void> => {
+    const layout = this.layout;
+    if (this.#locked || !layout) return;
+    this.saving = true;
+    this.error = "";
+    const result = await saveCampaign(this, "sidebar", {
+      expectedRevision: this.#revision,
+      layout,
+      ...(Object.keys(this.#visibilityChanges).length > 0 && this.#visibilityCampaign !== undefined
+        ? {
+            addonVisibility: {
+              expectedRevision: addonSidebarRecord(this.#visibilityCampaign)?.revision ?? 0,
+              modes: this.#visibilityChanges,
+            },
+          }
+        : {}),
+    });
+    this.saving = false;
+    if (!this.isConnected || this.layout !== layout) return;
+    if (result.ok) this.#reset(result.campaign);
+    else this.error = result.message;
   };
   #startDrag(event: DragEvent, kind: "section" | "page", id: string): void {
-    if (this.saving) {
+    if (this.#locked) {
       event.preventDefault();
       return;
     }
@@ -268,20 +280,20 @@ export class CodexSidebarSettings extends LitElement {
     if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
   }
   #allowDrop(event: DragEvent, kind: "section" | "page"): void {
-    if (!this.saving && this.#drag?.kind === kind) {
+    if (!this.#locked && this.#drag?.kind === kind) {
       event.preventDefault();
       event.stopPropagation();
     }
   }
   #dropPage(event: DragEvent, section: string, index: number): void {
-    if (this.#drag?.kind !== "page" || this.saving) return;
+    if (this.#drag?.kind !== "page" || this.#locked) return;
     event.preventDefault();
     event.stopPropagation();
     this.#movePage(this.#drag.id, section, index);
     this.#drag = undefined;
   }
   #dropSection(event: DragEvent, index: number): void {
-    if (this.#drag?.kind !== "section" || this.saving) return;
+    if (this.#drag?.kind !== "section" || this.#locked) return;
     event.preventDefault();
     event.stopPropagation();
     this.#moveSection(this.#drag.id, index);

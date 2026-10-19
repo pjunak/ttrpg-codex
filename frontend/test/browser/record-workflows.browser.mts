@@ -20,13 +20,13 @@ import { holdCoreWrite } from "./core-write-lifetime-fixture.mts";
 import { trackBrowserContext } from "./browser-diagnostics.mts";
 type LifetimeApp = HTMLElement & {
   busy: boolean;
-  editCompletion: number;
-  recordSaveState: string;
+  recordSaved: boolean;
 };
 
 declare global {
   interface Window {
     coreTwinReply: { calls: number; ok?: boolean };
+    coreDeleteReply: { calls: number; ok?: boolean };
     recordConflictReads: { holding: boolean; started: boolean; release: () => void };
   }
 }
@@ -228,7 +228,6 @@ for (const scenario of [
       assert.equal((await record(key)).revision, 2);
       const app = await page.$("codex-app");
       assert.ok(app);
-      const completion = await app.evaluate((node) => (node as LifetimeApp).editCompletion);
       await app.evaluate((node) => node.remove());
       const connected = page.waitForRequest((request) => request.url().endsWith("/api/auth"));
       await app.evaluate((node) => document.body.append(node));
@@ -247,7 +246,7 @@ for (const scenario of [
       await freshWrite;
       await first.release();
       assert.equal(await app.evaluate((node) => (node as LifetimeApp).busy), true);
-      assert.equal(await app.evaluate((node) => (node as LifetimeApp).editCompletion), completion);
+      assert.equal(await app.evaluate((node) => (node as LifetimeApp).recordSaved), false);
       assert.equal(new URL(page.url()).hash, `#/locations/${key}/edit`);
       assert.equal(await page.locator(".application-alert").count(), 0);
       assert.equal(await page.locator(".record-save-confirmation").count(), 0);
@@ -272,15 +271,13 @@ void test("detaching during core save readback cannot publish an obsolete comple
   const readback = await holdCoreWrite(page, "/api/campaign", "body");
   const app = await page.$("codex-app");
   assert.ok(app);
-  const completion = await app.evaluate((node) => (node as LifetimeApp).editCompletion);
   try {
     await page.getByRole("button", { name: "Save entry", exact: true }).last().click();
     await readback.started();
     assert.equal((await record(key)).value.name, "Saved before disconnect");
     await app.evaluate((node) => node.remove());
     await readback.release();
-    assert.equal(await app.evaluate((node) => (node as LifetimeApp).editCompletion), completion);
-    assert.equal(await app.evaluate((node) => (node as LifetimeApp).recordSaveState), "idle");
+    assert.equal(await app.evaluate((node) => (node as LifetimeApp).recordSaved), false);
     assert.equal(new URL(page.url()).hash, `#/locations/${key}/edit`);
     await app.evaluate((node) => document.body.append(node));
     await page.getByLabel("Name", { exact: true }).waitFor();
@@ -303,12 +300,22 @@ void test("an interrupted core deletion stays deleted without changing a newer r
   const receipt = await holdCoreWrite(page, "/api/campaign/transactions", "headers");
   const app = await page.$("codex-app");
   assert.ok(app);
-  const completion = await app.evaluate((node) => (node as LifetimeApp).editCompletion);
   try {
     await page.locator("codex-record-page").evaluate((node, key) => {
+      window.coreDeleteReply = { calls: 0 };
       node.dispatchEvent(
-        new CustomEvent("campaign-record-delete", {
-          detail: { collection: "locations", key, expectedRevision: 1 },
+        new CustomEvent("campaign-write", {
+          detail: {
+            kind: "record-delete",
+            detail: { collection: "locations", key, expectedRevision: 1 },
+            ready: () => true,
+            respond: (result: { ok: boolean }) => {
+              window.coreDeleteReply.calls++;
+              window.coreDeleteReply.ok = result.ok;
+            },
+          },
+          bubbles: true,
+          cancelable: true,
         }),
       );
     }, key);
@@ -322,7 +329,7 @@ void test("an interrupted core deletion stays deleted without changing a newer r
     await page.locator(".collection-page").waitFor();
     await receipt.release();
     assert.equal(new URL(page.url()).hash, "#/characters");
-    assert.equal(await app.evaluate((node) => (node as LifetimeApp).editCompletion), completion);
+    assert.deepEqual(await page.evaluate(() => window.coreDeleteReply), { calls: 1, ok: false });
     assert.equal(await page.evaluate(() => window.coreWriteHold.calls), 1);
     assert.equal(await record(key), undefined);
     assert.equal(await page.locator(".application-alert").count(), 0);
@@ -342,19 +349,23 @@ void test("a cancelled twin request settles its callback once before a late rece
     await page.locator("codex-record-page").evaluate((node, key) => {
       window.coreTwinReply = { calls: 0 };
       node.dispatchEvent(
-        new CustomEvent("campaign-twin", {
+        new CustomEvent("campaign-write", {
           detail: {
-            mutation: {
+            kind: "twin",
+            detail: {
               action: "create",
               collection: "locations",
               sourceKey: key,
               sourceExpectedRevision: 1,
             },
+            ready: () => true,
             respond: (result: { ok: boolean }) => {
               window.coreTwinReply.calls++;
               window.coreTwinReply.ok = result.ok;
             },
           },
+          bubbles: true,
+          cancelable: true,
         }),
       );
     }, key);
@@ -1964,7 +1975,7 @@ void test("a full-form edit rewrites only changed fields and names one that cann
   });
   await dm.page.getByRole("button", { name: "Save entry", exact: true }).last().click();
   await dm.page
-    .locator(".application-alert")
+    .locator("form.record-editor .save-failure")
     .getByText("Current location contains a value that cannot be saved.", { exact: true })
     .waitFor();
   assert.equal((await record("untouched-character", "characters")).value.location, undefined);

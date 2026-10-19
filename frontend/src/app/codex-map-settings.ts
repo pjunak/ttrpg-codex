@@ -16,6 +16,13 @@ import { recordValue, safeMediaURL, text } from "./campaign-projection.js";
 import { mapHash } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
+import {
+  saveCampaign,
+  type CampaignWriteKind,
+  type CampaignWriteResult,
+  type CampaignWrites,
+} from "./campaign-writes.js";
+import { saveFailure } from "./save-failure.js";
 
 type ConfigDraft = Extract<MapSaveDetail, { kind: "config" }>;
 
@@ -23,9 +30,10 @@ export class CodexMapSettings extends LitElement {
   static override properties = {
     campaign: { attribute: false },
     initialParentId: { attribute: false },
-    saving: { type: Boolean },
-    editCompletion: { type: Number },
+    busy: { type: Boolean },
     parentId: { state: true },
+    saving: { state: true },
+    error: { state: true },
     draft: { state: true },
     imageURL: { state: true },
     preview: { state: true },
@@ -33,9 +41,11 @@ export class CodexMapSettings extends LitElement {
   };
   declare campaign: CampaignDataset | undefined;
   declare initialParentId: string | null;
-  declare saving: boolean;
-  declare editCompletion: number;
+  /** The app is saving or otherwise busy, so no write may start. */
+  declare busy: boolean;
   declare private parentId: string | null;
+  declare private saving: boolean;
+  declare private error: string;
   declare private draft: ConfigDraft | undefined;
   declare private imageURL: string | undefined;
   declare private preview: "loading" | "ready" | "empty" | "error";
@@ -49,8 +59,9 @@ export class CodexMapSettings extends LitElement {
     this.campaign = undefined;
     this.initialParentId = null;
     this.parentId = null;
+    this.busy = false;
     this.saving = false;
-    this.editCompletion = 0;
+    this.error = "";
     this.draft = undefined;
     this.imageURL = undefined;
     this.preview = "loading";
@@ -67,7 +78,6 @@ export class CodexMapSettings extends LitElement {
     if (changed.has("initialParentId")) this.parentId = this.initialParentId;
     if (
       changed.has("initialParentId") ||
-      changed.has("editCompletion") ||
       this.draft === undefined ||
       (changed.has("campaign") && !this.dirty)
     )
@@ -76,7 +86,6 @@ export class CodexMapSettings extends LitElement {
   protected override updated(changed: Map<PropertyKey, unknown>): void {
     if (
       changed.has("parentId") ||
-      changed.has("editCompletion") ||
       (changed.has("campaign") && this.parentId !== null && this.#localImage() !== this.imageURL)
     )
       void this.#loadPreview();
@@ -96,12 +105,12 @@ export class CodexMapSettings extends LitElement {
       <header class="settings-ledger-heading"><h2>🗺 ${this.#ui.t("map.settings")}</h2></header>
       <div class="settings-maps-shell">
         <nav class="settings-maps-tree" aria-label=${this.#ui.t("map.selectMap")}>
-          <button class="settings-map-node" aria-current=${this.parentId === null ? "page" : nothing} ?disabled=${this.saving} @click=${() => this.#select(null)}>🌐 ${this.#ui.t("map.world")}</button>
+          <button class="settings-map-node" aria-current=${this.parentId === null ? "page" : nothing} ?disabled=${this.#locked} @click=${() => this.#select(null)}>🌐 ${this.#ui.t("map.world")}</button>
           ${locations.map(
             (
               location,
             ) => html`<button class="settings-map-node" aria-current=${this.parentId === location.key ? "page" : nothing}
-            ?disabled=${this.saving} @click=${() => this.#select(location.key)}>🗺 ${text(recordValue(location)["name"]) || location.key}</button>`,
+            ?disabled=${this.#locked} @click=${() => this.#select(location.key)}>🗺 ${text(recordValue(location)["name"]) || location.key}</button>`,
           )}
         </nav>
         <section class="settings-maps-detail">
@@ -117,7 +126,8 @@ export class CodexMapSettings extends LitElement {
           }
           <a class="sc-btn" href=${mapHash(this.parentId)}>${this.#ui.t("map.openMap")}</a>
           <label class="settings-map-upload">${this.#ui.t("map.upload")}<input type="file" aria-label=${this.#ui.t("map.upload")}
-            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" ?disabled=${this.saving || this.dirty || missing} @change=${this.#upload} /></label>
+            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" ?disabled=${this.#locked || missing} @change=${this.#upload} /></label>
+          ${saveFailure(this.error)}
           ${invalid ? html`<p role="alert">${this.#ui.t("map.configInvalid")}</p>` : nothing}
           ${
             invalid && !this.dirty
@@ -126,9 +136,9 @@ export class CodexMapSettings extends LitElement {
             <label for="map-marker-zoom">${this.#ui.t("map.markerZoom")}</label>
             <p class="settings-hint">${this.#ui.t("map.markerZoomHint")}</p>
             <div class="settings-strength-row"><input id="map-marker-zoom" type="range" min="0" max="1" step="0.05"
-              .value=${String(this.draft.zoomScaleRatio)} ?disabled=${this.saving} @input=${this.#input} /><output for="map-marker-zoom">${Math.round(this.draft.zoomScaleRatio * 100)}%</output></div>
-            <button class="sc-btn" type="submit" ?disabled=${this.saving}>${this.#ui.t("dashboard.save")}</button>
-            <button class="sc-btn" type="button" ?disabled=${this.saving} @click=${() => {
+              .value=${String(this.draft.zoomScaleRatio)} ?disabled=${this.#locked} @input=${this.#input} /><output for="map-marker-zoom">${Math.round(this.draft.zoomScaleRatio * 100)}%</output></div>
+            <button class="sc-btn" type="submit" ?disabled=${this.#locked}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
+            <button class="sc-btn" type="button" ?disabled=${this.#locked} @click=${() => {
               if (this.#discard()) this.#reset();
             }}>${this.#ui.t("dashboard.cancel")}</button>
           </form>`
@@ -142,62 +152,81 @@ export class CodexMapSettings extends LitElement {
     </section>`;
   }
   #select(parentId: string | null): void {
-    if (parentId === this.parentId || this.saving || !this.#discard()) return;
+    if (parentId === this.parentId || this.#locked || !this.#discard()) return;
     this.parentId = parentId;
     this.#reset();
   }
-  #reset(): void {
-    if (this.campaign === undefined) return;
+  #reset(campaign = this.campaign): void {
+    if (campaign === undefined) return;
     this.draft = {
       kind: "config",
       parentId: this.parentId,
-      expectedRevision: mapConfigRecord(this.campaign)?.revision ?? 0,
-      zoomScaleRatio: mapZoomScaleRatio(this.campaign, this.parentId),
+      expectedRevision: mapConfigRecord(campaign)?.revision ?? 0,
+      zoomScaleRatio: mapZoomScaleRatio(campaign, this.parentId),
     };
+    this.error = "";
     this.#setDirty(false);
   }
+  get #locked(): boolean {
+    return this.busy || this.saving;
+  }
   #discard(): boolean {
-    if (this.saving || !confirmDiscardUnsavedEdit(this.dirty, (message) => window.confirm(message)))
+    if (
+      this.#locked ||
+      !confirmDiscardUnsavedEdit(this.dirty, (message) => window.confirm(message))
+    )
       return false;
     this.#setDirty(false);
     return true;
+  }
+  /** Saves for this panel; the answer is dropped once another map is selected. */
+  async #write<K extends CampaignWriteKind>(
+    kind: K,
+    detail: CampaignWrites[K],
+  ): Promise<CampaignWriteResult | undefined> {
+    const parentId = this.parentId;
+    this.saving = true;
+    this.error = "";
+    const result = await saveCampaign(this, kind, detail);
+    this.saving = false;
+    if (!this.isConnected || this.parentId !== parentId) return undefined;
+    if (!result.ok) this.error = result.message;
+    return result;
   }
   #setDirty(dirty: boolean): void {
     this.dirty = dirty;
     reportEditState(this, { dirty });
   }
   readonly #input = (event: Event): void => {
-    if (this.saving || this.draft === undefined) return;
+    if (this.#locked || this.draft === undefined) return;
     this.draft = {
       ...this.draft,
       zoomScaleRatio: Number((event.target as HTMLInputElement).value),
     };
     this.#setDirty(true);
   };
-  readonly #save = (event: SubmitEvent): void => {
+  readonly #save = async (event: SubmitEvent): Promise<void> => {
     event.preventDefault();
-    if (!this.saving && this.draft !== undefined)
-      this.dispatchEvent(
-        new CustomEvent("campaign-map-save", { detail: this.draft, bubbles: true, composed: true }),
-      );
+    const draft = this.draft;
+    if (this.#locked || draft === undefined) return;
+    const result = await this.#write("map", draft);
+    if (result?.ok && this.draft === draft) this.#reset(result.campaign);
   };
-  readonly #upload = (event: Event): void => {
+  readonly #upload = async (event: Event): Promise<void> => {
     const input = event.target as HTMLInputElement,
       file = input.files?.[0];
-    if (file !== undefined && this.campaign !== undefined && !this.saving && !this.dirty) {
-      const detail: MapUploadDetail = {
-        parentId: this.parentId,
-        file,
-        expectedRevision:
-          this.parentId === null
-            ? 0
-            : (mapLocationRecord(this.campaign, this.parentId)?.revision ?? 0),
-      };
-      this.dispatchEvent(
-        new CustomEvent("campaign-map-upload", { detail, bubbles: true, composed: true }),
-      );
-    }
     input.value = "";
+    if (file === undefined || this.campaign === undefined || this.#locked) return;
+    const detail: MapUploadDetail = {
+      parentId: this.parentId,
+      file,
+      expectedRevision:
+        this.parentId === null
+          ? 0
+          : (mapLocationRecord(this.campaign, this.parentId)?.revision ?? 0),
+    };
+    // A new image leaves the zoom draft alone; only the preview reloads.
+    if ((await this.#write("map-upload", detail))?.ok) void this.#loadPreview();
   };
   #localImage(): string | undefined {
     return this.campaign !== undefined && this.parentId !== null

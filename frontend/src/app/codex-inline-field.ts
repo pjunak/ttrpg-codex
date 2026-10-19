@@ -9,9 +9,9 @@ import { renderArticleReferences } from "./article-context-view.js";
 import {
   editorOptionsFor,
   sameCampaignValue,
-  requestRecordPatch,
   type CampaignEditorField,
 } from "./campaign-record-editor.js";
+import { saveCampaign } from "./campaign-writes.js";
 import { recordValue, stringList } from "./campaign-projection.js";
 import { pencilIcon } from "./edit-icon.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
@@ -268,7 +268,7 @@ export class CodexInlineField extends LitElement {
     }
     this.pending = true;
     const base = this.#base;
-    const result = await requestRecordPatch(this, {
+    const result = await saveCampaign(this, "record-patch", {
       collection: this.collection,
       base,
       fields: { [this.field.key]: value },
@@ -276,7 +276,7 @@ export class CodexInlineField extends LitElement {
     this.pending = false;
     if (!this.isConnected) return;
     if (result.ok) {
-      this.record = result.record;
+      this.record = result.record ?? this.record;
       this.campaign = result.campaign;
       const focused = this.contains(document.activeElement);
       this.#close();

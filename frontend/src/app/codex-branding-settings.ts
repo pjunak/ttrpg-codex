@@ -10,46 +10,43 @@ import {
 } from "./campaign-branding.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
+import { saveCampaign } from "./campaign-writes.js";
+import { saveFailure } from "./save-failure.js";
 
 export class CodexBrandingSettings extends LitElement {
   static override properties = {
     campaign: { attribute: false },
-    saving: { type: Boolean },
-    blocked: { type: Boolean },
-    editCompletion: { type: Number },
+    busy: { type: Boolean },
     draft: { state: true },
     dirty: { state: true },
     file: { state: true },
+    saving: { state: true },
+    error: { state: true },
   };
   declare campaign: CampaignDataset | undefined;
-  declare saving: boolean;
-  declare blocked: boolean;
-  declare editCompletion: number;
+  /** The app is saving or otherwise busy, so no write may start. */
+  declare busy: boolean;
+  declare private saving: boolean;
+  declare private error: string;
   declare private draft: BrandingSaveDetail | undefined;
   declare private dirty: boolean;
   declare private file: File | undefined;
   readonly #ui = new UiLocalizationController(this);
   constructor() {
     super();
+    this.busy = false;
     this.saving = false;
-    this.blocked = false;
-    this.editCompletion = 0;
+    this.error = "";
     this.dirty = false;
   }
   get #disabled(): boolean {
-    return this.saving || this.blocked;
+    return this.busy || this.saving;
   }
   protected override createRenderRoot() {
     return this;
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    // Other settings saves also complete edits; only a changed branding record ends this draft.
-    const savedBranding =
-      changed.has("editCompletion") &&
-      this.campaign !== undefined &&
-      (brandingRecord(this.campaign)?.revision ?? 0) !== this.draft?.expectedRevision;
-    if (this.draft === undefined || savedBranding || (changed.has("campaign") && !this.dirty))
-      this.#reset();
+    if (this.draft === undefined || (changed.has("campaign") && !this.dirty)) this.#reset();
   }
   protected override render() {
     if (this.campaign === undefined || this.draft === undefined) return nothing;
@@ -87,6 +84,7 @@ export class CodexBrandingSettings extends LitElement {
             <label><span>${this.#ui.t("branding.name")}</span><input name="brandingTitle" maxlength="200" .value=${this.draft.title} ?disabled=${this.#disabled} @input=${(event: Event) => this.#input("title", event)} /></label>
             <label><span>${this.#ui.t("branding.subtitle")}</span><input name="brandingSubtitle" maxlength="300" .value=${this.draft.subtitle} ?disabled=${this.#disabled} @input=${(event: Event) => this.#input("subtitle", event)} /></label>
           </div>
+          ${saveFailure(this.error)}
           <div class="settings-edit-actions"><button class="primary" ?disabled=${this.#disabled}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
             <button type="button" ?disabled=${this.#disabled} @click=${() => {
               if (confirmDiscardUnsavedEdit(this.dirty, (message) => window.confirm(message)))
@@ -96,12 +94,13 @@ export class CodexBrandingSettings extends LitElement {
       }
     </section>`;
   }
-  #reset(): void {
-    if (this.campaign !== undefined) {
+  #reset(campaign = this.campaign): void {
+    if (campaign !== undefined) {
       this.file = undefined;
+      this.error = "";
       this.draft = {
-        ...campaignBranding(this.campaign),
-        expectedRevision: brandingRecord(this.campaign)?.revision ?? 0,
+        ...campaignBranding(campaign),
+        expectedRevision: brandingRecord(campaign)?.revision ?? 0,
       };
       this.#setDirty(false);
     }
@@ -113,19 +112,24 @@ export class CodexBrandingSettings extends LitElement {
   #input(field: "title" | "subtitle", event: Event): void {
     if (!this.#disabled && this.draft !== undefined) {
       this.draft = { ...this.draft, [field]: (event.target as HTMLInputElement).value };
+      this.error = "";
       this.#setDirty(true);
     }
   }
-  readonly #save = (event: SubmitEvent): void => {
+  readonly #save = async (event: SubmitEvent): Promise<void> => {
     event.preventDefault();
-    if (!this.#disabled && this.draft !== undefined)
-      this.dispatchEvent(
-        new CustomEvent("campaign-branding-save", {
-          detail: { ...this.draft, ...(this.file ? { file: this.file } : {}) },
-          bubbles: true,
-          composed: true,
-        }),
-      );
+    const draft = this.draft;
+    if (this.#disabled || draft === undefined) return;
+    this.saving = true;
+    this.error = "";
+    const result = await saveCampaign(this, "branding", {
+      ...draft,
+      ...(this.file ? { file: this.file } : {}),
+    });
+    this.saving = false;
+    if (!this.isConnected || this.draft !== draft) return;
+    if (result.ok) this.#reset(result.campaign);
+    else this.error = result.message;
   };
   readonly #upload = (event: Event): void => {
     const input = event.currentTarget as HTMLInputElement,

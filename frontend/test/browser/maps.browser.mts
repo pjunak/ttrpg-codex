@@ -1151,13 +1151,14 @@ void test("map settings handle world/local image uploads and malformed configura
   const { page, writes, uploads } = await fixture(t);
   await page.goto(`${origin}/#/settings/maps`);
   await setScale(page, 0.4);
-  assert.equal(await page.getByLabel("Upload map image").isDisabled(), true);
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  // A new image leaves the unsaved marker scaling alone.
   const file = { name: "map.svg", mimeType: "image/svg+xml", buffer: Buffer.from(svg) };
   await page.getByLabel("Upload map image").setInputFiles(file);
   await page.locator(`.settings-worldmap-preview img[src="${uploadedURL}"]`).waitFor();
+  assert.equal(await page.locator('output[for="map-marker-zoom"]').textContent(), "40%");
   assert.equal(writes.length, 0);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page
     .getByRole("navigation", { name: "Select a map" })
     .getByRole("button", { name: "Unplaced town", exact: false })

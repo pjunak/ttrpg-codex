@@ -20,12 +20,12 @@ const status: GitHubStatus = {
 };
 const controller = () =>
   new AddonGitHubController(
-    {
+    Object.assign(new EventTarget(), {
       addController: vi.fn(),
       removeController: vi.fn(),
       requestUpdate: vi.fn(),
       updateComplete: Promise.resolve(true),
-    },
+    }),
     () => "csrf",
     (key) => key,
   );

@@ -2,8 +2,9 @@ import { formText } from "../core/forms.js";
 import { bindLongPress, openContextMenu } from "../ui/context-menu.js";
 import { recordContextMenu } from "./record-context-menu.js";
 import { waitForSignal } from "../core/abort-signal.js";
-import type { CampaignTwinRequest } from "./codex-record-twins.js";
-import { attachCharacterPortrait } from "./character-portrait.js";
+import { BusyLeases, busyLeaseRequestEvent, type BusyLeaseRequest } from "./busy-lease.js";
+import { CampaignWriteController } from "./campaign-write-controller.js";
+import type { CampaignRecordSavedDetail } from "./codex-record-page.js";
 import { uiRequestError } from "./ui-errors.js";
 import { isRecord } from "../core/boundary.js";
 import { browserDiagnostics } from "../addons/browser-diagnostics.js";
@@ -19,19 +20,9 @@ import {
   type AuthState,
   type Health,
 } from "../core/api.js";
-import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
+import { campaignCollection } from "../core/campaign-data.js";
 import { CampaignController, type CampaignState } from "./campaign-controller.js";
-import {
-  CampaignMutationHTTPError,
-  type CampaignEnumDeleteMutation,
-  type CampaignMutation,
-} from "../core/campaign-mutations.js";
-import {
-  applyCampaignTheme,
-  CampaignAppearanceEditError,
-  prepareCampaignAppearanceSave,
-  type CampaignAppearanceSaveDetail,
-} from "./campaign-appearance.js";
+import { applyCampaignTheme } from "./campaign-appearance.js";
 import { SharedEventStream, type EventRefresh } from "../core/event-stream.js";
 import {
   authorityRejectedEvent,
@@ -51,46 +42,14 @@ import {
   parseBrowserAddonLocation,
   listBrowserNavigation,
 } from "../addons/navigation.js";
-import {
-  applyBrandingFavicon,
-  BrandingEditError,
-  campaignBranding,
-  defaultLogo,
-  prepareBrandingSave,
-  type BrandingSaveDetail,
-} from "./campaign-branding.js";
-import {
-  CampaignRecordEditError,
-  prepareCampaignRecordDelete,
-  patchOverwritten,
-  prepareCampaignRecordSave,
-  prepareCharacterPatch,
-  type CampaignCharacterSaveRequest,
-  type CampaignRecordDeleteDetail,
-  type CampaignRecordSaveDetail,
-  type PreparedCampaignRecordTransaction,
-} from "./campaign-record-editor.js";
-import {
-  CampaignSettingsEditError,
-  prepareCampaignEnumDelete,
-  prepareCampaignEnumSave,
-  prepareCampaignEnumStarter,
-  type CampaignEnumSaveDetail,
-  type CampaignEnumStarterDetail,
-} from "./campaign-settings.js";
+import { applyBrandingFavicon, campaignBranding, defaultLogo } from "./campaign-branding.js";
 import {
   confirmDiscardUnsavedEdit,
   EditStateTracker,
   protectUnsavedEditBeforeUnload,
   type EditState,
 } from "./unsaved-edit.js";
-import {
-  collectionHash,
-  parseAppRoute,
-  canonicalAppHash,
-  recordHash,
-  type AppRoute,
-} from "./routes.js";
+import { parseAppRoute, canonicalAppHash, type AppRoute } from "./routes.js";
 import { UiLocalizationController, uiText, type MessageKey } from "./ui-localization.js";
 import "./codex-dashboard.js";
 import { type DmAddonHealth } from "./codex-dm-dashboard.js";
@@ -100,48 +59,19 @@ import { AddonLinksController } from "./addon-links-controller.js";
 import { bindRuleDetails } from "./codex-addon-rule-details.js";
 import "./codex-search.js";
 import { rememberRecentRecord } from "./recent-records.js";
-import { creationBackHash, creationSource } from "./context-creation.js";
 import { containDialogTab, navigateTabs } from "../ui/focus.js";
 import "./codex-settings.js";
 import "./codex-addon-markdown.js";
-import {
-  CampaignPartyEditError,
-  prepareCampaignPartySave,
-  type CampaignPartySaveDetail,
-} from "./campaign-party.js";
-import {
-  CampaignIdentityEditError,
-  prepareCampaignIdentitySave,
-  type CampaignIdentitySaveDetail,
-} from "./campaign-identity.js";
-import { MediaClient } from "../core/media.js";
-import {
-  CampaignMapEditError,
-  mapLocationRecord,
-  prepareMapSave,
-  prepareLocalMapImage,
-  type MapSaveDetail,
-  type MapUploadDetail,
-} from "./campaign-map.js";
 import "./codex-map.js";
 import "./codex-timeline.js";
 import "./codex-campaign-graph.js";
 import {
-  prepareTimelineReorder,
-  TimelineEditError,
-  type TimelineDraft,
-} from "./campaign-timeline.js";
-import {
   campaignSidebar,
   defaultSidebarLayout,
-  prepareSidebarSave,
   sidebarPage,
-  SidebarEditError,
   type SidebarSection,
-  type SidebarSaveDetail,
   addonSidebarKey,
   addonSidebarMode,
-  prepareAddonSidebarSave,
 } from "./campaign-sidebar.js";
 
 type Readiness =
@@ -165,9 +95,6 @@ type AddonState =
 
 type LiveState = "connecting" | "connected" | "reconnecting";
 
-const recordSaveConflictMessage =
-  "The entry or its relationships changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version.";
-
 export class CodexApp extends LitElement {
   static override properties = {
     readiness: { state: true },
@@ -175,15 +102,13 @@ export class CodexApp extends LitElement {
     addonState: { state: true },
     liveState: { state: true },
     route: { state: true },
-    busy: { state: true },
     errorMessage: { state: true },
-    recordSaveState: { state: true },
+    recordSaved: { state: true },
     contributionCount: { state: true },
     navigationCount: { state: true },
     routeCount: { state: true },
     articleCount: { state: true },
     characterView: { state: true },
-    editCompletion: { state: true },
     menuOpen: { state: true },
     mobileViewport: { state: true },
     quickSearchOpen: { state: true },
@@ -198,9 +123,9 @@ export class CodexApp extends LitElement {
   declare private addonState: AddonState;
   declare private liveState: LiveState;
   declare private route: AppRoute;
-  declare private busy: boolean;
   declare private errorMessage: string;
-  declare private recordSaveState: "idle" | "saved" | "failed";
+  /** A confirmed record save, shown until the next edit or another page. */
+  declare private recordSaved: boolean;
   declare private contextNotice: string;
   #contextNoticeTimer: ReturnType<typeof setTimeout> | undefined;
   #recordSaveDestination = "";
@@ -209,7 +134,7 @@ export class CodexApp extends LitElement {
   declare private routeCount: number;
   declare private articleCount: number;
   declare private characterView: "profile" | "addons";
-  declare private editCompletion: number;
+  readonly #busy = new BusyLeases(() => this.requestUpdate());
 
   declare private menuOpen: boolean;
   declare private mobileViewport: boolean;
@@ -262,6 +187,22 @@ export class CodexApp extends LitElement {
   #routeOutlet: BrowserContributionOutlet | undefined;
   #addonOwner = 0;
   readonly #edits = new EditStateTracker();
+  readonly #writes = new CampaignWriteController(this, {
+    campaign: this.#campaign,
+    busy: this.#busy,
+    writer: () =>
+      this.#request !== undefined &&
+      this.authority.state === "known" &&
+      this.authority.auth.authenticated
+        ? { csrfToken: this.authority.auth.csrfToken, canManage: this.#canManageCampaign() }
+        : undefined,
+    editing: () => {
+      const edits = this.#addons?.contributions.edits.state();
+      return (
+        this.#edits.dirty || this.#edits.saving || edits?.dirty === true || edits?.saving === true
+      );
+    },
+  });
   #acceptedHash = "#/";
 
   constructor() {
@@ -271,15 +212,13 @@ export class CodexApp extends LitElement {
     this.addonState = { state: "idle" };
     this.liveState = "connecting";
     this.route = { kind: "dashboard" };
-    this.busy = false;
     this.errorMessage = "";
     this.contributionCount = 0;
     this.navigationCount = 0;
     this.routeCount = 0;
     this.articleCount = 0;
     this.characterView = preferredCharacterView(window.location.hash);
-    this.editCompletion = 0;
-    this.recordSaveState = "idle";
+    this.recordSaved = false;
     this.contextNotice = "";
     this.menuOpen = false;
     this.quickSearchOpen = false;
@@ -312,6 +251,9 @@ export class CodexApp extends LitElement {
     window.addEventListener(authorityRejectedEvent, this.#onAuthorityRejected, {
       signal: this.#request.signal,
     });
+    this.addEventListener(busyLeaseRequestEvent, this.#onBusyLeaseRequest, {
+      signal: this.#request.signal,
+    });
     this.addEventListener("contextmenu", this.#onContextMenu, { signal: this.#request.signal });
     bindLongPress(
       this,
@@ -332,7 +274,7 @@ export class CodexApp extends LitElement {
     this.#request?.abort("component-disconnected");
     this.#cancelSessionCheck();
     this.#request = undefined;
-    this.busy = false;
+    this.#busy.clear();
     this.#events.close();
     window.removeEventListener("hashchange", this.#onHashChange);
     window.removeEventListener("beforeunload", this.#onBeforeUnload);
@@ -394,7 +336,7 @@ export class CodexApp extends LitElement {
           }
           ${this.liveState === "reconnecting" ? html`<p class="connection-alert" role="status">${this.#ui.t("shell.reconnecting")}</p>` : nothing}
           ${this.#sessionRecoveryTemplate()}
-          ${this.sessionRestored && this.recordSaveState !== "saved" ? html`<p class="record-save-confirmation" role="status">${this.#ui.t("session.restored")}</p>` : nothing}
+          ${this.sessionRestored && !this.recordSaved ? html`<p class="record-save-confirmation" role="status">${this.#ui.t("session.restored")}</p>` : nothing}
           ${
             this.errorMessage === ""
               ? nothing
@@ -405,7 +347,7 @@ export class CodexApp extends LitElement {
             </p>
           `
           }
-          ${this.recordSaveState === "saved" && this.#canEdit() ? html`<p class="record-save-confirmation record-save-toast" role="status">${uiText("save.entrySaved")}</p>` : nothing}
+          ${this.recordSaved && this.#canEdit() ? html`<p class="record-save-confirmation record-save-toast" role="status">${uiText("save.entrySaved")}</p>` : nothing}
           <p class="context-notice" role="status" ?hidden=${this.contextNotice === ""}>${this.contextNotice}</p>
           ${this.#characterTabs()}
           <div id="character-profile-panel" role=${this.#hasCharacterTabs ? "tabpanel" : nothing}
@@ -478,6 +420,17 @@ export class CodexApp extends LitElement {
       this.#navigationOutlet?.refresh();
     }
   }
+
+  /** A write, a sign-in or view change, or an add-on administration request is running. */
+  get busy(): boolean {
+    return this.#busy.busy;
+  }
+
+  readonly #onBusyLeaseRequest = (event: Event): void => {
+    if (!this.isConnected) return;
+    event.stopPropagation();
+    (event as CustomEvent<BusyLeaseRequest>).detail.grant(this.#busy.acquire());
+  };
 
   /** The signed-in viewer's current role, or undefined before sign-in is known. */
   get #actorRole(): "dm" | "player" | undefined {
@@ -743,7 +696,7 @@ export class CodexApp extends LitElement {
     const previous = this.authority.auth,
       signal = this.#request.signal;
     const form = event.currentTarget as HTMLFormElement;
-    this.busy = true;
+    const lease = this.#busy.acquire();
     this.sessionRecoveryError = "";
     try {
       let current = await waitForSignal(
@@ -784,7 +737,7 @@ export class CodexApp extends LitElement {
     } catch {
       if (!signal.aborted) this.sessionRecoveryError = this.#ui.t("session.resumeFailed");
     } finally {
-      if (!signal.aborted) this.busy = false;
+      lease.release();
     }
     if (!signal.aborted && !this.sessionRecovery) {
       await this.updateComplete;
@@ -798,7 +751,7 @@ export class CodexApp extends LitElement {
     const form = event.currentTarget as HTMLFormElement;
     const password = formText(new FormData(form), "password");
     const signal = this.#request.signal;
-    this.busy = true;
+    const lease = this.#busy.acquire();
     this.errorMessage = "";
     try {
       const auth = await waitForSignal(loginSession(password, signal), signal);
@@ -814,7 +767,7 @@ export class CodexApp extends LitElement {
       if (!signal.aborted)
         this.errorMessage = uiText("Sign-in failed: {0}", { "0": errorMessage(cause) });
     } finally {
-      if (!signal.aborted) this.busy = false;
+      lease.release();
     }
   }
 
@@ -822,7 +775,7 @@ export class CodexApp extends LitElement {
     if (this.busy || this.#request === undefined || !this.#confirmDiscardEdit()) return;
     const signal = this.#request.signal;
     this.#cancelSessionCheck();
-    this.busy = true;
+    const lease = this.#busy.acquire();
     this.errorMessage = "";
     try {
       await this.#stopAddons();
@@ -844,7 +797,7 @@ export class CodexApp extends LitElement {
         await this.#recoverAddons(signal);
       }
     } finally {
-      if (!signal.aborted) this.busy = false;
+      lease.release();
     }
   }
 
@@ -862,7 +815,7 @@ export class CodexApp extends LitElement {
     const signal = this.#request.signal;
     const role = auth.role === "dm" ? "player" : "dm";
     this.#cancelSessionCheck();
-    this.busy = true;
+    const lease = this.#busy.acquire();
     this.errorMessage = "";
     try {
       await this.#stopAddons();
@@ -878,7 +831,7 @@ export class CodexApp extends LitElement {
         await this.#recoverAddons(signal);
       }
     } finally {
-      if (!signal.aborted) this.busy = false;
+      lease.release();
     }
   }
 
@@ -1217,7 +1170,7 @@ export class CodexApp extends LitElement {
     const signal = this.#request.signal;
     const closePendingPreview = () => popup.close();
     signal.addEventListener("abort", closePendingPreview, { once: true });
-    this.busy = true;
+    const lease = this.#busy.acquire();
     this.errorMessage = "";
     try {
       const token = await waitForSignal(
@@ -1231,7 +1184,7 @@ export class CodexApp extends LitElement {
       if (!signal.aborted) this.errorMessage = this.#ui.t("preview.failed");
     } finally {
       signal.removeEventListener("abort", closePendingPreview);
-      if (!signal.aborted) this.busy = false;
+      lease.release();
     }
   }
 
@@ -1464,26 +1417,20 @@ export class CodexApp extends LitElement {
         return html`<codex-campaign-graph .campaign=${campaign} .mode=${this.route.mode}
           .registry=${this.#addons?.contributions} .actorRole=${this.#actorRole}></codex-campaign-graph>`;
       case "timeline":
-        return html`<codex-timeline .campaign=${campaign} .canEdit=${this.#canEdit()} .saving=${this.busy}
+        return html`<codex-timeline .campaign=${campaign} .canEdit=${this.#canEdit()} .busy=${this.busy}
           .registry=${this.#addons?.contributions} .actorRole=${this.#actorRole}
-          .editCompletion=${this.editCompletion} .errorMessage=${this.errorMessage}
-          @campaign-edit-dirty=${this.#onEditDirty} @campaign-timeline-save=${this.#saveTimeline}
-          @campaign-timeline-reset=${() => {
-            this.errorMessage = "";
-          }}></codex-timeline>`;
+          @campaign-edit-dirty=${this.#onEditDirty}></codex-timeline>`;
       case "map":
         return html`<codex-map .campaign=${campaign} .route=${this.route} .canEdit=${this.#canEdit()}
           .registry=${this.#addons?.contributions}
           .actorRole=${this.#actorRole}
-          .canManageCampaign=${this.#canManageCampaign()} .saving=${this.busy} .editCompletion=${this.editCompletion}
-          .errorMessage=${this.errorMessage} @campaign-edit-dirty=${this.#onEditDirty}
-          @campaign-map-save=${this.#saveMap} @campaign-map-upload=${this.#uploadMap}></codex-map>`;
+          .canManageCampaign=${this.#canManageCampaign()} .busy=${this.busy}
+          @campaign-edit-dirty=${this.#onEditDirty}></codex-map>`;
       case "dashboard":
       case "party":
         return html`<codex-dashboard .campaign=${campaign} .partyOnly=${this.route.kind === "party"}
           .authenticated=${this.#authenticated()} .canManageCampaign=${this.#canManageCampaign()} .canEdit=${this.#canEdit()}
-          .saving=${this.busy} .editCompletion=${this.editCompletion}
-          @campaign-edit-dirty=${this.#onEditDirty} @campaign-identity-save=${this.#saveCampaignIdentity}
+          .busy=${this.busy} @campaign-edit-dirty=${this.#onEditDirty}
           @campaign-sign-in=${this.#showSignIn}
         ></codex-dashboard>`;
       case "search":
@@ -1497,23 +1444,11 @@ export class CodexApp extends LitElement {
           .category=${this.route.category}
           .addonPages=${this.#canManageCampaign() && this.#addons !== undefined ? listBrowserNavigation(this.#addons.contributions, "dm", this.#ui.locale) : []}
           .csrfToken=${this.authority.state === "known" && this.authority.auth.authenticated ? this.authority.auth.csrfToken : ""}
-          @addon-admin-busy=${(event: CustomEvent<boolean>) => {
-            this.busy = event.detail;
-          }}
           .campaign=${campaign}
           .mapTarget=${this.route.mapParentId}
           .canManageCampaign=${this.#canManageCampaign()}
-          .saving=${this.busy}
-          .editCompletion=${this.editCompletion}
+          .busy=${this.busy}
           @campaign-edit-dirty=${this.#onEditDirty}
-          @campaign-enum-save=${this.#saveCampaignEnum}
-          @campaign-enum-starter=${this.#addCampaignEnumStarter}
-          @campaign-enum-delete=${this.#deleteCampaignEnum}
-          @campaign-appearance-save=${this.#saveCampaignAppearance}
-          @campaign-party-save=${this.#saveCampaignParty}
-          @campaign-branding-save=${this.#saveBranding}
-          @campaign-sidebar-save=${this.#saveSidebar}
-          @campaign-map-save=${this.#saveMap} @campaign-map-upload=${this.#uploadMap}
         ></codex-settings>`;
       case "collection":
       case "record":
@@ -1525,16 +1460,9 @@ export class CodexApp extends LitElement {
           .route=${this.route}
           .canEdit=${this.#canEdit()}
           .canManageVisibility=${this.#canManageCampaign()}
-          .saving=${this.busy}
-          .editCompletion=${this.editCompletion}
+          .busy=${this.busy}
           @campaign-edit-dirty=${this.#onEditDirty}
-          .saveState=${this.recordSaveState}
-          @campaign-record-reset=${() => {
-            this.errorMessage = "";
-            this.recordSaveState = "idle";
-          }}
-          @campaign-record-save=${this.#saveCampaignRecord}
-          @campaign-twin=${this.#mutateTwin}
+          @campaign-record-saved=${this.#onRecordSaved}
           @campaign-collection-view=${(event: CustomEvent<{ hash: string }>) => {
             const route = parseAppRoute(event.detail.hash);
             if (
@@ -1547,8 +1475,6 @@ export class CodexApp extends LitElement {
             this.#acceptedHash = event.detail.hash;
             this.route = route;
           }}
-          @campaign-character-save=${this.#saveCharacterPatch}
-          @campaign-record-delete=${this.#deleteCampaignRecord}
           @campaign-sign-in=${this.#showSignIn}
         ></codex-record-page>`;
       case "addon":
@@ -1663,17 +1589,9 @@ export class CodexApp extends LitElement {
         );
       },
       patch: (collection, record, fields, done) => {
-        void this.#saveCharacterPatch(
-          new CustomEvent<CampaignCharacterSaveRequest>("campaign-character-save", {
-            cancelable: true,
-            detail: {
-              collection,
-              base: record,
-              fields,
-              respond: (result) => this.#notify(result.ok ? done : result.message),
-            },
-          }),
-        );
+        void this.#writes
+          .save("record-patch", { collection, base: record, fields })
+          .then((result) => this.#notify(result.ok ? done : result.message));
       },
     });
     if (!menu) return false;
@@ -1690,476 +1608,6 @@ export class CodexApp extends LitElement {
     this.#contextNoticeTimer = setTimeout(() => {
       this.contextNotice = "";
     }, 4000);
-  }
-
-  readonly #saveCharacterPatch = async (
-    event: CustomEvent<CampaignCharacterSaveRequest>,
-  ): Promise<void> => {
-    event.preventDefault();
-    const { respond, ...patch } = event.detail;
-    const collection = patch.collection ?? "characters";
-    const write = this.#writeAccess("edit");
-    if (!write) {
-      respond({
-        ok: false,
-        message: uiText("The entry cannot be saved right now. Your draft is kept."),
-      });
-      return;
-    }
-    this.busy = true;
-    const { signal, csrfToken } = write;
-    let writeConfirmed = false;
-    try {
-      let prepared = prepareCharacterPatch(write.campaign, patch, this.#canManageCampaign());
-      prepared = await attachCharacterPortrait(
-        prepared,
-        {
-          collection,
-          key: patch.base.key,
-          expectedRevision: patch.base.revision,
-          creating: false,
-          fields: patch.fields,
-          ...(patch.portrait !== undefined ? { portrait: patch.portrait } : {}),
-          ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),
-        },
-        csrfToken,
-        signal,
-      );
-      signal.throwIfAborted();
-      const receipt = await this.#campaign.mutations.commit(prepared.mutations, csrfToken, signal);
-      writeConfirmed = true;
-      signal.throwIfAborted();
-      await this.#campaign.load(signal, true);
-      signal.throwIfAborted();
-      const campaign =
-        this.campaignState.state === "ready" ? this.campaignState.campaign : undefined;
-      const record =
-        campaign &&
-        campaignCollection(campaign, collection).records.find(
-          (item) => item.key === patch.base.key,
-        );
-      const committed = receipt.results.find(
-        (item) => item.collection === collection && item.key === patch.base.key,
-      );
-      if (
-        !campaign ||
-        !record ||
-        !committed ||
-        record.revision < committed.afterRevision ||
-        signal.aborted
-      ) {
-        respond({
-          ok: false,
-          message: uiText(
-            "The change was saved, but could not be refreshed. Your draft is kept. Refresh before retrying.",
-          ),
-        });
-        return;
-      }
-      const written = prepared.mutations[0];
-      if (
-        record.revision > committed.afterRevision &&
-        written?.operation === "put" &&
-        patchOverwritten(patch, written.value, record)
-      ) {
-        respond({
-          ok: false,
-          conflict: true,
-          message: uiText(
-            "Your change was saved, but this field changed again elsewhere. Review the current value.",
-          ),
-        });
-        return;
-      }
-      respond({ ok: true, campaign, record });
-    } catch (cause: unknown) {
-      const conflict =
-        (cause instanceof CampaignRecordEditError && cause.kind === "stale") ||
-        (cause instanceof CampaignMutationHTTPError && cause.status === 409);
-      if (!signal.aborted && cause instanceof CampaignMutationHTTPError && cause.status === 409)
-        await this.#campaign.load(signal, true);
-      respond({
-        ok: false,
-        conflict,
-        message: writeConfirmed
-          ? uiText(
-              "The change was saved, but could not be refreshed. Your draft is kept. Refresh before retrying.",
-            )
-          : signal.aborted
-            ? uiText("Saving was interrupted. Your draft is kept. Refresh before retrying.")
-            : conflict
-              ? uiText(
-                  "This field changed elsewhere. Your draft is kept. Review the current value before retrying.",
-                )
-              : uiText("The entry could not be saved: {0}", { "0": errorMessage(cause) }),
-      });
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
-  };
-
-  readonly #mutateTwin = async (event: CustomEvent<CampaignTwinRequest>): Promise<void> => {
-    event.preventDefault();
-    const { mutation, respond } = event.detail;
-    const write = this.#writeAccess("manage");
-    if (!write) {
-      respond({ ok: false, message: uiText("twins.failed") });
-      return;
-    }
-    if (
-      this.#edits.dirty ||
-      this.#edits.saving ||
-      this.#addons?.contributions.edits.state().dirty ||
-      this.#addons?.contributions.edits.state().saving
-    ) {
-      respond({ ok: false, message: uiText("twins.finishEdits") });
-      return;
-    }
-    this.busy = true;
-    const { signal, csrfToken } = write;
-    try {
-      const receipt = await this.#campaign.mutations.mutateTwin(mutation, csrfToken, signal);
-      signal.throwIfAborted();
-      await this.#campaign.load(signal, true);
-      signal.throwIfAborted();
-      const campaign =
-        this.campaignState.state === "ready" ? this.campaignState.campaign : undefined;
-      const verified =
-        campaign &&
-        receipt.results.every((result) =>
-          campaignCollection(campaign, result.collection).records.some(
-            (record) => record.key === result.key && record.revision >= result.afterRevision,
-          ),
-        );
-      respond({
-        ok: !!verified && !signal.aborted,
-        message: uiText(verified && !signal.aborted ? "twins.saved" : "twins.failed"),
-      });
-    } catch (cause: unknown) {
-      if (!signal.aborted) await this.#campaign.load(signal, true);
-      respond({
-        ok: false,
-        message: uiText(
-          cause instanceof CampaignMutationHTTPError && cause.status === 409
-            ? "twins.stale"
-            : "twins.failed",
-        ),
-      });
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
-  };
-
-  readonly #saveCampaignRecord = async (
-    event: CustomEvent<CampaignRecordSaveDetail>,
-  ): Promise<void> => {
-    const settle = this.#edits.settler(event);
-    const write = this.#writeAccess("edit");
-    if (!write) return;
-    this.recordSaveState = "idle";
-    const creationRoute =
-      this.route.kind === "create" && this.route.context ? this.route : undefined;
-    const returnTo =
-      this.route.kind === "record" && this.route.editing ? this.route.returnTo : undefined;
-    if (creationRoute && !creationSource(creationRoute, write.campaign)?.record) {
-      this.errorMessage = uiText("creation.unavailable");
-      this.recordSaveState = "failed";
-      return;
-    }
-    let prepared: PreparedCampaignRecordTransaction;
-    try {
-      prepared = prepareCampaignRecordSave(write.campaign, event.detail, this.#canManageCampaign());
-    } catch (cause: unknown) {
-      this.errorMessage =
-        cause instanceof CampaignRecordEditError && cause.kind === "stale"
-          ? uiText(recordSaveConflictMessage)
-          : cause instanceof CampaignRecordEditError && cause.kind === "portrait-visibility"
-            ? uiText(
-                "Save visibility changes first, then replace the portrait. Your draft is kept.",
-              )
-            : cause instanceof CampaignRecordEditError && cause.field !== undefined
-              ? uiText("{0} contains a value that cannot be saved.", { "0": cause.field.label })
-              : uiText("The entry contains a value that cannot be saved.");
-      this.recordSaveState = "failed";
-      return;
-    }
-    const { signal, csrfToken } = write;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      prepared = await attachCharacterPortrait(prepared, event.detail, csrfToken, signal);
-      signal.throwIfAborted();
-      await this.#campaign.mutations.commit(prepared.mutations, csrfToken, signal);
-      await this.#campaign.load(signal, true);
-      signal.throwIfAborted();
-      settle();
-      this.editCompletion += 1;
-      this.recordSaveState = "saved";
-      this.#recordSaveDestination =
-        creationRoute && this.campaignState.state === "ready"
-          ? creationBackHash(creationRoute, this.campaignState.campaign)
-          : (returnTo ?? recordHash(prepared.page, event.detail.key));
-      if (
-        !this.#addons?.contributions.edits.state().dirty &&
-        !this.#addons?.contributions.edits.state().saving
-      )
-        window.location.hash = this.#recordSaveDestination;
-    } catch (cause: unknown) {
-      if (!signal.aborted) {
-        this.errorMessage =
-          cause instanceof CampaignMutationHTTPError && cause.status === 409
-            ? uiText(recordSaveConflictMessage)
-            : uiText("The entry could not be saved: {0}", { "0": errorMessage(cause) });
-        this.recordSaveState = "failed";
-      }
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
-  };
-
-  /** What a campaign write needs, or undefined when one cannot start now. */
-  #writeAccess(
-    access: "edit" | "manage",
-  ): { signal: AbortSignal; csrfToken: string; campaign: CampaignDataset } | undefined {
-    if (
-      this.busy ||
-      this.#request === undefined ||
-      !(access === "manage" ? this.#canManageCampaign() : this.#canEdit()) ||
-      this.authority.state !== "known" ||
-      !this.authority.auth.authenticated ||
-      this.campaignState.state !== "ready"
-    )
-      return undefined;
-    return {
-      signal: this.#request.signal,
-      csrfToken: this.authority.auth.csrfToken,
-      campaign: this.campaignState.campaign,
-    };
-  }
-
-  /**
-   * The shared path of a campaign save: authority and readiness checks, the
-   * busy state, the write, a reload, and settling the editor that asked.
-   * `run` prepares and commits; any error it throws is shown via `failure`.
-   */
-  async #write(
-    event: Event,
-    access: "edit" | "manage",
-    run: (campaign: CampaignDataset, csrfToken: string, signal: AbortSignal) => Promise<unknown>,
-    failure: (cause: unknown) => string,
-  ): Promise<boolean> {
-    const settle = this.#edits.settler(event);
-    const write = this.#writeAccess(access);
-    if (!write) return false;
-    const { signal, csrfToken } = write;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      await run(write.campaign, csrfToken, signal);
-      await this.#campaign.load(signal, true);
-      signal.throwIfAborted();
-      settle();
-      this.editCompletion += 1;
-      return true;
-    } catch (cause: unknown) {
-      if (!signal.aborted) this.errorMessage = failure(cause);
-      return false;
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
-  }
-
-  readonly #deleteCampaignRecord = async (
-    event: CustomEvent<CampaignRecordDeleteDetail>,
-  ): Promise<void> => {
-    let prepared: PreparedCampaignRecordTransaction | undefined;
-    const deleted = await this.#write(
-      event,
-      "edit",
-      async (campaign, csrfToken, signal) => {
-        prepared = prepareCampaignRecordDelete(campaign, event.detail);
-        await this.#campaign.mutations.commit(prepared.mutations, csrfToken, signal);
-      },
-      (cause) =>
-        cause instanceof CampaignRecordEditError
-          ? cause.kind === "stale"
-            ? uiText("The entry changed before it could be deleted. Refresh and try again.")
-            : uiText("The delete request is no longer valid.")
-          : cause instanceof CampaignMutationHTTPError && cause.status === 409
-            ? uiText("The entry changed while deleting. Reload its current version and try again.")
-            : uiText("The entry could not be deleted: {0}", { "0": errorMessage(cause) }),
-    );
-    if (deleted && prepared)
-      window.location.hash =
-        prepared.page.collection === "events" ? "#/timeline" : collectionHash(prepared.page);
-  };
-
-  readonly #saveCampaignEnum = async (
-    event: CustomEvent<CampaignEnumSaveDetail>,
-  ): Promise<void> => {
-    await this.#write(
-      event,
-      "manage",
-      async (campaign, csrfToken, signal) => {
-        const mutation = prepareCampaignEnumSave(campaign, event.detail);
-        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
-      },
-      (cause) =>
-        cause instanceof CampaignSettingsEditError
-          ? cause.kind === "stale"
-            ? uiText(
-                "The definition changed. Your draft is kept; copy any notes you need, then cancel and reopen to review the current version.",
-              )
-            : uiText("The definition contains a value that cannot be saved.")
-          : cause instanceof CampaignMutationHTTPError && cause.status === 409
-            ? uiText("Settings changed while saving. Reload the current definition and try again.")
-            : uiText("The definition could not be saved: {0}", { "0": errorMessage(cause) }),
-    );
-  };
-
-  readonly #addCampaignEnumStarter = async (
-    event: CustomEvent<CampaignEnumStarterDetail>,
-  ): Promise<void> => {
-    await this.#write(
-      event,
-      "manage",
-      async (campaign, csrfToken, signal) => {
-        const mutation = prepareCampaignEnumStarter(campaign, event.detail);
-        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
-      },
-      (cause) =>
-        (cause instanceof CampaignSettingsEditError && cause.kind === "stale") ||
-        (cause instanceof CampaignMutationHTTPError && cause.status === 409)
-          ? uiText("This category was filled elsewhere. Review the current entries.")
-          : uiText("The starter set could not be added: {0}", { "0": errorMessage(cause) }),
-    );
-  };
-
-  readonly #deleteCampaignEnum = async (
-    event: CustomEvent<CampaignEnumDeleteMutation>,
-  ): Promise<void> => {
-    await this.#write(
-      event,
-      "manage",
-      async (campaign, csrfToken, signal) => {
-        const mutation = prepareCampaignEnumDelete(campaign, event.detail);
-        await this.#campaign.mutations.deleteEnumItem(mutation, csrfToken, signal);
-      },
-      (cause) =>
-        cause instanceof CampaignSettingsEditError
-          ? uiText("The definition changed before it could be deleted.")
-          : cause instanceof CampaignMutationHTTPError && cause.status === 409
-            ? event.detail.mode === "reject-if-used"
-              ? uiText(
-                  "The definition is now in use or settings changed. Review the category and try again.",
-                )
-              : uiText("Settings changed while deleting. Review the category and try again.")
-            : uiText("The definition could not be deleted: {0}", { "0": errorMessage(cause) }),
-    );
-  };
-
-  readonly #saveMap = async (event: CustomEvent<MapSaveDetail>): Promise<void> => {
-    // The shared map view and map configuration belong to the campaign owner.
-    const manage = event.detail.kind === "view" || event.detail.kind === "config";
-    await this.#write(
-      event,
-      manage ? "manage" : "edit",
-      async (campaign, csrfToken, signal) => {
-        const mutation = prepareMapSave(campaign, event.detail);
-        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
-      },
-      (cause) => this.#mapErrorMessage(cause),
-    );
-  };
-
-  readonly #saveTimeline = async (event: CustomEvent<TimelineDraft>): Promise<void> => {
-    if (this.campaignState.state !== "ready") return;
-    let mutations: readonly CampaignMutation[];
-    try {
-      mutations = prepareTimelineReorder(this.campaignState.campaign, event.detail);
-    } catch (cause) {
-      this.errorMessage = this.#ui.t(
-        cause instanceof TimelineEditError && cause.kind === "stale"
-          ? "timeline.stale"
-          : cause instanceof TimelineEditError && cause.kind === "limit"
-            ? "timeline.limit"
-            : "timeline.invalid",
-      );
-      return;
-    }
-    if (mutations.length === 0) {
-      this.#edits.settler(event)();
-      this.editCompletion++;
-      return;
-    }
-    await this.#write(
-      event,
-      "edit",
-      (_campaign, csrfToken, signal) =>
-        this.#campaign.mutations.commit(mutations, csrfToken, signal),
-      (cause) =>
-        this.#ui.t(
-          cause instanceof CampaignMutationHTTPError && cause.status === 409
-            ? "timeline.stale"
-            : "timeline.failed",
-        ),
-    );
-  };
-
-  readonly #uploadMap = async (event: CustomEvent<MapUploadDetail>): Promise<void> => {
-    const write = this.#writeAccess("edit");
-    if (!write) return;
-    const { parentId, expectedRevision, file } = event.detail;
-    if (parentId === null && !this.#canManageCampaign()) return;
-    if (
-      parentId !== null &&
-      mapLocationRecord(write.campaign, parentId)?.revision !== expectedRevision
-    ) {
-      this.#mapError(new CampaignMapEditError("stale"));
-      return;
-    }
-    const { signal, csrfToken } = write;
-    this.busy = true;
-    this.errorMessage = "";
-    try {
-      const media = await new MediaClient().upload(
-        parentId === null ? "world-map" : "location-map",
-        parentId ?? "main",
-        file,
-        file.name,
-        csrfToken,
-        signal,
-      );
-      signal.throwIfAborted();
-      if (parentId !== null) {
-        const mutation = prepareLocalMapImage(
-          write.campaign,
-          parentId,
-          expectedRevision,
-          media.url,
-        );
-        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
-      }
-      await this.#campaign.load(signal, true);
-      signal.throwIfAborted();
-      this.editCompletion += 1;
-    } catch (cause) {
-      if (!signal.aborted) this.#mapError(cause);
-    } finally {
-      if (!signal.aborted) this.busy = false;
-    }
-  };
-
-  #mapError(cause: unknown): void {
-    this.errorMessage = this.#mapErrorMessage(cause);
-  }
-  #mapErrorMessage(cause: unknown): string {
-    return this.#ui.t(
-      (cause instanceof CampaignMapEditError && cause.kind === "stale") ||
-        (cause instanceof CampaignMutationHTTPError && cause.status === 409)
-        ? "map.stale"
-        : "map.saveFailed",
-    );
   }
 
   readonly #retryDmAddons = async (): Promise<void> => {
@@ -2183,126 +1631,6 @@ export class CodexApp extends LitElement {
     this.querySelector<HTMLInputElement>('.account-panel input[name="password"]')?.focus();
   };
 
-  readonly #saveCampaignIdentity = async (
-    event: CustomEvent<CampaignIdentitySaveDetail>,
-  ): Promise<void> => {
-    await this.#write(
-      event,
-      "manage",
-      async (campaign, csrfToken, signal) => {
-        const mutation = prepareCampaignIdentitySave(campaign, event.detail);
-        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
-      },
-      (cause) =>
-        this.#ui.t(
-          (cause instanceof CampaignIdentityEditError && cause.kind === "stale") ||
-            (cause instanceof CampaignMutationHTTPError && cause.status === 409)
-            ? "dashboard.identityStale"
-            : cause instanceof CampaignIdentityEditError
-              ? "dashboard.identityInvalid"
-              : "dashboard.identityFailed",
-        ),
-    );
-  };
-
-  readonly #saveSidebar = async (event: CustomEvent<SidebarSaveDetail>): Promise<void> => {
-    await this.#write(
-      event,
-      "manage",
-      async (campaign, csrfToken, signal) => {
-        const mutations = [prepareSidebarSave(campaign, event.detail)];
-        if (event.detail.addonVisibility !== undefined)
-          mutations.push(prepareAddonSidebarSave(campaign, event.detail.addonVisibility));
-        await this.#campaign.mutations.commit(mutations, csrfToken, signal);
-      },
-      (cause) =>
-        this.#ui.t(
-          (cause instanceof SidebarEditError && cause.kind === "stale") ||
-            (cause instanceof CampaignMutationHTTPError && cause.status === 409)
-            ? "sidebar.stale"
-            : cause instanceof SidebarEditError
-              ? "sidebar.invalid"
-              : "sidebar.failed",
-        ),
-    );
-  };
-
-  readonly #saveBranding = async (event: CustomEvent<BrandingSaveDetail>): Promise<void> => {
-    await this.#write(
-      event,
-      "manage",
-      async (campaign, csrfToken, signal) => {
-        let mutation = prepareBrandingSave(campaign, event.detail);
-        const file = event.detail.file;
-        if (file !== undefined) {
-          const media = await new MediaClient().upload(
-            "branding-logo",
-            "main",
-            file,
-            file.name,
-            csrfToken,
-            signal,
-          );
-          signal.throwIfAborted();
-          mutation = prepareBrandingSave(campaign, { ...event.detail, logoUrl: media.url });
-        }
-        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
-      },
-      (cause) =>
-        this.#ui.t(
-          (cause instanceof BrandingEditError && cause.kind === "stale") ||
-            (cause instanceof CampaignMutationHTTPError && cause.status === 409)
-            ? "branding.stale"
-            : cause instanceof BrandingEditError
-              ? "branding.invalid"
-              : "branding.failed",
-        ),
-    );
-  };
-
-  readonly #saveCampaignParty = async (
-    event: CustomEvent<CampaignPartySaveDetail>,
-  ): Promise<void> => {
-    await this.#write(
-      event,
-      "manage",
-      async (campaign, csrfToken, signal) => {
-        const mutation = prepareCampaignPartySave(campaign, event.detail);
-        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
-      },
-      (cause) =>
-        this.#ui.t(
-          (cause instanceof CampaignPartyEditError && cause.kind === "stale") ||
-            (cause instanceof CampaignMutationHTTPError && cause.status === 409)
-            ? "settings.partyStale"
-            : cause instanceof CampaignPartyEditError
-              ? "settings.partyInvalid"
-              : "settings.partyFailed",
-        ),
-    );
-  };
-
-  readonly #saveCampaignAppearance = async (
-    event: CustomEvent<CampaignAppearanceSaveDetail>,
-  ): Promise<void> => {
-    await this.#write(
-      event,
-      "manage",
-      async (campaign, csrfToken, signal) => {
-        const mutation = prepareCampaignAppearanceSave(campaign, event.detail);
-        await this.#campaign.mutations.commit([mutation], csrfToken, signal);
-      },
-      (cause) =>
-        cause instanceof CampaignAppearanceEditError
-          ? cause.kind === "stale"
-            ? uiText("Appearance changed elsewhere. Review the current theme and pick again.")
-            : uiText("The appearance setting is invalid.")
-          : cause instanceof CampaignMutationHTTPError && cause.status === 409
-            ? uiText("Appearance changed while saving. Review the current theme and try again.")
-            : uiText("Appearance could not be saved: {0}", { "0": errorMessage(cause) }),
-    );
-  };
-
   readonly #onHashChange = (): void => {
     const nextHash = normalizedHash(window.location.hash);
     if (nextHash !== this.#acceptedHash && !this.#confirmDiscardEdit(nextHash)) {
@@ -2318,7 +1646,7 @@ export class CodexApp extends LitElement {
     if (nextHash === this.#acceptedHash) return;
     this.menuOpen = false;
     this.#acceptedHash = nextHash;
-    if (nextHash !== this.#recordSaveDestination) this.recordSaveState = "idle";
+    if (nextHash !== this.#recordSaveDestination) this.recordSaved = false;
     if (this.quickSearchOpen) this.#closeQuickSearch(false);
     this.route = parseAppRoute(nextHash);
     this.characterView = preferredCharacterView(nextHash);
@@ -2327,7 +1655,13 @@ export class CodexApp extends LitElement {
 
   readonly #onEditDirty = (event: CustomEvent<EditState>): void => {
     this.#edits.record(event);
-    if (event.detail?.dirty && this.recordSaveState === "saved") this.recordSaveState = "idle";
+    if (event.detail?.dirty) this.recordSaved = false;
+  };
+
+  /** The confirmation stays visible on the page the saved form returns to. */
+  readonly #onRecordSaved = (event: CustomEvent<CampaignRecordSavedDetail>): void => {
+    this.#recordSaveDestination = normalizedHash(event.detail.destination);
+    this.recordSaved = true;
   };
 
   readonly #onBeforeUnload = (event: BeforeUnloadEvent): void => {

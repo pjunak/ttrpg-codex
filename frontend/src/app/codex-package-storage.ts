@@ -5,6 +5,7 @@ import {
   type PackageStorage,
 } from "../core/addon-storage.js";
 import { UiLocalizationController } from "./ui-localization.js";
+import { AdminRequestController } from "./admin-request-controller.js";
 
 /** The server's package cleanup policy, reloaded when the installation changes. */
 export class CodexPackageStorage extends LitElement {
@@ -19,7 +20,7 @@ export class CodexPackageStorage extends LitElement {
   declare private storage: PackageStorage | undefined;
   declare private failed: boolean;
   readonly #ui = new UiLocalizationController(this);
-  #request = new AbortController();
+  readonly #requests = new AdminRequestController(this);
   #loaded = "";
   constructor() {
     super();
@@ -36,7 +37,6 @@ export class CodexPackageStorage extends LitElement {
     this.requestUpdate();
   }
   override disconnectedCallback(): void {
-    this.#request.abort();
     this.storage = undefined;
     super.disconnectedCallback();
   }
@@ -48,21 +48,27 @@ export class CodexPackageStorage extends LitElement {
     }
   }
   async #load(): Promise<void> {
-    this.#request.abort();
-    const request = new AbortController();
-    this.#request = request;
+    // The newest installation state wins over a read still in flight.
+    this.#requests.reset();
     this.failed = false;
-    try {
-      this.storage = await new AddonStorageClient(this.csrfToken, request.signal).status();
-      this.dispatchEvent(
-        new CustomEvent("package-storage-mode", { detail: this.storage.automatic, bubbles: true }),
-      );
-    } catch (error) {
-      if (request.signal.aborted) return;
-      this.storage = undefined;
-      // Hosts without package management have nothing to report.
-      this.failed = !(error instanceof PackageStorageError && error.status === 404);
-    }
+    await this.#requests.run(
+      async (signal) => {
+        const storage = await new AddonStorageClient(this.csrfToken, signal).status();
+        if (signal.aborted) return;
+        this.storage = storage;
+        this.dispatchEvent(
+          new CustomEvent("package-storage-mode", { detail: storage.automatic, bubbles: true }),
+        );
+      },
+      {
+        failure: (error) => {
+          this.storage = undefined;
+          // Hosts without package management have nothing to report.
+          this.failed = !(error instanceof PackageStorageError && error.status === 404);
+          return "";
+        },
+      },
+    );
   }
   protected override render() {
     const t = this.#ui.t.bind(this.#ui),

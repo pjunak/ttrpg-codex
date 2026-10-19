@@ -7,6 +7,7 @@ import {
 } from "../core/credentials.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { reportEditState } from "./unsaved-edit.js";
+import { AdminRequestController } from "./admin-request-controller.js";
 
 type Role = "dm" | "player";
 interface Draft {
@@ -21,42 +22,40 @@ export class CodexCredentialSettings extends LitElement {
   static override properties = {
     csrfToken: { attribute: false },
     status: { state: true },
-    loading: { state: true },
-    saving: { state: true },
     message: { state: true },
   };
   declare csrfToken: string;
   declare status: CredentialStatus | undefined;
-  declare loading: boolean;
-  declare saving: boolean;
   declare message: string;
   #ui = new UiLocalizationController(this);
-  #abort = new AbortController();
+  readonly #requests = new AdminRequestController(this);
+  /** Which request is running, when one is. */
+  #running: "load" | "save" | undefined;
   #drafts: Record<Role, Draft> = { dm: blank(), player: blank() };
   #reloadRequired = false;
   #success = false;
   constructor() {
     super();
     this.csrfToken = "";
-    this.loading = false;
-    this.saving = false;
     this.message = "";
+  }
+  get loading(): boolean {
+    return this.#requests.pending && this.#running === "load";
+  }
+  get saving(): boolean {
+    return this.#requests.pending && this.#running === "save";
   }
   protected override createRenderRoot(): HTMLElement {
     return this;
   }
   override connectedCallback(): void {
     super.connectedCallback();
-    this.#abort = new AbortController();
     this.#publish();
     void this.#load();
   }
   override disconnectedCallback(): void {
-    this.#abort.abort();
     this.#drafts = { dm: blank(), player: blank() };
     this.status = undefined;
-    this.loading = false;
-    this.saving = false;
     this.message = "";
     this.#success = false;
     super.disconnectedCallback();
@@ -151,65 +150,67 @@ export class CodexCredentialSettings extends LitElement {
   }
 
   async #load(): Promise<void> {
-    if (this.loading || this.saving) return;
-    const signal = this.#abort.signal;
-    this.loading = true;
-    try {
-      const status = await getCredentialStatus(signal);
-      if (!signal.aborted) {
+    if (this.#requests.pending) return;
+    this.#running = "load";
+    await this.#requests.run(
+      async (signal) => {
+        const status = await getCredentialStatus(signal);
+        if (signal.aborted) return;
         this.status = status;
         this.#reloadRequired = false;
         this.message = "";
-      }
-    } catch {
-      if (!signal.aborted) {
-        this.message = "loadFailed";
-        this.#success = false;
-      }
-    } finally {
-      if (!signal.aborted) this.loading = false;
-    }
+      },
+      {
+        failure: () => {
+          this.message = "loadFailed";
+          this.#success = false;
+          return "";
+        },
+      },
+    );
   }
 
   async #save(event: SubmitEvent, role: Role): Promise<void> {
     event.preventDefault();
-    if (!this.status || this.saving || this.loading || this.#reloadRequired) return;
+    const current = this.status;
+    if (!current || this.#requests.pending || this.#reloadRequired) return;
     const draft = this.#drafts[role];
     this.#success = false;
     if (!draft.disable && draft.password !== draft.confirmation) {
       this.message = "mismatch";
       return;
     }
-    const signal = this.#abort.signal;
-    this.saving = true;
+    const signal = this.#requests.signal;
+    this.#running = "save";
     this.message = "";
-    this.#publish();
-    try {
-      const status = await changePassword(
-        {
-          role,
-          currentPassword: draft.current,
-          newPassword: draft.disable ? "" : draft.password,
-          expectedRevision: this.status.revision,
-        },
-        this.csrfToken,
-        signal,
-      );
-      if (signal.aborted) return;
-      this.status = status;
-      this.#drafts[role] = blank();
-      this.#success = true;
-      this.message = "saved";
-    } catch (error) {
-      if (signal.aborted) return;
-      this.message = error instanceof CredentialRequestError ? error.code : "failed";
-      this.#reloadRequired = this.message === "conflict" || this.message === "failed";
-    } finally {
-      if (!signal.aborted) {
-        this.saving = false;
+    await this.#requests.run(
+      async (signal) => {
         this.#publish();
-      }
-    }
+        const status = await changePassword(
+          {
+            role,
+            currentPassword: draft.current,
+            newPassword: draft.disable ? "" : draft.password,
+            expectedRevision: current.revision,
+          },
+          this.csrfToken,
+          signal,
+        );
+        if (signal.aborted) return;
+        this.status = status;
+        this.#drafts[role] = blank();
+        this.#success = true;
+        this.message = "saved";
+      },
+      {
+        failure: (error) => {
+          this.message = error instanceof CredentialRequestError ? error.code : "failed";
+          this.#reloadRequired = this.message === "conflict" || this.message === "failed";
+          return "";
+        },
+      },
+    );
+    if (!signal.aborted) this.#publish();
   }
 }
 customElements.define("codex-credential-settings", CodexCredentialSettings);

@@ -5,6 +5,8 @@ import { HostRequestError } from "../core/api.js";
 import { UIControlsController } from "../ui/controller.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { uiRequestError } from "./ui-errors.js";
+import { AdminRequestController } from "./admin-request-controller.js";
+import { BusyLeaseController } from "./busy-lease.js";
 
 export class CodexAddonSchemaUpgrade extends LitElement {
   static override properties = {
@@ -13,8 +15,6 @@ export class CodexAddonSchemaUpgrade extends LitElement {
     grants: { attribute: false },
     disabled: { type: Boolean },
     review: { state: true },
-    pending: { state: true },
-    error: { state: true },
     open: { state: true },
     uncertain: { state: true },
     refresh: { state: true },
@@ -24,44 +24,32 @@ export class CodexAddonSchemaUpgrade extends LitElement {
   declare grants: readonly string[];
   declare disabled: boolean;
   declare private review: SchemaReview | undefined;
-  declare private pending: boolean;
-  declare private error: string;
   declare private open: boolean;
   declare private uncertain: boolean;
   declare private refresh: boolean;
-  #request = new AbortController();
   #confirmed: { action: "heal" | "remove"; grants: readonly string[] } | undefined;
   readonly #ui = new UiLocalizationController(this);
+  readonly #requests = new AdminRequestController(this);
+  /** Held while the data review or its resolution runs, and while its outcome is uncertain. */
+  readonly #lease = new BusyLeaseController(this);
   constructor() {
     super();
     new UIControlsController(this);
     this.csrfToken = "";
     this.grants = [];
     this.disabled = false;
-    this.pending = false;
-    this.error = "";
     this.open = false;
     this.uncertain = false;
   }
   protected override createRenderRoot() {
     return this;
   }
-  override disconnectedCallback(): void {
-    this.#request.abort();
-    this.#busy(false);
-    super.disconnectedCallback();
-  }
-  override connectedCallback(): void {
-    super.connectedCallback();
-    if (this.#request.signal.aborted) this.#request = new AbortController();
-  }
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has("activation")) {
-      this.#request.abort();
-      this.#request = new AbortController();
+      this.#requests.reset();
+      if (this.#lease.held) this.#busy(false);
+      this.#requests.error = "";
       this.review = undefined;
-      this.pending = false;
-      this.error = "";
       this.uncertain = false;
       this.refresh = false;
       this.open = false;
@@ -78,19 +66,20 @@ export class CodexAddonSchemaUpgrade extends LitElement {
   protected override render() {
     const t = this.#ui.t.bind(this.#ui),
       review = this.review,
-      busy = this.pending || this.disabled;
+      pending = this.#requests.pending,
+      busy = pending || this.disabled;
     return html`<p>${t("update.dataHelp")}</p><button class="ui-button" ?disabled=${busy} @click=${() => this.#open()}>${t("update.continue")}</button>
       ${
         this.open
-          ? html`<dialog class="addon-install-dialog addon-data-dialog" data-ui-dialog aria-labelledby="addon-data-title" aria-busy=${this.pending}
+          ? html`<dialog class="addon-install-dialog addon-data-dialog" data-ui-dialog aria-labelledby="addon-data-title" aria-busy=${pending}
         @cancel=${(event: Event) => {
           event.preventDefault();
           this.#exit();
         }}>
         <header><h3 id="addon-data-title" tabindex="-1">${t("update.dataTitle", { addon: this.activation?.name ?? "" })}</h3></header>
         <div class="addon-dialog-body">
-          ${this.pending ? html`<p role="status">${t(this.#confirmed ? "update.applying" : "update.checking")}</p>` : nothing}
-          ${this.error ? html`<p role="alert">${this.error}</p>` : nothing}
+          ${pending ? html`<p role="status">${t(this.#confirmed ? "update.applying" : "update.checking")}</p>` : nothing}
+          ${this.#requests.error ? html`<p role="alert">${this.#requests.error}</p>` : nothing}
           ${this.uncertain ? html`<p role="status">${t("update.uncertain")}</p>` : nothing}
           ${
             review
@@ -102,7 +91,7 @@ export class CodexAddonSchemaUpgrade extends LitElement {
             <a class="ui-button" href=${`/api/admin/addon-schema-reviews/${encodeURIComponent(review.reviewId)}/recovery`} download>${t("update.backup")}</a>
             <p class="settings-hint">${t("update.backupHelp")}</p>
           `
-              : !this.pending
+              : !pending
                 ? html`<button ?disabled=${busy} @click=${() => (this.refresh ? this.#refresh() : this.#prepare())}>${t(this.refresh ? "update.refresh" : "github.retry")}</button>`
                 : nothing
           }
@@ -126,7 +115,7 @@ export class CodexAddonSchemaUpgrade extends LitElement {
   }
   #open(): void {
     if (
-      this.pending ||
+      this.#requests.pending ||
       this.disabled ||
       !this.dispatchEvent(
         new CustomEvent("addon-update-start", { bubbles: true, composed: true, cancelable: true }),
@@ -137,12 +126,15 @@ export class CodexAddonSchemaUpgrade extends LitElement {
     void this.#prepare();
   }
   #exit(): void {
-    if (this.pending || this.uncertain || this.disabled) return;
+    if (this.#requests.pending || this.uncertain || this.disabled) return;
     this.querySelector<HTMLDialogElement>("dialog")?.close();
     this.open = false;
     this.dispatchEvent(new CustomEvent("addon-update-exit", { bubbles: true, composed: true }));
   }
+  /** Holds the app's busy state and tells the add-on manager to hold its own actions. */
   #busy(value: boolean): void {
+    if (value) this.#lease.hold();
+    else this.#lease.release();
     this.dispatchEvent(
       new CustomEvent("addon-schema-busy", { detail: value, bubbles: true, composed: true }),
     );
@@ -152,7 +144,7 @@ export class CodexAddonSchemaUpgrade extends LitElement {
     this.open = false;
     this.dispatchEvent(new CustomEvent("addon-update-refresh", { bubbles: true, composed: true }));
   }
-  #failed(error: unknown): void {
+  #failure(error: unknown): string {
     this.refresh =
       error instanceof AddonAdminRequestError &&
       [
@@ -162,72 +154,63 @@ export class CodexAddonSchemaUpgrade extends LitElement {
         "REVIEW_BLOCKED",
         "UPDATE_RESTORED",
       ].includes(error.code);
-    this.error =
-      error instanceof AddonAdminRequestError && error.code === "UPDATE_RESTORED"
-        ? this.#ui.t("update.restored")
-        : uiRequestError(error);
+    return error instanceof AddonAdminRequestError && error.code === "UPDATE_RESTORED"
+      ? this.#ui.t("update.restored")
+      : uiRequestError(error);
   }
   async #prepare(): Promise<void> {
-    if (this.pending || !this.activation) return;
-    const request = this.#request;
-    this.pending = true;
-    this.error = "";
+    const activation = this.activation;
+    if (this.#requests.pending || !activation) return;
     this.#busy(true);
-    try {
-      const review = await new AddonAdminClient(this.csrfToken, request.signal).reviewUpdateData(
-        this.activation,
-      );
-      if (!request.signal.aborted) this.review = review;
-    } catch (error) {
-      if (!request.signal.aborted) this.#failed(error);
-    } finally {
-      if (!request.signal.aborted) {
-        this.pending = false;
-        this.#busy(false);
-      }
-    }
+    await this.#requests.run(
+      async (signal) => {
+        const review = await new AddonAdminClient(this.csrfToken, signal).reviewUpdateData(
+          activation,
+        );
+        if (!signal.aborted) this.review = review;
+      },
+      { failure: (error) => this.#failure(error) },
+    );
+    if (!this.#requests.pending) this.#busy(false);
   }
   async #apply(action?: "heal" | "remove"): Promise<void> {
-    if (this.pending || this.disabled || !this.activation || !this.review) return;
+    const activation = this.activation,
+      review = this.review;
+    if (this.#requests.pending || this.disabled || !activation || !review) return;
     if (action) this.#confirmed = { action, grants: [...this.grants] };
     const confirmed = this.#confirmed;
     if (!confirmed) return;
-    const request = this.#request;
-    this.pending = true;
-    this.error = "";
     this.#busy(true);
-    try {
-      await new AddonAdminClient(this.csrfToken, request.signal).resolveUpdate(
-        this.activation,
-        this.review,
-        confirmed.action,
-        confirmed.grants,
+    const done = await this.#requests.run(
+      (signal) =>
+        new AddonAdminClient(this.csrfToken, signal).resolveUpdate(
+          activation,
+          review,
+          confirmed.action,
+          confirmed.grants,
+        ),
+      {
+        failure: (error) => {
+          const message = this.#failure(error);
+          this.uncertain =
+            !(error instanceof HostRequestError) ||
+            error.status >= 500 ||
+            (error instanceof AddonAdminRequestError && error.code === "RECOVERY_REQUIRED");
+          if (!this.uncertain) {
+            this.review = undefined;
+            this.#confirmed = undefined;
+          }
+          return message;
+        },
+      },
+    );
+    if (done) {
+      this.uncertain = false;
+      this.#busy(false);
+      this.dispatchEvent(
+        new CustomEvent("addon-update-applied", { bubbles: true, composed: true }),
       );
-      if (!request.signal.aborted) {
-        this.uncertain = false;
-        this.#busy(false);
-        this.dispatchEvent(
-          new CustomEvent("addon-update-applied", { bubbles: true, composed: true }),
-        );
-      }
-    } catch (error) {
-      if (!request.signal.aborted) {
-        this.#failed(error);
-        this.uncertain =
-          !(error instanceof HostRequestError) ||
-          error.status >= 500 ||
-          (error instanceof AddonAdminRequestError && error.code === "RECOVERY_REQUIRED");
-        if (!this.uncertain) {
-          this.review = undefined;
-          this.#confirmed = undefined;
-        }
-      }
-    } finally {
-      if (!request.signal.aborted) {
-        this.pending = false;
-        this.#busy(this.uncertain);
-      }
-    }
+    } else if (!this.#requests.pending) this.#busy(this.uncertain);
   }
 }
 customElements.define("codex-addon-schema-upgrade", CodexAddonSchemaUpgrade);

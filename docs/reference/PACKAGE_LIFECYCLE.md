@@ -22,7 +22,10 @@ Administrative, GitHub and package-storage clients stop awaiting cancelled
 headers and JSON bodies, reject retired scopes before sending follow-up calls,
 and keep late results out of the current Settings view. Configuration and
 installation actions capture their component request and CSRF token; replacing
-that scope retires its completion, errors and busy-state updates. Reconnected
+that scope retires its completion, errors and busy-state updates. The views
+share one request controller (`admin-request-controller.ts`); a changing
+request holds the app's busy lease, which its view releases when it leaves the
+page. Reconnected
 configuration panels obtain current rules/providers, and reconnected source
 wizards retain entered source fields with enabled controls and a fresh request
 scope. Returning to Settings reads server state; cancelled activation, staging

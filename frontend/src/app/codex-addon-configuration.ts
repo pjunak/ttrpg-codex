@@ -14,6 +14,7 @@ import {
 import { UiLocalizationController } from "./ui-localization.js";
 import { uiRequestError } from "./ui-errors.js";
 import { reportEditState } from "./unsaved-edit.js";
+import { AdminRequestController } from "./admin-request-controller.js";
 
 export interface ConfigurationAddon {
   id: string;
@@ -37,8 +38,6 @@ export class CodexAddonConfiguration extends LitElement {
     disabled: { type: Boolean },
     policy: { state: true },
     services: { state: true },
-    pending: { state: true },
-    error: { state: true },
     message: { state: true },
     search: { state: true },
     review: { state: true },
@@ -49,21 +48,17 @@ export class CodexAddonConfiguration extends LitElement {
   declare disabled: boolean;
   declare private policy: RulesPolicy | undefined;
   declare private services: ServiceSelections | undefined;
-  declare private pending: boolean;
-  declare private error: string;
   declare private message: string;
   declare private search: string;
   declare private review: Review | undefined;
   #selected: Set<string> | undefined;
   #providers = new Map<string, ProviderDraft>();
-  #request = new AbortController();
+  readonly #requests = new AdminRequestController(this);
   readonly #ui = new UiLocalizationController(this);
   constructor() {
     super();
     this.addonId = "";
     this.disabled = false;
-    this.pending = false;
-    this.error = "";
     this.message = "";
     this.search = "";
   }
@@ -72,12 +67,9 @@ export class CodexAddonConfiguration extends LitElement {
   }
   override connectedCallback(): void {
     super.connectedCallback();
-    this.#request = new AbortController();
     void this.#load();
   }
   override disconnectedCallback(): void {
-    this.#request.abort();
-    this.pending = false;
     this.review = undefined;
     this.#dirty(false);
     super.disconnectedCallback();
@@ -104,7 +96,7 @@ export class CodexAddonConfiguration extends LitElement {
       this.querySelector<HTMLElement>(".configuration-review h4")?.focus();
   }
   get #blocked(): boolean {
-    return this.disabled || this.pending;
+    return this.disabled || this.#requests.pending;
   }
   get #hasDraft(): boolean {
     return this.#selected !== undefined || this.#providers.size > 0 || this.review !== undefined;
@@ -175,11 +167,12 @@ export class CodexAddonConfiguration extends LitElement {
       ) ?? [];
     if (!sources.length && !services.length) return nothing;
     const pending = sources.filter((source) => source.pending).length;
-    return html`<section class="addon-configuration" aria-busy=${this.pending}>
-      ${this.error ? html`<p role="alert">${this.error}</p>` : nothing}${this.message ? html`<p role="status">${this.message}</p>` : nothing}
+    const error = this.#requests.error;
+    return html`<section class="addon-configuration" aria-busy=${this.#requests.pending}>
+      ${error ? html`<p role="alert">${error}</p>` : nothing}${this.message ? html`<p role="status">${this.message}</p>` : nothing}
       ${
-        this.error || this.#hasDraft
-          ? html`<div class="addon-actions">${this.error ? html`<button ?disabled=${this.#blocked} @click=${() => this.refresh()}>${t("configuration.refresh")}</button>` : nothing}
+        error || this.#hasDraft
+          ? html`<div class="addon-actions">${error ? html`<button ?disabled=${this.#blocked} @click=${() => this.refresh()}>${t("configuration.refresh")}</button>` : nothing}
       ${this.#hasDraft ? html`<button ?disabled=${this.#blocked} @click=${this.#reset}>${t("configuration.reset")}</button><span role="status">${t("configuration.draft")}</span>` : nothing}</div>`
           : nothing
       }
@@ -322,7 +315,7 @@ export class CodexAddonConfiguration extends LitElement {
     this.#dirty();
   };
   async #load(): Promise<void> {
-    const request = this.#request;
+    const signal = this.#requests.signal;
     await this.#run(async (client) => {
       const [policy, services] = await Promise.all([
         client.rulesPolicy(),
@@ -372,17 +365,17 @@ export class CodexAddonConfiguration extends LitElement {
         }),
       );
     });
-    if (!request.signal.aborted && request === this.#request)
+    if (!signal.aborted)
       this.dispatchEvent(
         new CustomEvent("addon-configuration-error", {
-          detail: this.error,
+          detail: this.#requests.error,
           bubbles: true,
           composed: true,
         }),
       );
   }
   async #apply(review: Review): Promise<void> {
-    const request = this.#request;
+    const signal = this.#requests.signal;
     if (
       !this.dispatchEvent(
         new CustomEvent("addon-lifecycle-request", {
@@ -417,7 +410,7 @@ export class CodexAddonConfiguration extends LitElement {
           : "configuration.saved",
       );
       if (result.failures.length || result.recoveryError)
-        this.error = [
+        this.#requests.error = [
           result.recoveryError,
           ...result.failures.map((failure) => `${failure.addonId}: ${failure.error}`),
         ]
@@ -427,46 +420,41 @@ export class CodexAddonConfiguration extends LitElement {
         new CustomEvent("addon-configuration-applied", { bubbles: true, composed: true }),
       );
     }, true);
-    if (applied && !request.signal.aborted && request === this.#request) {
-      const recoveryFailure = this.error;
+    if (applied && !signal.aborted) {
+      const recoveryFailure = this.#requests.error;
       await this.#load();
-      if (recoveryFailure && !request.signal.aborted && request === this.#request)
-        this.error = [recoveryFailure, this.error].filter(Boolean).join(" ");
+      if (recoveryFailure && !signal.aborted) {
+        this.#requests.error = [recoveryFailure, this.#requests.error].filter(Boolean).join(" ");
+        this.requestUpdate();
+      }
     }
   }
   async #run(
     operation: (client: AddonAdminClient) => Promise<void>,
     mutating = false,
   ): Promise<void> {
-    if (this.#blocked || !this.isConnected || this.#request.signal.aborted) return;
-    const request = this.#request;
-    this.pending = true;
-    this.error = "";
-    if (mutating) this.message = "";
-    if (mutating)
-      this.dispatchEvent(
-        new CustomEvent("addon-admin-busy", { detail: true, bubbles: true, composed: true }),
-      );
-    try {
-      await operation(new AddonAdminClient(this.csrfToken, request.signal));
-    } catch (error) {
-      if (!request.signal.aborted && request === this.#request) {
-        this.review = undefined;
-        this.error =
-          error instanceof HostRequestError && error.status === 409
-            ? this.#ui.t("configuration.conflict")
-            : uiRequestError(error);
-        this.#dirty();
-      }
-    } finally {
-      if (!request.signal.aborted && request === this.#request) {
-        this.pending = false;
-        if (mutating)
-          this.dispatchEvent(
-            new CustomEvent("addon-admin-busy", { detail: false, bubbles: true, composed: true }),
-          );
-      }
+    if (this.#blocked || !this.isConnected) return;
+    if (mutating) {
+      this.message = "";
+      this.#announceBusy(true);
     }
+    await this.#requests.run((signal) => operation(new AddonAdminClient(this.csrfToken, signal)), {
+      mutating,
+      failure: (error) => {
+        this.review = undefined;
+        this.#dirty();
+        return error instanceof HostRequestError && error.status === 409
+          ? this.#ui.t("configuration.conflict")
+          : uiRequestError(error);
+      },
+    });
+    if (mutating && !this.#requests.pending) this.#announceBusy(false);
+  }
+  /** Tells the add-on manager to hold its own actions while a change applies. */
+  #announceBusy(busy: boolean): void {
+    this.dispatchEvent(
+      new CustomEvent("addon-configuration-busy", { detail: busy, bubbles: true, composed: true }),
+    );
   }
 }
 customElements.define("codex-addon-configuration", CodexAddonConfiguration);

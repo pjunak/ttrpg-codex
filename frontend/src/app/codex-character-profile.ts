@@ -21,9 +21,8 @@ import {
   sameCampaignValue,
   type CampaignEditorField,
   type CampaignCharacterPatch,
-  type CampaignCharacterSaveResult,
-  requestRecordPatch,
 } from "./campaign-record-editor.js";
+import { saveCampaign, type CampaignWriteResult } from "./campaign-writes.js";
 import {
   projectEntity,
   recordValue,
@@ -630,10 +629,10 @@ export class CodexCharacterProfile extends LitElement {
     if (!this.isConnected || this.record.key !== draft.base.key) return;
     if (result.ok) {
       this.#accept(result);
-      draft.base = result.record;
-      draft.original = this.#initial(key, result.record);
+      draft.base = this.record;
+      draft.original = this.#initial(key, this.record);
       this.#undo = {
-        base: result.record,
+        base: this.record,
         fields: {
           [key]: before,
           ...(key === "faction"
@@ -673,12 +672,13 @@ export class CodexCharacterProfile extends LitElement {
       void this.#saveField(key, draft.closeAfter);
     }
   }
-  async #send(patch: CampaignCharacterPatch): Promise<CampaignCharacterSaveResult> {
+  async #send(patch: CampaignCharacterPatch): Promise<CampaignWriteResult> {
     this.#saves++;
     this.#dirty();
     try {
-      return await requestRecordPatch(
+      return await saveCampaign(
         this,
+        "record-patch",
         patch,
         () => this.isConnected && this.canEdit && this.record.key === patch.base.key,
       );
@@ -687,8 +687,8 @@ export class CodexCharacterProfile extends LitElement {
       this.#dirty();
     }
   }
-  #accept(result: Extract<CampaignCharacterSaveResult, { ok: true }>): void {
-    this.record = result.record;
+  #accept(result: Extract<CampaignWriteResult, { ok: true }>): void {
+    this.record = result.record ?? this.record;
     this.campaign = result.campaign;
   }
   #unsaved(): boolean {
@@ -776,7 +776,7 @@ export class CodexCharacterProfile extends LitElement {
     if (result.ok) {
       this.querySelector<CodexMarkdownEditor>("codex-markdown-editor")?.acknowledgeSave(source);
       this.#accept(result);
-      this.#wikiBase = result.record;
+      this.#wikiBase = this.record;
       this.status = uiText("Wiki saved");
       this.#wikiError = "";
     } else {

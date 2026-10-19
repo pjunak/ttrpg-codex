@@ -10,40 +10,41 @@ import { recordValue, text } from "./campaign-projection.js";
 import { campaignPages, recordHash } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
+import { saveCampaign } from "./campaign-writes.js";
+import { saveFailure } from "./save-failure.js";
 
 export class CodexPartySettings extends LitElement {
   static override properties = {
     campaign: { attribute: false },
-    saving: { type: Boolean },
-    editCompletion: { type: Number },
+    busy: { type: Boolean },
     draft: { state: true },
     dirty: { state: true },
+    saving: { state: true },
+    error: { state: true },
   };
   declare campaign: CampaignDataset | undefined;
-  declare saving: boolean;
-  declare editCompletion: number;
+  /** The app is saving or otherwise busy, so no write may start. */
+  declare busy: boolean;
   declare private draft: CampaignPartySaveDetail | undefined;
   declare private dirty: boolean;
+  declare private saving: boolean;
+  declare private error: string;
   readonly #ui = new UiLocalizationController(this);
 
   constructor() {
     super();
     this.campaign = undefined;
-    this.saving = false;
-    this.editCompletion = 0;
+    this.busy = false;
     this.draft = undefined;
     this.dirty = false;
+    this.saving = false;
+    this.error = "";
   }
   protected override createRenderRoot() {
     return this;
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (
-      this.draft === undefined ||
-      changed.has("editCompletion") ||
-      (changed.has("campaign") && !this.dirty)
-    )
-      this.#reset();
+    if (this.draft === undefined || (changed.has("campaign") && !this.dirty)) this.#reset();
   }
   protected override render() {
     if (this.campaign === undefined || this.draft === undefined) return nothing;
@@ -64,17 +65,18 @@ export class CodexPartySettings extends LitElement {
           : html`<form @submit=${this.#save}>
         <div class="settings-edit-grid settings-party-fields">
           <label><span>${this.#ui.t("settings.partyName")}</span><input name="partyName" maxlength="200"
-            .value=${this.draft.name} ?disabled=${this.saving} @input=${(event: Event) => this.#input("name", event)} /></label>
+            .value=${this.draft.name} ?disabled=${this.#locked} @input=${(event: Event) => this.#input("name", event)} /></label>
           <label><span>${this.#ui.t("settings.partyIcon")}</span><input name="partyIcon" maxlength="100"
-            .value=${this.draft.icon} ?disabled=${this.saving} @input=${(event: Event) => this.#input("icon", event)} /></label>
+            .value=${this.draft.icon} ?disabled=${this.#locked} @input=${(event: Event) => this.#input("icon", event)} /></label>
           <label><span>${this.#ui.t("settings.partyColor")}</span><input type="color" name="partyColor"
-            .value=${this.draft.color} ?disabled=${this.saving} @input=${(event: Event) => this.#input("color", event)} /></label>
+            .value=${this.draft.color} ?disabled=${this.#locked} @input=${(event: Event) => this.#input("color", event)} /></label>
           <label><span>${this.#ui.t("settings.partyTextColor")}</span><input type="color" name="partyTextColor"
-            .value=${this.draft.textColor} ?disabled=${this.saving} @input=${(event: Event) => this.#input("textColor", event)} /></label>
+            .value=${this.draft.textColor} ?disabled=${this.#locked} @input=${(event: Event) => this.#input("textColor", event)} /></label>
         </div>
+        ${saveFailure(this.error)}
         <div class="settings-edit-actions">
-          <button class="primary" type="submit" ?disabled=${this.saving}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
-          <button type="button" ?disabled=${this.saving} @click=${this.#cancel}>${this.#ui.t("dashboard.cancel")}</button>
+          <button class="primary" type="submit" ?disabled=${this.#locked}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
+          <button type="button" ?disabled=${this.#locked} @click=${this.#cancel}>${this.#ui.t("dashboard.cancel")}</button>
         </div>
       </form>`
       }
@@ -95,37 +97,46 @@ export class CodexPartySettings extends LitElement {
       </section>
     </section>`;
   }
-  #reset(): void {
-    if (this.campaign === undefined) return;
+  #reset(campaign = this.campaign): void {
+    if (campaign === undefined) return;
     this.draft = {
-      ...campaignPartyIdentity(this.campaign),
-      expectedRevision: campaignPartyRecord(this.campaign)?.revision ?? 0,
+      ...campaignPartyIdentity(campaign),
+      expectedRevision: campaignPartyRecord(campaign)?.revision ?? 0,
     };
+    this.error = "";
     this.#setDirty(false);
+  }
+  get #locked(): boolean {
+    return this.busy || this.saving;
   }
   #setDirty(dirty: boolean): void {
     this.dirty = dirty;
     reportEditState(this, { dirty });
   }
   #input(field: "name" | "icon" | "color" | "textColor", event: Event): void {
-    if (this.saving || this.draft === undefined) return;
+    if (this.#locked || this.draft === undefined) return;
     this.draft = { ...this.draft, [field]: (event.currentTarget as HTMLInputElement).value };
+    this.error = "";
     this.#setDirty(true);
   }
   readonly #cancel = (): void => {
-    if (!this.saving && confirmDiscardUnsavedEdit(this.dirty, (message) => window.confirm(message)))
+    if (
+      !this.#locked &&
+      confirmDiscardUnsavedEdit(this.dirty, (message) => window.confirm(message))
+    )
       this.#reset();
   };
-  readonly #save = (event: SubmitEvent): void => {
+  readonly #save = async (event: SubmitEvent): Promise<void> => {
     event.preventDefault();
-    if (!this.saving && this.draft !== undefined)
-      this.dispatchEvent(
-        new CustomEvent<CampaignPartySaveDetail>("campaign-party-save", {
-          detail: this.draft,
-          bubbles: true,
-          composed: true,
-        }),
-      );
+    const draft = this.draft;
+    if (this.#locked || draft === undefined) return;
+    this.saving = true;
+    this.error = "";
+    const result = await saveCampaign(this, "party", draft);
+    this.saving = false;
+    if (!this.isConnected || this.draft !== draft) return;
+    if (result.ok) this.#reset(result.campaign);
+    else this.error = result.message;
   };
 }
 

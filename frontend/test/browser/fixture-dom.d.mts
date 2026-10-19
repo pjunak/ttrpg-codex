@@ -2,7 +2,8 @@ import type { FixtureCampaign } from "./fixture-types.mts";
 
 export interface CampaignElement extends HTMLElement {
   campaign: FixtureCampaign;
-  saving: boolean;
+  /** The app is saving or otherwise busy. */
+  busy: boolean;
 }
 export interface GraphElement extends CampaignElement {
   mode: string;
@@ -18,7 +19,7 @@ declare global {
     "codex-party-settings": CampaignElement;
     "codex-dm-dashboard": CampaignElement;
     "codex-campaign-graph": GraphElement;
-    "codex-timeline": CampaignElement & { draft: unknown };
+    "codex-timeline": CampaignElement & { draft: unknown; saving: boolean };
     "codex-credential-settings": HTMLElement & { loading: boolean };
     "codex-recovery-settings": HTMLElement & { busy: boolean; listing: unknown };
     "codex-app": HTMLElement & { busy: boolean };

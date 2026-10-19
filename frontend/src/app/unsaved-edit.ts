@@ -51,14 +51,6 @@ export class EditStateTracker {
     else this.#states.delete(source);
   }
 
-  /** Captures the event's source now; call the result after a confirmed save. */
-  settler(event: Event): () => void {
-    const source = event.composedPath()[0] ?? event.target;
-    return () => {
-      if (source !== null) this.#states.delete(source);
-    };
-  }
-
   get dirty(): boolean {
     return this.#current().some((state) => state.dirty);
   }

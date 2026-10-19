@@ -18,9 +18,10 @@ import {
   CampaignSettingsEditError,
   type CampaignEnumItem,
   type CampaignEnumSaveDetail,
-  type CampaignEnumStarterDetail,
   type CampaignSettingField,
 } from "./campaign-settings.js";
+import { saveCampaign, type CampaignWriteKind, type CampaignWrites } from "./campaign-writes.js";
+import { saveFailure } from "./save-failure.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 import {
   campaignAppearanceRecord,
@@ -87,9 +88,10 @@ export class CodexSettings extends LitElement {
     campaign: { attribute: false },
     mapTarget: { attribute: false },
     canManageCampaign: { type: Boolean, attribute: false },
-    saving: { type: Boolean },
-    editCompletion: { type: Number },
+    busy: { type: Boolean },
     activeCategory: { state: true },
+    writing: { state: true },
+    writeError: { state: true },
     addonPages: { attribute: false },
     csrfToken: { attribute: false },
     editingId: { state: true },
@@ -103,9 +105,12 @@ export class CodexSettings extends LitElement {
   declare campaign: CampaignDataset | undefined;
   declare mapTarget: string | null | undefined;
   declare canManageCampaign: boolean;
-  declare saving: boolean;
-  declare editCompletion: number;
+  /** The app is saving or otherwise busy, so no write may start. */
+  declare busy: boolean;
   declare private activeCategory: SettingsCategory;
+  /** This view's own definition or theme save is running. */
+  declare private writing: boolean;
+  declare private writeError: string;
   declare private editingId: string | null;
   declare private deleteId: string | null;
   declare addonPages: readonly BrowserNavigationEntry[];
@@ -122,7 +127,6 @@ export class CodexSettings extends LitElement {
   readonly #ui = new UiLocalizationController(this);
   #dirty = false;
   #credentialsSaving = false;
-  #brandingDirty = false;
   /** The theme being saved, shown until that save finishes or fails. */
   #pendingTheme: CampaignThemeID | undefined;
   #editCampaign: CampaignDataset | undefined;
@@ -134,8 +138,9 @@ export class CodexSettings extends LitElement {
     this.campaign = undefined;
     this.mapTarget = undefined;
     this.canManageCampaign = false;
-    this.saving = false;
-    this.editCompletion = 0;
+    this.busy = false;
+    this.writing = false;
+    this.writeError = "";
     this.activeCategory = "language";
     this.editingId = null;
     this.deleteId = null;
@@ -166,6 +171,7 @@ export class CodexSettings extends LitElement {
         this.#editCampaign = next === "appearance" ? this.campaign : undefined;
         this.editingId = null;
         this.deleteId = null;
+        this.writeError = "";
         this.#setDirty(false);
       }
     }
@@ -181,14 +187,6 @@ export class CodexSettings extends LitElement {
       this.#editCampaign = undefined;
       this.#setDirty(false);
     }
-    if (changed.has("saving") && changed.get("saving") === true && !this.saving)
-      this.#pendingTheme = undefined;
-    if (changed.has("editCompletion")) {
-      this.editingId = null;
-      this.deleteId = null;
-      this.#editCampaign = this.activeCategory === "appearance" ? this.campaign : undefined;
-      if (!this.#brandingDirty) this.#setDirty(false);
-    }
   }
 
   protected override render() {
@@ -199,44 +197,25 @@ export class CodexSettings extends LitElement {
     if (this.activeCategory === "addons")
       return this.#shell(html`<codex-addon-manager .csrfToken=${this.csrfToken}
       .registry=${this.registry} .actorRole=${this.actorRole} .canManage=${this.canManageCampaign}
-      .addonTarget=${this.addonTarget}
-      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
-        this.#dirty = event.detail.dirty;
-      }}></codex-addon-manager>`);
+      .addonTarget=${this.addonTarget}></codex-addon-manager>`);
     if (!this.canManageCampaign) return this.#shell(this.#languagePanel());
     if (this.activeCategory === "account")
       return this.#shell(html`<codex-credential-settings .csrfToken=${this.csrfToken}
-      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean; saving?: boolean }>) => {
-        this.#dirty = event.detail.dirty;
-        this.#credentialsSaving = event.detail.saving === true;
-        this.requestUpdate();
-      }}></codex-credential-settings>`);
+      @campaign-edit-dirty=${this.#onSystemSaving}></codex-credential-settings>`);
     if (this.activeCategory === "backup")
       return this.#shell(html`<codex-recovery-settings .csrfToken=${this.csrfToken}
-      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean; saving?: boolean }>) => {
-        this.#dirty = event.detail.dirty;
-        this.#credentialsSaving = event.detail.saving === true;
-        this.requestUpdate();
-      }}></codex-recovery-settings>`);
+      @campaign-edit-dirty=${this.#onSystemSaving}></codex-recovery-settings>`);
     if (this.activeCategory === "sidebar")
-      return this
-        .#shell(html`<codex-sidebar-settings .campaign=${this.campaign} .addonPages=${this.addonPages} .saving=${this.saving} .editCompletion=${this.editCompletion}
-      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
-        this.#dirty = event.detail.dirty;
-      }}></codex-sidebar-settings>`);
+      return this.#shell(
+        html`<codex-sidebar-settings .campaign=${this.campaign} .addonPages=${this.addonPages} .busy=${this.busy}></codex-sidebar-settings>`,
+      );
     if (this.activeCategory === "playerParty")
-      return this.#shell(html`<codex-party-settings
-      .campaign=${this.campaign} .saving=${this.saving} .editCompletion=${this.editCompletion}
-      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
-        this.#dirty = event.detail.dirty;
-      }}
-    ></codex-party-settings>`);
+      return this.#shell(
+        html`<codex-party-settings .campaign=${this.campaign} .busy=${this.busy}></codex-party-settings>`,
+      );
     if (this.activeCategory === "maps")
       return this.#shell(html`<codex-map-settings .campaign=${this.campaign}
-      .initialParentId=${this.mapTarget ?? null} .saving=${this.saving} .editCompletion=${this.editCompletion}
-      @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
-        this.#dirty = event.detail.dirty;
-      }}></codex-map-settings>`);
+      .initialParentId=${this.mapTarget ?? null} .busy=${this.busy}></codex-map-settings>`);
     const descriptor = campaignEnumDescriptor(this.activeCategory);
     let items: readonly CampaignEnumItem[];
     try {
@@ -261,17 +240,18 @@ export class CodexSettings extends LitElement {
               <p>${descriptor.summary}</p>
             </div>
           </div>
-          <button type="button" @click=${this.#startCreate} ?disabled=${this.saving || this.editingId !== null}>
+          <button type="button" @click=${this.#startCreate} ?disabled=${this.#locked || this.editingId !== null}>
             ${uiText("Add {0}", { "0": descriptor.singular })}
           </button>
         </header>
+        ${this.editingId === null && this.deleteId === null ? saveFailure(this.writeError) : nothing}
         ${this.editingId === "__new__" ? this.#editForm(undefined, record?.revision ?? 0) : nothing}
         ${
           items.length === 0 && this.editingId !== "__new__"
             ? html`<div class="settings-empty">
                 <p>${uiText("No {0} are defined yet.", { "0": descriptor.label.toLocaleLowerCase() })}</p>
                 <p class="settings-hint">${uiText("Adds {0} common entries that you can edit or delete afterwards.", { "0": campaignEnumStarter(descriptor.category).length })}</p>
-                <button type="button" ?disabled=${this.saving} @click=${(event: Event) => this.#addStarter(descriptor.category, record?.revision ?? 0, event.currentTarget as HTMLElement)}>${uiText("Add a starter set")}</button>
+                <button type="button" ?disabled=${this.#locked} @click=${() => this.#addStarter(descriptor.category, record?.revision ?? 0)}>${uiText("Add a starter set")}</button>
               </div>`
             : html`<div class="settings-definition-list">
               ${items.map((item) =>
@@ -367,7 +347,7 @@ export class CodexSettings extends LitElement {
       vocabulary: "settings.groupVocabulary",
       system: "settings.groupSystem",
     } as const;
-    const busy = this.saving || this.#credentialsSaving;
+    const busy = this.#locked || this.#credentialsSaving;
     const detail =
       this.category !== undefined || this.addonTarget !== undefined || this.mapTarget !== undefined;
     return html`
@@ -443,29 +423,24 @@ export class CodexSettings extends LitElement {
           </div>
         </header>
         <form class="settings-theme-form" @submit=${(event: Event) => event.preventDefault()}>
-          <fieldset ?disabled=${this.saving}>
+          <fieldset ?disabled=${this.#locked}>
             <legend>${this.#ui.t("settings.appearanceLabel")}</legend>
             <div class="settings-theme-list">
               ${campaignThemes.map(
                 (theme) => html`
                 <label class=${`settings-theme-choice theme-sample-${theme.id}`}>
                   <input type="radio" name="theme" value=${theme.id} .checked=${live(theme.id === current)}
-                    @change=${(event: Event) => this.#applyTheme(theme.id, event.currentTarget as HTMLElement)} />
+                    @change=${() => void this.#applyTheme(theme.id)} />
                   <span class="settings-theme-sample" aria-hidden="true"><i></i><b></b><em></em></span>
                   <span><strong>${this.#ui.t(theme.labelKey)}</strong><small>${this.#ui.t(theme.hintKey)}</small></span>
                 </label>`,
               )}
             </div>
           </fieldset>
-          <p class="settings-hint" role="status">${this.saving ? this.#ui.t("settings.saving") : this.#ui.t("settings.themeApplies")}</p>
+          <p class="settings-hint" role="status">${this.writing ? this.#ui.t("settings.saving") : this.#ui.t("settings.themeApplies")}</p>
+          ${saveFailure(this.writeError)}
         </form>
-        <codex-branding-settings .campaign=${this.campaign} .saving=${this.saving} .blocked=${this.#dirty && !this.#brandingDirty} .editCompletion=${this.editCompletion}
-          @campaign-edit-dirty=${(event: CustomEvent<{ dirty: boolean }>) => {
-            event.stopPropagation();
-            if (this.#brandingDirty || event.detail.dirty) this.#setDirty(event.detail.dirty);
-            this.#brandingDirty = event.detail.dirty;
-            this.requestUpdate();
-          }}></codex-branding-settings>
+        <codex-branding-settings .campaign=${this.campaign} .busy=${this.busy}></codex-branding-settings>
       </section>`;
   }
 
@@ -490,9 +465,9 @@ export class CodexSettings extends LitElement {
         </div>
         <p class="settings-definition-usage">${usage === 0 ? uiText("Not used") : this.#ui.plural("settings.usedRecords", usage)}</p>
         <div class="settings-definition-actions">
-          <button type="button" data-id=${item.id} @click=${this.#startEdit} ?disabled=${this.saving || this.editingId !== null}>${uiText("Edit")}</button>
+          <button type="button" data-id=${item.id} @click=${this.#startEdit} ?disabled=${this.#locked || this.editingId !== null}>${uiText("Edit")}</button>
           <button class="danger-text" type="button" data-id=${item.id} @click=${this.#requestDelete}
-            ?disabled=${this.saving || this.editingId !== null}>${uiText("Delete")}</button>
+            ?disabled=${this.#locked || this.editingId !== null}>${uiText("Delete")}</button>
         </div>
       </article>
       ${this.deleteId === item.id ? this.#deletePanel(item, revision, items, usage) : nothing}
@@ -527,9 +502,10 @@ export class CodexSettings extends LitElement {
           }
           ${descriptor.fields.map((definition) => this.#settingField(definition, values))}
         </div>
+        ${saveFailure(this.writeError)}
         <div class="settings-edit-actions">
-          <button type="button" @click=${this.#cancelEdit} ?disabled=${this.saving}>${uiText("Cancel")}</button>
-          <button class="primary" type="submit" ?disabled=${this.saving}>${this.saving ? uiText("Saving…") : uiText("Save definition")}</button>
+          <button type="button" @click=${this.#cancelEdit} ?disabled=${this.#locked}>${uiText("Cancel")}</button>
+          <button class="primary" type="submit" ?disabled=${this.#locked}>${this.writing ? uiText("Saving…") : uiText("Save definition")}</button>
         </div>
         <input type="hidden" name="expectedRevision" value=${String(expectedRevision)} />
       </form>`;
@@ -588,6 +564,7 @@ export class CodexSettings extends LitElement {
     const relationships = this.activeCategory === "relationshipTypes";
     return html`
       <section class="settings-delete-panel" aria-labelledby=${`delete-${item.id}`}>
+        ${saveFailure(this.writeError)}
         <div><h3 id=${`delete-${item.id}`}>${uiText("Delete {0}?", { "0": item.label || item.id })}</h3>
           <p>${
             usage === 0
@@ -632,43 +609,71 @@ export class CodexSettings extends LitElement {
       </section>`;
   }
 
+  /** Account and backup requests keep the other categories closed while they save. */
+  readonly #onSystemSaving = (event: CustomEvent<{ saving?: boolean }>): void => {
+    this.#credentialsSaving = event.detail.saving === true;
+    this.requestUpdate();
+  };
+
+  /** No new write starts while any write runs, this view's own included. */
+  get #locked(): boolean {
+    return this.busy || this.writing;
+  }
+
   readonly #startCreate = (): void => {
-    if (this.saving || this.editingId !== null) return;
+    if (this.#locked || this.editingId !== null) return;
     this.#editCampaign = this.campaign;
     this.deleteId = null;
+    this.writeError = "";
     this.editingId = "__new__";
   };
 
   readonly #startEdit = (event: Event): void => {
-    if (this.saving || this.editingId !== null) return;
+    if (this.#locked || this.editingId !== null) return;
     this.#editCampaign = this.campaign;
     this.deleteId = null;
+    this.writeError = "";
     this.editingId = (event.currentTarget as HTMLButtonElement).dataset["id"] ?? null;
   };
 
   readonly #cancelEdit = (): void => {
-    if (this.saving || !this.#confirmDiscard()) return;
+    if (this.#locked || !this.#confirmDiscard()) return;
     this.editingId = null;
+    this.writeError = "";
     this.#editCampaign = undefined;
   };
 
   readonly #requestDelete = (event: Event): void => {
-    if (this.saving || this.editingId !== null) return;
+    if (this.#locked || this.editingId !== null) return;
     this.#editCampaign = this.campaign;
+    this.writeError = "";
     this.deleteId = (event.currentTarget as HTMLButtonElement).dataset["id"] ?? null;
   };
 
   readonly #cancelDelete = (): void => {
-    if (!this.saving) {
+    if (!this.#locked) {
       this.deleteId = null;
+      this.writeError = "";
       this.#editCampaign = undefined;
     }
   };
 
-  readonly #save = (event: SubmitEvent): void => {
+  /** Saves for this view and reports whether the write was confirmed. */
+  async #write<K extends CampaignWriteKind>(kind: K, detail: CampaignWrites[K]): Promise<boolean> {
+    const category = this.activeCategory;
+    this.writing = true;
+    this.writeError = "";
+    const result = await saveCampaign(this, kind, detail);
+    this.writing = false;
+    if (!this.isConnected || this.activeCategory !== category) return false;
+    if (!result.ok) this.writeError = result.message;
+    return result.ok;
+  }
+
+  readonly #save = async (event: SubmitEvent): Promise<void> => {
     event.preventDefault();
     if (
-      this.saving ||
+      this.#locked ||
       this.campaign === undefined ||
       this.editingId === null ||
       !isEnumCategory(this.activeCategory)
@@ -691,17 +696,16 @@ export class CodexSettings extends LitElement {
       expectedRevision: Number(data.get("expectedRevision")),
       fields: Object.freeze(fields),
     });
-    this.dispatchEvent(
-      new CustomEvent<CampaignEnumSaveDetail>("campaign-enum-save", {
-        detail,
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    const editing = this.editingId;
+    if ((await this.#write("enum", detail)) && this.editingId === editing) {
+      this.editingId = null;
+      this.#editCampaign = undefined;
+      this.#setDirty(false);
+    }
   };
 
-  readonly #delete = (event: Event): void => {
-    if (this.saving || this.campaign === undefined || !isEnumCategory(this.activeCategory)) return;
+  readonly #delete = async (event: Event): Promise<void> => {
+    if (this.#locked || this.campaign === undefined || !isEnumCategory(this.activeCategory)) return;
     const button = event.currentTarget as HTMLButtonElement;
     const itemId = button.dataset["id"];
     const mode = button.dataset["mode"];
@@ -730,13 +734,10 @@ export class CodexSettings extends LitElement {
         mode,
       };
     }
-    this.dispatchEvent(
-      new CustomEvent<CampaignEnumDeleteMutation>("campaign-enum-delete", {
-        detail: Object.freeze(detail),
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    if (await this.#write("enum-delete", Object.freeze(detail))) {
+      this.deleteId = null;
+      this.#editCampaign = undefined;
+    }
   };
 
   readonly #markDirty = (): void => {
@@ -748,35 +749,23 @@ export class CodexSettings extends LitElement {
     if (locale === "en" || locale === "cs") this.#ui.setLocale(locale);
   };
 
-  #addStarter(category: CampaignEnumCategory, expectedRevision: number, source: HTMLElement): void {
-    if (this.saving || !this.canManageCampaign) return;
-    source.dispatchEvent(
-      new CustomEvent<CampaignEnumStarterDetail>("campaign-enum-starter", {
-        detail: Object.freeze({ category, expectedRevision }),
-        bubbles: true,
-        composed: true,
-      }),
-    );
+  #addStarter(category: CampaignEnumCategory, expectedRevision: number): void {
+    if (this.#locked || !this.canManageCampaign) return;
+    void this.#write("enum-starter", Object.freeze({ category, expectedRevision }));
   }
 
   /** A theme is a reversible shared choice, so it saves as soon as it is picked. */
-  #applyTheme(theme: CampaignThemeID, source: HTMLElement): void {
-    if (this.saving || this.campaign === undefined || !this.canManageCampaign) return;
+  async #applyTheme(theme: CampaignThemeID): Promise<void> {
+    if (this.#locked || this.campaign === undefined || !this.canManageCampaign) return;
     if (theme === campaignTheme(this.campaign)) return;
     this.#pendingTheme = theme;
     const detail: CampaignAppearanceSaveDetail = Object.freeze({
       theme,
       expectedRevision: campaignAppearanceRecord(this.campaign)?.revision ?? 0,
     });
-    // Sent from the radio: a confirmed save settles its source's edit state, which
-    // must not be this view while it also carries an unsaved branding draft.
-    source.dispatchEvent(
-      new CustomEvent<CampaignAppearanceSaveDetail>("campaign-appearance-save", {
-        detail,
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    await this.#write("appearance", detail);
+    this.#pendingTheme = undefined;
+    this.requestUpdate();
   }
 
   #visibleCategory(category: SettingsCategory): boolean {
@@ -804,7 +793,7 @@ export class CodexSettings extends LitElement {
 
   #confirmDiscard(): boolean {
     const edits = this.registry?.edits.state();
-    if (this.saving || this.#credentialsSaving || edits?.saving) return false;
+    if (this.#locked || this.#credentialsSaving || edits?.saving) return false;
     if (
       !confirmDiscardUnsavedEdit(this.#dirty || edits?.dirty === true, (message) =>
         window.confirm(message),
@@ -816,7 +805,6 @@ export class CodexSettings extends LitElement {
   }
 
   #setDirty(dirty: boolean): void {
-    if (!dirty) this.#brandingDirty = false;
     if (dirty === this.#dirty) return;
     this.#dirty = dirty;
     this.requestUpdate();

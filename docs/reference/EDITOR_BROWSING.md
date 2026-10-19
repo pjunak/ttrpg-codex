@@ -193,8 +193,10 @@ drafts. Mysteries also has a keyboard-accessible shortcut to the combined
 question queue.
 
 Host forms label unsaved changes, pending saves and failures near Save/Cancel;
-a confirmed record transaction shows a campaign-save confirmation at its return
-destination. The full editor's fields are disabled while it saves. An edit
+a failed save shows its message beside the editor that asked, and the app-wide
+alert is left to session and live-update problems. A confirmed record
+transaction shows a campaign-save confirmation at its return destination. The
+full editor's fields are disabled while any write runs. An edit
 sends only the fields that differ from what the form opened with, so untouched
 values the controls cannot show exactly (tags containing commas, multi-line
 list items, older over-long text) are kept, and a value that cannot be saved
@@ -204,23 +206,29 @@ message. Local Markdown recovery continues to describe a device copy separately.
 Cancelling a failed field, panel or wiki edit clears its abandoned error state;
 a cancelled wiki conflict does not block a fresh edit from saving.
 
-Core record, field, twin, enum, map, timeline and campaign-settings writes capture
-the initiating application's signal and CSRF token. Disconnect cancels their
-waits; old saves cannot complete a replacement editor, clear its dirty/busy
-state, display feedback or navigate it. Character and twin response callbacks
-still settle once on interruption. A cancelled active write releases the shared
-queue, while a cancelled queued write retains the ordering of any live
-predecessor. Cancellation does not prove a server rollback: reconnect reads the
-current records, and writes are never automatically replayed.
+Every host editor saves through one write path: it asks with `saveCampaign`
+and only that editor hears the answer (`ok`, a `message`, and `conflict` when
+the saved data changed elsewhere), so one save never closes or resets another
+editor's draft. Writes run one at a time in request order. Each is read back
+and checked against the server's receipt before it counts as saved; a write
+that committed but is not shown yet keeps the draft and asks for a refresh. A
+rejected write is answered at once and the campaign refreshes afterwards.
+
+While a write, a sign-in or view change, or an add-on administration request
+runs, the app is busy: no other write starts, and open edits cannot be left.
+Busy is a set of leases. Each holder releases only its own, and a view that
+leaves the page releases its lease with it. Leaving the page also cancels a
+view's waits and answers each pending write once; that does not prove a
+server rollback: reconnect reads the current records, and writes are never
+automatically replayed.
 
 Real-host tests compare sparse/rich articles and collection cards at 390px and
 desktop in Classic/Moonlit and English/Czech, with valid uploaded artwork,
 keyboard disclosures, retained views, focus, and reflow at 720 and 320 CSS pixels
-with both bundled and unavailable web fonts. Existing
-navigation/stale/pending/uncertain-response editor suites remain required.
-The new save-feedback cases cover delayed writes, stale failure, retained drafts
-and Cancel; fixture regressions cover cancelling a wiki conflict and saving a
-fresh draft.
+with both bundled and unavailable web fonts. The editor suite runs every editor
+against the real app and host, each test with its own campaign, and reads the
+stored record back after a save. The save-feedback cases cover delayed writes,
+stale failure, retained drafts and Cancel.
 
 ## Local Markdown recovery
 
@@ -342,6 +350,9 @@ bounded. These preferences do not change campaign policy or record ordering.
 | Shared Markdown recovery controls | `frontend/src/app/codex-markdown-editor.ts` |
 | Collection-level draft discovery, including unavailable entries | `frontend/src/app/codex-local-drafts.ts` |
 | Field definitions and canonical choices | `frontend/src/app/campaign-record-editor.ts` |
+| Editor write requests and their answers | `frontend/src/app/campaign-writes.ts` |
+| Write order, read-back checks and per-kind messages | `frontend/src/app/campaign-write-controller.ts`, `campaign-write-handlers.ts` |
+| Busy leases; admin view request lifetimes | `frontend/src/app/busy-lease.ts`, `admin-request-controller.ts` |
 | Query, facet counts, sorting and grouping | `frontend/src/app/collection-model.ts` |
 | View parsing, serialization and browser preferences | `frontend/src/app/collection-view.ts` |
 | Shared controls and existing record-row rendering | `frontend/src/app/codex-collection-browser.ts` |

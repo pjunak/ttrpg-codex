@@ -19,6 +19,8 @@ import {
 } from "./campaign-identity.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 import { pencilIcon } from "./edit-icon.js";
+import { saveCampaign } from "./campaign-writes.js";
+import { saveFailure } from "./save-failure.js";
 
 export class CodexDashboard extends LitElement {
   static override properties = {
@@ -27,9 +29,10 @@ export class CodexDashboard extends LitElement {
     canManageCampaign: { type: Boolean },
     authenticated: { type: Boolean },
     canEdit: { type: Boolean },
-    saving: { type: Boolean },
-    editCompletion: { type: Number },
+    busy: { type: Boolean },
     editing: { state: true },
+    identitySaving: { state: true },
+    identityError: { state: true },
   };
 
   declare campaign: CampaignDataset | undefined;
@@ -37,9 +40,11 @@ export class CodexDashboard extends LitElement {
   declare canManageCampaign: boolean;
   declare authenticated: boolean;
   declare canEdit: boolean;
-  declare saving: boolean;
-  declare editCompletion: number;
+  /** The app is saving or otherwise busy, so no write may start. */
+  declare busy: boolean;
   declare private editing: CampaignIdentityField | undefined;
+  declare private identitySaving: boolean;
+  declare private identityError: string;
   #expectedRevision = 0;
   #original = "";
   #draft = "";
@@ -53,9 +58,10 @@ export class CodexDashboard extends LitElement {
     this.canManageCampaign = false;
     this.authenticated = false;
     this.canEdit = false;
-    this.saving = false;
-    this.editCompletion = 0;
+    this.busy = false;
     this.editing = undefined;
+    this.identitySaving = false;
+    this.identityError = "";
   }
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
@@ -69,12 +75,9 @@ export class CodexDashboard extends LitElement {
   }
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (
-      changed.has("editCompletion") ||
-      changed.has("partyOnly") ||
-      (changed.has("canManageCampaign") && !this.canManageCampaign)
-    ) {
+    if (changed.has("partyOnly") || (changed.has("canManageCampaign") && !this.canManageCampaign)) {
       this.editing = undefined;
+      this.identityError = "";
       this.#setDirty(false);
     }
   }
@@ -101,7 +104,7 @@ export class CodexDashboard extends LitElement {
     const content = editing
       ? html`
       <input name=${field} aria-label=${label} maxlength="500" ?required=${field === "name"}
-        .value=${this.#draft} ?readonly=${this.saving} @input=${this.#onIdentityInput} />
+        .value=${this.#draft} ?readonly=${this.#locked} @input=${this.#onIdentityInput} />
     `
       : value || (this.authenticated ? this.#ui.t("dashboard.taglinePlaceholder") : "");
     const text =
@@ -113,16 +116,17 @@ export class CodexDashboard extends LitElement {
       <form class=${`campaign-identity-form identity-${field}`} @submit=${this.#saveIdentity} @keydown=${this.#identityKey}>
         ${text}
         <div class="identity-actions">
-          <button type="submit" ?disabled=${this.saving}>${this.#ui.t(this.saving ? "dashboard.saving" : "dashboard.save")}</button>
-          <button type="button" @click=${this.#cancelIdentity} ?disabled=${this.saving}>${this.#ui.t("dashboard.cancel")}</button>
+          <button type="submit" ?disabled=${this.#locked}>${this.#ui.t(this.identitySaving ? "dashboard.saving" : "dashboard.save")}</button>
+          <button type="button" @click=${this.#cancelIdentity} ?disabled=${this.#locked}>${this.#ui.t("dashboard.cancel")}</button>
         </div>
+        ${saveFailure(this.identityError)}
       </form>`
       : html`
       <div class="campaign-identity-row">
         ${text}
         <button class="campaign-identity-pen inline-edit-button" type="button" aria-label=${label}
           title=${this.authenticated && !this.canManageCampaign ? this.#ui.t("dashboard.dmIdentity") : label}
-          ?disabled=${this.saving || this.editing !== undefined || (this.authenticated && !this.canManageCampaign)}
+          ?disabled=${this.busy || this.editing !== undefined || (this.authenticated && !this.canManageCampaign)}
           @click=${() => this.#startIdentity(field, value)}>${pencilIcon()}</button>
       </div>`;
   }
@@ -134,11 +138,12 @@ export class CodexDashboard extends LitElement {
     }
     if (
       !this.canManageCampaign ||
-      this.saving ||
+      this.busy ||
       this.editing !== undefined ||
       this.campaign === undefined
     )
       return;
+    this.identityError = "";
     this.#expectedRevision = campaignIdentityRecord(this.campaign)?.revision ?? 0;
     this.#original = value;
     this.#draft = value;
@@ -151,8 +156,14 @@ export class CodexDashboard extends LitElement {
 
   readonly #onIdentityInput = (event: Event): void => {
     this.#draft = (event.currentTarget as HTMLInputElement).value;
+    this.identityError = "";
     this.#setDirty(this.#draft !== this.#original);
   };
+
+  /** The identity form takes no input while any write runs, its own included. */
+  get #locked(): boolean {
+    return this.busy || this.identitySaving;
+  }
 
   readonly #identityKey = (event: KeyboardEvent): void => {
     if (event.key === "Escape") {
@@ -165,7 +176,7 @@ export class CodexDashboard extends LitElement {
 
   readonly #cancelIdentity = (): void => {
     if (
-      !this.saving &&
+      !this.#locked &&
       confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))
     ) {
       void this.#closeIdentity();
@@ -175,6 +186,7 @@ export class CodexDashboard extends LitElement {
   async #closeIdentity(): Promise<void> {
     const field = this.editing;
     this.editing = undefined;
+    this.identityError = "";
     this.#setDirty(false);
     await this.updateComplete;
     this.querySelector<HTMLButtonElement>(
@@ -182,24 +194,26 @@ export class CodexDashboard extends LitElement {
     )?.focus();
   }
 
-  readonly #saveIdentity = (event: SubmitEvent): void => {
+  readonly #saveIdentity = async (event: SubmitEvent): Promise<void> => {
     event.preventDefault();
-    if (!this.canManageCampaign || this.saving || this.editing === undefined) return;
+    const field = this.editing;
+    if (!this.canManageCampaign || this.#locked || field === undefined) return;
     if (!this.#dirty) {
       void this.#closeIdentity();
       return;
     }
-    this.dispatchEvent(
-      new CustomEvent<CampaignIdentitySaveDetail>("campaign-identity-save", {
-        detail: Object.freeze({
-          field: this.editing,
-          value: this.#draft,
-          expectedRevision: this.#expectedRevision,
-        }),
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    const detail: CampaignIdentitySaveDetail = Object.freeze({
+      field,
+      value: this.#draft,
+      expectedRevision: this.#expectedRevision,
+    });
+    this.identitySaving = true;
+    this.identityError = "";
+    const result = await saveCampaign(this, "identity", detail);
+    this.identitySaving = false;
+    if (!this.isConnected || this.editing !== field) return;
+    if (result.ok) void this.#closeIdentity();
+    else this.identityError = result.message;
   };
 
   #setDirty(dirty: boolean): void {
@@ -213,7 +227,7 @@ export class CodexDashboard extends LitElement {
   }
 
   readonly #addPartyMember = (): void => {
-    if (this.saving) return;
+    if (this.busy) return;
     if (!this.authenticated) {
       this.#requestSignIn();
       return;
@@ -243,7 +257,7 @@ export class CodexDashboard extends LitElement {
           <div class="party-section-actions">
             ${compact ? html`<a href="#/party">${this.#ui.t("dashboard.openRoster")}</a>` : nothing}
             <button class="party-add" type="button" title=${this.#ui.t("dashboard.addPartyMember")}
-              @click=${this.#addPartyMember} ?disabled=${this.saving}>＋ ${this.#ui.t("dashboard.add")}</button>
+              @click=${this.#addPartyMember} ?disabled=${this.busy}>＋ ${this.#ui.t("dashboard.add")}</button>
           </div>
         </div>
         ${

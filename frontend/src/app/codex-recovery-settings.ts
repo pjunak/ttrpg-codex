@@ -13,12 +13,12 @@ import {
 } from "../core/recovery.js";
 import { UiLocalizationController, type MessageKey } from "./ui-localization.js";
 import { reportEditState } from "./unsaved-edit.js";
+import { AdminRequestController } from "./admin-request-controller.js";
 
 export class CodexRecoverySettings extends LitElement {
   static override properties = {
     csrfToken: { attribute: false },
     listing: { state: true },
-    busy: { state: true },
     message: { state: true },
     review: { state: true },
     selection: { state: true },
@@ -31,32 +31,31 @@ export class CodexRecoverySettings extends LitElement {
     { key: MessageKey; values?: Record<string, string>; alert: boolean } | undefined;
   declare csrfToken: string;
   declare listing: RecoveryListing | undefined;
-  declare busy: boolean;
   declare message: MessageKey | undefined;
   declare review: { action: RecoveryAction; point: RecoveryPoint } | undefined;
   #ui = new UiLocalizationController(this);
-  #abort = new AbortController();
+  readonly #requests = new AdminRequestController(this);
   #failed = false;
   #reloadRequired = false;
   constructor() {
     super();
     new UIControlsController(this);
     this.csrfToken = "";
-    this.busy = false;
     this.selection = "campaign";
+  }
+  /** A listing or recovery request is running. */
+  get busy(): boolean {
+    return this.#requests.pending;
   }
   protected override createRenderRoot(): HTMLElement {
     return this;
   }
   override connectedCallback(): void {
     super.connectedCallback();
-    this.#abort = new AbortController();
     void this.#request();
   }
   override disconnectedCallback(): void {
-    this.#abort.abort();
     this.review = undefined;
-    this.busy = false;
     super.disconnectedCallback();
   }
   protected override render() {
@@ -129,7 +128,7 @@ export class CodexRecoverySettings extends LitElement {
     const archive = new FormData(event.currentTarget as HTMLFormElement).get("archive");
     if (this.busy || this.restoring !== undefined || !(archive instanceof File) || !archive.size)
       return;
-    const signal = this.#abort.signal;
+    const signal = this.#requests.signal;
     this.restoring = "uploading";
     this.fullMessage = { key: "recovery.fullUploading", alert: false };
     this.#saving(true);
@@ -268,51 +267,51 @@ export class CodexRecoverySettings extends LitElement {
   }
   async #request(action?: RecoveryAction): Promise<void> {
     if (this.busy) return;
-    const signal = this.#abort.signal;
-    this.busy = true;
+    const signal = this.#requests.signal;
     this.message = undefined;
     this.#failed = false;
     reportEditState(this, { dirty: false, saving: action !== undefined });
-    try {
-      const listing = await recoveryRequest(signal, this.csrfToken, action);
-      if (signal.aborted) return;
-      this.listing = listing;
-      this.#closeReview();
-      this.#reloadRequired = false;
-      const scope = this.#scope();
-      if (
-        scope.scope === "addon" &&
-        !listing.points.some((point) =>
-          point.addons.some((addon) => addon.addonId === scope.addonId),
+    await this.#requests.run(
+      async (signal) => {
+        const listing = await recoveryRequest(signal, this.csrfToken, action);
+        if (signal.aborted) return;
+        this.listing = listing;
+        this.#closeReview();
+        this.#reloadRequired = false;
+        const scope = this.#scope();
+        if (
+          scope.scope === "addon" &&
+          !listing.points.some((point) =>
+            point.addons.some((addon) => addon.addonId === scope.addonId),
+          )
         )
-      )
-        this.selection = "campaign";
-      if (action)
-        this.message =
-          action.kind === "create"
-            ? "recovery.created"
-            : action.kind === "delete"
-              ? "recovery.deleted"
-              : "recovery.restored";
-    } catch (error: unknown) {
-      if (signal.aborted) return;
-      this.#failed = true;
-      this.#closeReview();
-      this.#reloadRequired = true;
-      const code = error instanceof RecoveryRequestError ? error.code : "failed";
-      const keys: Readonly<Record<string, MessageKey>> = {
-        conflict: "recovery.conflict",
-        compatibility: "recovery.compatibility",
-        forbidden: "recovery.forbidden",
-        missing: "recovery.missing",
-      };
-      this.message = keys[code] ?? "recovery.failed";
-    } finally {
-      if (!signal.aborted) {
-        this.busy = false;
-        reportEditState(this, { dirty: false, saving: false });
-      }
-    }
+          this.selection = "campaign";
+        if (action)
+          this.message =
+            action.kind === "create"
+              ? "recovery.created"
+              : action.kind === "delete"
+                ? "recovery.deleted"
+                : "recovery.restored";
+      },
+      {
+        failure: (error) => {
+          this.#failed = true;
+          this.#closeReview();
+          this.#reloadRequired = true;
+          const code = error instanceof RecoveryRequestError ? error.code : "failed";
+          const keys: Readonly<Record<string, MessageKey>> = {
+            conflict: "recovery.conflict",
+            compatibility: "recovery.compatibility",
+            forbidden: "recovery.forbidden",
+            missing: "recovery.missing",
+          };
+          this.message = keys[code] ?? "recovery.failed";
+          return "";
+        },
+      },
+    );
+    if (!signal.aborted) reportEditState(this, { dirty: false, saving: false });
   }
 }
 if (!customElements.get("codex-recovery-settings"))

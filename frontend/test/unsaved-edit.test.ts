@@ -75,20 +75,4 @@ describe("edit state tracking", () => {
     reportEditState(second, { dirty: false, saving: true });
     expect([tracker.dirty, tracker.saving]).toEqual([false, true]);
   });
-
-  it("settles only the editor that requested a save", () => {
-    const tracker = new EditStateTracker();
-    const [saved, other] = editors(tracker, 2) as [EventTarget, EventTarget];
-    let settle = (): void => undefined;
-    saved.addEventListener("save", (event) => {
-      settle = tracker.settler(event);
-    });
-    reportEditState(saved, { dirty: true });
-    reportEditState(other, { dirty: true });
-    saved.dispatchEvent(new Event("save"));
-    settle();
-    expect(tracker.dirty).toBe(true);
-    reportEditState(other, { dirty: false });
-    expect(tracker.dirty).toBe(false);
-  });
 });

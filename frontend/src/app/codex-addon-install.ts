@@ -11,6 +11,7 @@ import { githubError } from "./addon-github-controller.js";
 import { githubCandidateDetails } from "./github-candidate-details.js";
 import { githubTokenHelp, hasGitHubAccess } from "./github-access.js";
 import { UiLocalizationController } from "./ui-localization.js";
+import { AdminRequestController } from "./admin-request-controller.js";
 
 /** Source selection and inert staging; activation remains owned by the manager. */
 export class CodexAddonInstall extends LitElement {
@@ -24,8 +25,6 @@ export class CodexAddonInstall extends LitElement {
     channel: { state: true },
     repository: { state: true },
     privateRepo: { state: true },
-    pending: { state: true },
-    error: { state: true },
     discovery: { state: true },
     accessStatus: { state: true },
   };
@@ -38,14 +37,14 @@ export class CodexAddonInstall extends LitElement {
   declare private channel: "actions" | "release";
   declare private repository: string;
   declare private privateRepo: boolean;
-  declare private pending: boolean;
-  declare private error: string;
   declare private discovery: GitHubDiscovery | undefined;
   declare private accessStatus: GitHubStatus | undefined;
-  #request = new AbortController();
   #staged: InstalledGeneration | undefined;
   #sourceSaved = false;
   readonly #ui = new UiLocalizationController(this);
+  readonly #requests = new AdminRequestController(this, (error) =>
+    githubError(error, this.#ui.t.bind(this.#ui)),
+  );
   constructor() {
     super();
     this.target = "";
@@ -54,20 +53,11 @@ export class CodexAddonInstall extends LitElement {
     this.channel = "release";
     this.repository = "";
     this.privateRepo = false;
-    this.pending = false;
-    this.error = "";
   }
   protected override createRenderRoot() {
     return this;
   }
-  override connectedCallback(): void {
-    super.connectedCallback();
-    this.#request = new AbortController();
-    this.pending = false;
-  }
   override disconnectedCallback(): void {
-    this.#request.abort();
-    this.pending = false;
     this.#staged = undefined;
     this.#sourceSaved = false;
     super.disconnectedCallback();
@@ -86,22 +76,23 @@ export class CodexAddonInstall extends LitElement {
       this.querySelector<HTMLElement>(".github-candidates h4")?.focus();
   }
   get #busy(): boolean {
-    return this.pending || this.disabled;
+    return this.#requests.pending || this.disabled;
   }
   protected override render() {
     const t = this.#ui.t.bind(this.#ui);
-    return html`<div class="addon-install-step" aria-busy=${this.pending}>
+    const pending = this.#requests.pending;
+    return html`<div class="addon-install-step" aria-busy=${pending}>
       ${
         this.step !== "source" && !this.target
           ? html`<button type="button" ?disabled=${this.#busy} @click=${() => {
               this.step = "source";
               this.discovery = undefined;
-              this.error = "";
+              this.#requests.error = "";
             }}>${t("github.back")}</button>`
           : nothing
       }
       <h4 tabindex="-1">${t(this.step === "source" ? "github.chooseSource" : this.step === "zip" ? "github.zip" : "github.repositorySetup")}</h4>
-      ${this.error ? html`<p role="alert">${this.error}</p>` : nothing}
+      ${this.#requests.error ? html`<p role="alert">${this.#requests.error}</p>` : nothing}
       ${
         this.step === "source"
           ? html`<p>${t("github.wizardIntro")}</p><div class="addon-source-choices">
@@ -115,7 +106,7 @@ export class CodexAddonInstall extends LitElement {
           : this.step === "zip"
             ? html`<form class="addon-upload" @submit=${this.#upload}>
         <p>${t("github.zipHint")}</p><label>${t("addons.file")}<input type="file" name="package" accept=".zip,application/zip" required ?disabled=${this.#busy}></label>
-        <button ?disabled=${this.#busy}>${t(this.pending ? "github.preparing" : "addons.upload")}</button></form>`
+        <button ?disabled=${this.#busy}>${t(pending ? "github.preparing" : "addons.upload")}</button></form>`
             : this.#githubForm()
       }
     </div>`;
@@ -159,7 +150,7 @@ export class CodexAddonInstall extends LitElement {
       </section>`
           : nothing
       }
-      <button ?disabled=${this.#busy}>${t(this.pending ? "github.finding" : this.target ? "github.link" : "github.find")}</button>
+      <button ?disabled=${this.#busy}>${t(this.#requests.pending ? "github.finding" : this.target ? "github.link" : "github.find")}</button>
     </form>
     ${
       this.discovery
@@ -181,7 +172,8 @@ export class CodexAddonInstall extends LitElement {
       'input[type="file"]',
     )?.files?.[0];
     if (!file?.size || file.size > 128 * 1024 * 1024) {
-      this.error = this.#ui.t("addons.fileRequired");
+      this.#requests.error = this.#ui.t("addons.fileRequired");
+      this.requestUpdate();
       return;
     }
     void this.#run(async (client) => {
@@ -232,32 +224,19 @@ export class CodexAddonInstall extends LitElement {
     });
   }
   async #run(operation: (client: AddonGitHubClient) => Promise<void>): Promise<void> {
-    if (this.#busy || !this.isConnected || this.#request.signal.aborted) return;
-    const request = this.#request;
-    const client = new AddonGitHubClient(this.csrfToken, request.signal);
-    this.pending = true;
-    this.error = "";
-    this.dispatchEvent(
-      new CustomEvent("addon-install-busy", { detail: true, bubbles: true, composed: true }),
-    );
-    try {
-      await operation(client);
-    } catch (error) {
-      if (!request.signal.aborted) {
-        this.error = githubError(error, this.#ui.t.bind(this.#ui));
-        // A token save may have succeeded even if its response was lost.
-        const status = await client.status().catch(() => undefined);
-        if (!request.signal.aborted && status) this.accessStatus = status;
-      }
-    } finally {
-      if (!request.signal.aborted) {
-        this.pending = false;
-        this.dispatchEvent(
-          new CustomEvent("addon-install-busy", { detail: false, bubbles: true, composed: true }),
-        );
-      }
+    if (this.#busy || !this.isConnected) return;
+    const client = new AddonGitHubClient(this.csrfToken, this.#requests.signal);
+    this.#announceBusy(true);
+    const done = await this.#requests.run(() => operation(client), { mutating: true });
+    if (!this.#requests.pending) this.#announceBusy(false);
+    if (client.signal.aborted) return;
+    if (!done) {
+      // A token save may have succeeded even if its response was lost.
+      const status = await client.status().catch(() => undefined);
+      if (client.signal.aborted) return;
+      if (status) this.accessStatus = status;
     }
-    if (!request.signal.aborted && this.#staged)
+    if (this.#staged)
       this.dispatchEvent(
         new CustomEvent("addon-package-staged", {
           detail: this.#staged,
@@ -265,8 +244,14 @@ export class CodexAddonInstall extends LitElement {
           composed: true,
         }),
       );
-    if (!request.signal.aborted && this.#sourceSaved)
+    if (this.#sourceSaved)
       this.dispatchEvent(new CustomEvent("addon-source-saved", { bubbles: true, composed: true }));
+  }
+  /** The add-on manager holds its own actions while staging runs. */
+  #announceBusy(busy: boolean): void {
+    this.dispatchEvent(
+      new CustomEvent("addon-install-busy", { detail: busy, bubbles: true, composed: true }),
+    );
   }
 }
 customElements.define("codex-addon-install", CodexAddonInstall);

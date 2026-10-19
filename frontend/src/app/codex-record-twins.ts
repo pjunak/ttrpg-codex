@@ -8,11 +8,7 @@ import type { CampaignTwinMutation } from "../core/campaign-mutations.js";
 import { recordHash, type CampaignPageDefinition } from "./routes.js";
 import { recordValue, text } from "./campaign-projection.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
-
-export interface CampaignTwinRequest {
-  readonly mutation: CampaignTwinMutation;
-  readonly respond: (result: { readonly ok: boolean; readonly message: string }) => void;
-}
+import { saveCampaign } from "./campaign-writes.js";
 
 export class CodexRecordTwins extends LitElement {
   static override properties = {
@@ -133,19 +129,9 @@ export class CodexRecordTwins extends LitElement {
         : { ...source, action };
     this.pending = true;
     this.message = "";
-    const result = await new Promise<{ ok: boolean; message: string }>((respond) => {
-      const handled = !this.dispatchEvent(
-        new CustomEvent<CampaignTwinRequest>("campaign-twin", {
-          detail: { mutation, respond },
-          bubbles: true,
-          composed: true,
-          cancelable: true,
-        }),
-      );
-      if (!handled) respond({ ok: false, message: uiText("twins.failed") });
-    });
+    const result = await saveCampaign(this, "twin", mutation);
     this.pending = false;
-    this.message = result.message;
+    this.message = result.message ?? "";
     this.#failed = !result.ok;
     if (result.ok) {
       this.open = false;

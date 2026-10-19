@@ -6,6 +6,7 @@ import {
   type GitHubLink,
   type GitHubStatus,
 } from "../core/addon-github.js";
+import { AdminRequestController } from "./admin-request-controller.js";
 import { uiRequestError } from "./ui-errors.js";
 import type { MessageKey } from "./ui-localization.js";
 
@@ -33,27 +34,30 @@ export function githubError(error: unknown, t: (key: MessageKey) => string): str
 export class AddonGitHubController implements ReactiveController {
   status: GitHubStatus | undefined;
   results: Record<string, GitHubDiscovery | string> = {};
-  pending = false;
-  error = "";
   message = "";
-  #request = new AbortController();
+  readonly #requests: AdminRequestController;
   constructor(
-    readonly host: ReactiveControllerHost,
+    readonly host: ReactiveControllerHost & EventTarget,
     readonly csrf: () => string,
     readonly t: (key: MessageKey) => string,
   ) {
     host.addController(this);
+    this.#requests = new AdminRequestController(host, (error) => githubError(error, t));
   }
-  hostConnected(): void {
-    this.#request = new AbortController();
+  get pending(): boolean {
+    return this.#requests.pending;
+  }
+  get error(): string {
+    return this.#requests.error;
+  }
+  set error(message: string) {
+    this.#requests.error = message;
   }
   hostDisconnected(): void {
     this.reset();
   }
   reset(): void {
-    this.#request.abort();
-    this.#request = new AbortController();
-    this.pending = false;
+    this.#requests.reset();
     this.status = undefined;
     this.clear();
   }
@@ -117,20 +121,7 @@ export class AddonGitHubController implements ReactiveController {
   }
   async #run(operation: (client: AddonGitHubClient) => Promise<void>): Promise<void> {
     if (this.pending) return;
-    const request = this.#request;
-    this.pending = true;
-    this.error = "";
     this.message = "";
-    this.host.requestUpdate();
-    try {
-      await operation(new AddonGitHubClient(this.csrf(), request.signal));
-    } catch (error) {
-      if (!request.signal.aborted) this.error = githubError(error, this.t);
-    } finally {
-      if (!request.signal.aborted) {
-        this.pending = false;
-        this.host.requestUpdate();
-      }
-    }
+    await this.#requests.run((signal) => operation(new AddonGitHubClient(this.csrf(), signal)));
   }
 }

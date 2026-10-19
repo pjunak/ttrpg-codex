@@ -235,7 +235,7 @@ async function saved(page: Page, key: string, revision: number) {
         .records.find((item) => item.key === key)?.revision === revision,
     { key, revision },
   );
-  await page.waitForFunction(() => document.querySelector("codex-settings")?.saving === false);
+  await page.waitForFunction(() => document.querySelector("codex-settings")?.busy === false);
 }
 async function publish(page: Page, change: () => void) {
   change();

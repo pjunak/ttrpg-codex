@@ -198,7 +198,7 @@ for (const mode of ["all fields", "direct portrait"] as const) {
       await page.locator("codex-record-page").evaluate((node) => {
         window.corePortraitReply = { calls: 0 };
         node.addEventListener(
-          "campaign-character-save",
+          "campaign-write",
           (event) => {
             const detail = (event as CustomEvent<{ respond: (result: { ok: boolean }) => void }>)
               .detail;
