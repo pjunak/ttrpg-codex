@@ -144,8 +144,10 @@ preferences live in localStorage and the route. Neither is campaign authority.
 
 `codex-backup.v2` contains an online SQLite backup plus every referenced blob
 and immutable add-on generation, all inventoried by hash. Verification uses an
-isolated database copy. Restore requires the host to be stopped and uses a
-journaled directory swap that startup can recover.
+isolated database copy. A restore, from the command line with the host stopped
+or uploaded in Settings, is staged inside the data directory and installed by a
+journaled move of its entries that keeps `credentials/`; startup resumes an
+interrupted one.
 
 ## Failure model
 

@@ -323,8 +323,10 @@ go run ./cmd/codex-maintenance restore `
   -data-dir .\data -in D:\backups\codex-2026-09-01.zip
 ```
 
-Restore verifies the archive and an isolated database before atomically
-publishing it. Never unpack or merge backup contents by hand. Keep the verified
+Restore verifies the archive and a migrated copy of its database, then installs
+it the same way as a restore from Settings. It keeps this server's GitHub
+tokens, and the next restore or host start finishes an interrupted one. Never
+unpack or merge backup contents by hand. Keep the verified
 archive and an independent copy of the current data before replacement. After
 restoring, start the host and check login, campaign records, media and active
 add-ons before returning it to use. See the [archive and publication contract](reference/BACKUP_RESTORE.md)

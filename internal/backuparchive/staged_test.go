@@ -65,23 +65,7 @@ func TestStagedRestoreResumesEveryInterruptedPhase(t *testing.T) {
 			mustRename(t, filepath.Join(stage, "codex.db"), filepath.Join(data, "codex.db"))
 			setPhase(t, data, phaseMovingIn)
 		},
-		"published before validation": func(t *testing.T, data, stage, previous string) {
-			mustMkdir(t, previous)
-			for _, name := range []string{"old.txt", "codex.db"} {
-				mustRename(t, filepath.Join(data, name), filepath.Join(previous, name))
-			}
-			entries, err := os.ReadDir(stage)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, entry := range entries {
-				mustRename(t, filepath.Join(stage, entry.Name()), filepath.Join(data, entry.Name()))
-			}
-			if err := os.Remove(stage); err != nil {
-				t.Fatal(err)
-			}
-			setPhase(t, data, phaseMovingIn)
-		},
+		"published before validation": publishedBeforeCleanup,
 	}
 	for name, interrupt := range interruptions {
 		t.Run(name, func(t *testing.T) {
@@ -100,6 +84,74 @@ func TestStagedRestoreResumesEveryInterruptedPhase(t *testing.T) {
 			assertInstalledBackup(t, data)
 		})
 	}
+}
+
+// publishedBeforeCleanup leaves a staged restore as a crash would after its
+// files were published but before the old copy was validated and removed.
+func publishedBeforeCleanup(t *testing.T, data, stage, previous string) {
+	t.Helper()
+	mustMkdir(t, previous)
+	for _, name := range []string{"old.txt", "codex.db"} {
+		mustRename(t, filepath.Join(data, name), filepath.Join(previous, name))
+	}
+	entries, err := os.ReadDir(stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		mustRename(t, filepath.Join(stage, entry.Name()), filepath.Join(data, entry.Name()))
+	}
+	if err := os.Remove(stage); err != nil {
+		t.Fatal(err)
+	}
+	setPhase(t, data, phaseMovingIn)
+}
+
+func TestRestoreKeepsServerCredentialsAndTheDataDirectory(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	archive := markedArchive(t, root, "backup")
+	data := markedDataDirectory(t, root, "live")
+	tokens := filepath.Join(data, serverCredentials, "github.db")
+	mustMkdir(t, filepath.Dir(tokens))
+	if err := os.WriteFile(tokens, []byte("server token"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := Restore(ctx, RestoreConfig{ArchivePath: archive, DataDirectory: data, Migrations: migrations.FS})
+	if err != nil || result.Manifest.HostVersion != "2.0.0-test" {
+		t.Fatalf("restore = %+v, %v", result, err)
+	}
+	assertInstalledBackup(t, data)
+	if body, err := os.ReadFile(tokens); err != nil || string(body) != "server token" {
+		t.Fatalf("restore dropped the server's GitHub tokens: %q, %v", body, err)
+	}
+	// Only the directory's entries move, so a mount point can be restored.
+	after, err := os.Stat(data)
+	if err != nil || !os.SameFile(before, after) {
+		t.Fatalf("restore replaced the data directory itself: %v", err)
+	}
+}
+
+func TestRestoreFirstFinishesAnInterruptedRestore(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	data := markedDataDirectory(t, root, "live")
+	if _, err := Stage(ctx, StageConfig{ArchivePath: markedArchive(t, root, "earlier"), DataDirectory: data, Migrations: migrations.FS}); err != nil {
+		t.Fatal(err)
+	}
+	journal := readStagedJournal(t, data)
+	publishedBeforeCleanup(t, data, filepath.Join(data, journal.StageName), filepath.Join(data, journal.PreviousName))
+	if marker(t, data) != "earlier" {
+		t.Fatal("the interrupted restore was not published")
+	}
+	if _, err := Restore(ctx, RestoreConfig{ArchivePath: markedArchive(t, root, "backup"), DataDirectory: data, Migrations: migrations.FS}); err != nil {
+		t.Fatal(err)
+	}
+	assertInstalledBackup(t, data)
 }
 
 func TestInvalidStagedRestoreLeavesTheInstallationUntouched(t *testing.T) {

@@ -135,9 +135,7 @@ func TestCreateAndRestoreRoundTripDatabaseAndImmutableAddonFiles(t *testing.T) {
 	if readErr != nil || closeErr != nil || !bytes.Equal(restoredBody, blobBody) || restoredBlob.SHA256 != blob.SHA256 {
 		t.Fatalf("restored blob = %q, %+v, %v", restoredBody, restoredBlob, errors.Join(readErr, closeErr))
 	}
-	if matches, _ := filepath.Glob(filepath.Join(root, ".restored.restore-*")); len(matches) != 0 {
-		t.Fatalf("restore artifacts survived: %v", matches)
-	}
+	assertNoRestoreArtifacts(t, targetDirectory)
 }
 
 func TestRestoreRejectsContentThatDiffersFromManifest(t *testing.T) {
@@ -219,45 +217,6 @@ func TestVerifyRejectsSupersededBackupContract(t *testing.T) {
 		ArchivePath: supersededArchive, Migrations: migrations.FS,
 	}); !errors.Is(err, ErrInvalidArchive) {
 		t.Fatalf("superseded backup verification error = %v", err)
-	}
-}
-
-func TestRecoverRollsBackPublicationThatDidNotInstallStage(t *testing.T) {
-	root := t.TempDir()
-	target := filepath.Join(root, "data")
-	stageName := ".data.restore-stage-test"
-	previousName := ".data.restore-previous-test"
-	stage := filepath.Join(root, stageName)
-	previous := filepath.Join(root, previousName)
-	if err := os.MkdirAll(target, 0o750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(target, "original"), []byte("safe"), 0o640); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(stage, 0o750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Rename(target, previous); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeRestoreJournal(restoreJournalPath(target), restoreJournal{
-		ContractVersion: restoreJournalVersion, TargetName: "data",
-		StageName: stageName, PreviousName: previousName,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := Recover(context.Background(), target, migrations.FS); err != nil {
-		t.Fatal(err)
-	}
-	if body, err := os.ReadFile(filepath.Join(target, "original")); err != nil || string(body) != "safe" {
-		t.Fatalf("recovered original = %q, %v", body, err)
-	}
-	if _, err := os.Stat(stage); !os.IsNotExist(err) {
-		t.Fatalf("restore stage survived recovery: %v", err)
-	}
-	if _, err := os.Stat(restoreJournalPath(target)); !os.IsNotExist(err) {
-		t.Fatalf("restore journal survived recovery: %v", err)
 	}
 }
 

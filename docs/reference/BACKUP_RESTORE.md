@@ -100,12 +100,13 @@ go run ./cmd/codex-maintenance restore `
 ```
 
 The host and restore command contend for the same operating-system file lock,
-so a live restore fails closed. Restore fully verifies and migrates a sibling
-staging directory before changing the target. Publication journals one
-directory swap: the current directory moves aside, the prepared directory
-takes its place, and only then is the old directory removed. Startup resolves
-an interrupted journal before opening SQLite, either finishing a validated
-installation or restoring the previous directory.
+so a live restore fails closed. The command installs the archive the same way
+as a restore from the web (below): it verifies and migrates a staging copy
+inside the data directory, moves every current entry except this server's
+`credentials/` aside, publishes the staged entries and removes the old copy
+only after validating the result. The data directory itself is never renamed,
+so it may be a mount point; a missing one is created. The journal records each
+phase, and the next restore or host start resumes an interrupted one.
 
 ## Restore from the web
 

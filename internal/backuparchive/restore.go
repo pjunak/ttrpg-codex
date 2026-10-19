@@ -35,13 +35,6 @@ type VerifyConfig struct {
 	Limits      Limits
 }
 
-type restoreJournal struct {
-	ContractVersion string `json:"contractVersion"`
-	TargetName      string `json:"targetName"`
-	StageName       string `json:"stageName"`
-	PreviousName    string `json:"previousName"`
-}
-
 func Verify(ctx context.Context, config VerifyConfig) (RestoreResult, error) {
 	limits, err := normalizeLimits(config.Limits)
 	if err != nil {
@@ -74,11 +67,12 @@ func Verify(ctx context.Context, config VerifyConfig) (RestoreResult, error) {
 	return RestoreResult{Manifest: manifest, AppliedMigrations: applied}, nil
 }
 
+// Restore installs an archive while the host is stopped, the same way the next
+// host start installs one staged from the web: it verifies and stages the
+// archive inside the data directory, then moves its entries into place. This
+// keeps the server's credentials and works when the data directory is a
+// mount point.
 func Restore(ctx context.Context, config RestoreConfig) (RestoreResult, error) {
-	limits, err := normalizeLimits(config.Limits)
-	if err != nil {
-		return RestoreResult{}, err
-	}
 	if config.ArchivePath == "" || config.DataDirectory == "" || config.Migrations == nil {
 		return RestoreResult{}, fmt.Errorf("restore archive, data directory, and migrations are required")
 	}
@@ -96,89 +90,35 @@ func Restore(ctx context.Context, config RestoreConfig) (RestoreResult, error) {
 	if insideDirectory(archivePath, dataDirectory) {
 		return RestoreResult{}, fmt.Errorf("restore archive must be outside the data directory")
 	}
+	// First finish a restore that the web or an interrupted run left staged.
 	if err := Recover(ctx, dataDirectory, config.Migrations); err != nil {
 		return RestoreResult{}, err
 	}
-
-	manifest, archive, err := inspectArchive(archivePath, limits)
+	existed, err := pathExists(dataDirectory)
 	if err != nil {
 		return RestoreResult{}, err
 	}
-	defer archive.Close()
-	parent := filepath.Dir(dataDirectory)
-	base := filepath.Base(dataDirectory)
-	if err := os.MkdirAll(parent, 0o750); err != nil {
-		return RestoreResult{}, fmt.Errorf("create restore data parent: %w", err)
+	if err := os.MkdirAll(dataDirectory, 0o750); err != nil {
+		return RestoreResult{}, fmt.Errorf("create restore data directory: %w", err)
 	}
-	stage, err := os.MkdirTemp(parent, "."+base+".restore-stage-")
+	result, err := Stage(ctx, StageConfig{
+		ArchivePath: archivePath, DataDirectory: dataDirectory,
+		Migrations: config.Migrations, Limits: config.Limits,
+	})
 	if err != nil {
-		return RestoreResult{}, fmt.Errorf("create restore stage: %w", err)
-	}
-	keepStage := false
-	defer func() {
-		if !keepStage {
-			_ = os.RemoveAll(stage)
+		if !existed {
+			_ = os.Remove(dataDirectory)
 		}
-	}()
-	if err := extractArchive(ctx, archive, stage, manifest, limits); err != nil {
 		return RestoreResult{}, err
 	}
-	applied, err := validateAndMigrateDatabase(ctx, filepath.Join(stage, "codex.db"), config.Migrations)
-	if err != nil {
-		return RestoreResult{}, fmt.Errorf("validate restored database: %w", err)
+	if err := finishStagedRestore(ctx, dataDirectory, config.Migrations); err != nil {
+		return RestoreResult{}, fmt.Errorf("install restored data: %w", err)
 	}
-	for _, suffix := range []string{"-wal", "-shm"} {
-		if err := os.Remove(filepath.Join(stage, "codex.db"+suffix)); err != nil && !os.IsNotExist(err) {
-			return RestoreResult{}, fmt.Errorf("remove restored database sidecar: %w", err)
-		}
-	}
-
-	journal := restoreJournal{
-		ContractVersion: restoreJournalVersion,
-		TargetName:      base,
-		StageName:       filepath.Base(stage),
-		PreviousName:    "." + base + ".restore-previous-" + strings.TrimPrefix(filepath.Base(stage), "."+base+".restore-stage-"),
-	}
-	journalPath := restoreJournalPath(dataDirectory)
-	if err := writeRestoreJournal(journalPath, journal); err != nil {
-		return RestoreResult{}, err
-	}
-	keepStage = true
-	previous := filepath.Join(parent, journal.PreviousName)
-	targetExists, err := pathExists(dataDirectory)
-	if err != nil {
-		return RestoreResult{}, err
-	}
-	if targetExists {
-		if err := os.Rename(dataDirectory, previous); err != nil {
-			return RestoreResult{}, fmt.Errorf("move current data directory aside: %w", err)
-		}
-	}
-	if err := os.Rename(stage, dataDirectory); err != nil {
-		rollbackErr := error(nil)
-		if targetExists {
-			rollbackErr = os.Rename(previous, dataDirectory)
-		}
-		if rollbackErr == nil {
-			_ = os.Remove(journalPath)
-			keepStage = false
-		}
-		return RestoreResult{}, errors.Join(fmt.Errorf("publish restored data directory: %w", err), rollbackErr)
-	}
-	keepStage = false
-	if targetExists {
-		if err := os.RemoveAll(previous); err != nil {
-			return RestoreResult{}, fmt.Errorf("restore installed but previous data cleanup is pending: %w", err)
-		}
-	}
-	if err := os.Remove(journalPath); err != nil {
-		return RestoreResult{}, fmt.Errorf("restore installed but journal cleanup is pending: %w", err)
-	}
-	return RestoreResult{Manifest: manifest, AppliedMigrations: applied}, nil
+	return result, nil
 }
 
-// Recover runs before SQLite opens. It finishes or rolls back an interrupted
-// offline restore, then installs a restore staged from the web.
+// Recover runs before SQLite opens. It finishes a restore staged from the web
+// or left behind by an interrupted restore command.
 func Recover(ctx context.Context, dataDirectory string, migrations fs.FS) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -190,77 +130,10 @@ func Recover(ctx context.Context, dataDirectory string, migrations fs.FS) error 
 	if filepath.Dir(absolute) == absolute {
 		return fmt.Errorf("restore recovery directory cannot be a filesystem root")
 	}
-	if err := recoverOfflineRestore(ctx, absolute, migrations); err != nil {
-		return err
-	}
 	if exists, err := pathExists(absolute); err != nil || !exists {
 		return err
 	}
 	return finishStagedRestore(ctx, absolute, migrations)
-}
-
-func recoverOfflineRestore(ctx context.Context, absolute string, migrations fs.FS) error {
-	journalPath := restoreJournalPath(absolute)
-	body, err := os.ReadFile(journalPath)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("read restore journal: %w", err)
-	}
-	var journal restoreJournal
-	if err := jsonexact.Decode(body, &journal); err != nil {
-		return fmt.Errorf("%w: restore journal is invalid", ErrRestorePending)
-	}
-	parent := filepath.Dir(absolute)
-	base := filepath.Base(absolute)
-	if journal.ContractVersion != restoreJournalVersion ||
-		journal.TargetName != base ||
-		!safeSiblingName(journal.StageName, "."+base+".restore-stage-") ||
-		!safeSiblingName(journal.PreviousName, "."+base+".restore-previous-") {
-		return fmt.Errorf("%w: restore journal paths are invalid", ErrRestorePending)
-	}
-	stage := filepath.Join(parent, journal.StageName)
-	previous := filepath.Join(parent, journal.PreviousName)
-	targetExists, err := pathExists(absolute)
-	if err != nil {
-		return err
-	}
-	stageExists, err := pathExists(stage)
-	if err != nil {
-		return err
-	}
-	previousExists, err := pathExists(previous)
-	if err != nil {
-		return err
-	}
-
-	if targetExists && !stageExists {
-		if _, err := validateAndMigrateDatabase(ctx, filepath.Join(absolute, "codex.db"), migrations); err != nil {
-			return fmt.Errorf("%w: installed restore failed recovery validation: %v", ErrRestorePending, err)
-		}
-		if previousExists {
-			if err := os.RemoveAll(previous); err != nil {
-				return fmt.Errorf("remove recovered previous data: %w", err)
-			}
-		}
-		return removeRestoreJournal(journalPath)
-	}
-
-	if targetExists && previousExists {
-		return fmt.Errorf("%w: both target and previous data exist before restore publication", ErrRestorePending)
-	}
-	if !targetExists && previousExists {
-		if err := os.Rename(previous, absolute); err != nil {
-			return fmt.Errorf("roll back interrupted restore: %w", err)
-		}
-	}
-	if stageExists {
-		if err := os.RemoveAll(stage); err != nil {
-			return fmt.Errorf("remove interrupted restore stage: %w", err)
-		}
-	}
-	return removeRestoreJournal(journalPath)
 }
 
 func inspectArchive(filename string, limits Limits) (Manifest, *zip.ReadCloser, error) {
@@ -428,10 +301,6 @@ func extractArchive(
 		}
 	}
 	return nil
-}
-
-func restoreJournalPath(dataDirectory string) string {
-	return filepath.Join(filepath.Dir(dataDirectory), "."+filepath.Base(dataDirectory)+".restore.json")
 }
 
 func writeRestoreJournal(filename string, journal any) error {

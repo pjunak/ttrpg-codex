@@ -10,10 +10,7 @@ import (
 	"unicode"
 )
 
-const (
-	ContractVersion       = "codex-backup.v2"
-	restoreJournalVersion = "codex-restore-journal.v1"
-)
+const ContractVersion = "codex-backup.v2"
 
 var (
 	ErrInvalidArchive = errors.New("invalid Codex backup archive")
