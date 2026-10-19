@@ -153,6 +153,29 @@ func TestRestorePreservesDataAndAdvancesRevisions(t *testing.T) {
 	}
 }
 
+func TestCampaignRestoreOfAPointWithoutACollectionLeavesItUnmaterialized(t *testing.T) {
+	store, records := fixture(t)
+	put(t, records, "keeper", "Before", 0)
+	if err := store.Create(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	point := listing(t, store).Points[0]
+	// A point captured before a core collection existed does not list it.
+	execute(t, store.DB, `UPDATE recovery_points SET image_json = json_set(image_json, '$.collections', json((
+		SELECT json_group_array(item.value) FROM json_each(image_json, '$.collections') AS item WHERE item.value ->> 'name' <> 'companions'))) WHERE point_id = ?`, point.ID)
+	execute(t, store.DB, `UPDATE campaign_collections SET materialized = 1 WHERE name IN ('characters', 'companions')`)
+	restore(t, store, point.ID)
+	var characters, companions int
+	if err := store.DB.QueryRow(`SELECT
+		(SELECT materialized FROM campaign_collections WHERE name = 'characters'),
+		(SELECT materialized FROM campaign_collections WHERE name = 'companions')`).Scan(&characters, &companions); err != nil {
+		t.Fatal(err)
+	}
+	if characters != 1 || companions != 0 {
+		t.Fatalf("materialized characters = %d, companions = %d", characters, companions)
+	}
+}
+
 func TestAutomaticPointsCoalesceAndRollbackWithWrites(t *testing.T) {
 	store, records := fixture(t)
 	put(t, records, "keeper", "First", 0)

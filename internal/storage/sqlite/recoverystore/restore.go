@@ -19,8 +19,9 @@ var campaignRestoreStatements = []string{
      FROM json_each(@image, '$.records') JOIN campaign_record_versions AS versions
      ON versions.collection_name = value ->> 'collection_name' AND versions.record_key = value ->> 'record_key'`,
 
+	// A collection added after the point was captured is not in its list.
 	`UPDATE campaign_collections SET revision = revision + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
-        materialized = (SELECT value ->> 'materialized' FROM json_each(@image, '$.collections') WHERE value ->> 'name' = campaign_collections.name)`,
+        materialized = COALESCE((SELECT value ->> 'materialized' FROM json_each(@image, '$.collections') WHERE value ->> 'name' = campaign_collections.name), 0)`,
 }
 
 var addonRestoreStatements = []string{
