@@ -1,8 +1,89 @@
 import { html, nothing } from "lit";
 import type { CampaignDataset } from "../core/campaign-data.js";
+import { formText, formTextValues } from "../core/forms.js";
 import { editorOptionsFor, type CampaignEditorField } from "./campaign-record-editor.js";
 import { text } from "./campaign-projection.js";
 import { uiText } from "./ui-localization.js";
+
+/** A control's value in the shape its form data submits. */
+export type FieldFormValue = string | readonly string[] | boolean;
+
+/**
+ * What a field's control shows for a stored value. An untouched control
+ * submits exactly this, so an edit can tell which fields actually changed.
+ */
+export function fieldFormValue(
+  campaign: CampaignDataset,
+  field: CampaignEditorField,
+  value: Readonly<Record<string, unknown>>,
+  currentKey: string,
+): FieldFormValue {
+  switch (field.kind) {
+    case "string-list":
+      return editorStringList(value[field.key]).join("\n");
+    case "tags":
+      return editorStringList(value[field.key]).join(", ");
+    case "owner":
+      return ownerValue(value);
+    case "reference":
+    case "enum": {
+      const stored = editorValue(value[field.key]);
+      return currentKey === "" && field.key === "faction" && stored === "" ? "neutral" : stored;
+    }
+    case "references":
+    case "attitudes": {
+      const selected = new Set(
+        field.kind === "attitudes"
+          ? editorAttitudes(value[field.key])
+          : editorStringList(value[field.key]),
+      );
+      return editorOptionsFor(campaign, field, currentKey)
+        .filter((option) => selected.has(option.value))
+        .map((option) => option.value);
+    }
+    case "boolean":
+      return value[field.key] === true;
+    case "line":
+    case "text":
+    case "markdown":
+    case "number":
+      return editorValue(value[field.key]);
+    // Structured fields have their own editors (see initialStructuredDraft).
+    case "questions":
+    case "rank-assignment":
+    case "rank-chains":
+    case "location-roles":
+      return "";
+  }
+}
+
+/** What a field's control submitted, or undefined when it submitted nothing. */
+export function submittedFieldFormValue(
+  data: FormData,
+  field: CampaignEditorField,
+): FieldFormValue | undefined {
+  if (field.kind === "references" || field.kind === "attitudes")
+    return formTextValues(data, field.key);
+  if (field.kind === "boolean") return data.has(field.key);
+  // A disabled or missing control submits nothing.
+  return data.has(field.key) ? formText(data, field.key) : undefined;
+}
+
+export function sameFieldFormValue(left: FieldFormValue, right: FieldFormValue): boolean {
+  if (typeof left === "string" && typeof right === "string")
+    return left.replaceAll("\r\n", "\n") === right.replaceAll("\r\n", "\n");
+  if (typeof left === "object" && typeof right === "object")
+    return left.length === right.length && left.every((item, index) => item === right[index]);
+  return left === right;
+}
+
+/** The field value a save sends for a submitted control value. */
+export function formFieldValue(field: CampaignEditorField, submitted: FieldFormValue): unknown {
+  if (typeof submitted !== "string") return submitted;
+  if (field.kind === "tags") return submitted.split(",");
+  if (field.kind === "string-list") return submitted.split(/\r?\n/u);
+  return field.kind === "line" ? submitted.trim() : submitted;
+}
 
 export function recordFieldControl(
   campaign: CampaignDataset,
@@ -11,6 +92,8 @@ export function recordFieldControl(
   currentKey: string,
   onFactionChange?: (event: Event) => void,
 ) {
+  const shown = fieldFormValue(campaign, field, value, currentKey);
+  const shownText = typeof shown === "string" ? shown : "";
   const wide = ["text", "string-list", "references", "attitudes"].includes(field.kind);
   const help =
     field.help === undefined
@@ -23,11 +106,7 @@ export function recordFieldControl(
           <textarea
             name=${field.key}
             maxlength=${field.kind === "text" ? field.maximumLength : nothing}
-            .value=${
-              field.kind === "string-list"
-                ? editorStringList(value[field.key]).join("\n")
-                : editorValue(value[field.key])
-            }
+            .value=${shownText}
             ?required=${field.required === true}
           ></textarea>
           ${help}
@@ -36,9 +115,7 @@ export function recordFieldControl(
   }
   if (field.kind === "reference" || field.kind === "owner" || field.kind === "enum") {
     const options = editorOptionsFor(campaign, field, currentKey);
-    const stored = field.kind === "owner" ? ownerValue(value) : editorValue(value[field.key]);
-    const selected =
-      currentKey === "" && field.key === "faction" && stored === "" ? "neutral" : stored;
+    const selected = shownText;
     const orphaned = selected !== "" && !options.some(({ value: option }) => option === selected);
     return html`
         <label data-ui-field>
@@ -62,11 +139,7 @@ export function recordFieldControl(
   }
   if (field.kind === "references" || field.kind === "attitudes") {
     const options = editorOptionsFor(campaign, field, currentKey);
-    const selected = new Set(
-      field.kind === "attitudes"
-        ? editorAttitudes(value[field.key])
-        : editorStringList(value[field.key]),
-    );
+    const selected = new Set(typeof shown === "object" ? shown : []);
     return html`
         <label data-ui-field class="wide-field structured-picker">
           <span>${field.label}</span>
@@ -84,7 +157,7 @@ export function recordFieldControl(
   if (field.kind === "boolean") {
     return html`
         <label data-ui-field class="boolean-field">
-          <input name=${field.key} type="checkbox" .checked=${value[field.key] === true} />
+          <input name=${field.key} type="checkbox" .checked=${shown === true} />
           <span>${field.label}</span>
           ${help}
         </label>
@@ -100,11 +173,7 @@ export function recordFieldControl(
           min=${field.minimum ?? nothing}
           max=${field.maximum ?? nothing}
           maxlength=${field.kind === "number" ? nothing : field.maximumLength}
-          .value=${
-            field.kind === "tags"
-              ? editorStringList(value[field.key]).join(", ")
-              : editorValue(value[field.key])
-          }
+          .value=${shownText}
           placeholder=${field.placeholder ?? ""}
           ?required=${field.required === true}
         />

@@ -1901,3 +1901,71 @@ void test("one unreadable local draft does not hide the others", async (t) => {
   await dm.page.goto("/#/locations");
   await dm.page.getByText("Local Markdown drafts (1)", { exact: true }).waitFor();
 });
+
+void test("a full-form edit rewrites only changed fields and names one that cannot be saved", async (t) => {
+  const stored = {
+    name: "Untouched character",
+    title: "t".repeat(600),
+    tags: ["Order, inner circle", "spy", "Spy"],
+    known: ["First line\nsecond line", "Another fact"],
+    visibility: "public",
+  };
+  await put(admin, csrf, "untouched-character", stored, 0, "characters");
+  await put(admin, csrf, "lost-port", { name: "Lost port" });
+  const dm = await open(t, "dm");
+  await dm.page.goto("/#/characters/untouched-character/edit");
+  await dm.page.locator('form.record-editor input[name="name"]').fill("Renamed character");
+  await dm.page.getByRole("button", { name: "Save entry", exact: true }).last().click();
+  await dm.page
+    .locator(".record-save-confirmation")
+    .getByText("Entry saved to campaign.", { exact: true })
+    .waitFor();
+  const saved = (await record("untouched-character", "characters")).value;
+  assert.equal(saved.name, "Renamed character");
+  assert.deepEqual(
+    [saved.title, saved.tags, saved.known],
+    [stored.title, stored.tags, stored.known],
+  );
+
+  await dm.page.goto("/#/characters/untouched-character/edit");
+  await dm.page.getByRole("tab", { name: "Connections", exact: true }).click();
+  await dm.page.getByLabel("Current location", { exact: true }).selectOption("lost-port");
+  const port = await record("lost-port");
+  await jsonResponse(
+    await admin.post("/api/campaign/transactions", {
+      headers: { "X-Codex-CSRF": csrf },
+      data: {
+        contractVersion: "campaign-mutation.v1",
+        mutations: [
+          {
+            operation: "delete",
+            collection: "locations",
+            key: "lost-port",
+            expectedRevision: port.revision,
+          },
+        ],
+      },
+    }),
+  );
+  // The open form keeps its own copy; the save checks the live campaign.
+  await dm.page.waitForFunction(() => {
+    const app = document.querySelector("codex-app") as unknown as {
+      campaignState: {
+        state: string;
+        campaign?: { collections: { name: string; records: { key: string }[] }[] };
+      };
+    };
+    return (
+      app.campaignState.state === "ready" &&
+      !app.campaignState.campaign?.collections
+        .find((collection) => collection.name === "locations")
+        ?.records.some((item) => item.key === "lost-port")
+    );
+  });
+  await dm.page.getByRole("button", { name: "Save entry", exact: true }).last().click();
+  await dm.page
+    .locator(".application-alert")
+    .getByText("Current location contains a value that cannot be saved.", { exact: true })
+    .waitFor();
+  assert.equal((await record("untouched-character", "characters")).value.location, undefined);
+});

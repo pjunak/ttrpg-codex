@@ -87,7 +87,7 @@ export class CampaignStructuredFieldEditor
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
     if (!this.#initialized || changed.has("recordIdentity") || changed.has("field")) {
-      this.#draft = initialDraft(this.field, this.record);
+      this.#draft = initialStructuredDraft(this.field, this.record);
       this.#initialized = true;
     }
   }
@@ -605,7 +605,8 @@ export class CampaignRelationshipEditor
   }
 }
 
-function initialDraft(
+/** The draft a structured field editor opens with for a stored value. */
+export function initialStructuredDraft(
   field: CampaignEditorField | undefined,
   value: Readonly<Record<string, unknown>>,
 ): unknown {

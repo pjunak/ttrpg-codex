@@ -1088,6 +1088,43 @@ describe("campaign record editing", () => {
       value: { icon: "🐾", ownerType: "none", ownerId: "" },
     });
   });
+
+  it("applies only the fields an edit sends and names a field that cannot be saved", () => {
+    const stored = {
+      id: "ryn",
+      name: "Ryn",
+      title: "t".repeat(600),
+      tags: ["Order, inner circle", "spy", "Spy"],
+      known: ["First line\nsecond line"],
+      location: "port",
+    };
+    const campaign = dataset({
+      characters: [{ key: "ryn", revision: 2, value: stored }],
+      locations: [{ key: "port", revision: 1, value: { id: "port", name: "Port" } }],
+    });
+    const edit = (fields: Readonly<Record<string, unknown>>) =>
+      prepareCampaignRecordSave(
+        campaign,
+        { collection: "characters", key: "ryn", expectedRevision: 2, creating: false, fields },
+        true,
+      ).mutations[0];
+    expect(edit({ name: "Renamed" })).toMatchObject({ value: { ...stored, name: "Renamed" } });
+    expect(() =>
+      prepareCampaignRecordSave(
+        campaign,
+        { collection: "characters", key: "new", expectedRevision: 0, creating: true, fields: {} },
+        true,
+      ),
+    ).toThrow(CampaignRecordEditError);
+    let failure: unknown;
+    try {
+      edit({ name: "Renamed", location: "sunken-city" });
+    } catch (cause: unknown) {
+      failure = cause;
+    }
+    expect(failure).toBeInstanceOf(CampaignRecordEditError);
+    expect((failure as CampaignRecordEditError).field?.key).toBe("location");
+  });
 });
 
 function formFields(

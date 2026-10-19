@@ -1,4 +1,3 @@
-import { formText, formTextValues } from "../core/forms.js";
 import "./codex-investigation-queue.js";
 import { UIControlsController } from "../ui/controller.js";
 import { cardEditLink } from "../ui/card-actions.js";
@@ -12,7 +11,14 @@ import {
   renderArticleReferences,
   renderRecordBadges,
 } from "./article-context-view.js";
-import { editorValue, recordFieldControl } from "./record-field-controls.js";
+import {
+  editorValue,
+  fieldFormValue,
+  formFieldValue,
+  recordFieldControl,
+  sameFieldFormValue,
+  submittedFieldFormValue,
+} from "./record-field-controls.js";
 import { uiPlural, uiText, uiSourceLabel } from "./ui-localization.js";
 import "./codex-portrait-editor.js";
 import { artwork } from "../ui/artwork.js";
@@ -34,6 +40,7 @@ import {
   editorFieldsFor,
   editorOptionsFor,
   relationshipBaseFor,
+  sameCampaignValue,
   type CampaignEditorField,
   type CampaignRecordDeleteDetail,
   type CampaignRecordSaveDetail,
@@ -41,6 +48,7 @@ import {
 import { campaignEnumColor, campaignEnumDisplayLabel } from "./campaign-settings.js";
 import {
   factionRankChains,
+  initialStructuredDraft,
   type CampaignRelationshipEditorElement,
   type CampaignStructuredFieldElement,
 } from "./campaign-structured-editors.js";
@@ -951,6 +959,18 @@ export class CodexRecordPage extends LitElement {
       return;
     const form = event.currentTarget as HTMLFormElement;
     const data = new FormData(form);
+    const creating = this.editor === "create";
+    const editedKey = this.route.kind === "record" ? this.route.key : "";
+    const record = creating
+      ? undefined
+      : campaignCollection(this.#editorCampaign, this.route.page.collection).records.find(
+          ({ key: recordKey }) => recordKey === editedKey,
+        );
+    if (!creating && record === undefined) return;
+    // An edit sends only the fields that differ from what the form opened with,
+    // so values a control cannot show exactly (tags containing commas,
+    // multi-line list items, older over-long text) are never rewritten.
+    const opening = record === undefined ? undefined : recordValue(record);
     const structured = new Map(
       [...form.querySelectorAll<CampaignStructuredFieldElement>("campaign-structured-field")].map(
         (editor) => [editor.fieldKey, editor.editorValue()],
@@ -964,35 +984,29 @@ export class CodexRecordPage extends LitElement {
         field.kind === "rank-chains" ||
         field.kind === "location-roles"
       ) {
-        fields[field.key] = structured.get(field.key);
-      } else if (field.kind === "references" || field.kind === "attitudes") {
-        fields[field.key] = formTextValues(data, field.key);
-      } else if (field.kind === "tags") {
-        fields[field.key] = formText(data, field.key).split(",");
-      } else if (field.kind === "string-list") {
-        fields[field.key] = formText(data, field.key).split(/\r?\n/u);
-      } else if (field.kind === "boolean") {
-        fields[field.key] = data.has(field.key);
-      } else {
-        const raw = formText(data, field.key);
-        fields[field.key] = field.kind === "line" ? raw.trim() : raw;
+        const draft = structured.get(field.key);
+        if (opening && sameCampaignValue(draft, initialStructuredDraft(field, opening))) continue;
+        fields[field.key] = draft;
+        continue;
       }
+      const submitted = submittedFieldFormValue(data, field);
+      if (
+        opening &&
+        (submitted === undefined ||
+          sameFieldFormValue(
+            submitted,
+            fieldFormValue(this.#editorCampaign, field, opening, editedKey),
+          ))
+      )
+        continue;
+      fields[field.key] = formFieldValue(field, submitted ?? "");
     }
-    const creating = this.editor === "create";
     const key = creating
       ? createCampaignRecordKey(
           typeof fields["name"] === "string" ? fields["name"] : this.route.page.singular,
         )
-      : this.route.kind === "record"
-        ? this.route.key
-        : "";
+      : editedKey;
     if (key === "") return;
-    const record = creating
-      ? undefined
-      : campaignCollection(this.#editorCampaign, this.route.page.collection).records.find(
-          ({ key: recordKey }) => recordKey === key,
-        );
-    if (!creating && record === undefined) return;
     const portrait = form
       .querySelector<CodexPortraitEditor>("codex-portrait-editor")
       ?.editorValue();

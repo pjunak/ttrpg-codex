@@ -266,6 +266,8 @@ export class CampaignRecordEditError extends Error {
   constructor(
     readonly kind: "invalid" | "stale" | "portrait-visibility",
     message: string,
+    /** The form field whose value cannot be saved, when one is known. */
+    readonly field?: CampaignEditorField,
   ) {
     super(message);
   }
@@ -329,7 +331,12 @@ export function prepareCampaignRecordSave(
   }
   const allowed = new Set(fields.map(({ key }) => key));
   const received = Object.keys(detail.fields);
-  if (received.length !== allowed.size || received.some((key) => !allowed.has(key))) {
+  // A new record takes every field. An edit sends only the fields it changed,
+  // and every other stored value is kept as it is.
+  if (
+    received.some((key) => !allowed.has(key)) ||
+    (detail.creating && received.length !== allowed.size)
+  ) {
     throw invalidEdit();
   }
 
@@ -340,8 +347,14 @@ export function prepareCampaignRecordSave(
   }
   const value: Record<string, unknown> = { ...current };
   for (const field of fields) {
-    const raw = detail.fields[field.key];
-    applyEditorField(campaign, value, current, field, raw, detail.key);
+    if (!Object.hasOwn(detail.fields, field.key)) continue;
+    try {
+      applyEditorField(campaign, value, current, field, detail.fields[field.key], detail.key);
+    } catch (cause: unknown) {
+      if (cause instanceof CampaignRecordEditError && cause.kind === "invalid")
+        throw new CampaignRecordEditError("invalid", cause.message, field);
+      throw cause;
+    }
   }
   if (page.collection === "characters") {
     if (detail.creating && value["faction"] === "") value["faction"] = "neutral";

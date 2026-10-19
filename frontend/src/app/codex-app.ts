@@ -1873,7 +1873,9 @@ export class CodexApp extends LitElement {
             ? uiText(
                 "Save visibility changes first, then replace the portrait. Your draft is kept.",
               )
-            : uiText("The entry contains a value that cannot be saved.");
+            : cause instanceof CampaignRecordEditError && cause.field !== undefined
+              ? uiText("{0} contains a value that cannot be saved.", { "0": cause.field.label })
+              : uiText("The entry contains a value that cannot be saved.");
       this.recordSaveState = "failed";
       return;
     }
