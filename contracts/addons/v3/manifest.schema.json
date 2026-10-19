@@ -577,7 +577,7 @@
       "properties": {
         "workerOnly": {
           "type": "boolean",
-          "description": "Restrict mutations to the native worker without retaining snapshots."
+          "description": "Restrict mutations to the add-on's native worker."
         },
         "id": {
           "$ref": "#/$defs/localId"

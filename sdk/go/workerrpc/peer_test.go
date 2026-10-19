@@ -33,7 +33,7 @@ func TestPeerRoutesConcurrentBidirectionalCalls(t *testing.T) {
 	hostResult := make(chan outcome, 1)
 	workerResult := make(chan outcome, 1)
 	go func() {
-		body, err := host.Call(context.Background(), "addon/service.call", map[string]any{"value": 1}, testMeta())
+		body, err := host.Call(context.Background(), "service/codex.example/evaluate", map[string]any{"value": 1}, testMeta())
 		hostResult <- outcome{body: body, err: err}
 	}()
 	go func() {
@@ -67,7 +67,7 @@ func TestPeerPropagatesCancellationAndDiscardsLateResponse(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	result := make(chan error, 1)
 	go func() {
-		_, err := host.Call(ctx, "addon/service.call", map[string]any{}, testMeta())
+		_, err := host.Call(ctx, "service/codex.example/evaluate", map[string]any{}, testMeta())
 		result <- err
 	}()
 	<-started
@@ -101,11 +101,11 @@ func TestPeerRejectsExcessIncomingWorkWithoutQueueing(t *testing.T) {
 
 	first := make(chan error, 1)
 	go func() {
-		_, err := host.Call(context.Background(), "addon/service.call", map[string]any{"call": 1}, testMeta())
+		_, err := host.Call(context.Background(), "service/codex.example/evaluate", map[string]any{"call": 1}, testMeta())
 		first <- err
 	}()
 	<-started
-	_, err := host.Call(context.Background(), "addon/service.call", map[string]any{"call": 2}, testMeta())
+	_, err := host.Call(context.Background(), "service/codex.example/evaluate", map[string]any{"call": 2}, testMeta())
 	assertRPCError(t, err, KindRateLimited)
 	close(release)
 	if err := <-first; err != nil {
@@ -139,11 +139,11 @@ func TestPeerReservesLifecycleControlDuringDomainSaturation(t *testing.T) {
 
 	domain := make(chan error, 1)
 	go func() {
-		_, err := host.Call(context.Background(), "addon/service.call", map[string]any{}, testMeta())
+		_, err := host.Call(context.Background(), "service/codex.example/evaluate", map[string]any{}, testMeta())
 		domain <- err
 	}()
 	<-started
-	if _, err := host.Call(context.Background(), "addon/service.call", map[string]any{}, testMeta()); err == nil {
+	if _, err := host.Call(context.Background(), "service/codex.example/evaluate", map[string]any{}, testMeta()); err == nil {
 		t.Fatal("domain request exceeded the configured capacity")
 	} else {
 		assertRPCError(t, err, KindRateLimited)
@@ -265,12 +265,12 @@ func TestPeerValidatesDomainMetadataAtBothEnds(t *testing.T) {
 
 	stale := testMeta()
 	stale.Generation = "old-generation"
-	_, err = host.Call(context.Background(), "addon/service.call", map[string]any{}, stale)
+	_, err = host.Call(context.Background(), "service/codex.example/evaluate", map[string]any{}, stale)
 	assertRPCError(t, err, KindStaleBinding)
 
 	expired := testMeta()
 	expired.Deadline = time.Now().Add(-time.Second)
-	_, err = host.Call(context.Background(), "addon/service.call", map[string]any{}, expired)
+	_, err = host.Call(context.Background(), "service/codex.example/evaluate", map[string]any{}, expired)
 	assertRPCError(t, err, KindDeadlineExceeded)
 }
 
@@ -292,7 +292,7 @@ func TestPeerNormalizesUnknownRemoteErrorKind(t *testing.T) {
 		nil,
 		nil,
 	)
-	_, err := host.Call(context.Background(), "addon/service.call", map[string]any{}, testMeta())
+	_, err := host.Call(context.Background(), "service/codex.example/evaluate", map[string]any{}, testMeta())
 	var failure *RPCError
 	if !errors.As(err, &failure) || failure.Data == nil {
 		t.Fatalf("Call error = %T %v", err, err)
@@ -312,7 +312,7 @@ func TestPeerTreatsRemoteErrorWithoutApplicationDataAsInternal(t *testing.T) {
 		nil,
 		nil,
 	)
-	_, err := host.Call(context.Background(), "addon/service.call", map[string]any{}, testMeta())
+	_, err := host.Call(context.Background(), "service/codex.example/evaluate", map[string]any{}, testMeta())
 	assertRPCError(t, err, KindInternal)
 }
 
@@ -333,7 +333,7 @@ func TestPeerFailsPendingCallsWhenTransportCloses(t *testing.T) {
 	)
 	result := make(chan error, 1)
 	go func() {
-		_, err := host.Call(context.Background(), "addon/service.call", map[string]any{}, testMeta())
+		_, err := host.Call(context.Background(), "service/codex.example/evaluate", map[string]any{}, testMeta())
 		result <- err
 	}()
 	<-handlerStarted
@@ -492,7 +492,7 @@ func TestPeerAnswersUnencodableResultWithoutClosing(t *testing.T) {
 
 	host, _ := newTestPeerPair(t, nil,
 		RequestHandlerFunc(func(_ context.Context, request Request) (any, error) {
-			if request.Method == "addon/service.call" {
+			if request.Method == "service/codex.example/evaluate" {
 				return map[string]any{"bad": make(chan int)}, nil
 			}
 			return map[string]any{"ok": true}, nil
@@ -501,7 +501,7 @@ func TestPeerAnswersUnencodableResultWithoutClosing(t *testing.T) {
 		nil,
 	)
 
-	_, err := host.Call(context.Background(), "addon/service.call", map[string]any{}, testMeta())
+	_, err := host.Call(context.Background(), "service/codex.example/evaluate", map[string]any{}, testMeta())
 	assertRPCError(t, err, KindInternal)
 	if _, err := host.Call(context.Background(), "addon/health", map[string]any{}, testMeta()); err != nil {
 		t.Fatalf("peer closed after an unencodable result: %v", err)

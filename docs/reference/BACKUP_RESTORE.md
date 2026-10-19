@@ -27,9 +27,7 @@ points do not change repository links or tokens.
 Creation, verification and restore share a manifest size limit of 64 MiB by
 default, alongside the 100,000-file, 1 GiB archive and 4 GiB expanded-data
 limits. Creation refuses to publish an archive whose manifest exceeds that
-limit. The earlier verifier's fixed 1 MiB limit could reject backups produced
-by the host once retained add-on packages added enough files; use the updated
-maintenance utility to verify and restore those archives.
+limit.
 
 ## Commands
 
@@ -52,7 +50,9 @@ running host, so package cleanup may remove a build the copied database still
 needs. It therefore verifies its finished archive as `verify` does and removes
 one that fails; create it again. Offline maintenance instead holds the
 host-process lock.
-Blob objects are not physically collected. Existing backup ZIPs own their copies
+The running host never physically collects blob objects; only the offline
+`codex-maintenance collect-blobs` command does, under the host-process lock
+([how](../SELF_HOSTING.md#reviewed-offline-storage-maintenance)). Existing backup ZIPs own their copies
 of package files and do not prevent cleanup of an inactive live generation.
 Add-on recovery contexts retain exact package identities. Default
 [latest-only retention](PACKAGE_LIFECYCLE.md#automatic-package-file-retention)

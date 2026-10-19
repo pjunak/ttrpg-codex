@@ -1170,7 +1170,7 @@ The currently composed methods are:
 | Host -> worker | `codex/health` | Bounded liveness/readiness primitive |
 | Host -> worker | `codex/shutdown` | Graceful teardown |
 | Either | `$/cancelRequest` | Cooperative request cancellation |
-| Host -> worker | `addon/service.call` | Invoke a declared service method |
+| Host -> worker | `service/<contract>/<method>` | Invoke a declared service method |
 | Worker -> host | `host/data.get` | Read an authorized package document |
 | Worker -> host | `host/data.query` | Run a bounded package query |
 | Worker -> host | `host/data.transact` | Submit schema-checked mutations, optionally guarded by data-set revisions |

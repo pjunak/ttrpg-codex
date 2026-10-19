@@ -66,8 +66,9 @@ filesystem paths are never public identity.
 
 ## Live updates
 
-Every committed logical change appends a role-scoped event in the same durable
-transaction. `/api/events` provides monotonic Server-Sent Event replay, reset
+Every committed campaign or add-on data change appends a role-scoped event in
+the same durable transaction; an add-on lifecycle change publishes its
+`browser-addons-changed` event after it commits. `/api/events` provides monotonic Server-Sent Event replay, reset
 recovery, heartbeats, bounded queues, and slow-client eviction. The browser
 keeps one event connection and refreshes authoritative state after validated
 invalidation events.
