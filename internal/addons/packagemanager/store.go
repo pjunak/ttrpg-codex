@@ -377,16 +377,8 @@ func (store *store) snapshot(ctx context.Context, addonID string, eventLimit int
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("list add-on generations: %w", err)
 	}
-	generations := make([]Generation, 0)
-	for rows.Next() {
-		generation, err := scanGeneration(rows)
-		if err != nil {
-			rows.Close()
-			return Snapshot{}, err
-		}
-		generations = append(generations, generation)
-	}
-	if err := rows.Close(); err != nil {
+	generations, err := readGenerations(rows)
+	if err != nil {
 		return Snapshot{}, err
 	}
 	if eventLimit <= 0 || eventLimit > 500 {
@@ -450,6 +442,33 @@ const generationManifestColumns = `COALESCE(json_extract(manifest_json, '$.name'
 
 type rowScanner interface {
 	Scan(...any) error
+}
+
+// rowCursor is the part of *sql.Rows that a listing reads.
+type rowCursor interface {
+	rowScanner
+	Next() bool
+	Err() error
+	Close() error
+}
+
+// readGenerations closes rows before returning. A listing that stopped early,
+// for example because its request was cancelled, is an error rather than a
+// shorter list: uninstall reviews are built from it.
+func readGenerations(rows rowCursor) ([]Generation, error) {
+	defer rows.Close()
+	generations := make([]Generation, 0)
+	for rows.Next() {
+		generation, err := scanGeneration(rows)
+		if err != nil {
+			return nil, err
+		}
+		generations = append(generations, generation)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate add-on generations: %w", err)
+	}
+	return generations, rows.Close()
 }
 
 func scanGeneration(row rowScanner) (Generation, error) {
