@@ -203,7 +203,7 @@ void test("DM edits either hero field through an optimistic save and preserves t
   await page.getByRole("button", { name: "Edit campaign tagline", exact: true }).click();
   await page.getByRole("textbox", { name: "Edit campaign tagline", exact: true }).fill("");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await page.locator(".campaign-identity-form").waitFor({ state: "detached" });
+  await page.locator(".campaign-title-page .inline-field-editor").waitFor({ state: "detached" });
   assert.equal(identity().value.name, "Asurai II");
   assert.equal(identity().value.tagline, "");
   assert.equal(writes[1][0].expectedRevision, 2);
@@ -248,11 +248,13 @@ void test("a server-side save conflict keeps the inline editor usable on a phone
   await page.getByRole("alert").waitFor();
   assert.equal(writes.length, 1);
   assert.equal(await input.inputValue(), "A mobile draft");
+  assert.equal(await page.getByRole("button", { name: "Save", exact: true }).isEnabled(), false);
+  await page.getByRole("button", { name: "Keep my draft", exact: true }).click();
   assert.equal(await page.getByRole("button", { name: "Save", exact: true }).isEnabled(), true);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   page.once("dialog", (dialog) => dialog.accept());
   await input.press("Escape");
-  await page.locator(".campaign-identity-form").waitFor({ state: "detached" });
+  await page.locator(".campaign-title-page .inline-field-editor").waitFor({ state: "detached" });
 });
 
 void test("party creation uses the original defaults, survives live refresh, and saves once", async (t) => {
@@ -341,7 +343,7 @@ for (const mobile of [false, true]) {
         .evaluate((input) => input === document.activeElement),
       true,
     );
-    assert.equal(await page.locator(".campaign-identity-form").count(), 0);
+    assert.equal(await page.locator(".campaign-title-page .inline-field-editor").count(), 0);
     if (mobile) await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "＋ Add", exact: true }).click();
     assert.equal(

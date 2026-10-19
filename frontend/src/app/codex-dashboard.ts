@@ -4,6 +4,7 @@ import { artwork } from "../ui/artwork.js";
 import { LitElement, html, nothing } from "lit";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import {
+  projectCampaignIdentity,
   projectDashboard,
   type DashboardEvent,
   type DashboardModel,
@@ -12,15 +13,13 @@ import {
 import { campaignPages, parseAppRoute, recordEditHash } from "./routes.js";
 import { describeActivity } from "./campaign-activity.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
-import {
-  campaignIdentityRecord,
-  type CampaignIdentityField,
-  type CampaignIdentitySaveDetail,
-} from "./campaign-identity.js";
-import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
+import { campaignIdentityRecord, type CampaignIdentityField } from "./campaign-identity.js";
+import { reportEditState } from "./unsaved-edit.js";
 import { pencilIcon } from "./edit-icon.js";
 import { saveCampaign } from "./campaign-writes.js";
-import { saveFailure } from "./save-failure.js";
+import { InlineDraftController, type InlineDraft } from "./inline-draft.js";
+import type { InlineControl } from "./codex-inline-field.js";
+import "./codex-inline-field.js";
 
 export class CodexDashboard extends LitElement {
   static override properties = {
@@ -30,9 +29,6 @@ export class CodexDashboard extends LitElement {
     authenticated: { type: Boolean },
     canEdit: { type: Boolean },
     busy: { type: Boolean },
-    editing: { state: true },
-    identitySaving: { state: true },
-    identityError: { state: true },
   };
 
   declare campaign: CampaignDataset | undefined;
@@ -42,12 +38,8 @@ export class CodexDashboard extends LitElement {
   declare canEdit: boolean;
   /** The app is saving or otherwise busy, so no write may start. */
   declare busy: boolean;
-  declare private editing: CampaignIdentityField | undefined;
-  declare private identitySaving: boolean;
-  declare private identityError: string;
-  #expectedRevision = 0;
-  #original = "";
-  #draft = "";
+  /** The name and tagline edited in place; one of them at a time. */
+  readonly #identity = new InlineDraftController(this);
   #dirty = false;
   readonly #ui = new UiLocalizationController(this);
 
@@ -59,9 +51,6 @@ export class CodexDashboard extends LitElement {
     this.authenticated = false;
     this.canEdit = false;
     this.busy = false;
-    this.editing = undefined;
-    this.identitySaving = false;
-    this.identityError = "";
   }
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
@@ -75,11 +64,14 @@ export class CodexDashboard extends LitElement {
   }
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    if (changed.has("partyOnly") || (changed.has("canManageCampaign") && !this.canManageCampaign)) {
-      this.editing = undefined;
-      this.identityError = "";
-      this.#setDirty(false);
-    }
+    if (changed.has("partyOnly") || (changed.has("canManageCampaign") && !this.canManageCampaign))
+      this.#identity.discardAll();
+  }
+
+  protected override updated(): void {
+    if (this.#identity.dirty === this.#dirty) return;
+    this.#dirty = this.#identity.dirty;
+    reportEditState(this, { dirty: this.#dirty });
   }
 
   #dashboard(model: DashboardModel) {
@@ -100,126 +92,49 @@ export class CodexDashboard extends LitElement {
 
   #identityRow(field: CampaignIdentityField, value: string) {
     const label = this.#ui.t(field === "name" ? "dashboard.editName" : "dashboard.editTagline");
-    const editing = this.editing === field;
-    const content = editing
-      ? html`
-      <input name=${field} aria-label=${label} maxlength="500" ?required=${field === "name"}
-        .value=${this.#draft} ?readonly=${this.#locked} @input=${this.#onIdentityInput} />
-    `
-      : value || (this.authenticated ? this.#ui.t("dashboard.taglinePlaceholder") : "");
+    const shown = value || (this.authenticated ? this.#ui.t("dashboard.taglinePlaceholder") : "");
     const text =
       field === "name"
-        ? html`<h1 id="campaign-title">${content}</h1>`
-        : html`<p class=${!editing && !value ? "is-placeholder" : ""}>${content}</p>`;
-    return editing
-      ? html`
-      <form class=${`campaign-identity-form identity-${field}`} @submit=${this.#saveIdentity} @keydown=${this.#identityKey}>
-        ${text}
-        <div class="identity-actions">
-          <button type="submit" ?disabled=${this.#locked}>${this.#ui.t(this.identitySaving ? "dashboard.saving" : "dashboard.save")}</button>
-          <button type="button" @click=${this.#cancelIdentity} ?disabled=${this.#locked}>${this.#ui.t("dashboard.cancel")}</button>
-        </div>
-        ${saveFailure(this.identityError)}
-      </form>`
-      : html`
+        ? html`<h1 id="campaign-title">${shown}</h1>`
+        : html`<p class=${value ? "" : "is-placeholder"}>${shown}</p>`;
+    if (this.canManageCampaign) {
+      // The identity saves as one record, so only one of its fields is open at a time.
+      const other = this.#identity.drafts.length > 0 && this.#identity.get(field) === undefined;
+      const control: InlineControl = { kind: "text", maxLength: 500, required: field === "name" };
+      return html`<codex-inline-field class=${`campaign-identity-row identity-${field}`}
+        .name=${field} .label=${label} .editLabel=${label} .value=${value} .display=${text} linked
+        .control=${control} .commit=${"explicit"} .canEdit=${true} ?disabled=${other}
+        .draft=${this.#identity.get(field)} .begin=${() => this.#openIdentity(field)}></codex-inline-field>`;
+    }
+    // Others see the pencil too: it asks visitors to sign in and tells players who edits.
+    return html`
       <div class="campaign-identity-row">
         ${text}
         <button class="campaign-identity-pen inline-edit-button" type="button" aria-label=${label}
-          title=${this.authenticated && !this.canManageCampaign ? this.#ui.t("dashboard.dmIdentity") : label}
-          ?disabled=${this.busy || this.editing !== undefined || (this.authenticated && !this.canManageCampaign)}
-          @click=${() => this.#startIdentity(field, value)}>${pencilIcon()}</button>
+          title=${this.authenticated ? this.#ui.t("dashboard.dmIdentity") : label}
+          ?disabled=${this.busy || this.authenticated}
+          @click=${() => this.#requestSignIn()}>${pencilIcon()}</button>
       </div>`;
   }
 
-  async #startIdentity(field: CampaignIdentityField, value: string): Promise<void> {
-    if (!this.authenticated) {
-      this.#requestSignIn();
-      return;
-    }
-    if (
-      !this.canManageCampaign ||
-      this.busy ||
-      this.editing !== undefined ||
-      this.campaign === undefined
-    )
-      return;
-    this.identityError = "";
-    this.#expectedRevision = campaignIdentityRecord(this.campaign)?.revision ?? 0;
-    this.#original = value;
-    this.#draft = value;
-    this.editing = field;
-    await this.updateComplete;
-    const input = this.querySelector<HTMLInputElement>(".campaign-identity-form input");
-    input?.focus();
-    input?.setSelectionRange(value.length, value.length);
-  }
-
-  readonly #onIdentityInput = (event: Event): void => {
-    this.#draft = (event.currentTarget as HTMLInputElement).value;
-    this.identityError = "";
-    this.#setDirty(this.#draft !== this.#original);
-  };
-
-  /** The identity form takes no input while any write runs, its own included. */
-  get #locked(): boolean {
-    return this.busy || this.identitySaving;
-  }
-
-  readonly #identityKey = (event: KeyboardEvent): void => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      this.#cancelIdentity();
-    }
-    if (event.key === "Enter" && event.isComposing) event.preventDefault();
-  };
-
-  readonly #cancelIdentity = (): void => {
-    if (
-      !this.#locked &&
-      confirmDiscardUnsavedEdit(this.#dirty, (message) => window.confirm(message))
-    ) {
-      void this.#closeIdentity();
-    }
-  };
-
-  async #closeIdentity(): Promise<void> {
-    const field = this.editing;
-    this.editing = undefined;
-    this.identityError = "";
-    this.#setDirty(false);
-    await this.updateComplete;
-    this.querySelector<HTMLButtonElement>(
-      `.campaign-identity-row:${field === "name" ? "first" : "last"}-of-type .campaign-identity-pen`,
-    )?.focus();
-  }
-
-  readonly #saveIdentity = async (event: SubmitEvent): Promise<void> => {
-    event.preventDefault();
-    const field = this.editing;
-    if (!this.canManageCampaign || this.#locked || field === undefined) return;
-    if (!this.#dirty) {
-      void this.#closeIdentity();
-      return;
-    }
-    const detail: CampaignIdentitySaveDetail = Object.freeze({
-      field,
-      value: this.#draft,
-      expectedRevision: this.#expectedRevision,
+  #openIdentity(field: CampaignIdentityField): InlineDraft {
+    const saved = () => ({
+      base:
+        this.campaign === undefined ? 0 : (campaignIdentityRecord(this.campaign)?.revision ?? 0),
+      value: this.campaign === undefined ? "" : projectCampaignIdentity(this.campaign)[field],
     });
-    this.identitySaving = true;
-    this.identityError = "";
-    const result = await saveCampaign(this, "identity", detail);
-    this.identitySaving = false;
-    if (!this.isConnected || this.editing !== field) return;
-    if (result.ok) void this.#closeIdentity();
-    else this.identityError = result.message;
-  };
-
-  #setDirty(dirty: boolean): void {
-    if (dirty === this.#dirty) return;
-    this.#dirty = dirty;
-    reportEditState(this, { dirty });
+    return this.#identity.open(field, () => ({
+      ...saved(),
+      current: saved,
+      rebase: (result) => campaignIdentityRecord(result.campaign)?.revision ?? 0,
+      save: (value, base) =>
+        saveCampaign(this, "identity", {
+          field,
+          value: String(value),
+          expectedRevision: base as number,
+        }),
+      required: field === "name",
+    }));
   }
 
   #requestSignIn(): void {

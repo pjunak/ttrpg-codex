@@ -776,6 +776,60 @@ void test("circumstances autosave while wiki text remains an explicit draft, and
   assert.equal((await saved(host, "characters", "ryn")).description, "## An unsaved wiki draft");
 });
 
+void test("known facts and open questions edit in place, each list saving as a whole", async (t) => {
+  const host = await campaign(t, { characters: [character()] });
+  const { page, writes } = await open(t, host, "#/characters/ryn");
+  await page.getByRole("button", { name: "+ Add fact", exact: true }).click();
+  const fact = page.getByRole("textbox", { name: "Known facts", exact: true });
+  await fact.fill("Owes the guild a debt");
+  await fact.press("Enter");
+  await page
+    .getByRole("button", { name: "Edit Known facts", exact: true })
+    .filter({ hasText: "Owes the guild a debt" })
+    .waitFor();
+  await page.waitForFunction(
+    () => document.activeElement?.getAttribute("data-edit-field") === "known:0",
+  );
+  assert.deepEqual((await saved(host, "characters", "ryn")).known, ["Owes the guild a debt"]);
+
+  await page.getByRole("button", { name: "+ Add question", exact: true }).click();
+  const question = page.getByRole("textbox", { name: "Question", exact: true });
+  await question.fill("Who hired Ryn?");
+  await question.press("Enter");
+  await page
+    .getByRole("button", { name: "Edit Question", exact: true })
+    .filter({ hasText: "Who hired Ryn?" })
+    .waitFor();
+  await page.getByRole("button", { name: "Edit Answer", exact: true }).click();
+  const answer = page.getByRole("textbox", { name: "Answer", exact: true });
+  await answer.fill("The harbour master");
+  await until(() => writes.length === 3, "the answer saves after a pause");
+  await page
+    .locator(".character-save-status")
+    .getByText("Open questions saved", { exact: true })
+    .waitFor();
+  await answer.press("Escape");
+  await page
+    .getByRole("button", { name: "Edit Answer", exact: true })
+    .filter({ hasText: "The harbour master" })
+    .waitFor();
+  const questions = (await saved(host, "characters", "ryn")).unknown as {
+    text: string;
+    answer: string;
+  }[];
+  assert.deepEqual(
+    questions.map(({ text, answer }) => ({ text, answer })),
+    [{ text: "Who hired Ryn?", answer: "The harbour master" }],
+  );
+
+  await page.getByRole("button", { name: "Edit Known facts", exact: true }).click();
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await page.locator(".character-fact-list li").waitFor({ state: "detached" });
+  await until(() => writes.length === 4, "removing the fact saves the list");
+  await page.locator(".character-save-status").getByText("Known facts saved").waitFor();
+  assert.deepEqual((await saved(host, "characters", "ryn")).known ?? [], []);
+});
+
 void test("failed saves retain values for retry, and edits typed during a pending save are retained", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page, writes } = await open(t, host, "#/characters/ryn");

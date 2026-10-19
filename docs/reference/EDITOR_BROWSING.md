@@ -168,18 +168,31 @@ tiles with their emblem beside the text (locations use their map-marker icon,
 factions their colour and member count). Character cards show status and
 visible party identity.
 
-Facts edit in place on every record page. A value reads as text and shows a
-pencil on hover or focus; activating it turns it into a control with the same
-typography. Text and numbers confirm with Enter or ✓ and cancel with Escape or
-✕; choices save when picked, and lists of twelve or more become a searchable
-combobox. Multi-value references (connections, event characters and locations)
-and attitudes use the shared chip picker and save with Enter or ✓. Linked values keep their link with a separate pencil. Missing facts
-are grouped under **Add details and connections**. Long text and structured
-fields still open the full editor. Edits keep their
-opening snapshots, report conflicts beside the field and return focus to the
-value after Save or Escape. While another save runs, open fields are disabled;
-one with a rejected or changed draft stays open and becomes editable again
-when that save ends.
+Facts edit in place on record pages, the character profile and the dashboard,
+all with one inline field. A value reads as text and shows a pencil on hover or
+focus; activating it turns it into a control with the same typography. Enter or
+✓ saves and Escape or ✕ restores the saved value. Each field also saves in one
+of three ways: when focus leaves it (record and profile facts, known facts and
+questions), after a short pause while typing (a character's current
+circumstances and question answers, where Escape saves instead), or only when
+asked (the campaign name and tagline, with labelled Save and Cancel; Cancel
+asks before discarding a change). Choices save when picked, and lists of twelve
+or more become a searchable combobox. Multi-value references (connections,
+event characters and locations) and attitudes use the shared chip picker.
+Linked values keep their link with a separate pencil. Missing facts are grouped
+under **Add details and connections**. Long text and structured fields still
+open the full editor.
+
+The page showing a field keeps its draft, so the draft survives the field
+moving or the page re-rendering; a profile's known facts and its open questions
+each share one draft for the whole list, which saves as a whole. A draft keeps
+the record it started from and saves one value at a time: text typed while a
+save runs is saved after it. A rejected save keeps the field open with Retry,
+or after a conflict with **Keep my draft** (continue over the current value)
+and **Use current value**, and it does not save again until one is chosen.
+Writes run one at a time, so other open fields stay editable while one saves.
+Closing a field returns focus to its value. The dashboard opens one of the
+name and tagline at a time, because both save as one record.
 
 The character collection intentionally defaults to **All characters**. Explicit
 **NPCs** and **Party members** controls use the same saved filter state as the
@@ -350,6 +363,8 @@ bounded. These preferences do not change campaign policy or record ordering.
 | Shared Markdown recovery controls | `frontend/src/app/codex-markdown-editor.ts` |
 | Collection-level draft discovery, including unavailable entries | `frontend/src/app/codex-local-drafts.ts` |
 | Field definitions and canonical choices | `frontend/src/app/campaign-record-editor.ts` |
+| Inline fields, their commit modes and the drafts their page keeps | `frontend/src/app/codex-inline-field.ts`, `inline-draft.ts`, `record-inline-field.ts` |
+| The full record form: opening snapshot, dirty state, saving lock | `frontend/src/app/codex-record-form.ts` |
 | Editor write requests and their answers | `frontend/src/app/campaign-writes.ts` |
 | Write order, read-back checks and per-kind messages | `frontend/src/app/campaign-write-controller.ts`, `campaign-write-handlers.ts` |
 | Busy leases; admin view request lifetimes | `frontend/src/app/busy-lease.ts`, `admin-request-controller.ts` |
@@ -357,8 +372,8 @@ bounded. These preferences do not change campaign policy or record ordering.
 | View parsing, serialization and browser preferences | `frontend/src/app/collection-view.ts` |
 | Shared controls and existing record-row rendering | `frontend/src/app/codex-collection-browser.ts` |
 
-The record page supplies context and acknowledges only completed campaign
-saves. The character profile uses the same Markdown component/controller.
+The record page opens the record form for a create or edit and acknowledges
+only completed campaign saves. The character profile uses the same Markdown component/controller.
 Collection models cache against immutable dataset identity and locale; a live
 refresh or locale change rebuilds the derived data. The native-select rendering
 helper is shared by browsing and recovery controls. Add-ons retain their own

@@ -1,327 +1,340 @@
 import { LitElement, html, nothing } from "lit";
-import type {
-  CampaignCollectionName,
-  CampaignDataset,
-  CampaignRecord,
-} from "../core/campaign-data.js";
-import { articleReferences } from "./article-context.js";
-import { renderArticleReferences } from "./article-context-view.js";
-import {
-  editorOptionsFor,
-  sameCampaignValue,
-  type CampaignEditorField,
-} from "./campaign-record-editor.js";
-import { saveCampaign } from "./campaign-writes.js";
-import { recordValue, stringList } from "./campaign-projection.js";
 import { pencilIcon } from "./edit-icon.js";
+import type { InlineCommit, InlineDraft } from "./inline-draft.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
-import { reportEditState } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 
-/** Field kinds that edit comfortably in one line on a record page. */
-export const inlineFieldKinds: ReadonlySet<CampaignEditorField["kind"]> = new Set([
-  "line",
-  "number",
-  "enum",
-  "reference",
-  "references",
-  "attitudes",
-  "tags",
-]);
+export interface InlineOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+/** The control a field is edited with. */
+export type InlineControl =
+  | {
+      readonly kind: "text";
+      readonly type?: "text" | "number";
+      /** A paragraph rather than one line; Enter adds a line. */
+      readonly multiline?: boolean;
+      readonly maxLength?: number;
+      readonly min?: number;
+      readonly max?: number;
+      readonly required?: boolean;
+    }
+  /** One choice, saved as soon as it is picked; twelve or more become searchable. */
+  | { readonly kind: "choice"; readonly options: readonly InlineOption[] }
+  /** Several choices in the shared chip picker. */
+  | { readonly kind: "multi"; readonly options: readonly InlineOption[] };
+
+/** A value as its control shows it: text, one choice, or several choices. */
+export type InlineInput = string | readonly string[];
+
+/** This field's part of a draft that several fields edit together. */
+export interface InlineProjection {
+  read(value: unknown): InlineInput;
+  write(value: unknown, input: InlineInput): unknown;
+}
+
+const whole: InlineProjection = {
+  read: (value) => value as InlineInput,
+  write: (_value, input) => input,
+};
 
 /**
- * One record field edited in place: text and numbers confirm with Enter or ✓,
- * choices save on selection, and Escape or ✕ restores the saved value.
+ * One value edited in place. It reads as text with a pencil; activating it
+ * swaps in a control with the same typography. Enter or ✓ saves and Escape or
+ * ✕ restores the saved value; `commit` adds saving when focus leaves (`blur`)
+ * or after a pause while typing (`pause`, where Escape saves instead). An
+ * `explicit` field saves only then: its actions read Save and Cancel, and
+ * Cancel asks before discarding a change. Choices save when picked. A failed
+ * save keeps the draft open with Retry, or after a conflict with Keep my draft
+ * and Use current value. Typing may continue while a save runs; the newer text
+ * saves next.
+ *
+ * The owner keeps the draft (see `InlineDraftController`): `begin` opens it
+ * and `draft` passes it back, so a draft survives the field moving on the page.
  */
 export class CodexInlineField extends LitElement {
   static override properties = {
-    campaign: { attribute: false },
-    record: { attribute: false },
-    collection: { attribute: false },
-    field: { attribute: false },
     label: { attribute: false },
+    editLabel: { attribute: false },
+    placeholder: { attribute: false },
+    name: { attribute: false },
+    value: { attribute: false },
+    current: { attribute: false },
+    display: { attribute: false },
+    linked: { type: Boolean },
+    control: { attribute: false },
+    commit: { attribute: false },
     canEdit: { type: Boolean },
-    editing: { state: true },
-    pending: { state: true },
-    error: { state: true },
+    disabled: { type: Boolean },
+    draft: { attribute: false },
+    draftPart: { attribute: false },
+    begin: { attribute: false },
+    project: { attribute: false },
+    onRemove: { attribute: false },
   };
-  declare campaign: CampaignDataset;
-  declare record: CampaignRecord;
-  declare collection: CampaignCollectionName;
-  declare field: CampaignEditorField;
-  declare label: string | undefined;
+  /** The field's name, as it labels the control. */
+  declare label: string;
+  /** The read-mode button's name; "Edit {label}" by default. */
+  declare editLabel: string | undefined;
+  /** Read-mode text for an empty value; "Add {label}" by default. */
+  declare placeholder: string | undefined;
+  /** The owner's key for this field; focus returns to it after editing. */
+  declare name: string;
+  /** The value as the control shows it. */
+  declare value: InlineInput;
+  /** The saved value shown after a conflict, when `value` reflects an owner's draft. */
+  declare current: InlineInput | undefined;
+  /** Read-mode content; the value's text or choice labels by default. */
+  declare display: unknown;
+  /** Read mode shows `display` (such as links) beside a separate pencil. */
+  declare linked: boolean;
+  declare control: InlineControl;
+  declare commit: InlineCommit;
   declare canEdit: boolean;
-  declare private editing: boolean;
-  declare private pending: boolean;
-  declare private error: string;
-  #base: CampaignRecord | undefined;
-  #draft = "";
-  #list: readonly string[] = [];
-  #conflict = false;
-  #reportedDirty = false;
+  /** The field cannot start editing now; read mode shows its button disabled. */
+  declare disabled: boolean;
+  /** The owner's open draft for this field, if any. */
+  declare draft: InlineDraft | undefined;
+  /** Which part of `draft` this field edits, when several fields share it. */
+  declare draftPart: string | undefined;
+  /** Opens, or reuses, the owner's draft for this field; the owner passes it back as `draft`. */
+  declare begin: (() => void) | undefined;
+  declare project: InlineProjection;
+  /** Adds Remove while editing, for list items. */
+  declare onRemove: (() => void) | undefined;
 
   constructor() {
     super();
     new UiLocalizationController(this);
+    this.label = "";
+    this.name = "";
+    this.value = "";
+    this.linked = false;
+    this.control = { kind: "text" };
+    this.commit = "blur";
     this.canEdit = false;
-    this.editing = false;
-    this.pending = false;
-    this.error = "";
+    this.disabled = false;
+    this.project = whole;
   }
   protected override createRenderRoot() {
     return this;
   }
-  protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
-    const previous = changed.get("record") as CampaignRecord | undefined;
-    if (
-      (previous && previous.key !== this.record?.key) ||
-      // A save turns the page read-only while it runs. Fields with something to
-      // keep stay open but disabled: the saving one, so a rejection can show its
-      // message, and any rejected or changed draft.
-      (changed.has("canEdit") &&
-        !this.canEdit &&
-        !this.pending &&
-        this.error === "" &&
-        !this.#reportedDirty)
-    )
-      this.#close();
+
+  /** Opens the field for editing, as its read-mode button does. */
+  open(): Promise<void> {
+    return this.#start();
   }
-  get #name(): string {
-    return this.label ?? this.field.label;
+
+  get #open(): InlineDraft | undefined {
+    // Only the owner's draft counts: an element Lit reuses for another field
+    // must not keep editing the previous field's draft.
+    const draft = this.draft;
+    return draft !== undefined &&
+      !draft.closed &&
+      (this.draftPart === undefined || draft.active === this.draftPart)
+      ? draft
+      : undefined;
   }
-  get #saved(): string {
-    return fieldText(this.field, recordValue(this.record)[this.field.key]);
-  }
-  get #multi(): boolean {
-    return this.field.kind === "references" || this.field.kind === "attitudes";
-  }
-  #savedList(record = this.record): readonly string[] {
-    return fieldList(this.field, recordValue(record)[this.field.key]);
-  }
-  #listLabels(values: readonly string[]): string {
-    const options = this.#options();
-    return values
-      .map((value) => options.find((option) => option.value === value)?.label ?? value)
-      .join(", ");
-  }
+
   protected override render() {
-    if (!this.record || !this.field) return nothing;
-    const saved = recordValue(this.record)[this.field.key];
-    const reference =
-      (this.field.kind === "reference" || this.field.kind === "references") &&
-      this.field.referenceCollection;
-    if (!this.editing && this.#multi && this.#savedList().length) {
-      const content = reference
-        ? renderArticleReferences(articleReferences(this.campaign, reference, this.#savedList()))
-        : html`<span>${this.#listLabels(this.#savedList())}</span>`;
-      if (!this.canEdit) return content;
-      const edit = uiText("Edit {0}", { "0": this.#name });
-      return html`${content}
-        <button type="button" class="inline-edit-button" aria-label=${edit} title=${edit} @click=${this.#open}>${pencilIcon()}</button>`;
-    }
-    if (!this.editing) {
-      const shown =
-        reference || this.#multi
-          ? undefined
-          : this.field.kind === "enum"
-            ? (this.#options().find((option) => option.value === this.#saved)?.label ?? this.#saved)
-            : this.#saved;
-      if (!this.canEdit)
-        return reference
-          ? renderArticleReferences(articleReferences(this.campaign, reference, saved))
-          : html`<span>${shown || "—"}</span>`;
-      const edit = uiText("Edit {0}", { "0": this.#name });
-      if (reference && this.#saved)
-        return html`${renderArticleReferences(articleReferences(this.campaign, reference, saved))}
-          <button type="button" class="inline-edit-button" aria-label=${edit} title=${edit} @click=${this.#open}>${pencilIcon()}</button>`;
-      return html`<button type="button" class=${`inline-field-value${shown ? "" : " is-empty"}`} aria-label=${edit} @click=${this.#open}>${
-        shown || uiText("Add {0}", { "0": this.#name.toLocaleLowerCase() })
+    const draft = this.canEdit ? this.#open : undefined;
+    return draft === undefined ? this.#reading() : this.#editing(draft);
+  }
+
+  #reading() {
+    const text = this.#text(this.value);
+    if (!this.canEdit)
+      return this.display !== undefined ? this.display : html`<span>${text || "—"}</span>`;
+    const edit = this.editLabel ?? uiText("Edit {0}", { "0": this.label });
+    if (this.linked)
+      return html`${this.display ?? text}<button type="button" class="inline-edit-button"
+        data-edit-field=${this.name} aria-label=${edit} title=${edit} ?disabled=${this.disabled}
+        @click=${this.#start}>${pencilIcon()}</button>`;
+    const empty = text === "" && this.display === undefined;
+    return html`<button type="button" class=${`inline-field-value${empty ? " is-empty" : ""}`}
+      data-edit-field=${this.name} aria-label=${edit} ?disabled=${this.disabled}
+      @click=${this.#start}>${
+        empty
+          ? (this.placeholder ?? uiText("Add {0}", { "0": this.label.toLocaleLowerCase() }))
+          : (this.display ?? text)
       }</button>`;
-    }
-    const choice = this.field.kind === "enum" || this.field.kind === "reference";
-    const options = choice || this.#multi ? this.#options() : [];
-    const locked = this.pending || !this.canEdit;
-    return html`<span class=${`inline-field-editor${this.pending ? " is-pending" : ""}`}
-      @focusout=${this.#leave} @keydown=${this.#key}>
-      <span class="inline-edit-row">${
-        this.#multi
-          ? html`<select aria-label=${this.#name} multiple data-ui="chips" ?disabled=${locked}
-          @change=${(event: Event) => {
-            this.#list = [...(event.target as HTMLSelectElement).selectedOptions].map(
-              (option) => option.value,
-            );
-            this.error = "";
-            this.#dirty(!sameCampaignValue(this.#list, this.#savedList()));
-          }}>
-          ${this.#list.filter((value) => !options.some((option) => option.value === value)).map((value) => html`<option value=${value} selected>${value}</option>`)}
-          ${options.map((option) => html`<option value=${option.value} ?selected=${this.#list.includes(option.value)}>${option.label}</option>`)}</select>
-          ${this.#actions(locked)}`
-          : choice
-            ? html`<select aria-label=${this.#name} ?disabled=${locked} data-ui=${options.length >= 12 ? "combobox" : nothing}
-          @change=${(event: Event) => {
-            this.#draft = (event.target as HTMLSelectElement).value;
-            void this.#save();
-          }}>
-          <option value="" ?selected=${this.#draft === ""}>${uiText("None")}</option>
-          ${this.#draft && !options.some((option) => option.value === this.#draft) ? html`<option value=${this.#draft} selected>${this.#draft}</option>` : nothing}
-          ${options.map((option) => html`<option value=${option.value} ?selected=${option.value === this.#draft}>${option.label}</option>`)}</select>`
-            : html`<input aria-label=${this.#name} .value=${this.#draft} ?disabled=${locked}
-          type=${this.field.kind === "number" ? "number" : "text"} min=${this.field.minimum ?? nothing} max=${this.field.maximum ?? nothing}
-          maxlength=${this.field.kind === "tags" ? nothing : this.field.maximumLength} ?required=${this.field.required === true}
-          title=${uiText("Enter to confirm · Esc to cancel")}
-          @input=${(event: Event) => {
-            this.#draft = (event.target as HTMLInputElement).value;
-            this.error = "";
-            this.#dirty(this.#draft !== this.#saved);
-          }} />
-          ${this.#actions(locked)}`
-      }</span>
-      ${this.pending ? html`<small class="inline-edit-hint">${uiText("Saving…")}</small>` : nothing}
+  }
+
+  #editing(draft: InlineDraft) {
+    const labelled = this.commit === "explicit";
+    const actions =
+      this.control.kind === "choice" || (this.control.kind === "text" && this.control.multiline)
+        ? nothing
+        : html`<span class=${`inline-edit-actions${labelled ? " is-labelled" : ""}`}>
+        <button type="button" class="inline-edit-confirm"
+          aria-label=${labelled ? nothing : uiText("inlineEdit.save", { "0": this.label })}
+          title=${labelled ? nothing : uiText("inlineEdit.save", { "0": this.label })}
+          ?disabled=${draft.pending || draft.conflict}
+          @pointerdown=${(event: PointerEvent) => event.preventDefault()}
+          @click=${() => void draft.commit(true)}>${labelled ? uiText("inlineEdit.confirm") : "✓"}</button>
+        <button type="button" class="inline-edit-cancel"
+          aria-label=${labelled ? nothing : uiText("inlineEdit.cancel", { "0": this.label })}
+          title=${labelled ? nothing : uiText("inlineEdit.cancel", { "0": this.label })}
+          ?disabled=${draft.pending}
+          @pointerdown=${(event: PointerEvent) => event.preventDefault()}
+          @click=${() => this.#cancel(draft)}>${labelled ? uiText("Cancel") : "✕"}</button>
+      </span>`;
+    return html`<span class=${`inline-field-editor${draft.pending ? " is-pending" : ""}`}
+      data-field=${this.name}
+      @focusout=${(event: FocusEvent) => this.#leave(event, draft)}
+      @keydown=${(event: KeyboardEvent) => this.#key(event, draft)}>
+      <span class="inline-edit-row">${this.#control(draft)}${actions}</span>
       ${
-        this.error
-          ? html`<span class="inline-edit-error" role="alert">${this.error}</span>
-        ${this.#conflict ? html`<small class="inline-edit-hint">${uiText("Current saved value")}: ${(this.#multi ? this.#listLabels(this.#savedList()) : this.#saved) || "—"}</small>` : nothing}
-        <span class="inline-edit-recovery">${this.#conflict ? nothing : html`<button type="button" ?disabled=${locked} @click=${() => this.#save()}>${uiText("Retry")}</button>`}
-          <button type="button" ?disabled=${locked} @click=${this.#cancel}>${uiText("Use current value")}</button></span>`
+        draft.pending
+          ? html`<small class="inline-edit-hint">${uiText("Saving…")}</small>`
+          : this.commit === "pause"
+            ? html`<small class="inline-edit-hint">${uiText("Saves after a short pause")}</small>`
+            : nothing
+      }
+      ${
+        this.onRemove
+          ? html`<button type="button" class="inline-edit-remove" ?disabled=${draft.pending}
+          @pointerdown=${(event: PointerEvent) => event.preventDefault()}
+          @click=${() => this.onRemove?.()}>${uiText("Remove")}</button>`
           : nothing
       }
+      ${draft.error ? this.#recovery(draft) : nothing}
     </span>`;
   }
-  #actions(locked: boolean) {
-    return html`<span class="inline-edit-actions">
-      <button type="button" class="inline-edit-confirm" aria-label=${uiText("inlineEdit.save", { "0": this.#name })} title=${uiText("inlineEdit.save", { "0": this.#name })}
-        ?disabled=${locked} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => this.#save()}>✓</button>
-      <button type="button" class="inline-edit-cancel" aria-label=${uiText("inlineEdit.cancel", { "0": this.#name })} title=${uiText("inlineEdit.cancel", { "0": this.#name })}
-        ?disabled=${locked} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${this.#cancel}>✕</button>
-    </span>`;
+
+  #control(draft: InlineDraft) {
+    const control = this.control;
+    const input = this.project.read(draft.value);
+    const write = (next: InlineInput, autosave = false) =>
+      draft.input(this.project.write(draft.value, next), autosave);
+    if (control.kind === "multi") {
+      const selected = typeof input === "string" ? [] : input;
+      return html`<select aria-label=${this.label} multiple data-ui="chips" ?disabled=${draft.pending}
+        @change=${(event: Event) =>
+          write(
+            [...(event.target as HTMLSelectElement).selectedOptions].map((option) => option.value),
+          )}>
+        ${selected
+          .filter((value) => !control.options.some((option) => option.value === value))
+          .map((value) => html`<option value=${value} selected>${value}</option>`)}
+        ${control.options.map(
+          (option) =>
+            html`<option value=${option.value} ?selected=${selected.includes(option.value)}>${option.label}</option>`,
+        )}</select>`;
+    }
+    const text = typeof input === "string" ? input : "";
+    if (control.kind === "choice")
+      return html`<select aria-label=${this.label} ?disabled=${draft.pending}
+        data-ui=${control.options.length >= 12 ? "combobox" : nothing}
+        @change=${(event: Event) => {
+          write((event.target as HTMLSelectElement).value);
+          void draft.commit(true);
+        }}>
+        <option value="" ?selected=${text === ""}>${uiText("None")}</option>
+        ${
+          text && !control.options.some((option) => option.value === text)
+            ? html`<option value=${text} selected>${text}</option>`
+            : nothing
+        }
+        ${control.options.map(
+          (option) =>
+            html`<option value=${option.value} ?selected=${option.value === text}>${option.label}</option>`,
+        )}</select>`;
+    if (control.multiline)
+      return html`<textarea aria-label=${this.label} .value=${text}
+        maxlength=${control.maxLength ?? nothing}
+        @input=${(event: Event) =>
+          write((event.target as HTMLTextAreaElement).value, this.commit === "pause")}></textarea>`;
+    return html`<input aria-label=${this.label} .value=${text}
+      type=${control.type === "number" ? "number" : "text"} min=${control.min ?? nothing}
+      max=${control.max ?? nothing} maxlength=${control.maxLength ?? nothing}
+      ?required=${control.required === true}
+      title=${this.commit === "explicit" ? nothing : uiText("Enter to confirm · Esc to cancel")}
+      @input=${(event: Event) =>
+        write((event.target as HTMLInputElement).value, this.commit === "pause")} />`;
   }
-  #options() {
-    return editorOptionsFor(this.campaign, this.field, this.record.key);
+
+  #recovery(draft: InlineDraft) {
+    return html`<span class="inline-edit-error" role="alert">${draft.error}</span>
+      ${
+        draft.conflict
+          ? html`<small class="inline-edit-hint">${uiText("Current saved value")}: ${this.#text(this.current ?? this.value) || "—"}</small>`
+          : nothing
+      }
+      <span class="inline-edit-recovery">${
+        draft.conflict
+          ? html`<button type="button" @click=${() => draft.keep()}>${uiText("Keep my draft")}</button>`
+          : html`<button type="button" ?disabled=${draft.pending}
+            @click=${() => void draft.commit(true)}>${uiText("Retry")}</button>`
+      }
+        <button type="button" ?disabled=${draft.pending}
+          @click=${() => this.#cancel(draft)}>${uiText("Use current value")}</button></span>`;
   }
-  readonly #open = async (): Promise<void> => {
-    this.#base = this.record;
-    this.#draft = this.#saved;
-    this.#list = this.#savedList();
-    this.#conflict = false;
-    this.error = "";
-    this.editing = true;
+
+  #text(value: InlineInput): string {
+    const options = this.control.kind === "text" ? [] : this.control.options;
+    const label = (item: string) => options.find((option) => option.value === item)?.label ?? item;
+    return typeof value === "string" ? label(value) : value.map(label).join(", ");
+  }
+
+  readonly #start = async (): Promise<void> => {
+    if (!this.canEdit || this.begin === undefined) return;
+    if (this.#open === undefined) {
+      if (this.disabled) return;
+      this.begin();
+    }
+    // The owner renders first and passes the draft back before this updates.
+    this.requestUpdate();
     await this.updateComplete;
     // Searchable selects are enhanced by the page's shared controls after this render.
     if (this.querySelector('select[data-ui="combobox"], select[data-ui="chips"]'))
       await new Promise((resolve) => requestAnimationFrame(resolve));
     const control =
       this.querySelector<HTMLInputElement>(".ui-combobox input, .ui-chip-input") ??
-      this.querySelector<HTMLInputElement | HTMLSelectElement>(".inline-edit-row input, select");
+      this.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        ".inline-edit-row :is(input, textarea, select)",
+      );
     control?.focus();
     if (control instanceof HTMLInputElement) control.select();
   };
-  readonly #key = (event: KeyboardEvent): void => {
-    if (event.isComposing) return;
-    if (
-      event.key === "Enter" &&
-      event.target instanceof HTMLInputElement &&
-      !event.defaultPrevented
-    ) {
-      if (event.target.closest(".ui-combobox")) return;
-      event.preventDefault();
-      void this.#save();
-    } else if (event.key === "Escape" && !event.defaultPrevented) {
+
+  #key(event: KeyboardEvent, draft: InlineDraft): void {
+    // Open lists and chip pickers handle their own Escape and Enter first.
+    if (event.isComposing || event.defaultPrevented) return;
+    const target = event.target as Element;
+    if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      this.#cancel();
+      if (this.commit === "pause") void draft.commit(true);
+      else this.#cancel(draft);
+    } else if (
+      event.key === "Enter" &&
+      (target instanceof HTMLInputElement || target instanceof HTMLSelectElement) &&
+      !target.closest(".ui-combobox")
+    ) {
+      event.preventDefault();
+      void draft.commit(true);
     }
-  };
-  readonly #leave = (event: FocusEvent): void => {
+  }
+
+  #leave(event: FocusEvent, draft: InlineDraft): void {
     const next = event.relatedTarget;
     if (next instanceof Element && (this.contains(next) || next.closest(".ui-popup"))) return;
-    if (!this.error && !this.pending && this.canEdit) void this.#save();
-  };
-  readonly #cancel = (): void => {
-    if (this.pending) return;
-    const focused = this.contains(document.activeElement);
-    this.#close();
-    if (focused)
-      void this.updateComplete.then(() =>
-        this.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true }),
-      );
-  };
-  #close(): void {
-    this.#dirty(false);
-    this.editing = false;
-    this.pending = false;
-    this.error = "";
-    this.#conflict = false;
-    this.#base = undefined;
+    if (this.commit !== "explicit" && !draft.error) void draft.commit(true);
   }
-  async #save(): Promise<void> {
-    if (!this.editing || !this.canEdit || this.pending || this.#conflict || !this.#base) return;
-    const value = this.#multi ? [...this.#list] : fieldValue(this.field, this.#draft);
-    const before = this.#multi
-      ? this.#savedList(this.#base)
-      : fieldValue(this.field, fieldText(this.field, recordValue(this.#base)[this.field.key]));
-    if (sameCampaignValue(value, before)) {
-      this.#cancel();
+
+  #cancel(draft: InlineDraft): void {
+    if (draft.pending) return;
+    // An explicit draft never saves itself, so leaving it changed asks first.
+    if (
+      this.commit === "explicit" &&
+      !confirmDiscardUnsavedEdit(draft.dirty, (message) => window.confirm(message))
+    )
       return;
-    }
-    if (this.field.required && this.#draft.trim() === "") {
-      this.error = uiText("A name is required.");
-      return;
-    }
-    this.pending = true;
-    const base = this.#base;
-    const result = await saveCampaign(this, "record-patch", {
-      collection: this.collection,
-      base,
-      fields: { [this.field.key]: value },
-    });
-    this.pending = false;
-    if (!this.isConnected) return;
-    if (result.ok) {
-      this.record = result.record ?? this.record;
-      this.campaign = result.campaign;
-      const focused = this.contains(document.activeElement);
-      this.#close();
-      if (focused)
-        void this.updateComplete.then(() =>
-          this.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true }),
-        );
-    } else {
-      this.error = result.message;
-      this.#conflict = result.conflict === true;
-    }
+    draft.discard();
   }
-  #dirty(dirty: boolean): void {
-    if (dirty === this.#reportedDirty) return;
-    this.#reportedDirty = dirty;
-    reportEditState(this, { dirty });
-  }
-}
-
-function fieldText(field: CampaignEditorField, value: unknown): string {
-  if (field.kind === "tags") return stringList(value).join(", ");
-  return typeof value === "string" || typeof value === "number" ? String(value) : "";
-}
-
-function fieldList(field: CampaignEditorField, value: unknown): readonly string[] {
-  if (field.kind !== "attitudes") return stringList(value);
-  // Attitudes are stored as objects; edits send their IDs.
-  return Array.isArray(value)
-    ? value.flatMap((item: unknown) =>
-        typeof item === "object" &&
-        item !== null &&
-        typeof (item as { id?: unknown }).id === "string"
-          ? [(item as { id: string }).id]
-          : [],
-      )
-    : [];
-}
-
-function fieldValue(field: CampaignEditorField, text: string): unknown {
-  if (field.kind === "tags")
-    return text
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  return field.kind === "line" ? text.trim() : text;
 }
 
 if (!customElements.get("codex-inline-field"))

@@ -1791,7 +1791,7 @@ void test("the full form takes no input while it saves and keeps the draft after
   assert.equal((await record("locked-town")).value.name, "Locked town");
 });
 
-void test("a rejected inline draft stays open while another field saves", async (t) => {
+void test("a rejected inline draft stays open and editable while another field saves", async (t) => {
   await put(admin, csrf, "kept-draft-town", { name: "Kept draft town", region: "North" });
   const dm = await open(t, "dm");
   await dm.page.goto("/#/locations/kept-draft-town");
@@ -1829,7 +1829,8 @@ void test("a rejected inline draft stays open while another field saves", async 
   await region.press("Enter");
   await dm.page.locator(".inline-edit-hint").getByText("Saving…", { exact: true }).waitFor();
   assert.equal(await name.inputValue(), "Rejected name draft");
-  assert.equal(await name.isEditable(), false);
+  // Writes run one at a time, so another field's save leaves this draft usable.
+  assert.equal(await name.isEditable(), true);
   release();
   await dm.page
     .getByRole("button", { name: "Edit Region", exact: true })

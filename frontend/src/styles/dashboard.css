@@ -14,20 +14,27 @@ codex-dashboard {
   margin-bottom: 2rem;
 }
 
-.campaign-title-page h1 {
-  margin: 0 0 0.25rem;
+/* An open name or tagline keeps the typography it is read in. */
+.campaign-title-page h1,
+.campaign-title-page .identity-name .inline-edit-row > input {
   color: var(--gold);
   font: 600 2.6rem/1.2 var(--font-title);
   letter-spacing: 0.06em;
+}
+.campaign-title-page h1 {
+  margin: 0 0 0.25rem;
   overflow-wrap: anywhere;
 }
 
-.campaign-title-page p {
-  margin: 0;
-  min-height: 1.2em;
+.campaign-title-page p,
+.campaign-title-page .identity-tagline .inline-edit-row > input {
   color: var(--text-muted);
   font: 0.92rem/1.6 var(--font-ui);
   letter-spacing: 0.08em;
+}
+.campaign-title-page p {
+  margin: 0;
+  min-height: 1.2em;
 }
 /* The empty tagline invites an edit; it must not read as the campaign's own words. */
 .campaign-title-page p.is-placeholder {
@@ -54,20 +61,15 @@ codex-dashboard {
 .campaign-identity-row > :first-child {
   min-width: 0;
 }
-.campaign-identity-form input {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  padding: 0.15rem 0.4rem;
-  border: 1px dashed rgba(var(--accent-gold-rgb), 0.4);
-  border-radius: var(--radius-sm);
-  background: rgba(var(--accent-gold-rgb), 0.05);
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
+/* Save and Cancel sit centred below the open name or tagline. */
+.campaign-title-page .inline-edit-row {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.campaign-title-page .inline-edit-row > input {
+  flex-basis: 100%;
   text-align: center;
 }
-.identity-actions,
 .party-section-actions {
   display: flex;
   flex-wrap: wrap;
@@ -75,12 +77,7 @@ codex-dashboard {
   justify-content: flex-end;
   gap: 0.75rem;
 }
-.identity-actions {
-  justify-content: center;
-  margin: 0.5rem 0;
-}
-.party-add,
-.identity-actions button {
+.party-add {
   font: 0.78rem var(--font-ui);
   background: transparent;
   border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
@@ -89,8 +86,7 @@ codex-dashboard {
   color: var(--gold);
   cursor: pointer;
 }
-.party-add:hover,
-.identity-actions button:hover {
+.party-add:hover {
   background: rgba(var(--accent-gold-rgb), 0.1);
   border-color: var(--gold);
 }

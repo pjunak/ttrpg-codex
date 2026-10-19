@@ -279,6 +279,11 @@ codex-character-profile {
   border-color: rgba(var(--accent-gold-rgb), 0.6);
   color: var(--accent-gold);
 }
+/* A field that saves only when asked names its actions. */
+.inline-edit-actions.is-labelled button {
+  width: auto;
+  padding: 0 0.6rem;
+}
 .inline-edit-actions button:hover:enabled {
   background: var(--bg-raised);
   color: var(--text-parchment);

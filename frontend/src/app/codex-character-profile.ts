@@ -1,15 +1,15 @@
 import { investigationQuestions } from "./campaign-investigation.js";
-import { articleContext, articleReferences } from "./article-context.js";
+import { articleContext } from "./article-context.js";
 import {
   renderArticleContext,
-  renderArticleReferences,
   renderCharacterRelationships,
   renderCharacterLocationRoles,
   renderRecordBadges,
 } from "./article-context-view.js";
 import { characterKnowledge, characterReadingValue } from "./character-reading.js";
 import { campaignPages } from "./routes.js";
-import { LitElement, html, nothing, type TemplateResult } from "lit";
+import { LitElement, html, nothing } from "lit";
+import { repeat } from "lit/directives/repeat.js";
 import { isRecord } from "../core/boundary.js";
 import { type CampaignDataset, type CampaignRecord } from "../core/campaign-data.js";
 import { previewResourceURL } from "../core/player-preview.js";
@@ -18,7 +18,6 @@ import {
   editorOptionsFor,
   relationshipBaseFor,
   relationshipEditorRowsFor,
-  sameCampaignValue,
   type CampaignEditorField,
   type CampaignCharacterPatch,
 } from "./campaign-record-editor.js";
@@ -47,21 +46,14 @@ import type { BrowserRole } from "../addons/generation-manager.js";
 import { CodexPortraitEditor } from "./codex-portrait-editor.js";
 import { artwork } from "../ui/artwork.js";
 import { pencilIcon } from "./edit-icon.js";
-import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState, type EditState } from "./unsaved-edit.js";
+import type { CodexInlineField, InlineControl, InlineProjection } from "./codex-inline-field.js";
+import { InlineDraftController, type InlineDraft } from "./inline-draft.js";
+import { recordInlineField, type RecordFieldPatch } from "./record-inline-field.js";
 
-interface FieldDraft {
-  readonly key: string;
-  base: CampaignRecord;
-  value: unknown;
-  original: unknown;
-  row?: number;
-  part?: string;
-  timer?: ReturnType<typeof setTimeout>;
-  pending: boolean;
-  closeAfter: boolean;
-  again: boolean;
-  error: string;
-  conflict: boolean;
+interface Question {
+  readonly text: string;
+  readonly answer: string;
 }
 
 export class CodexCharacterProfile extends LitElement {
@@ -96,7 +88,9 @@ export class CodexCharacterProfile extends LitElement {
   declare private panel: string;
   declare private wikiOpen: boolean;
   declare private wikiSaving: boolean;
-  readonly #drafts = new Map<string, FieldDraft>();
+  /** Fields edited in place; known facts and open questions each share one draft. */
+  readonly #fields = new InlineDraftController(this);
+  #reported: EditState = { dirty: false, saving: false };
   #wikiBase: CampaignRecord | undefined;
   #wikiValue = "";
   #wikiError = "";
@@ -125,16 +119,11 @@ export class CodexCharacterProfile extends LitElement {
     return this;
   }
   get hasDraft(): boolean {
-    return this.#saves > 0 || this.#drafts.size > 0 || this.wikiOpen || this.panel !== "";
-  }
-  override disconnectedCallback(): void {
-    for (const draft of this.#drafts.values()) clearTimeout(draft.timer);
-    super.disconnectedCallback();
+    return this.#saves > 0 || this.#fields.drafts.length > 0 || this.wikiOpen || this.panel !== "";
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
     if (this.record?.key !== this.#lastKey || changed.has("actorRole") || !this.canEdit) {
-      for (const draft of this.#drafts.values()) clearTimeout(draft.timer);
-      this.#drafts.clear();
+      this.#fields.discardAll();
       this.#wikiBase = undefined;
       this.#panelBase = undefined;
       this.#undo = undefined;
@@ -144,7 +133,13 @@ export class CodexCharacterProfile extends LitElement {
       this.#lastKey = this.record?.key ?? "";
       this.status = "";
     }
-    if (!this.canEdit) for (const draft of this.#drafts.values()) clearTimeout(draft.timer);
+  }
+  protected override updated(): void {
+    const dirty = this.#unsaved(),
+      saving = this.#saves > 0;
+    if (dirty === this.#reported.dirty && saving === this.#reported.saving) return;
+    this.#reported = { dirty, saving };
+    reportEditState(this, this.#reported);
   }
   protected override render() {
     if (!this.record || !this.campaign || !this.entity) return nothing;
@@ -200,14 +195,14 @@ export class CodexCharacterProfile extends LitElement {
             ${revealed && this.#hasValue("title") ? html`<div class="character-subtitle">${this.#inline("title")}</div>` : nothing}
             ${renderRecordBadges(entity)}
           </div></header>
-          <dl class="record-facts">${(revealed ? ["species", "gender", "age", "status", "knowledge", "tags"] : ["knowledge"]).filter((key) => this.#hasValue(key)).map((key) => this.#fact(key))}</dl>
+          <dl class="record-facts">${this.#facts((revealed ? ["species", "gender", "age", "status", "knowledge", "tags"] : ["knowledge"]).filter((key) => this.#hasValue(key)))}</dl>
           ${
             revealed
               ? html`${
                   ["faction", "location", "rank"].some((key) => this.#hasValue(key)) ||
                   entity.attitudes.length
                     ? html`<section class="character-connections"><h2 class="record-section-title">${uiText("Connections")}</h2>
-            <dl class="record-facts">${["faction", "location"].filter((key) => this.#hasValue(key)).map((key) => this.#fact(key))}${this.#rankLabel() ? html`<div><dt>${uiText("Faction rank")}</dt><dd>${this.#panelValue("rankAssignment", this.#rankLabel())}</dd></div>` : nothing}
+            <dl class="record-facts">${this.#facts(["faction", "location"].filter((key) => this.#hasValue(key)))}${this.#rankLabel() ? html`<div><dt>${uiText("Faction rank")}</dt><dd>${this.#panelValue("rankAssignment", this.#rankLabel())}</dd></div>` : nothing}
             ${entity.attitudes.length ? html`<div><dt>${uiText("Attitudes toward the party")}</dt><dd>${this.#panelValue("attitudes", entity.attitudes.map((item) => item.label).join(", "))}</dd></div>` : nothing}</dl>
           </section>`
                     : nothing
@@ -261,11 +256,11 @@ export class CodexCharacterProfile extends LitElement {
           }
         </section>
         <div class="character-knowledge-grid"><section><h2 class="record-section-title">${uiText("What is known")}</h2>
-          <ul class="character-fact-list">${this.#known().map((_item, index) => html`<li>${this.#inline("known", index)}</li>`)}</ul>
+          <ul class="character-fact-list">${this.#known().map((_item, index) => html`<li>${this.#row("known", index)}</li>`)}</ul>
           ${this.canEdit ? html`<button class="character-add" type="button" @click=${() => this.#addItem("known")}>+ ${uiText("Add fact")}</button>` : nothing}</section>
           <section><h2 class="record-section-title">${uiText("Open questions")}</h2>
           <p class="investigation-count">${uiText("investigation.count", { open: investigationQuestions(value["unknown"]).filter((question) => !question.answer).length, total: investigationQuestions(value["unknown"]).length })}</p>
-          <div class="character-questions">${this.#questions().map((_item, index) => html`<div>${this.#inline("unknown", index, "text")}<div class="character-answer">${this.#inline("unknown", index, "answer")}</div></div>`)}</div>
+          <div class="character-questions">${this.#questions().map((_item, index) => html`<div>${this.#row("unknown", index, "text")}<div class="character-answer">${this.#row("unknown", index, "answer")}</div></div>`)}</div>
           ${this.canEdit ? html`<button class="character-add" type="button" @click=${() => this.#addItem("unknown")}>+ ${uiText("Add question")}</button>` : nothing}</section></div>
         ${
           hasRelationships
@@ -299,7 +294,9 @@ export class CodexCharacterProfile extends LitElement {
   }
 
   #hasValue(key: string): boolean {
-    const value = recordValue(this.#drafts.get(key)?.base ?? this.record)[key];
+    // An open field stays where it is until its draft closes.
+    const base = this.#fields.get(key)?.base as CampaignRecord | undefined;
+    const value = recordValue(base ?? this.record)[key];
     // New characters store the reserved "No faction" choice; it is not a connection.
     if (key === "faction" && value === "neutral") return false;
     return typeof value === "string"
@@ -322,7 +319,7 @@ export class CodexCharacterProfile extends LitElement {
       "circumstances",
     ].filter((key) => !this.#hasValue(key));
     return html`<details class="character-empty-details"><summary>${uiText("details.add")}</summary>
-      <dl class="record-facts">${keys.map((key) => this.#fact(key))}
+      <dl class="record-facts">${this.#facts(keys)}
         ${!this.#rankLabel() ? html`<div><dt>${uiText("Faction rank")}</dt><dd>${this.#panelValue("rankAssignment", "")}</dd></div>` : nothing}
         ${!this.entity.attitudes.length ? html`<div><dt>${uiText("Attitudes toward the party")}</dt><dd>${this.#panelValue("attitudes", "")}</dd></div>` : nothing}
       </dl>
@@ -346,29 +343,17 @@ export class CodexCharacterProfile extends LitElement {
     return fieldText(value[key]);
   }
   #known(): readonly string[] {
-    return (this.#drafts.get("known")?.value ?? this.#initial("known")) as readonly string[];
+    return (this.#fields.get("known")?.value ?? this.#initial("known")) as readonly string[];
   }
-  #questions(): readonly { text: string; answer: string }[] {
-    return (this.#drafts.get("unknown")?.value ?? this.#initial("unknown")) as readonly {
-      text: string;
-      answer: string;
-    }[];
+  #questions(): readonly Question[] {
+    return (this.#fields.get("unknown")?.value ?? this.#initial("unknown")) as readonly Question[];
   }
-  #fact(key: string) {
-    const field = this.#field(key),
-      reference = field.referenceCollection;
-    return html`<div><dt>${field.label}</dt><dd>${
-      // An empty reference reads as the usual "Add …" prompt, not an unavailable link.
-      reference && !this.#drafts.has(key) && this.#hasValue(key)
-        ? html`${renderArticleReferences(articleReferences(this.campaign, reference, recordValue(this.record)[key]))}
-        ${
-          this.canEdit
-            ? html`<button type="button" class="inline-edit-button" aria-label=${uiText("Edit {0}", { "0": field.label })}
-          title=${uiText("Edit {0}", { "0": field.label })} @click=${() => this.#begin(key)}>${pencilIcon()}</button>`
-            : nothing
-        }`
-        : this.#inline(key)
-    }</dd></div>`;
+  #facts(keys: readonly string[]) {
+    return repeat(
+      keys,
+      (key) => key,
+      (key) => html`<div><dt>${this.#field(key).label}</dt><dd>${this.#inline(key)}</dd></div>`,
+    );
   }
   #sectionHeading(panel: string, label: string) {
     return html`<div class="character-section-heading"><h2 class="record-section-title">${label}</h2>
@@ -379,302 +364,110 @@ export class CodexCharacterProfile extends LitElement {
           : nothing
       }</div>`;
   }
-  #display(key: string, value: unknown): string {
-    if (key === "tags") return (value as string[]).join(", ");
-    const field = this.#field(key);
-    return (
-      editorOptionsFor(this.campaign, field, this.record.key).find(
-        (option) => option.value === fieldText(value),
-      )?.label ?? fieldText(value)
-    );
-  }
-  #inline(key: string, row?: number, part?: string): TemplateResult {
+  /** A field edited in place; its draft lives here, so it survives the field moving. */
+  #inline(key: string) {
     if (
       key === "name" &&
       !this.inspect &&
-      !this.#drafts.has("name") &&
+      this.#fields.get("name") === undefined &&
       characterKnowledge(recordValue(this.record)) < 1
     )
       return html`<span>${uiText("knowledge.unknown")}</span>`;
-    const draft = this.#drafts.get(key);
-    const field = this.#field(key);
-    const whole = draft?.value ?? this.#initial(key);
-    const value =
-      row === undefined
-        ? this.#display(key, whole)
-        : key === "known"
-          ? String((whole as string[])[row] ?? "")
-          : text((whole as Record<string, unknown>[])[row]?.[part ?? "text"]);
-    const active = draft && draft.row === row && draft.part === part;
-    const label =
-      key === "unknown" ? uiText(part === "answer" ? "Answer" : "Question") : field.label;
-    if (!this.canEdit) return html`<span>${value || "—"}</span>`;
-    if (!active)
-      return html`<button type="button" class=${`inline-field-value${value ? "" : " is-empty"}`} data-edit-field=${key} aria-label=${uiText("Edit {0}", { "0": label })}
-      @click=${() => this.#begin(key, row, part)}>${value || uiText(part === "answer" ? "Add answer" : "Add {0}", { "0": label.toLocaleLowerCase() })}</button>`;
-    const options = editorOptionsFor(this.campaign, field, this.record.key);
-    const auto = key === "circumstances" || part === "answer";
-    const choice = field.kind === "enum" || field.kind === "reference";
-    const searchable = choice && options.length >= 12;
-    return html`<span class=${`inline-field-editor${draft.pending ? " is-pending" : ""}`} data-field=${key}
-      @focusout=${searchable ? (event: FocusEvent) => this.#leaveSearchable(event, key) : nothing}
-      @keydown=${
-        searchable
-          ? (event: KeyboardEvent) => {
-              // The combobox consumes the first Escape to close its list.
-              if (event.key !== "Escape" || event.isComposing) return;
-              event.preventDefault();
-              event.stopPropagation();
-              this.#cancelField(key);
-            }
-          : nothing
-      }>
-      <span class="inline-edit-row">${
-        choice
-          ? html`<select aria-label=${label} .value=${fieldText(whole)} ?disabled=${draft.pending} data-ui=${searchable ? "combobox" : nothing}
-        @change=${(e: Event) => {
-          this.#input(key, (e.target as HTMLSelectElement).value);
-          void this.#saveField(key, true);
-        }}
-        @blur=${() => {
-          if (!draft.error) void this.#saveField(key, true);
-        }}
-        @keydown=${(e: KeyboardEvent) => this.#fieldKey(e, key, auto)}><option value="" ?selected=${whole === ""}>${uiText("None")}</option>
-        ${!options.some((option) => option.value === whole) && whole ? html`<option value=${fieldText(whole)} selected>${fieldText(whole)}</option>` : nothing}
-        ${options.map((option) => html`<option value=${option.value} ?selected=${option.value === whole}>${option.label}</option>`)}</select>`
-          : auto
-            ? html`<textarea aria-label=${label} .value=${value} maxlength=${part === "answer" ? 100_000 : field.maximumLength}
-          @input=${(e: Event) => this.#input(key, (e.target as HTMLTextAreaElement).value, true)} @blur=${() => {
-            if (!draft.error) void this.#saveField(key, true);
-          }}
-          @keydown=${(e: KeyboardEvent) => this.#fieldKey(e, key, true)}></textarea>`
-            : html`<input aria-label=${label} .value=${value} type=${field.kind === "number" ? "number" : "text"} min=${field.minimum ?? nothing} max=${field.maximum ?? nothing} maxlength=${field.kind === "tags" ? nothing : field.maximumLength} ?required=${field.required === true}
-            @input=${(e: Event) => this.#input(key, (e.target as HTMLInputElement).value)} @blur=${() => {
-              if (!draft.error) void this.#saveField(key, true);
-            }}
-            title=${uiText("Enter to confirm · Esc to cancel")}
-            @keydown=${(e: KeyboardEvent) => this.#fieldKey(e, key, false)} />`
-      }${
-        choice || auto
-          ? nothing
-          : html`<span class="inline-edit-actions">
-        <button type="button" class="inline-edit-confirm" aria-label=${uiText("inlineEdit.save", { "0": label })} title=${uiText("inlineEdit.save", { "0": label })}
-          ?disabled=${draft.pending} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => this.#saveField(key, true)}>✓</button>
-        <button type="button" class="inline-edit-cancel" aria-label=${uiText("inlineEdit.cancel", { "0": label })} title=${uiText("inlineEdit.cancel", { "0": label })}
-          ?disabled=${draft.pending} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => this.#cancelField(key)}>✕</button>
-      </span>`
-      }</span>
-      ${draft.pending ? html`<small class="inline-edit-hint">${uiText("Saving…")}</small>` : auto ? html`<small class="inline-edit-hint">${uiText("Saves after a short pause")}</small>` : nothing}
-      ${
-        row !== undefined
-          ? html`<button type="button" class="inline-edit-remove" ?disabled=${draft.pending} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => {
-              (draft.value as unknown[]).splice(row, 1);
-              void this.#saveField(key, true);
-            }}>${uiText("Remove")}</button>`
-          : nothing
-      }
-      ${
-        draft.error
-          ? html`<span class="inline-edit-error" role="alert">${draft.error}</span>${
-              draft.conflict
-                ? html`<small class="inline-edit-hint">${uiText("Current saved value")}: ${this.#display(key, this.#initial(key))}</small>`
-                : nothing
-            }<span class="inline-edit-recovery">${
-              draft.conflict
-                ? html`<button type="button" @click=${() => {
-                    draft.base = this.record;
-                    draft.original = this.#initial(key);
-                    draft.conflict = false;
-                    draft.error = "";
-                    this.requestUpdate();
-                  }}>${uiText("Keep my draft")}</button>`
-                : html`<button type="button" @click=${() => this.#saveField(key, true)}>${uiText("Retry")}</button>`
-            }
-        <button type="button" @click=${() => this.#cancelField(key)}>${uiText("Use current value")}</button></span>`
-          : nothing
-      }
-    </span>`;
-  }
-  async #begin(key: string, row?: number, part?: string): Promise<void> {
-    let draft = this.#drafts.get(key);
-    if (!draft) {
-      const value = this.#initial(key);
-      draft = {
-        key,
-        base: this.record,
-        value: structuredClone(value),
-        original: value,
-        pending: false,
-        again: false,
-        closeAfter: false,
-        error: "",
-        conflict: false,
-      };
-      this.#drafts.set(key, draft);
-    }
-    if (row !== undefined) draft.row = row;
-    else delete draft.row;
-    if (part !== undefined) draft.part = part;
-    else delete draft.part;
-    this.requestUpdate();
-    await this.updateComplete;
-    // Searchable selects are enhanced by the page's shared controls after this render.
-    if (this.querySelector(`[data-field="${key}"] select[data-ui="combobox"]`))
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-    const control =
-      this.querySelector<HTMLInputElement>(`[data-field="${key}"] .ui-combobox input`) ??
-      this.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
-        `[data-field="${key}"] input,[data-field="${key}"] textarea,[data-field="${key}"] select`,
-      );
-    control?.focus();
-    if (control instanceof HTMLInputElement) control.select();
-  }
-  #leaveSearchable(event: FocusEvent, key: string): void {
-    const next = event.relatedTarget;
-    const editor = event.currentTarget as HTMLElement;
-    if (next instanceof Element && (editor.contains(next) || next.closest(".ui-popup"))) return;
-    const draft = this.#drafts.get(key);
-    if (draft && !draft.error && !draft.pending) void this.#saveField(key, true);
-  }
-  #input(key: string, value: string, auto = false): void {
-    const draft = this.#drafts.get(key);
-    if (!draft) return;
-    if (draft.row !== undefined) {
-      const rows = structuredClone(draft.value) as (string | Record<string, unknown>)[];
-      if (key === "known") rows[draft.row] = value;
-      else (rows[draft.row] as Record<string, unknown>)[draft.part ?? "text"] = value;
-      draft.value = rows;
-    } else
-      draft.value =
-        key === "tags"
-          ? value
-              .split(",")
-              .map((item) => item.trim())
-              .filter(Boolean)
-          : value;
-    draft.error = "";
-    clearTimeout(draft.timer);
-    if (auto && !draft.conflict)
-      draft.timer = setTimeout(() => {
-        void this.#saveField(key, false);
-      }, 700);
-    this.#dirty();
-  }
-  #fieldKey(e: KeyboardEvent, key: string, auto: boolean): void {
-    if (e.isComposing) return;
-    if (e.key === "Enter" && !auto) {
-      e.preventDefault();
-      void this.#saveField(key, true);
-    }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      if (auto) void this.#saveField(key, true);
-      else this.#cancelField(key);
-    }
-  }
-  #cancelField(key: string): void {
-    const draft = this.#drafts.get(key);
-    if (draft?.pending) return;
-    const focused = this.#focusedField(key);
-    clearTimeout(draft?.timer);
-    this.#drafts.delete(key);
-    this.status = "";
-    this.#dirty();
-    this.requestUpdate();
-    if (draft?.row === undefined) this.#restoreFieldFocus(key, focused);
-  }
-  #focusedField(key: string): Element | null {
-    const active = document.activeElement;
-    return this.querySelector(`[data-field="${key}"]`)?.contains(active) ? active : null;
-  }
-  #restoreFieldFocus(key: string, previous: Element | null): void {
-    if (!previous) return;
-    void this.updateComplete.then(() => {
-      if (document.activeElement === previous || document.activeElement === document.body) {
-        this.querySelector<HTMLButtonElement>(`[data-edit-field="${key}"]`)?.focus({
-          preventScroll: true,
-        });
-      }
+    return recordInlineField({
+      owner: this,
+      drafts: this.#fields,
+      campaign: this.campaign,
+      collection: "characters",
+      record: this.record,
+      field: this.#field(key),
+      canEdit: this.canEdit,
+      // The reserved "No faction" choice reads as its label, not as a link.
+      links: this.#hasValue(key),
+      paragraph: key === "circumstances",
+      latest: () => this.record,
+      send: (patch) => this.#sendField(key, patch),
     });
   }
-  async #saveField(key: string, close: boolean): Promise<void> {
-    const draft = this.#drafts.get(key);
-    if (!draft || !this.canEdit || draft.conflict) return;
-    clearTimeout(draft.timer);
-    draft.closeAfter = close;
-    if (draft.pending) {
-      draft.again = true;
-      return;
-    }
-    if (sameCampaignValue(draft.value, draft.original)) {
-      if (close) this.#cancelField(key);
-      return;
-    }
-    if (this.#field(key).required && !String(draft.value).trim()) {
-      draft.error = uiText("A name is required.");
-      this.requestUpdate();
-      return;
-    }
-    draft.pending = true;
-    const submitted = structuredClone(draft.value);
-    const before = structuredClone(draft.original);
-    const base = draft.base;
-    const editedRow = draft.row,
-      editedPart = draft.part;
-    const focused = this.#focusedField(key);
-    this.requestUpdate();
-    const result = await this.#send({ base: draft.base, fields: { [key]: submitted } });
-    draft.pending = false;
-    if (!this.isConnected || this.record.key !== draft.base.key) return;
-    if (result.ok) {
-      this.#accept(result);
-      draft.base = this.record;
-      draft.original = this.#initial(key, this.record);
-      this.#undo = {
+  /** One known fact, or a question or its answer; the whole list saves together. */
+  #row(key: "known" | "unknown", row: number, part?: keyof Question) {
+    const field = this.#field(key);
+    const id = part === undefined ? `${row}` : `${row}:${part}`;
+    const project: InlineProjection =
+      part === undefined
+        ? {
+            read: (value) => (value as readonly string[])[row] ?? "",
+            write: (value, input) =>
+              (value as readonly string[]).map((item, index) =>
+                index === row ? String(input) : item,
+              ),
+          }
+        : {
+            read: (value) => (value as readonly Question[])[row]?.[part] ?? "",
+            write: (value, input) =>
+              (value as readonly Question[]).map((item, index) =>
+                index === row ? { ...item, [part]: String(input) } : item,
+              ),
+          };
+    const answer = part === "answer";
+    const control: InlineControl = answer
+      ? { kind: "text", multiline: true, maxLength: 100_000 }
+      : { kind: "text", maxLength: field.maximumLength };
+    const draft = this.#fields.get(key);
+    return html`<codex-inline-field .name=${`${key}:${id}`}
+      .label=${key === "unknown" ? uiText(answer ? "Answer" : "Question") : field.label}
+      .placeholder=${answer ? uiText("Add answer") : undefined}
+      .value=${project.read(draft?.value ?? this.#initial(key))}
+      .current=${project.read(this.#initial(key))}
+      .control=${control} .commit=${answer ? "pause" : "blur"} .canEdit=${this.canEdit}
+      .draft=${draft} .draftPart=${id} .project=${project}
+      .begin=${() => this.#openRow(key, id)}
+      .onRemove=${() => this.#removeRow(key, row)}></codex-inline-field>`;
+  }
+  #openRow(key: "known" | "unknown", part: string): InlineDraft {
+    return this.#fields.open(
+      key,
+      () => ({
+        value: this.#initial(key),
         base: this.record,
-        fields: {
-          [key]: before,
-          ...(key === "faction"
-            ? {
-                rankAssignment: {
-                  chainId: text(recordValue(base)["rankChain"]),
-                  rank: text(recordValue(base)["rank"]),
-                },
-                attitudes: Array.isArray(recordValue(base)["attitudes"])
-                  ? (recordValue(base)["attitudes"] as unknown[])
-                      .filter(isRecord)
-                      .map((item) => item["id"])
-                  : [],
-              }
-            : {}),
-        },
-      };
-      if (sameCampaignValue(draft.value, submitted)) {
-        const closeCurrent =
-          draft.closeAfter && draft.row === editedRow && draft.part === editedPart;
-        if (closeCurrent) draft.value = structuredClone(draft.original);
-        else draft.original = structuredClone(submitted);
-        if (closeCurrent) this.#drafts.delete(key);
-      }
-      this.status = uiText("{0} saved", { "0": this.#field(key).label });
-    } else {
-      draft.error = result.message;
-      draft.conflict = result.conflict === true;
-      this.status = uiText("Changes not saved");
-    }
-    this.#dirty();
-    this.requestUpdate();
-    if (result.ok && editedRow === undefined && !this.#drafts.has(key))
-      this.#restoreFieldFocus(key, focused);
-    if (result.ok && draft.again && this.#drafts.has(key)) {
-      draft.again = false;
-      void this.#saveField(key, draft.closeAfter);
-    }
+        current: () => ({ base: this.record, value: this.#initial(key) }),
+        save: (value, base) =>
+          this.#sendField(key, { base: base as CampaignRecord, fields: { [key]: value } }),
+      }),
+      part,
+    );
+  }
+  #removeRow(key: "known" | "unknown", row: number): void {
+    const draft = this.#fields.get(key);
+    if (draft === undefined) return;
+    draft.input((draft.value as readonly unknown[]).filter((_item, index) => index !== row));
+    void draft.commit(true);
+  }
+  /** Saves one field edited in place and offers to undo it. */
+  async #sendField(key: string, patch: RecordFieldPatch): Promise<CampaignWriteResult> {
+    const result = await this.#send(patch);
+    if (!result.ok || !this.isConnected || this.record.key !== patch.base.key) return result;
+    this.#accept(result);
+    const base = recordValue(patch.base);
+    this.#undo = {
+      base: this.record,
+      fields: {
+        [key]: this.#initial(key, patch.base),
+        ...(key === "faction"
+          ? {
+              rankAssignment: { chainId: text(base["rankChain"]), rank: text(base["rank"]) },
+              attitudes: Array.isArray(base["attitudes"])
+                ? base["attitudes"].filter(isRecord).map((item) => item["id"])
+                : [],
+            }
+          : {}),
+      },
+    };
+    this.status = uiText("{0} saved", { "0": this.#field(key).label });
+    return result;
   }
   async #send(patch: CampaignCharacterPatch): Promise<CampaignWriteResult> {
     this.#saves++;
-    this.#dirty();
+    this.requestUpdate();
     try {
       return await saveCampaign(
         this,
@@ -684,7 +477,7 @@ export class CodexCharacterProfile extends LitElement {
       );
     } finally {
       this.#saves--;
-      this.#dirty();
+      this.requestUpdate();
     }
   }
   #accept(result: Extract<CampaignWriteResult, { ok: true }>): void {
@@ -693,7 +486,7 @@ export class CodexCharacterProfile extends LitElement {
   }
   #unsaved(): boolean {
     return (
-      [...this.#drafts.values()].some((draft) => !sameCampaignValue(draft.value, draft.original)) ||
+      this.#fields.dirty ||
       (this.#wikiBase !== undefined &&
         this.#wikiValue !== text(recordValue(this.#wikiBase)["description"])) ||
       this.#panelDirty
@@ -701,18 +494,9 @@ export class CodexCharacterProfile extends LitElement {
   }
   #feedback(): string {
     if (this.#saves > 0) return uiText("Saving…");
-    if (
-      [...this.#drafts.values()].some((draft) => draft.error) ||
-      this.#wikiError ||
-      this.#panelError
-    )
-      return uiText("save.failed");
+    if (this.#fields.failed || this.#wikiError || this.#panelError) return uiText("save.failed");
     if (this.#unsaved()) return uiText("save.draft");
     return this.status || uiText("save.saved");
-  }
-  #dirty(): void {
-    this.requestUpdate();
-    reportEditState(this, { dirty: this.#unsaved(), saving: this.#saves > 0 });
   }
   readonly #undoSave = async (): Promise<void> => {
     const undo = this.#undo;
@@ -722,6 +506,11 @@ export class CodexCharacterProfile extends LitElement {
     if (result.ok) {
       this.#accept(result);
       this.status = uiText("Change undone");
+      // A field still open since the undone save would show the value that is gone.
+      for (const key of Object.keys(undo.fields)) {
+        const draft = this.#fields.get(key);
+        if (draft !== undefined && !draft.dirty && !draft.pending) draft.discard();
+      }
     } else {
       this.#undo = undo;
       this.status = result.message;
@@ -729,14 +518,15 @@ export class CodexCharacterProfile extends LitElement {
     this.requestUpdate();
   };
   #addItem(key: "known" | "unknown"): void {
-    void this.#begin(key).then(() => {
-      const draft = this.#drafts.get(key)!;
-      const rows = [...(draft.value as unknown[])];
-      rows.push(key === "known" ? "" : { text: "", answer: "" });
-      draft.value = rows;
-      void this.#begin(key, rows.length - 1, key === "unknown" ? "text" : undefined);
-      this.#dirty();
-    });
+    const rows = (this.#fields.get(key)?.value ?? this.#initial(key)) as readonly unknown[];
+    const part = key === "unknown" ? `${rows.length}:text` : `${rows.length}`;
+    const draft = this.#openRow(key, part);
+    draft.input([...rows, key === "known" ? "" : { text: "", answer: "" }]);
+    void this.updateComplete.then(() =>
+      [...this.querySelectorAll<CodexInlineField>("codex-inline-field")]
+        .find((field) => field.name === `${key}:${part}`)
+        ?.open(),
+    );
   }
 
   readonly #openWiki = (): void => {
@@ -749,7 +539,7 @@ export class CodexCharacterProfile extends LitElement {
   };
   readonly #wikiChanged = (e: CustomEvent<{ value: string }>): void => {
     this.#wikiValue = e.detail.value;
-    this.#dirty();
+    this.requestUpdate();
   };
   readonly #cancelWiki = (): void => {
     if (this.wikiSaving) return;
@@ -765,7 +555,7 @@ export class CodexCharacterProfile extends LitElement {
     this.#wikiError = "";
     this.#wikiConflict = false;
     this.status = "";
-    this.#dirty();
+    this.requestUpdate();
   };
   readonly #saveWiki = async (): Promise<void> => {
     if (!this.#wikiBase || this.wikiSaving || this.#wikiConflict) return;
@@ -783,7 +573,7 @@ export class CodexCharacterProfile extends LitElement {
       this.#wikiError = result.message;
       this.#wikiConflict = result.conflict === true;
     }
-    this.#dirty();
+    this.requestUpdate();
     this.requestUpdate();
   };
 
@@ -800,7 +590,7 @@ export class CodexCharacterProfile extends LitElement {
     this.#panelDirty = false;
     this.#panelError = "";
     this.panel = panel;
-    this.#dirty();
+    this.requestUpdate();
     void this.updateComplete.then(async () => {
       const section = this.querySelector<HTMLElement>(".character-section-editor");
       section?.scrollIntoView({ block: "nearest" });
@@ -836,7 +626,7 @@ export class CodexCharacterProfile extends LitElement {
   }
   readonly #panelChanged = (): void => {
     this.#panelDirty = true;
-    this.#dirty();
+    this.requestUpdate();
   };
   readonly #cancelPanel = (): void => {
     if (this.#panelSaving) return;
@@ -844,7 +634,7 @@ export class CodexCharacterProfile extends LitElement {
     this.#panelDirty = false;
     this.#panelError = "";
     this.status = "";
-    this.#dirty();
+    this.requestUpdate();
   };
   readonly #savePanel = async (): Promise<void> => {
     if (!this.#panelBase || this.#panelSaving) return;
@@ -893,7 +683,7 @@ export class CodexCharacterProfile extends LitElement {
       this.panel = "";
       this.status = uiText("Changes saved");
     } else this.#panelError = result.message;
-    this.#dirty();
+    this.requestUpdate();
     this.requestUpdate();
   };
   #rankLabel(): string {
@@ -906,7 +696,7 @@ export class CodexCharacterProfile extends LitElement {
   readonly #editAll = (): void => {
     if (
       this.#saves > 0 ||
-      [...this.#drafts.values()].some((draft) => !sameCampaignValue(draft.value, draft.original)) ||
+      this.#fields.dirty ||
       (this.#wikiBase && this.#wikiValue !== text(recordValue(this.#wikiBase)["description"])) ||
       this.#panelDirty
     ) {
