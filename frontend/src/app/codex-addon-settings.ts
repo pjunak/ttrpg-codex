@@ -85,6 +85,7 @@ export class CodexAddonSettings extends LitElement {
       registry: this.registry,
       surface: "settings",
       role: this.actorRole,
+      locale: () => this.#ui.locale,
       include: (active) => active.addonId === this.addonId,
       hostContext: () => ({
         contractVersion: "addon-settings-context.v1",

@@ -1035,6 +1035,7 @@ export class CodexApp extends LitElement {
         registry: composition.contributions,
         surface: "slot",
         role: auth.role,
+        locale: () => this.#ui.locale,
         include: (active) =>
           this.route.kind === "dashboard" && active.descriptor.config["slot"] === undefined,
         onError,
@@ -1049,6 +1050,7 @@ export class CodexApp extends LitElement {
         surface: "article-section",
         compact: true,
         role: auth.role,
+        locale: () => this.#ui.locale,
         include: (active) =>
           this.route.kind === "record" &&
           active.descriptor.config["collection"] === this.route.page.collection,
@@ -1070,6 +1072,7 @@ export class CodexApp extends LitElement {
         // Add-on pages carry their own title; the sidebar already names their add-on.
         compact: true,
         role: auth.role,
+        locale: () => this.#ui.locale,
         include: (active) =>
           browserAddonRouteHash(active) ===
           parseBrowserAddonLocation(window.location.hash)?.routeHash,

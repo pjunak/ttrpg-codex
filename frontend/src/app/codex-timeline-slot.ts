@@ -85,6 +85,7 @@ export class CodexTimelineSlot extends LitElement {
         registry: this.registry,
         surface: "slot",
         role: this.actorRole,
+        locale: () => this.#ui.locale,
         compact: true,
         include: (active) => isTimelineSlot(active, this.context.slot),
         hostContext: (active) => timelineSlotContext(this.context, active),

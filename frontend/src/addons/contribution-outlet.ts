@@ -9,7 +9,6 @@ import type {
   BrowserContributionEditRegistration,
 } from "./edit-state.js";
 import { contributionLabel } from "./contribution-label.js";
-import { isRecord } from "../core/boundary.js";
 import { contextEn, contextCs } from "../app/context-messages.js";
 
 export interface BrowserContributionElementContext {
@@ -36,6 +35,8 @@ export interface BrowserContributionOutletOptions {
   readonly role: BrowserRole;
   readonly include?: (active: ActiveBrowserContribution) => boolean;
   readonly hostContext?: (active: ActiveBrowserContribution) => unknown;
+  /** Interface locale for the outlet's own labels and notices; English by default. */
+  readonly locale?: () => string;
   readonly compact?: boolean;
   /** Host-owned instance identity, independent of package generation and revision. */
   readonly handoffKey?: () => string | undefined;
@@ -60,6 +61,7 @@ export class BrowserContributionOutlet {
   readonly #role: BrowserRole;
   readonly #include: (active: ActiveBrowserContribution) => boolean;
   readonly #hostContext: (active: ActiveBrowserContribution) => unknown;
+  readonly #locale: () => string;
   readonly #compact: boolean;
   readonly #onError: (cause: unknown) => void;
   readonly #onCountChange: (count: number) => void;
@@ -80,6 +82,7 @@ export class BrowserContributionOutlet {
     this.#role = options.role;
     this.#include = options.include ?? (() => true);
     this.#hostContext = options.hostContext ?? (() => null);
+    this.#locale = options.locale ?? (() => "en");
     this.#compact = options.compact ?? false;
     this.#handoffKey = options.handoffKey ?? (() => undefined);
     this.#onError = options.onError ?? (() => undefined);
@@ -133,10 +136,7 @@ export class BrowserContributionOutlet {
       }
       try {
         const context = this.#hostContext(active);
-        const label = contributionLabel(
-          active.descriptor,
-          isRecord(context) ? context["locale"] : undefined,
-        );
+        const label = contributionLabel(active.descriptor, this.#locale());
         mounted.wrapper.setAttribute("aria-label", label);
         mounted.label.textContent = label;
         mounted.element.codexContribution = contributionContext(
@@ -159,9 +159,8 @@ export class BrowserContributionOutlet {
     }
     for (const [id, handoff] of this.#handoffs) {
       if (this.#registry.edits.pending(handoff.slot)) {
-        const notice = this.#document.createElement("section"),
-          context = this.#hostContext(handoff.active);
-        const cs = isRecord(context) && context["locale"] === "cs";
+        const notice = this.#document.createElement("section");
+        const cs = this.#locale() === "cs";
         notice.className = "addon-contribution";
         notice.dataset["uiState"] = "unavailable";
         notice.setAttribute("role", "status");

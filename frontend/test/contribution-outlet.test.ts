@@ -84,6 +84,7 @@ describe("BrowserContributionOutlet", () => {
       registry,
       surface: "article-section",
       role: "player",
+      locale: () => locale,
       hostContext: () => ({
         kind: "campaign-record",
         collection: "characters",
@@ -112,6 +113,32 @@ describe("BrowserContributionOutlet", () => {
       ((root.children[0] as FakeElement).children[0] as FakeElement).children[0]?.textContent,
     ).toBe("Deník postavy");
     expect((root.children[0] as FakeElement).children[1]).toBe(element);
+    outlet.dispose();
+  });
+
+  it("labels contributions in the interface locale without a host context", () => {
+    const registry = new BrowserContributionRegistry();
+    const session = registry.open(
+      descriptor("dm-tools", {
+        ...contribution("overview.panel", 10),
+        config: { labels: { cs: "Přehled příprav" } },
+      }),
+      new GenerationScope("dm-tools@generation"),
+    );
+    session.context.ui.bind("overview.panel", { kind: "element", tag: "dm-tools-overview" });
+    const root = new FakeElement("div");
+    // The dashboard slot passes no host context, only the interface locale.
+    const outlet = new BrowserContributionOutlet({
+      document: new FakeDocument() as unknown as Document,
+      root: root as unknown as HTMLElement,
+      registry,
+      surface: "slot",
+      role: "dm",
+      locale: () => "cs",
+    });
+    const wrapper = root.children[0] as FakeElement;
+    expect(wrapper.attributes.get("aria-label")).toBe("Přehled příprav");
+    expect((wrapper.children[0] as FakeElement).children[0]?.textContent).toBe("Přehled příprav");
     outlet.dispose();
   });
 
@@ -252,7 +279,7 @@ it("keeps recovery visible through a graph gap and clears it when the record or 
     role: "dm",
     compact: true,
     handoffKey: () => key,
-    hostContext: () => ({ locale: "cs" }),
+    locale: () => "cs",
   });
   const mount = () => {
     const scope = new GenerationScope("test"),
