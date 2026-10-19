@@ -177,7 +177,9 @@ and attitudes use the shared chip picker and save with Enter or ✓. Linked valu
 are grouped under **Add details and connections**. Long text and structured
 fields still open the full editor. Edits keep their
 opening snapshots, report conflicts beside the field and return focus to the
-value after Save or Escape.
+value after Save or Escape. While another save runs, open fields are disabled;
+one with a rejected or changed draft stays open and becomes editable again
+when that save ends.
 
 The character collection intentionally defaults to **All characters**. Explicit
 **NPCs** and **Party members** controls use the same saved filter state as the
@@ -192,7 +194,11 @@ question queue.
 
 Host forms label unsaved changes, pending saves and failures near Save/Cancel;
 a confirmed record transaction shows a campaign-save confirmation at its return
-destination. It clears on subsequent editing or navigation. Profile feedback
+destination. The full editor's fields are disabled while it saves. An edit
+sends only the fields that differ from what the form opened with, so untouched
+values the controls cannot show exactly (tags containing commas, multi-line
+list items, older over-long text) are kept, and a value that cannot be saved
+is named in the error. It clears on subsequent editing or navigation. Profile feedback
 prioritizes any pending write, failed write or unsaved text over an older success
 message. Local Markdown recovery continues to describe a device copy separately.
 Cancelling a failed field, panel or wiki edit clears its abandoned error state;
@@ -243,7 +249,9 @@ draft. After a confirmed campaign save, cleanup removes only the matching own
 copy and reviewed recovery snapshots. Deletion compares the stored snapshot
 within a transaction, so newer text from another tab survives. Explicit
 confirmed Cancel removes the current editor's recovery copies; ordinary
-navigation retains them. Unrelated candidate copies remain available.
+navigation retains them. Unrelated candidate copies remain available. A stored
+copy this version cannot read is skipped and left in place, so it never hides
+the others.
 
 The collection's collapsed **Local Markdown drafts** list provides another
 recovery route. It can download copies for deleted or unavailable entries and
