@@ -51,19 +51,26 @@ func TestStoredPasswordsSurviveReopenAndOfflineReset(t *testing.T) {
 	}
 	defer db.Close()
 	store = Store{DB: db}
-	reopened, err := auth.New(auth.Config{CredentialStore: store})
+	reopened, err := auth.New(auth.Config{CredentialStore: store, SessionStore: store})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := reopened.Login("saved-password"); err != nil {
+	signedIn, err := reopened.Login("saved-password")
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err := auth.ResetCredentials(ctx, store, "recovered-dm", ""); err != nil {
 		t.Fatal(err)
 	}
-	reset, err := auth.New(auth.Config{CredentialStore: store})
+	if sessions, err := store.LoadSessions(ctx); err != nil || len(sessions) != 0 {
+		t.Fatalf("offline reset kept %d saved sessions: %v", len(sessions), err)
+	}
+	reset, err := auth.New(auth.Config{CredentialStore: store, SessionStore: store})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if _, ok := reset.Resolve(signedIn.Token); ok {
+		t.Fatal("a session from before the reset still signs in")
 	}
 	if reset.CredentialStatus().PlayerEnabled {
 		t.Fatal("offline reset revived player access")

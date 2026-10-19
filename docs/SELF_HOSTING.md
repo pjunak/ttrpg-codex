@@ -63,8 +63,9 @@ docker compose up -d ttrpg-codex
 For a native checkout, use
 `go run ./cmd/codex -data-dir data -reset-passwords`
 with the replacement values set in the current environment.
-The command acquires the host's exclusive lock, changes only credential hashes,
-and exits. It refuses to reset a directory in use by the running host.
+The command acquires the host's exclusive lock, replaces the credential hashes,
+signs out every saved session, and exits; everyone signs in again with the new
+passwords. It refuses to reset a directory in use by the running host.
 
 Native backups include password hashes: restoring a newer backup restores the
 passwords from that backup. Restore an older archive without saved credentials

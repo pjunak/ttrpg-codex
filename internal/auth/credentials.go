@@ -37,9 +37,16 @@ type CredentialStatus struct {
 	PlayerEnabled   bool   `json:"playerEnabled"`
 }
 
+// CredentialResetStore is what the offline reset writes. A reset answers lost
+// or leaked passwords, so it also signs out every saved session.
+type CredentialResetStore interface {
+	CredentialStore
+	ClearSessions(context.Context) error
+}
+
 // ResetCredentials is used only by the offline operator command, under the
 // host's exclusive data-directory lock. It never changes campaign records.
-func ResetCredentials(ctx context.Context, store CredentialStore, dm, player string) error {
+func ResetCredentials(ctx context.Context, store CredentialResetStore, dm, player string) error {
 	if len(dm) < 4 || len(dm) > maximumCredentialBytes || len(player) > maximumCredentialBytes || player != "" && (len(player) < 4 || player == dm) {
 		return ErrPasswordPolicy
 	}
@@ -51,6 +58,11 @@ func ResetCredentials(ctx context.Context, store CredentialStore, dm, player str
 	if player != "" {
 		hash := hashPassword(player)
 		next.Player = &hash
+	}
+	// Sign out first, so a failed save leaves the old passwords working but
+	// never the old sessions.
+	if err := store.ClearSessions(ctx); err != nil {
+		return err
 	}
 	return store.Save(ctx, next, previous.Revision)
 }

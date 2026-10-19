@@ -114,7 +114,7 @@ func run() error {
 		if err := sessionauth.ResetCredentials(ctx, credentialstore.Store{DB: db}, dmPassword, os.Getenv("CODEX_PLAYER_PASSWORD")); err != nil {
 			return fmt.Errorf("reset passwords: %w", err)
 		}
-		logger.Info("passwords reset; start the host normally")
+		logger.Info("passwords reset and every session signed out; start the host normally")
 		return nil
 	}
 	runtime, err := composeHost(

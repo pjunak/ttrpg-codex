@@ -3,7 +3,6 @@ package credentialstore
 import (
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -74,8 +73,8 @@ func (store Store) ApplySessions(ctx context.Context, save []auth.StoredSession,
 	return tx.Commit()
 }
 
-// ClearSessions removes every saved session, for example from a backup image.
-func ClearSessions(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, `DELETE FROM host_sessions`)
+// ClearSessions signs out every saved session.
+func (store Store) ClearSessions(ctx context.Context) error {
+	_, err := store.DB.ExecContext(ctx, `DELETE FROM host_sessions`)
 	return err
 }
