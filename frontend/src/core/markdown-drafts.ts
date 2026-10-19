@@ -92,11 +92,12 @@ export class IndexedDBMarkdownDraftStore implements MarkdownDraftStore {
         const request = transaction.objectStore("drafts").index("target").getAll(target);
         transaction.oncomplete = () => {
           const values: unknown[] = request.result;
-          if (!values.every(isMarkdownDraft)) {
-            reject(new Error("Unrecognized draft data"));
-            return;
-          }
-          resolve(values.sort((a, b) => b.savedAt - a.savedAt || a.id.localeCompare(b.id)));
+          // One unreadable entry must not hide the others; it stays stored untouched.
+          resolve(
+            values
+              .filter(isMarkdownDraft)
+              .sort((a, b) => b.savedAt - a.savedAt || a.id.localeCompare(b.id)),
+          );
         };
         transaction.onabort = () => reject(transaction.error);
         transaction.onerror = () => reject(transaction.error);

@@ -1851,3 +1851,53 @@ void test("the discard prompt follows the interface language", async (t) => {
     "Neuložený název",
   );
 });
+
+void test("one unreadable local draft does not hide the others", async (t) => {
+  await put(admin, csrf, "draft-town", { name: "Draft town", description: "Saved text" });
+  const current = await record("draft-town");
+  const dm = await open(t, "dm");
+  await dm.page.evaluate(
+    async ({ target, revision }) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("codex-markdown-drafts", 1);
+        request.onupgradeneeded = () =>
+          request.result
+            .createObjectStore("drafts", { keyPath: "id" })
+            .createIndex("target", "target");
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction("drafts", "readwrite");
+        const store = transaction.objectStore("drafts");
+        store.put({
+          id: "kept-draft",
+          target,
+          baseRevision: revision,
+          baseValue: "Saved text",
+          value: "Recovered text",
+          savedAt: Date.now(),
+        });
+        // An entry this version cannot read, for example from a later one.
+        store.put({ id: "unreadable-draft", target, value: 42 });
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+      });
+      db.close();
+    },
+    {
+      target: JSON.stringify(["dm", "locations", "draft-town", "description"]),
+      revision: current.revision,
+    },
+  );
+  await dm.page.goto("/#/locations/draft-town");
+  await dm.page.getByRole("button", { name: "Edit", exact: true }).click();
+  await dm.page.getByText("Local drafts available (1)", { exact: true }).waitFor();
+  assert.equal(
+    await dm.page.getByText("Local recovery is unavailable", { exact: false }).count(),
+    0,
+  );
+  await dm.page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await dm.page.goto("/#/locations");
+  await dm.page.getByText("Local Markdown drafts (1)", { exact: true }).waitFor();
+});
