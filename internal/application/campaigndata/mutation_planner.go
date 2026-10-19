@@ -235,14 +235,12 @@ func (planner *mutationPlanner) preserveUnavailablePlayerReferences(
 
 	for _, reference := range campaign.ReferenceFields(existing.Collection) {
 		visible := ids[reference.Target]
-		switch {
-		case reference.Kind == campaign.ReferenceOne && len(reference.Placement) > 0:
-			preserveUnavailableMapPlacement(incoming, current, reference.Field, reference.Placement, visible)
-		case reference.Kind == campaign.ReferenceOne:
-			preserveUnavailableScalar(incoming, current, reference.Field, visible, reference.Reserved...)
-		case reference.Kind == campaign.ReferenceMany:
+		switch reference.Kind {
+		case campaign.ReferenceOne:
+			preserveUnavailableScalar(incoming, current, reference, visible)
+		case campaign.ReferenceMany:
 			preserveUnavailableStrings(incoming, current, reference.Field, visible)
-		case reference.Kind == campaign.ReferenceObjects:
+		case campaign.ReferenceObjects:
 			preserveUnavailableObjects(incoming, current, reference.Field, reference.IDField, visible)
 		}
 	}
@@ -758,34 +756,25 @@ func equalStringArray(value any, expected []any) bool {
 	return true
 }
 
-func preserveUnavailableMapPlacement(incoming, current map[string]any, parent string, placement []string, visible map[string]struct{}) {
-	id, _ := current[parent].(string)
-	if id == "" || validScalarReference(id, visible) {
+func preserveUnavailableScalar(
+	incoming,
+	current map[string]any,
+	reference campaign.ReferenceField,
+	visible map[string]struct{},
+) {
+	id, _ := current[reference.Field].(string)
+	if id == "" || validScalarReference(id, visible, reference.Reserved...) {
 		return
 	}
-	// Public saves omit this entire placement, not just its hidden parent.
-	// Preserve it as a unit, including absence of coordinates on unplaced pins.
-	for _, field := range append([]string{parent}, placement...) {
+	// The projection omits the hidden reference and its dependent fields, so
+	// keep them as a unit, including the absence of coordinates or a rank.
+	for _, field := range append([]string{reference.Field}, reference.Dependents()...) {
 		if value, exists := current[field]; exists {
 			incoming[field] = value
 		} else {
 			delete(incoming, field)
 		}
 	}
-}
-
-func preserveUnavailableScalar(
-	incoming,
-	current map[string]any,
-	field string,
-	visible map[string]struct{},
-	reserved ...string,
-) {
-	id, ok := current[field].(string)
-	if !ok || id == "" || validScalarReference(id, visible, reserved...) {
-		return
-	}
-	incoming[field] = id
 }
 
 func preserveUnavailableStrings(

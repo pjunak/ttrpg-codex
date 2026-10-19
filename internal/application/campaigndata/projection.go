@@ -161,19 +161,20 @@ func hideUnavailableReference(value map[string]any, reference campaign.Reference
 	case campaign.ReferenceObjects:
 		filterObjectArrayByID(value, reference.Field, reference.IDField, visible)
 	default:
-		removeUnavailableMapPlacement(value, reference, visible)
+		removeUnavailableScalar(value, reference, visible)
 	}
 }
 
-// Coordinates are meaningful only in their owning map. Removing just a hidden
-// parent would reinterpret a local pin as a world-map pin in public clients.
-func removeUnavailableMapPlacement(value map[string]any, reference campaign.ReferenceField, visible map[string]struct{}) {
+// A hidden reference takes its dependent fields with it. Coordinates are
+// meaningful only in their owning map, so removing just a hidden parent would
+// reinterpret a local pin as a world-map pin, and a rank names its faction.
+func removeUnavailableScalar(value map[string]any, reference campaign.ReferenceField, visible map[string]struct{}) {
 	id, _ := value[reference.Field].(string)
 	if id == "" || validScalarReference(id, visible, reference.Reserved...) {
 		return
 	}
 	delete(value, reference.Field)
-	for _, field := range reference.Placement {
+	for _, field := range reference.Dependents() {
 		delete(value, field)
 	}
 }

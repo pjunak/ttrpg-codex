@@ -26,9 +26,16 @@ type ReferenceField struct {
 	// They are hidden, kept and removed together with the reference.
 	Placement []string `json:"placement,omitempty"`
 	// Deleted replaces a ReferenceOne value whose target is deleted; Clears
-	// lists fields reset to "" at the same time.
+	// lists fields reset to "" at the same time. Clears describe the target
+	// (a faction rank), so they are also hidden and kept with the reference.
 	Deleted string   `json:"deleted,omitempty"`
 	Clears  []string `json:"clears,omitempty"`
+}
+
+// Dependents lists the fields that the player projection hides, and player
+// saves keep, together with an unavailable ReferenceOne value.
+func (reference ReferenceField) Dependents() []string {
+	return append(append([]string(nil), reference.Placement...), reference.Clears...)
 }
 
 // Relationships (typed by settings) and companion owners (typed by ownerType)

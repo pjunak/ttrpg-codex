@@ -65,6 +65,17 @@ func TestActivityHidesPrivateReferenceEditsAndIgnoresForgedSummaries(t *testing.
 	}
 }
 
+func TestPublicActivityOmitsAHiddenFactionRank(t *testing.T) {
+	alice := activityFixtureRecord(campaign.Characters, "alice", `{"id":"alice","faction":"secret","rank":"Captain","rankChain":"guard"}`, campaign.VisibilityPublic)
+	secret := activityFixtureRecord(campaign.Factions, "secret", `{"name":"Secret","visibility":"dm"}`, campaign.VisibilityDM)
+	planner := activityPlan(t, []campaign.Record{alice, secret}, campaign.Mutation{Kind: campaign.Put, Collection: campaign.Characters, Key: "alice", ExpectedRevision: 1,
+		Value: raw(`{"id":"alice","faction":"secret","rank":"Commander","rankChain":"guard"}`)})
+	stored := readStoredActivity(planner.current[mutationTarget(campaign.Characters, "alice")].Value)
+	if stored.DM == nil || !reflect.DeepEqual(stored.DM.Fields, []string{"rank"}) || stored.Public != nil {
+		t.Fatalf("activity = %+v, %+v", stored.DM, stored.Public)
+	}
+}
+
 func TestRelationshipActivityTouchesSourceAndUsesVisibleRelationshipSets(t *testing.T) {
 	for _, visibility := range []campaign.Visibility{campaign.VisibilityPublic, campaign.VisibilityDM} {
 		t.Run(string(visibility), func(t *testing.T) {

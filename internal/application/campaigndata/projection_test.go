@@ -26,7 +26,7 @@ func TestPublicDatasetClosesReferencesWithoutChangingDMSnapshot(t *testing.T) {
 	assertRecordKeys(t, public, campaign.Relationships, "mission-visible", "custom-visible")
 
 	alice := recordObject(t, public, campaign.Characters, "alice")
-	assertMissing(t, alice, "linkedTwinId", "faction", "location")
+	assertMissing(t, alice, "linkedTwinId", "faction", "rank", "rankChain", "location")
 	if roles := alice["locationRoles"].([]any); len(roles) != 1 ||
 		roles[0].(map[string]any)["locationId"] != "town" {
 		t.Fatalf("location roles were not closed: %#v", roles)
@@ -68,9 +68,49 @@ func TestPublicDatasetClosesReferencesWithoutChangingDMSnapshot(t *testing.T) {
 		t.Fatalf("DM record was projected: %#v", dmAlice)
 	}
 	if source := string(snapshot.Records[0].Value); source != string(raw(
-		`{"id":"alice","visibility":"public","linkedTwinId":"secret","faction":"secret-faction","location":"hidden-cave","locationRoles":[{"locationId":"town"},{"locationId":"hidden-cave"}]}`,
+		`{"id":"alice","visibility":"public","linkedTwinId":"secret","faction":"secret-faction","rank":"Captain","rankChain":"guard","location":"hidden-cave","locationRoles":[{"locationId":"town"},{"locationId":"hidden-cave"}]}`,
 	)) {
 		t.Fatalf("source snapshot was mutated: %s", source)
+	}
+}
+
+func TestFactionRankFollowsItsFactionThroughProjectionAndPlayerSaves(t *testing.T) {
+	t.Parallel()
+	for _, faction := range []string{"guild", "secret"} {
+		t.Run(faction, func(t *testing.T) {
+			t.Parallel()
+			repository := &fakeRepository{snapshot: campaign.Snapshot{Records: []campaign.Record{
+				{Collection: campaign.Characters, Key: "alice", Revision: 1, Visibility: campaign.VisibilityPublic,
+					Value: raw(`{"id":"alice","name":"Alice","faction":"` + faction + `","rank":"Captain","rankChain":"guard"}`)},
+				{Collection: campaign.Factions, Key: "guild", Revision: 1, Visibility: campaign.VisibilityPublic, Value: raw(`{"name":"Guild"}`)},
+				{Collection: campaign.Factions, Key: "secret", Revision: 1, Visibility: campaign.VisibilityDM, Value: raw(`{"name":"Secret","visibility":"dm"}`)},
+			}}}
+			service, _ := New(repository)
+			public, err := service.Dataset(context.Background(), ViewPublic)
+			if err != nil {
+				t.Fatal(err)
+			}
+			projected := recordObject(t, public, campaign.Characters, "alice")
+			if faction == "secret" {
+				assertMissing(t, projected, "faction", "rank", "rankChain")
+				// A rank without its faction would name the hidden faction.
+				projected["rank"] = "Spy"
+			} else if projected["rank"] != "Captain" || projected["rankChain"] != "guard" {
+				t.Fatalf("visible faction rank was hidden: %#v", projected)
+			}
+			projected["name"] = "Renamed"
+			updated, _ := json.Marshal(projected)
+			if _, err := service.Mutate(context.Background(), MutationAuthority{ActorID: "player", Role: WritePlayer}, []campaign.Mutation{
+				{Kind: campaign.Put, Collection: campaign.Characters, Key: "alice", ExpectedRevision: 1, Value: updated},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			saved := mutationObject(t, repository.writes[0].Mutations, campaign.Characters, "alice")
+			if saved["name"] != "Renamed" || saved["faction"] != faction ||
+				saved["rank"] != "Captain" || saved["rankChain"] != "guard" {
+				t.Fatalf("player save changed the faction rank: %#v", saved)
+			}
+		})
 	}
 }
 
@@ -93,7 +133,7 @@ func TestPublicDatasetRejectsMalformedStoredProjectionData(t *testing.T) {
 
 func projectionFixture() campaign.Snapshot {
 	return campaign.Snapshot{Records: []campaign.Record{
-		{Collection: campaign.Characters, Key: "alice", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"alice","visibility":"public","linkedTwinId":"secret","faction":"secret-faction","location":"hidden-cave","locationRoles":[{"locationId":"town"},{"locationId":"hidden-cave"}]}`)},
+		{Collection: campaign.Characters, Key: "alice", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"id":"alice","visibility":"public","linkedTwinId":"secret","faction":"secret-faction","rank":"Captain","rankChain":"guard","location":"hidden-cave","locationRoles":[{"locationId":"town"},{"locationId":"hidden-cave"}]}`)},
 		{Collection: campaign.Characters, Key: "secret", Visibility: campaign.VisibilityDM, Revision: 1, Value: raw(`{"id":"secret","visibility":"dm"}`)},
 		{Collection: campaign.Factions, Key: "guild", Visibility: campaign.VisibilityPublic, Revision: 1, Value: raw(`{"name":"Guild","visibility":"public"}`)},
 		{Collection: campaign.Factions, Key: "secret-faction", Visibility: campaign.VisibilityDM, Revision: 1, Value: raw(`{"id":"private-faction-id","visibility":"dm"}`)},
