@@ -143,9 +143,12 @@ The original Settings history workflow is available in English and Czech:
 manual points, coalesced automatic points, reviewed restore/delete, and revert
 of the last N retained automatic edit groups in the selected scope. The newest 50 snapshots are retained
 across all three kinds (`manual`, `save`, `pre-restore`). A point contains at
-most 64 MiB of campaign metadata, not copies of the immutable file bytes.
-Manual points do not delay the next automatic group. After a restore, the next
-edit starts a new group. Revert counts automatic groups, not individual field
+most 64 MiB of campaign metadata, not copies of the immutable file bytes. A
+larger campaign gets no automatic point: the edit is still saved, and the host
+logs a warning and tries again a minute later. Manual points and restores are
+refused instead, because a restore must first save a safety point; use full
+backups for such a campaign. Manual points do not delay the next automatic
+group. After a restore, the next edit starts a new group. Revert counts automatic groups, not individual field
 changes, manual points or safety points; its review shows the selected date.
 Each snapshot holds independently selectable campaign and per-add-on contexts.
 Deleting one context preserves all others; only an empty envelope is removed.

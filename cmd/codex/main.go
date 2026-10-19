@@ -222,7 +222,7 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure event broker: %w", err)
 	}
-	recoveryPoints := &recoverystore.Store{DB: db, Events: eventBroker}
+	recoveryPoints := &recoverystore.Store{DB: db, Events: eventBroker, Logger: logger}
 	campaignRecords, err := campaignstore.New(campaignstore.Config{
 		DB: db, Events: eventBroker, BeforeWrite: recoveryPoints.BeforeWrite,
 	})

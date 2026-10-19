@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 
 	"github.com/pjunak/ttrpg-codex/internal/events"
@@ -17,7 +18,11 @@ var (
 	ErrNotFound      = errors.New("recovery point not found")
 	ErrCompatibility = errors.New("recovery point uses different add-on packages or data definitions")
 	ErrInvalid       = errors.New("invalid recovery request")
+	ErrTooLarge      = errors.New("campaign is larger than the 64 MiB recovery point limit")
 )
+
+// maxImageBytes is the CHECK limit on recovery_points.image_json (migration 0012).
+const maxImageBytes = 64 << 20
 
 type Journal interface {
 	Append(context.Context, *sql.Tx, events.Publication) (events.Event, error)
@@ -26,6 +31,8 @@ type Journal interface {
 type Store struct {
 	DB     *sql.DB
 	Events Journal
+	// Logger reports skipped automatic points; nil uses slog.Default.
+	Logger *slog.Logger
 }
 type Point struct {
 	ID                int64        `json:"id"`
@@ -54,11 +61,52 @@ type RestoreRequest struct {
 // BeforeWrite runs once before a store transaction mutates campaign state.
 // Capture rolls back with the write. Per-row triggers only track revisions,
 // since capturing halfway through a multi-record edit would be inconsistent.
+// A campaign too large for a point is not captured, and the write goes ahead.
 func (s *Store) BeforeWrite(ctx context.Context, tx *sql.Tx) error {
-	_, err := tx.ExecContext(ctx, `INSERT INTO recovery_points(created_at, reason, image_json)
-		SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'save', (SELECT image_json FROM recovery_image)
-		WHERE (SELECT unixepoch('subsec') - last_capture >= 60 AND suppressed = 0 FROM recovery_control WHERE singleton = 1)`)
-	return err
+	var due bool
+	if err := tx.QueryRowContext(ctx, `SELECT unixepoch('subsec') - last_capture >= 60 AND suppressed = 0
+		FROM recovery_control WHERE singleton = 1`).Scan(&due); err != nil || !due {
+		return err
+	}
+	if _, err := capture(ctx, tx, "save"); !errors.Is(err, ErrTooLarge) {
+		return err
+	}
+	// Measuring the image is the expensive part, so try again a minute later
+	// rather than on every write.
+	if _, err := tx.ExecContext(ctx, `UPDATE recovery_control SET last_capture = unixepoch('subsec') WHERE singleton = 1`); err != nil {
+		return err
+	}
+	logger := s.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.Warn("automatic recovery point skipped", "error", ErrTooLarge)
+	return nil
+}
+
+type execer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+// capture stores the current campaign image as a point. The image is built
+// once and measured before the insert, so the table's size CHECK never fails
+// the surrounding transaction.
+func capture(ctx context.Context, db execer, reason string) (sql.Result, error) {
+	result, err := db.ExecContext(ctx, `WITH image AS MATERIALIZED (SELECT image_json FROM recovery_image)
+		INSERT INTO recovery_points(created_at, reason, image_json)
+		SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?, image_json FROM image
+		WHERE length(CAST(image_json AS BLOB)) <= ?`, reason, maxImageBytes)
+	if err != nil {
+		return nil, err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if count != 1 {
+		return nil, ErrTooLarge
+	}
+	return result, nil
 }
 
 func (s *Store) List(ctx context.Context) (Listing, error) {
@@ -105,8 +153,7 @@ func (s *Store) List(ctx context.Context) (Listing, error) {
 }
 
 func (s *Store) Create(ctx context.Context) error {
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO recovery_points(created_at, reason, image_json)
-        SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'manual', image_json FROM recovery_image`)
+	_, err := capture(ctx, s.DB, "manual")
 	return err
 }
 
@@ -174,8 +221,9 @@ func (s *Store) Restore(ctx context.Context, request RestoreRequest, actorID str
 	if !compatible {
 		return ErrCompatibility
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO recovery_points(created_at, reason, image_json)
-        SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'pre-restore', image_json FROM recovery_image`)
+	// Without a safety point the current state could not be recovered, so a
+	// campaign too large for one is not restored.
+	result, err := capture(ctx, tx, "pre-restore")
 	if err != nil {
 		return err
 	}

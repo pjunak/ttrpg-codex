@@ -1,9 +1,11 @@
 package recoverystore
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -173,6 +175,42 @@ func TestCampaignRestoreOfAPointWithoutACollectionLeavesItUnmaterialized(t *test
 	}
 	if characters != 1 || companions != 0 {
 		t.Fatalf("materialized characters = %d, companions = %d", characters, companions)
+	}
+}
+
+func TestOversizedCampaignSkipsAutomaticPointsWithoutFailingWrites(t *testing.T) {
+	store, records := fixture(t)
+	ctx := context.Background()
+	var logged bytes.Buffer
+	store.Logger = slog.New(slog.NewTextHandler(&logged, nil))
+	put(t, records, "keeper", "Before", 0)
+	small := listing(t, store)
+	// Grow the campaign past the point limit without going through the store.
+	execute(t, store.DB, `INSERT INTO campaign_records(collection_name, record_key, position, body_json, visibility, revision, created_at, updated_at)
+		VALUES ('characters', 'giant', 1, json_object('id', 'giant', 'notes', hex(zeroblob(?))), 'public', 1, 'now', 'now')`, maxImageBytes/2)
+	execute(t, store.DB, `UPDATE recovery_control SET last_capture = 0`)
+	put(t, records, "keeper", "After", 1)
+	put(t, records, "keeper", "Again", 2)
+	record, err := records.Get(ctx, campaign.Characters, "keeper")
+	if err != nil || !strings.Contains(string(record.Value), "Again") {
+		t.Fatalf("write failed: %+v %v", record, err)
+	}
+	if got := listing(t, store); len(got.Points) != len(small.Points) {
+		t.Fatalf("captured an oversized point: %+v", got.Points)
+	}
+	if count := strings.Count(logged.String(), "automatic recovery point skipped"); count != 1 {
+		t.Fatalf("logged %d skips within a minute:\n%s", count, logged.String())
+	}
+	if err := store.Create(ctx); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("manual point error = %v", err)
+	}
+	before := listing(t, store)
+	err = store.Restore(ctx, RestoreRequest{Scope: Scope{Scope: "campaign"}, ID: small.Points[0].ID, ExpectedRevision: before.Revision}, "dm")
+	if !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("restore without a safety point error = %v", err)
+	}
+	if after := listing(t, store); after.Revision != before.Revision || len(after.Points) != len(before.Points) {
+		t.Fatal("refused restore changed the recovery list")
 	}
 }
 
