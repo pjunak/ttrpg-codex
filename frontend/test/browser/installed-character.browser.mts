@@ -350,9 +350,11 @@ void test(
       .waitFor();
     assert.equal((await call("load", {})).state.inputs.build.subclasses.fighter, "champion");
     await sheet.getByRole("button", { name: "Remove level", exact: true }).last().click();
+    // The save then lists what it withdrew next to "Saved".
     await sheet
       .locator("[data-character-status]")
-      .filter({ hasText: /^Saved$/ })
+      .filter({ hasText: /^Saved/ })
+      .getByText("The current rules no longer allow these saved selections, so they were removed:")
       .waitFor();
     const withdrawn = (await call("load", {})).state.inputs.build;
     assert.equal(withdrawn.levels.length, 2);

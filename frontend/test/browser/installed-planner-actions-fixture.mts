@@ -205,7 +205,7 @@ export async function exercisePlannerActions({
   // A reverse link would create a cycle and must not reach the host.
   await port(b).click();
   await card(a).click();
-  await page.getByText(/Flow cycle reaches/u).waitFor();
+  await page.getByText(/is part of a cycle/u).waitFor();
   assert.equal(writes.length, beforeConnections + 1);
   await card(c).click();
   await viewport.focus();
