@@ -60,6 +60,10 @@ its first question only
 - A single campaign-wide level cannot express "the party knows, one player
   does not".
 - Mind Palace shows only the first question of a mystery.
+- Mind Palace colours a mystery's priority only when the value is the Czech
+  *kritická* or *vysoká*, so other languages get the default colour.
+- Mind Palace has its own context menu instead of the shared record menu, with
+  a fixed size and no type-ahead or submenus.
 
 ## Questions to answer
 
