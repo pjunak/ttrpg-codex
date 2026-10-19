@@ -200,7 +200,7 @@ passwords. A backup without saved passwords bootstraps them from the environment
 on first start. The offline
 `codex -data-dir <directory> -reset-passwords` command replaces saved passwords
 from the environment under the same exclusive data-directory lock as the host,
-then exits without changing campaign data. See the
+signs out every saved session, then exits without changing campaign data. See the
 [operator steps](../SELF_HOSTING.md#password-changes-and-access-recovery).
 
 ## Recovering a session during editing
