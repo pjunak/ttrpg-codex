@@ -1829,3 +1829,25 @@ void test("a rejected inline draft stays open while another field saves", async 
   assert.equal(await name.isEditable(), true);
   assert.equal((await record("kept-draft-town")).value.region, "South");
 });
+
+void test("the discard prompt follows the interface language", async (t) => {
+  await put(admin, csrf, "discard-town", { name: "Discard town" });
+  const dm = await open(t, "dm", false, false, async (page) => {
+    await page.addInitScript(() => localStorage.setItem("codex_lang", "cs"));
+  });
+  await dm.page.goto("/#/locations/discard-town");
+  await dm.page.getByRole("button", { name: "Upravit", exact: true }).click();
+  await dm.page.locator('form.record-editor input[name="name"]').fill("Neuložený název");
+  const prompt = new Promise<string>((resolve) =>
+    dm.page.once("dialog", (dialog) => {
+      resolve(dialog.message());
+      void dialog.dismiss();
+    }),
+  );
+  await dm.page.getByRole("button", { name: "Zrušit", exact: true }).click();
+  assert.equal(await prompt, "Zahodit neuložené změny tohoto záznamu?");
+  assert.equal(
+    await dm.page.locator('form.record-editor input[name="name"]').inputValue(),
+    "Neuložený název",
+  );
+});

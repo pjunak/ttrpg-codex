@@ -48,7 +48,7 @@ import type { BrowserRole } from "../addons/generation-manager.js";
 import { CodexPortraitEditor } from "./codex-portrait-editor.js";
 import { artwork } from "../ui/artwork.js";
 import { pencilIcon } from "./edit-icon.js";
-import { reportEditState } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 
 interface FieldDraft {
   readonly key: string;
@@ -794,8 +794,7 @@ export class CodexCharacterProfile extends LitElement {
   }
   #openPanel(panel: string): void {
     if (this.#panelSaving) return;
-    if (this.#panelDirty && !window.confirm(uiText("Discard the unsaved changes in this entry?")))
-      return;
+    if (!confirmDiscardUnsavedEdit(this.#panelDirty, (message) => window.confirm(message))) return;
     this.#panelBase = this.record;
     this.#panelCampaign = this.campaign;
     this.#panelDirty = false;

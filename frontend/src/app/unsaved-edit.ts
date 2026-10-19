@@ -1,10 +1,13 @@
+import { uiText } from "./ui-localization.js";
+
 export const unsavedEditMessage = "Discard the unsaved changes in this entry?";
 
+/** Asks in the interface language before discarding unsaved work. */
 export function confirmDiscardUnsavedEdit(
   dirty: boolean,
   confirm: (message: string) => boolean,
 ): boolean {
-  return !dirty || confirm(unsavedEditMessage);
+  return !dirty || confirm(uiText(unsavedEditMessage));
 }
 
 export function protectUnsavedEditBeforeUnload(dirty: boolean, event: BeforeUnloadEvent): void {

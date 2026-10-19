@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { setUiLocale } from "../src/app/ui-localization.js";
 import {
   confirmDiscardUnsavedEdit,
   EditStateTracker,
@@ -9,6 +10,10 @@ import {
 } from "../src/app/unsaved-edit.js";
 
 describe("unsaved campaign edits", () => {
+  afterEach(() => {
+    setUiLocale("en");
+  });
+
   it("navigates without prompting when the form is clean", () => {
     const confirm = vi.fn(() => false);
     expect(confirmDiscardUnsavedEdit(false, confirm)).toBe(true);
@@ -21,6 +26,13 @@ describe("unsaved campaign edits", () => {
     expect(confirmDiscardUnsavedEdit(true, keepEditing)).toBe(false);
     expect(confirmDiscardUnsavedEdit(true, discard)).toBe(true);
     expect(discard).toHaveBeenCalledWith(unsavedEditMessage);
+  });
+
+  it("asks in the interface language", () => {
+    setUiLocale("cs");
+    const discard = vi.fn(() => true);
+    expect(confirmDiscardUnsavedEdit(true, discard)).toBe(true);
+    expect(discard).toHaveBeenCalledWith("Zahodit neuložené změny tohoto záznamu?");
   });
 
   it("marks only dirty forms as unsafe to unload", () => {
