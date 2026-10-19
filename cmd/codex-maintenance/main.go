@@ -90,7 +90,7 @@ func createVerifiedBackup(ctx context.Context, database *sql.DB, directory, outp
 	}
 	if _, err := backuparchive.Verify(ctx, backuparchive.VerifyConfig{ArchivePath: output, Migrations: migrations.FS}); err != nil {
 		return backuparchive.Manifest{}, errors.Join(
-			fmt.Errorf("backup failed verification and was removed; create it again: %w", err),
+			fmt.Errorf("backup failed verification; create it again: %w", err),
 			os.Remove(output))
 	}
 	return manifest, nil
