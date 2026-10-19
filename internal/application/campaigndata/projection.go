@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 var identityCollections = []campaign.Collection{
@@ -183,7 +184,7 @@ func closeSetting(record campaign.Record, locationIDs map[string]struct{}) (json
 	switch record.Key {
 	case "mapViews":
 		var values []any
-		if err := json.Unmarshal(record.Value, &values); err != nil {
+		if err := jsonexact.DecodeValue(record.Value, &values); err != nil {
 			return nil, fmt.Errorf("mapViews must be an array: %w", err)
 		}
 		filtered := values[:0]
@@ -235,9 +236,10 @@ func transformObject(
 	return json.Marshal(object)
 }
 
+// Records are re-encoded after policy edits, so numbers must stay exact.
 func objectValue(value json.RawMessage) (map[string]any, error) {
 	var object map[string]any
-	if err := json.Unmarshal(value, &object); err != nil || object == nil {
+	if err := jsonexact.DecodeValue(value, &object); err != nil || object == nil {
 		return nil, fmt.Errorf("record value must be an object")
 	}
 	return object, nil

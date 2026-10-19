@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 var (
@@ -190,7 +191,7 @@ func deleteEnumRecords(planner *mutationPlanner, binding enumBinding, id string)
 
 func enumDefinitions(body json.RawMessage) ([]any, error) {
 	var definitions []any
-	if err := json.Unmarshal(body, &definitions); err != nil || definitions == nil {
+	if err := jsonexact.DecodeValue(body, &definitions); err != nil || definitions == nil {
 		return nil, fmt.Errorf("%w: enum category must be an array", campaign.ErrInvalidRecord)
 	}
 	for _, candidate := range definitions {

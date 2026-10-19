@@ -325,3 +325,17 @@ func TestConcurrentDoubleCommitPublishesOnce(t *testing.T) {
 		t.Fatalf("successes=%d records=%d", success, len(records(t, core)))
 	}
 }
+
+func TestPreviewKeepsLargeContributionNumbersExact(t *testing.T) {
+	service, _, _, _, owner := setup(t)
+	var received json.RawMessage
+	service.contributors = contributorFunc(func(_ context.Context, _ workerrpc.Actor, addonID, _ string, body json.RawMessage) (addondatastore.Transaction, error) {
+		received = append(json.RawMessage(nil), body...)
+		return addondatastore.Transaction{AddonID: addonID, GenerationID: owner.Generation}, nil
+	})
+	bundle := strings.TrimSuffix(sampleBundle, "}") + `,"addonImports":[{"addonId":"planning-addon","contributorId":"planning-json","document":{"target":{"$ref":"new-hero"},"seed":1234567890123456789}}]}`
+	preview(t, service, owner, bundle)
+	if !strings.Contains(string(received), `"seed":1234567890123456789`) {
+		t.Fatalf("contribution document was rounded: %s", received)
+	}
+}

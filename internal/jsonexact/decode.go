@@ -24,3 +24,18 @@ func Decode(body []byte, target any) error {
 	}
 	return nil
 }
+
+// DecodeValue reads exactly one JSON value into target and keeps numbers as
+// json.Number, so a value decoded into any and encoded again is not rounded
+// through float64. Unknown object fields are allowed.
+func DecodeValue(body []byte, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return ErrTrailing
+	}
+	return nil
+}

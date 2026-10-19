@@ -12,7 +12,7 @@ import (
 func TestDeleteEnumItemReplacesUsagesAndWritesTombstoneAtomically(t *testing.T) {
 	t.Parallel()
 	repository := &fakeRepository{snapshot: campaign.Snapshot{Records: []campaign.Record{
-		{Collection: campaign.Settings, Key: "attitudes", Revision: 4, Value: raw(`[{"id":"old"},{"id":"new"}]`)},
+		{Collection: campaign.Settings, Key: "attitudes", Revision: 4, Value: raw(`[{"id":"old"},{"id":"new","order":1234567890123456789}]`)},
 		{Collection: campaign.Characters, Key: "alice", Revision: 2, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"alice","attitudes":[{"id":"old"},{"id":"new"}]}`)},
 		{Collection: campaign.Locations, Key: "town", Revision: 3, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"town","attitudes":[{"id":"old"}]}`)},
 		{Collection: campaign.Factions, Key: "guild", Revision: 1, Visibility: campaign.VisibilityPublic, Value: raw(`{"attitudes":[{"id":"old"}]}`)},
@@ -37,7 +37,7 @@ func TestDeleteEnumItemReplacesUsagesAndWritesTombstoneAtomically(t *testing.T) 
 		t.Fatalf("character attitudes = %#v", attitudes)
 	}
 	settings := mutationRaw(t, writes, campaign.Settings, "attitudes")
-	if string(settings) != `[{"id":"new"}]` {
+	if string(settings) != `[{"id":"new","order":1234567890123456789}]` {
 		t.Fatalf("settings = %s", settings)
 	}
 }

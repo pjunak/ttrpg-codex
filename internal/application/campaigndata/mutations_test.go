@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -459,5 +460,47 @@ func TestEventDeleteClearsConsequencesThatLeadToIt(t *testing.T) {
 		if mutation.Collection == campaign.Events && mutation.Key == "retreat" {
 			t.Fatalf("unrelated event changed: %+v", mutation)
 		}
+	}
+}
+
+func TestEditsAndProjectionKeepLargeIntegersExact(t *testing.T) {
+	t.Parallel()
+	const large = "1234567890123456789"
+	repository := &fakeRepository{snapshot: campaign.Snapshot{Records: []campaign.Record{
+		{Collection: campaign.Characters, Key: "alice", Revision: 1, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"alice","seed":` + large + `}`)},
+		{Collection: campaign.Locations, Key: "town", Revision: 2, Visibility: campaign.VisibilityPublic, Value: raw(`{"id":"town","seed":` + large + `}`)},
+		{Collection: campaign.Settings, Key: "mapViews", Revision: 3, Visibility: campaign.VisibilityPublic, Value: raw(`[{"id":"world","seed":` + large + `},{"id":"town-view","parentId":"town"}]`)},
+		{Collection: campaign.Settings, Key: "mapConfigs", Revision: 4, Visibility: campaign.VisibilityPublic, Value: raw(`{"world":{"seed":` + large + `},"local-town":{"zoom":2}}`)},
+	}}}
+	service, _ := New(repository)
+	public, err := service.Dataset(context.Background(), ViewPublic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, collection := range []campaign.Collection{campaign.Characters, campaign.Locations, campaign.Settings} {
+		for _, record := range collectionView(t, public, collection).Records {
+			if !strings.Contains(string(record.Value), large) {
+				t.Fatalf("projection rounded %s:%s: %s", collection, record.Key, record.Value)
+			}
+		}
+	}
+	if _, err := service.Mutate(context.Background(), MutationAuthority{ActorID: "dm", Role: WriteDM}, []campaign.Mutation{
+		{Kind: campaign.Put, Collection: campaign.Characters, Key: "alice", ExpectedRevision: 1, Value: raw(`{"id":"alice","name":"Alice","seed":` + large + `}`)},
+		{Kind: campaign.Delete, Collection: campaign.Locations, Key: "town", ExpectedRevision: 2},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	puts := 0
+	for _, mutation := range repository.writes[0].Mutations {
+		if mutation.Kind != campaign.Put {
+			continue
+		}
+		puts++
+		if !strings.Contains(string(mutation.Value), large) {
+			t.Fatalf("edit rounded %s:%s: %s", mutation.Collection, mutation.Key, mutation.Value)
+		}
+	}
+	if puts != 3 {
+		t.Fatalf("expected the character and both map settings to be written: %+v", repository.writes[0].Mutations)
 	}
 }

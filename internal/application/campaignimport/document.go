@@ -12,6 +12,7 @@ import (
 
 	"github.com/pjunak/ttrpg-codex/internal/application/campaigndata"
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -72,8 +73,10 @@ func (service *Service) prepareDocument(body json.RawMessage, snapshot campaign.
 	if err = service.schema.Validate(value); err != nil {
 		return nil, nil, nil, err
 	}
+	// Records and contributor documents are encoded again below; keep their
+	// numbers exact instead of rounding them through float64.
 	var input document
-	if err = json.Unmarshal(body, &input); err != nil {
+	if err = jsonexact.DecodeValue(body, &input); err != nil {
 		return nil, nil, nil, err
 	}
 	count := 0

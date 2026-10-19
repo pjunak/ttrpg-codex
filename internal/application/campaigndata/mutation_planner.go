@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
+	"github.com/pjunak/ttrpg-codex/internal/jsonexact"
 )
 
 type plannedChange struct {
@@ -546,7 +547,7 @@ func (planner *mutationPlanner) synchronizeLocation(id string, role WriteRole) e
 func (planner *mutationPlanner) removeLocationSettings(id string) error {
 	if record, exists := planner.record(campaign.Settings, "mapViews"); exists {
 		var values []any
-		if err := json.Unmarshal(record.Value, &values); err != nil {
+		if err := jsonexact.DecodeValue(record.Value, &values); err != nil {
 			return fmt.Errorf("settings:mapViews is invalid")
 		}
 		filtered := make([]any, 0, len(values))
@@ -566,7 +567,7 @@ func (planner *mutationPlanner) removeLocationSettings(id string) error {
 	}
 	if record, exists := planner.record(campaign.Settings, "mapConfigs"); exists {
 		var values map[string]any
-		if err := json.Unmarshal(record.Value, &values); err != nil || values == nil {
+		if err := jsonexact.DecodeValue(record.Value, &values); err != nil || values == nil {
 			return fmt.Errorf("settings:mapConfigs is invalid")
 		}
 		key := "local-" + id
