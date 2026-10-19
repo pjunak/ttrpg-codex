@@ -10,13 +10,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"database/sql"
-	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
 	"github.com/pjunak/ttrpg-codex/internal/maintenance/cleanup"
 	"github.com/pjunak/ttrpg-codex/internal/maintenance/processlock"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
-	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
-	"github.com/pjunak/ttrpg-codex/internal/version"
 )
 
 func runCleanup(ctx context.Context, kind string, arguments []string, stdout, stderr io.Writer) error {
@@ -87,8 +83,8 @@ func runCleanup(ctx context.Context, kind string, arguments []string, stdout, st
 		if *reviewed != review {
 			return cleanup.ErrStale
 		}
-		if err := backupBeforeCleanup(ctx, db, *directory, *backup); err != nil {
-			return err
+		if _, err := createVerifiedBackup(ctx, db, *directory, *backup); err != nil {
+			return fmt.Errorf("cleanup was not applied: %w", err)
 		}
 		if kind == "collect-blobs" {
 			if _, err := cleanup.QueueBlobs(ctx, db, *directory, *reviewed); err != nil {
@@ -113,16 +109,4 @@ func runCleanup(ctx context.Context, kind string, arguments []string, stdout, st
 	encoder := json.NewEncoder(stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(report)
-}
-
-func backupBeforeCleanup(ctx context.Context, db *sql.DB, directory, output string) error {
-	if _, err := backuparchive.Create(ctx, backuparchive.CreateConfig{
-		Database: db, DataDirectory: directory, OutputPath: output, HostVersion: version.Host,
-	}); err != nil {
-		return err
-	}
-	if _, err := backuparchive.Verify(ctx, backuparchive.VerifyConfig{ArchivePath: output, Migrations: migrations.FS}); err != nil {
-		return fmt.Errorf("backup verification failed; cleanup was not applied: %w", err)
-	}
-	return nil
 }

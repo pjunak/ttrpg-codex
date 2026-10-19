@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
@@ -67,16 +68,32 @@ func runBackup(ctx context.Context, arguments []string, stdout, stderr io.Writer
 	if err != nil {
 		return fmt.Errorf("open backup database: %w", err)
 	}
-	manifest, createErr := backuparchive.Create(ctx, backuparchive.CreateConfig{
-		Database: database, DataDirectory: *dataDirectory,
-		OutputPath: *output, HostVersion: version.Host,
-	})
+	manifest, createErr := createVerifiedBackup(ctx, database, *dataDirectory, *output)
 	closeErr := database.Close()
 	if createErr != nil || closeErr != nil {
 		return errors.Join(createErr, closeErr)
 	}
-	fmt.Fprintf(stdout, "Created %s with %d files.\n", *output, len(manifest.Entries))
+	fmt.Fprintf(stdout, "Created and verified %s with %d files.\n", *output, len(manifest.Entries))
 	return nil
+}
+
+// createVerifiedBackup writes a full backup and verifies it as a restore
+// would. This utility cannot take a running host's add-on lifecycle lock, so
+// package cleanup may remove a build while it copies; an archive is trusted
+// only once it verifies, and one that does not is removed.
+func createVerifiedBackup(ctx context.Context, database *sql.DB, directory, output string) (backuparchive.Manifest, error) {
+	manifest, err := backuparchive.Create(ctx, backuparchive.CreateConfig{
+		Database: database, DataDirectory: directory, OutputPath: output, HostVersion: version.Host,
+	})
+	if err != nil {
+		return backuparchive.Manifest{}, err
+	}
+	if _, err := backuparchive.Verify(ctx, backuparchive.VerifyConfig{ArchivePath: output, Migrations: migrations.FS}); err != nil {
+		return backuparchive.Manifest{}, errors.Join(
+			fmt.Errorf("backup failed verification and was removed; create it again: %w", err),
+			os.Remove(output))
+	}
+	return manifest, nil
 }
 
 func runVerify(ctx context.Context, arguments []string, stdout, stderr io.Writer) error {
