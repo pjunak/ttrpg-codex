@@ -260,3 +260,7 @@ These failed once and have not recurred:
 - The rules service briefly reporting rules unavailable (September).
 - The shared-controls and editors browser fixtures timing out at start-up in a
   full `npm run check` (October).
+- Local Windows runs of the installed smoke test: Compendium uploads timing out
+  and `net::ERR_NO_BUFFER_SPACE` while other heavy gates run, and a fixture
+  upload once answering 500 "the add-on lifecycle request failed" (October).
+  CI on Linux passed; capture the host log if it recurs.
