@@ -79,13 +79,11 @@ local, git-ignored `docs/plans/quality-pass.md`.
   then fails every evaluation; the reference test reads lineage spells in the
   wrong shape and skips most reference kinds; the equipment importer
   overwrites hand-curated fields and its dry run shows no field differences.
-- **Docs that contradict the code** `ttrpg-codex`,
-  `addon-dnd-2024-compendium` — API_V3 lists a host-to-worker
-  `addon/service.call` that does not exist, and the SDK tests use the same
-  name; ARCHITECTURE, the `workerOnly` schema description and BACKUP_RESTORE
-  are stale; the Compendium `data/SCHEMA.md` documents `getRuleset`,
-  `listEquipment`, an alert fallback and a universal `edition` value that do
-  not exist, and its i18n README template omits the required `name`.
+- **Compendium docs that contradict the code** `addon-dnd-2024-compendium` —
+  `data/SCHEMA.md` documents `getRuleset`, `listEquipment`, an alert fallback
+  and a universal `edition` value that do not exist; the i18n README template
+  omits the required `name`; AGENTS.md calls `locales/` host-managed although
+  the build bundles the catalogs itself.
 
 ### 2. One write path per editor
 
