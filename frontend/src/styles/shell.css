@@ -32,6 +32,12 @@ codex-app,
   font-family: var(--font-ui);
 }
 
+/* The sidebar's navigation and account menu lay out as if written in place. */
+codex-shell-navigation,
+codex-account-menu {
+  display: contents;
+}
+
 .campaign-brand {
   padding: 1.25rem 1rem 1rem;
   margin-bottom: 0.5rem;

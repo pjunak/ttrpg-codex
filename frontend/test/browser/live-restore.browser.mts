@@ -196,13 +196,16 @@ void test("campaign restore honors a pending core edit flag while refreshing", a
   try {
     await restore(page);
     await read.started();
-    await page
-      .locator("codex-record-page")
-      .evaluate((node) =>
-        node.dispatchEvent(
-          new CustomEvent("campaign-edit-dirty", { detail: { dirty: false, saving: true } }),
-        ),
-      );
+    await page.locator("codex-record-page").evaluate((node) =>
+      node.dispatchEvent(
+        // As reportEditState sends it: the app hears every editor's report.
+        new CustomEvent("campaign-edit-dirty", {
+          detail: { dirty: false, saving: true },
+          bubbles: true,
+          composed: true,
+        }),
+      ),
+    );
     await read.release();
     await page.locator(".campaign-brand strong").filter({ hasText: "Restored frontier" }).waitFor();
     await settle(page);

@@ -368,6 +368,7 @@ bounded. These preferences do not change campaign policy or record ordering.
 | Editor write requests and their answers | `frontend/src/app/campaign-writes.ts` |
 | Write order, read-back checks and per-kind messages | `frontend/src/app/campaign-write-controller.ts`, `campaign-write-handlers.ts` |
 | Busy leases; admin view request lifetimes | `frontend/src/app/busy-lease.ts`, `admin-request-controller.ts` |
+| Leaving open edits: address changes, unload, sign-out | `frontend/src/app/navigation-guard.ts` |
 | Query, facet counts, sorting and grouping | `frontend/src/app/collection-model.ts` |
 | View parsing, serialization and browser preferences | `frontend/src/app/collection-view.ts` |
 | Shared controls and existing record-row rendering | `frontend/src/app/codex-collection-browser.ts` |

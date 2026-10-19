@@ -123,7 +123,11 @@ Import Center; it owns authorization, exact retained plans and recovery.
 
 The Lit shell validates every API response before accepting it. It owns auth,
 campaign refresh, core navigation, generic record editing, media clients, and
-browser add-on composition. Add-ons own specialized campaign experiences. The
+browser add-on composition. `codex-app` wires one controller for each: the
+session (`session-controller.ts`), campaign loading (`campaign-controller.ts`),
+writes (`campaign-write-controller.ts`), add-on outlets
+(`addon-outlets-controller.ts`) and leaving open edits (`navigation-guard.ts`).
+Add-ons own specialized campaign experiences. The
 production Go server serves only `index.html` and fingerprinted `/assets/`
 output from Vite; Node.js is absent from the runtime image.
 
