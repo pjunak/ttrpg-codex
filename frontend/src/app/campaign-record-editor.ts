@@ -178,21 +178,7 @@ export function prepareCharacterPatch(
   if (selected.length !== Object.keys(patch.fields).length) throw invalidEdit();
   if (!character && (patch.portrait !== undefined || patch.relationships !== undefined))
     throw invalidEdit();
-  const keys = new Set(
-    selected.flatMap((field) =>
-      character && field.key === "rankAssignment"
-        ? ["rankChain", "rank", "faction"]
-        : character && field.key === "faction"
-          ? ["faction", "rankChain", "rank", "attitudes"]
-          : [field.key],
-    ),
-  );
-  if (patch.visibility !== undefined) keys.add("visibility");
-  if (patch.portrait !== undefined) {
-    keys.add("portrait");
-    keys.add("visibility");
-  }
-  for (const key of keys) {
+  for (const key of patchKeys(patch)) {
     if (!sameCampaignValue(baseline[key], value[key]))
       throw new CampaignRecordEditError("stale", `field changed: ${key}`);
   }
@@ -241,6 +227,40 @@ export function prepareCharacterPatch(
     );
   } else if (patch.relationshipBase !== undefined) throw invalidEdit();
   return { page: page!, mutations };
+}
+
+/** The stored keys a patch writes, including the ones its fields reset. */
+function patchKeys(patch: CampaignCharacterPatch): ReadonlySet<string> {
+  const character = (patch.collection ?? "characters") === "characters";
+  const keys = new Set(
+    Object.keys(patch.fields).flatMap((key) =>
+      character && key === "rankAssignment"
+        ? ["rankChain", "rank", "faction"]
+        : character && key === "faction"
+          ? ["faction", "rankChain", "rank", "attitudes"]
+          : [key],
+    ),
+  );
+  if (patch.visibility !== undefined) keys.add("visibility");
+  if (patch.portrait !== undefined) {
+    keys.add("portrait");
+    keys.add("visibility");
+  }
+  return keys;
+}
+
+/**
+ * Whether another author changed a value this patch wrote. A later write can
+ * commit between a confirmed write and its readback.
+ */
+export function patchOverwritten(
+  patch: CampaignCharacterPatch,
+  written: unknown,
+  current: CampaignRecord,
+): boolean {
+  const before = isRecord(written) ? written : {};
+  const after = isRecord(current.value) ? current.value : {};
+  return [...patchKeys(patch)].some((key) => !sameCampaignValue(before[key], after[key]));
 }
 
 export function sameCampaignValue(left: unknown, right: unknown): boolean {

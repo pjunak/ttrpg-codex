@@ -1969,3 +1969,28 @@ void test("a full-form edit rewrites only changed fields and names one that cann
     .waitFor();
   assert.equal((await record("untouched-character", "characters")).value.location, undefined);
 });
+
+void test("an inline save changed again before its readback says that it was saved", async (t) => {
+  await put(admin, csrf, "overwritten-town", { name: "Overwritten town" });
+  const dm = await open(t, "dm");
+  await dm.page.goto("/#/locations/overwritten-town");
+  await dm.page.getByRole("button", { name: "Edit Name", exact: true }).click();
+  const held = await holdCoreWrite(dm.page, "/api/campaign/transactions", "headers");
+  const name = dm.page.getByRole("textbox", { name: "Name", exact: true });
+  await name.fill("Our name");
+  await name.press("Enter");
+  await held.started();
+  // Our write has committed; another author changes the same field before we read it back.
+  const ours = await record("overwritten-town");
+  assert.equal(ours.value.name, "Our name");
+  await put(admin, csrf, "overwritten-town", { ...ours.value, name: "Their name" }, ours.revision);
+  await held.release();
+  await dm.page
+    .locator(".inline-edit-error")
+    .getByText(
+      "Your change was saved, but this field changed again elsewhere. Review the current value.",
+      { exact: true },
+    )
+    .waitFor();
+  assert.equal((await record("overwritten-town")).value.name, "Their name");
+});

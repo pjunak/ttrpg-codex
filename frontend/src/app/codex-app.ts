@@ -62,6 +62,7 @@ import {
 import {
   CampaignRecordEditError,
   prepareCampaignRecordDelete,
+  patchOverwritten,
   prepareCampaignRecordSave,
   prepareCharacterPatch,
   type CampaignCharacterSaveRequest,
@@ -1753,19 +1754,19 @@ export class CodexApp extends LitElement {
         return;
       }
       const written = prepared.mutations[0];
-      if (record.revision > committed.afterRevision && written?.operation === "put") {
-        // A later author may have committed between our write and its readback.
-        prepareCharacterPatch(
-          campaign,
-          {
-            collection,
-            base: { ...record, value: written.value },
-            fields: patch.fields,
-            ...(patch.visibility !== undefined ? { visibility: patch.visibility } : {}),
-            ...(patch.portrait !== undefined ? { portrait: patch.portrait } : {}),
-          },
-          this.#canManageCampaign(),
-        );
+      if (
+        record.revision > committed.afterRevision &&
+        written?.operation === "put" &&
+        patchOverwritten(patch, written.value, record)
+      ) {
+        respond({
+          ok: false,
+          conflict: true,
+          message: uiText(
+            "Your change was saved, but this field changed again elsewhere. Review the current value.",
+          ),
+        });
+        return;
       }
       respond({ ok: true, campaign, record });
     } catch (cause: unknown) {
@@ -1777,17 +1778,17 @@ export class CodexApp extends LitElement {
       respond({
         ok: false,
         conflict,
-        message: signal.aborted
+        message: writeConfirmed
           ? uiText(
-              writeConfirmed
-                ? "The change was saved, but could not be refreshed. Your draft is kept. Refresh before retrying."
-                : "Saving was interrupted. Your draft is kept. Refresh before retrying.",
+              "The change was saved, but could not be refreshed. Your draft is kept. Refresh before retrying.",
             )
-          : conflict
-            ? uiText(
-                "This field changed elsewhere. Your draft is kept. Review the current value before retrying.",
-              )
-            : uiText("The entry could not be saved: {0}", { "0": errorMessage(cause) }),
+          : signal.aborted
+            ? uiText("Saving was interrupted. Your draft is kept. Refresh before retrying.")
+            : conflict
+              ? uiText(
+                  "This field changed elsewhere. Your draft is kept. Review the current value before retrying.",
+                )
+              : uiText("The entry could not be saved: {0}", { "0": errorMessage(cause) }),
       });
     } finally {
       if (!signal.aborted) this.busy = false;

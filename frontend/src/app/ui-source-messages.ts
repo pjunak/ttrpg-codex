@@ -48,6 +48,8 @@ export const sourceCs = {
   "The saved entry could not be refreshed.": "Uložený záznam se nepodařilo načíst.",
   "This field changed elsewhere. Your draft is kept. Review the current value before retrying.":
     "Toto pole bylo změněno jinde. Rozpracované změny zůstávají zachovány. Před dalším uložením zkontrolujte aktuální hodnotu.",
+  "Your change was saved, but this field changed again elsewhere. Review the current value.":
+    "Změna byla uložena, ale toto pole bylo mezitím znovu změněno jinde. Zkontrolujte aktuální hodnotu.",
   Undo: "Zpět",
   "More actions": "Další akce",
   "Edit all fields": "Upravit všechna pole",
