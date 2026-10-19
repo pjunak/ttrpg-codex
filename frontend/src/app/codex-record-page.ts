@@ -612,6 +612,7 @@ export class CodexRecordPage extends LitElement {
         <header>
           <h2 id="record-editor-title">${creating ? uiText("Add {0}", { "0": route.page.singular.toLocaleLowerCase() }) : uiText("Edit {0}", { "0": text(value["name"]) || route.page.singular.toLocaleLowerCase() })}</h2>
         </header>
+        <fieldset class="record-editor-body" ?disabled=${this.saving}>
         ${
           character
             ? this.#characterEditorFields(fields, value, record)
@@ -655,6 +656,7 @@ export class CodexRecordPage extends LitElement {
           }
         </div>`
         }
+        </fieldset>
         <footer class="record-editor-actions">
           ${
             record === undefined

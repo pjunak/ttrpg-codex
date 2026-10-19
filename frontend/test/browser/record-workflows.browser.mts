@@ -1739,3 +1739,43 @@ void test("a rejected inline field save keeps the draft and shows why", async (t
   assert.equal(await draft.inputValue(), "Inline draft name");
   assert.equal((await record("inline-conflict-town")).value.name, "Inline remote name");
 });
+
+void test("the full form takes no input while it saves and keeps the draft after a failure", async (t) => {
+  await put(admin, csrf, "locked-town", { name: "Locked town", region: "North" });
+  const dm = await open(t, "dm");
+  await dm.page.goto("/#/locations/locked-town");
+  await dm.page.getByRole("button", { name: "Edit", exact: true }).click();
+  const name = dm.page.getByLabel("Name", { exact: true });
+  const region = dm.page.getByLabel("Region", { exact: true });
+  await name.fill("Locked draft");
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  t.after(() => release());
+  await dm.page.route("**/api/campaign/transactions", async (route) => {
+    await gate;
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: { kind: "CAMPAIGN_UNAVAILABLE", message: "campaign data is unavailable" },
+      }),
+    });
+  });
+  await dm.page.getByRole("button", { name: "Save entry", exact: true }).last().click();
+  await dm.page.locator(".record-form-status").getByText("Saving…", { exact: true }).waitFor();
+  // Anything typed now would be dropped when the editor closes after the save.
+  assert.equal(await name.isEditable(), false);
+  assert.equal(await region.isEditable(), false);
+  release();
+  await dm.page
+    .locator(".record-form-status")
+    .getByText("Changes not saved. Your draft is kept.", { exact: true })
+    .waitFor();
+  assert.equal(await name.isEditable(), true);
+  assert.equal(await name.inputValue(), "Locked draft");
+  await region.fill("South");
+  assert.equal(await region.inputValue(), "South");
+  assert.equal((await record("locked-town")).value.name, "Locked town");
+});

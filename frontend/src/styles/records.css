@@ -386,6 +386,14 @@
   font-weight: 550;
 }
 
+/* Groups the fields so a running save can disable them all at once. */
+.record-editor-body {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
 .record-editor-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
