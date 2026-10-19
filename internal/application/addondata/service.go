@@ -357,7 +357,7 @@ func (service *Service) Transact(ctx context.Context, input Transaction) (addond
 			stored.TargetCreatedAt = &createdAt
 			stored.Audience = extensionAudience(description.Visibility, target.Visibility)
 		} else {
-			stored.Audience = collectionAudience(description.Visibility)
+			stored.Audience = addondatastore.CollectionAudience(description.Visibility)
 		}
 		prepared = append(prepared, stored)
 	}
@@ -663,17 +663,6 @@ func roleCanAccess(role Role, visibility datacontract.Visibility) bool {
 		return role == RoleSystem
 	default:
 		return false
-	}
-}
-
-func collectionAudience(visibility datacontract.Visibility) events.Audience {
-	switch visibility {
-	case datacontract.VisibilityPublic:
-		return events.AudiencePublic
-	case datacontract.VisibilityDM:
-		return events.AudienceDM
-	default:
-		return events.AudienceSystem
 	}
 }
 

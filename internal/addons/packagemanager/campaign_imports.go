@@ -8,7 +8,6 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
 	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 	"github.com/pjunak/ttrpg-codex/internal/application/campaignimport"
-	"github.com/pjunak/ttrpg-codex/internal/events"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/addondatastore"
 	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
 )
@@ -93,11 +92,7 @@ func (manager *Manager) PrepareCampaignContribution(ctx context.Context, actor w
 				return addondatastore.Transaction{}, err
 			}
 		}
-		audience := events.AudienceDM
-		if definition.Visibility == datacontract.VisibilityPublic {
-			audience = events.AudiencePublic
-		}
-		transaction.Mutations = append(transaction.Mutations, addondatastore.Mutation{Kind: kind, Definition: definition, Key: mutation.Key, ExpectedRevision: mutation.ExpectedRevision, Value: mutation.Value, Audience: audience})
+		transaction.Mutations = append(transaction.Mutations, addondatastore.Mutation{Kind: kind, Definition: definition, Key: mutation.Key, ExpectedRevision: mutation.ExpectedRevision, Value: mutation.Value, Audience: addondatastore.CollectionAudience(definition.Visibility)})
 	}
 	return transaction, nil
 }

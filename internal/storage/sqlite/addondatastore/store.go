@@ -607,6 +607,19 @@ func validDefinition(value datacontract.Description) bool {
 		len(value.SchemaSHA256) == 64 && lowercaseHex(value.SchemaSHA256)
 }
 
+// CollectionAudience is the audience for changes to a collection document of
+// the given visibility: the broadest one Transact accepts for it.
+func CollectionAudience(visibility datacontract.Visibility) events.Audience {
+	switch visibility {
+	case datacontract.VisibilityPublic:
+		return events.AudiencePublic
+	case datacontract.VisibilityDM:
+		return events.AudienceDM
+	default:
+		return events.AudienceSystem
+	}
+}
+
 func validAudience(visibility datacontract.Visibility, audience events.Audience) bool {
 	switch visibility {
 	case datacontract.VisibilityPublic:
