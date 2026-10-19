@@ -74,9 +74,14 @@ export class CodexInlineField extends LitElement {
     const previous = changed.get("record") as CampaignRecord | undefined;
     if (
       (previous && previous.key !== this.record?.key) ||
-      // A save turns the page read-only while it runs; the saving field stays
-      // open so a rejection can show its message next to the kept draft.
-      (changed.has("canEdit") && !this.canEdit && !this.pending)
+      // A save turns the page read-only while it runs. Fields with something to
+      // keep stay open but disabled: the saving one, so a rejection can show its
+      // message, and any rejected or changed draft.
+      (changed.has("canEdit") &&
+        !this.canEdit &&
+        !this.pending &&
+        this.error === "" &&
+        !this.#reportedDirty)
     )
       this.#close();
   }
@@ -134,11 +139,12 @@ export class CodexInlineField extends LitElement {
     }
     const choice = this.field.kind === "enum" || this.field.kind === "reference";
     const options = choice || this.#multi ? this.#options() : [];
+    const locked = this.pending || !this.canEdit;
     return html`<span class=${`inline-field-editor${this.pending ? " is-pending" : ""}`}
       @focusout=${this.#leave} @keydown=${this.#key}>
       <span class="inline-edit-row">${
         this.#multi
-          ? html`<select aria-label=${this.#name} multiple data-ui="chips" ?disabled=${this.pending}
+          ? html`<select aria-label=${this.#name} multiple data-ui="chips" ?disabled=${locked}
           @change=${(event: Event) => {
             this.#list = [...(event.target as HTMLSelectElement).selectedOptions].map(
               (option) => option.value,
@@ -148,9 +154,9 @@ export class CodexInlineField extends LitElement {
           }}>
           ${this.#list.filter((value) => !options.some((option) => option.value === value)).map((value) => html`<option value=${value} selected>${value}</option>`)}
           ${options.map((option) => html`<option value=${option.value} ?selected=${this.#list.includes(option.value)}>${option.label}</option>`)}</select>
-          ${this.#actions()}`
+          ${this.#actions(locked)}`
           : choice
-            ? html`<select aria-label=${this.#name} ?disabled=${this.pending} data-ui=${options.length >= 12 ? "combobox" : nothing}
+            ? html`<select aria-label=${this.#name} ?disabled=${locked} data-ui=${options.length >= 12 ? "combobox" : nothing}
           @change=${(event: Event) => {
             this.#draft = (event.target as HTMLSelectElement).value;
             void this.#save();
@@ -158,7 +164,7 @@ export class CodexInlineField extends LitElement {
           <option value="" ?selected=${this.#draft === ""}>${uiText("None")}</option>
           ${this.#draft && !options.some((option) => option.value === this.#draft) ? html`<option value=${this.#draft} selected>${this.#draft}</option>` : nothing}
           ${options.map((option) => html`<option value=${option.value} ?selected=${option.value === this.#draft}>${option.label}</option>`)}</select>`
-            : html`<input aria-label=${this.#name} .value=${this.#draft} ?disabled=${this.pending}
+            : html`<input aria-label=${this.#name} .value=${this.#draft} ?disabled=${locked}
           type=${this.field.kind === "number" ? "number" : "text"} min=${this.field.minimum ?? nothing} max=${this.field.maximum ?? nothing}
           maxlength=${this.field.kind === "tags" ? nothing : this.field.maximumLength} ?required=${this.field.required === true}
           title=${uiText("Enter to confirm · Esc to cancel")}
@@ -167,25 +173,25 @@ export class CodexInlineField extends LitElement {
             this.error = "";
             this.#dirty(this.#draft !== this.#saved);
           }} />
-          ${this.#actions()}`
+          ${this.#actions(locked)}`
       }</span>
       ${this.pending ? html`<small class="inline-edit-hint">${uiText("Saving…")}</small>` : nothing}
       ${
         this.error
           ? html`<span class="inline-edit-error" role="alert">${this.error}</span>
         ${this.#conflict ? html`<small class="inline-edit-hint">${uiText("Current saved value")}: ${(this.#multi ? this.#listLabels(this.#savedList()) : this.#saved) || "—"}</small>` : nothing}
-        <span class="inline-edit-recovery">${this.#conflict ? nothing : html`<button type="button" @click=${() => this.#save()}>${uiText("Retry")}</button>`}
-          <button type="button" @click=${this.#cancel}>${uiText("Use current value")}</button></span>`
+        <span class="inline-edit-recovery">${this.#conflict ? nothing : html`<button type="button" ?disabled=${locked} @click=${() => this.#save()}>${uiText("Retry")}</button>`}
+          <button type="button" ?disabled=${locked} @click=${this.#cancel}>${uiText("Use current value")}</button></span>`
           : nothing
       }
     </span>`;
   }
-  #actions() {
+  #actions(locked: boolean) {
     return html`<span class="inline-edit-actions">
       <button type="button" class="inline-edit-confirm" aria-label=${uiText("inlineEdit.save", { "0": this.#name })} title=${uiText("inlineEdit.save", { "0": this.#name })}
-        ?disabled=${this.pending} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => this.#save()}>✓</button>
+        ?disabled=${locked} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${() => this.#save()}>✓</button>
       <button type="button" class="inline-edit-cancel" aria-label=${uiText("inlineEdit.cancel", { "0": this.#name })} title=${uiText("inlineEdit.cancel", { "0": this.#name })}
-        ?disabled=${this.pending} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${this.#cancel}>✕</button>
+        ?disabled=${locked} @pointerdown=${(event: PointerEvent) => event.preventDefault()} @click=${this.#cancel}>✕</button>
     </span>`;
   }
   #options() {
@@ -227,7 +233,7 @@ export class CodexInlineField extends LitElement {
   readonly #leave = (event: FocusEvent): void => {
     const next = event.relatedTarget;
     if (next instanceof Element && (this.contains(next) || next.closest(".ui-popup"))) return;
-    if (!this.error && !this.pending) void this.#save();
+    if (!this.error && !this.pending && this.canEdit) void this.#save();
   };
   readonly #cancel = (): void => {
     if (this.pending) return;
@@ -247,7 +253,7 @@ export class CodexInlineField extends LitElement {
     this.#base = undefined;
   }
   async #save(): Promise<void> {
-    if (!this.editing || this.pending || this.#conflict || !this.#base) return;
+    if (!this.editing || !this.canEdit || this.pending || this.#conflict || !this.#base) return;
     const value = this.#multi ? [...this.#list] : fieldValue(this.field, this.#draft);
     const before = this.#multi
       ? this.#savedList(this.#base)

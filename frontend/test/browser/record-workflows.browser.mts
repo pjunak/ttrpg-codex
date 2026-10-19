@@ -1779,3 +1779,53 @@ void test("the full form takes no input while it saves and keeps the draft after
   assert.equal(await region.inputValue(), "South");
   assert.equal((await record("locked-town")).value.name, "Locked town");
 });
+
+void test("a rejected inline draft stays open while another field saves", async (t) => {
+  await put(admin, csrf, "kept-draft-town", { name: "Kept draft town", region: "North" });
+  const dm = await open(t, "dm");
+  await dm.page.goto("/#/locations/kept-draft-town");
+  await dm.page.getByRole("button", { name: "Edit Name", exact: true }).click();
+  const name = dm.page.getByRole("textbox", { name: "Name", exact: true });
+  await name.fill("Rejected name draft");
+  const current = await record("kept-draft-town");
+  await put(
+    admin,
+    csrf,
+    "kept-draft-town",
+    { ...current.value, name: "Remote name" },
+    current.revision,
+  );
+  await name.press("Enter");
+  const rejected = dm.page
+    .locator(".inline-edit-error")
+    .getByText(
+      "This field changed elsewhere. Your draft is kept. Review the current value before retrying.",
+      { exact: true },
+    );
+  await rejected.waitFor();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  t.after(() => release());
+  await dm.page.route("**/api/campaign/transactions", async (route) => {
+    await gate;
+    await route.continue();
+  });
+  await dm.page.getByRole("button", { name: "Edit Region", exact: true }).click();
+  const region = dm.page.getByRole("textbox", { name: "Region", exact: true });
+  await region.fill("South");
+  await region.press("Enter");
+  await dm.page.locator(".inline-edit-hint").getByText("Saving…", { exact: true }).waitFor();
+  assert.equal(await name.inputValue(), "Rejected name draft");
+  assert.equal(await name.isEditable(), false);
+  release();
+  await dm.page
+    .getByRole("button", { name: "Edit Region", exact: true })
+    .filter({ hasText: "South" })
+    .waitFor();
+  await rejected.waitFor();
+  assert.equal(await name.inputValue(), "Rejected name draft");
+  assert.equal(await name.isEditable(), true);
+  assert.equal((await record("kept-draft-town")).value.region, "South");
+});
