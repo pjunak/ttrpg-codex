@@ -57,35 +57,11 @@ not obvious. Move an entry between sections instead of duplicating it.
 ## Quality pass
 
 Agreed fixes and cleanup from a full review of all five repositories. Work the
-stages in order; entries within a stage are independent, and stages 4–6 can be
-reordered. Each fix adds a regression test. File-level findings are in the
-local, git-ignored `docs/plans/quality-pass.md`.
+stages in the order listed; entries within a stage are independent, and the
+last three stages can be reordered. Each fix adds a regression test.
+File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 
-### 1. Data safety
-
-- **Lost edits in the record editors** `ttrpg-codex` — The full form stays
-  editable during a save and drops what is typed meanwhile; a failed inline
-  draft is closed when another field saves; the discard prompt is always
-  English; one unreadable local draft hides all others; a full-form save
-  rewrites untouched fields, splitting tags that contain commas and multi-line
-  list items; the later-overwrite check hides in a call whose result is
-  discarded; the dashboard add-on slot gets no locale.
-- **Revoke DM grants while rules have changed** `addon-dnd-character-sheets` —
-  DM grant commands still wait for rule adoption, so when a DM grant is what
-  makes the adopted character invalid, the DM cannot revoke or amend it first
-  and the sheet stays stuck. Let revoke and amend run before adoption.
-- **Compendium validation gaps** `addon-dnd-2024-compendium` — The content
-  schema does not describe the ruleset record, so a bad ruleset installs and
-  then fails every evaluation; the reference test reads lineage spells in the
-  wrong shape and skips most reference kinds; the equipment importer
-  overwrites hand-curated fields and its dry run shows no field differences.
-- **Compendium docs that contradict the code** `addon-dnd-2024-compendium` —
-  `data/SCHEMA.md` documents `getRuleset`, `listEquipment`, an alert fallback
-  and a universal `edition` value that do not exist; the i18n README template
-  omits the required `name`; AGENTS.md calls `locales/` host-managed although
-  the build bundles the catalogs itself.
-
-### 2. One write path per editor
+### One write path per editor
 
 - **One write controller for host editors** `ttrpg-codex` — Editors learn
   that a save finished from app-wide state, and an add-on admin view that
@@ -110,7 +86,7 @@ local, git-ignored `docs/plans/quality-pass.md`.
   conflicts, refused saves, rule adoption and imports; cancel per-view loads;
   give every field an explicit key instead of one derived from its label.
 
-### 3. Typed rules model
+### Typed rules model
 
 - **Typed Engine vocabulary and outputs** `addon-dnd-engine` — Rules code works
   on untyped maps, and closed sets (play commands, effect targets and modes,
@@ -130,7 +106,7 @@ local, git-ignored `docs/plans/quality-pass.md`.
   Engine's typed vocabulary, so bad data fails at install instead of at
   evaluation.
 
-### 4. Contracts, SDK and shared tooling
+### Contracts, SDK and shared tooling
 
 - **SDK as its own module** `ttrpg-codex` and add-ons — The SDK imports host
   internals, so add-ons require the whole host module and keep copies of the
@@ -149,7 +125,7 @@ local, git-ignored `docs/plans/quality-pass.md`.
   Generate the copies or add drift tests (every schema property has a struct
   field), and read every response through one validated reader.
 
-### 5. Host backend structure
+### Host backend structure
 
 - **Package manager lock scope** `ttrpg-codex` — Staging holds the manager
   lock for the whole upload, activation holds it while workers start and stop,
@@ -163,7 +139,7 @@ local, git-ignored `docs/plans/quality-pass.md`.
   across packages. Use one explicit admin interface, split those files, share
   the store protocol, add a layer-direction test and delete test-only code.
 
-### 6. UI styling and structure
+### UI styling and structure
 
 - **Complete and publish design tokens** `ttrpg-codex` and add-on UIs — The
   Moonlit theme overrides only some tokens, so timeline, map and Mind Palace
