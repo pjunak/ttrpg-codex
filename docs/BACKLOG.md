@@ -79,15 +79,6 @@ not obvious. Move an entry between sections instead of duplicating it.
   per-tab context bars, pips and floating windows; the owner keeps refining it.
   Known gaps: carrying capacity ignores size and features that change it (such
   as Powerful Build), and Classic shows no carried weight or coin-weight toggle.
-- **Homebrew pickers from the rules data** `addon-dnd-homebrew` — The item
-  editor takes spells and class lists as typed ids. Declare an optional
-  `dnd5e.rules-data` consumer (all compatible providers, skipping the add-on's
-  own records) and offer searchable spell and class pickers; keep typed ids when
-  no Compendium is installed. Subclass and feat editors will need the same.
-- **Homebrew item fields the Engine reads** `addon-dnd-homebrew` — Add weight
-  (`weightLb`, for carrying), `cost`, `attunementPrerequisites` (class levels,
-  spellcaster) and `container` (capacity, weightless) to items and published
-  records. Optional fields keep saved data valid, so an update can heal it.
 
 ## Quality pass
 

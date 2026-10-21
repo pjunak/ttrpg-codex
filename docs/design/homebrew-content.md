@@ -23,6 +23,8 @@ repository.
   `dnd5e.rules-data` 3.0.0, which the Engine merges with the Compendium. See
   its [README](../../../addon-dnd-homebrew/README.md) and
   [design notes](../../../addon-dnd-homebrew/docs/DESIGN.md).
+- Items carry weight, containers and who may attune, and the editor picks
+  spells and classes from the Compendium.
 - Import format `dnd-homebrew-items` v1 (merge or replace) through the
   add-on's own adapter, so the Import Center accepts it too;
   `cmd/check-homebrew` checks a file offline before import.
@@ -62,9 +64,10 @@ sharing fixtures. What differs from items:
   spells, AC formulas, attack modifiers, activations that spend resources),
   far more than the item allowlist. The Engine applies what it knows and leaves
   the rest inactive, so Homebrew must decide what it validates and edits.
-- A subclass editor needs the Compendium's classes, and good spell and feat
-  pickers need its records: the add-on's browser code must read
-  `dnd5e.rules-data` as well as provide it (planned for items in the backlog).
+- A subclass editor needs the Compendium's classes, and spell and feat
+  pickers need its records. The item editor already reads spells and classes
+  through an optional `dnd5e.rules-data` consumer (`src/references.ts`); other
+  kinds extend that loader.
 
 ## Questions for the owner
 
@@ -89,19 +92,16 @@ sharing fixtures. What differs from items:
 
 ## Phases once decided
 
-1. **Item editor** (backlog Next): pickers from the rules data, and the item
-   fields the Engine already reads (weight, cost, attunement prerequisites,
-   containers).
-2. **Several kinds in one publish:** published records keyed by kind, the
+1. **Several kinds in one publish:** published records keyed by kind, the
    provider's catalog counting each kind, the format at version 2, and the
    checker and Import Center following.
-3. **Subclasses:** draft collection with features nested, editor (class
+2. **Subclasses:** draft collection with features nested, editor (class
    picker, subclass level, features by level with text, excerpt and the grants
    chosen in question 2), flattening into `subclass` and `feature` records
    checked against the Compendium schema and the Engine's subclass rules, and
    an installed test that picks a homebrew subclass in the Builder.
-4. **Feats and spells:** simpler records; homebrew spells join class lists
+3. **Feats and spells:** simpler records; homebrew spells join class lists
    through `classes`.
-5. **Species and backgrounds:** origin choices and ability rules; later.
-6. **Campaign bundles:** a `codex.campaign-bundle-contributor` so a bundle can
+4. **Species and backgrounds:** origin choices and ability rules; later.
+5. **Campaign bundles:** a `codex.campaign-bundle-contributor` so a bundle can
    carry homebrew drafts with the rest of a campaign.
