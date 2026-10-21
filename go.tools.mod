@@ -1,6 +1,6 @@
 module github.com/pjunak/ttrpg-codex/tools
 
-go 1.27.2
+go 1.27.3
 
 tool (
 	github.com/rhysd/actionlint/cmd/actionlint
