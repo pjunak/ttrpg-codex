@@ -49,6 +49,19 @@ not obvious. Move an entry between sections instead of duplicating it.
 
 ## Next
 
+- **Source-text defects: book spot-check and remaining table cleanup**
+  `addon-dnd-2024-compendium` — Follow-ups from fixing the defects the
+  2026-10-21 excerpt pass flagged. Restore glamour Mantle of Majesty's
+  cut-off sentence ("…cast Command as a Bonus Action without expending a
+  spell slot,") from the printed PHB; no checkable source was available.
+  Spot-check against the book what was corrected from record prose alone:
+  the lightly/moderately-armored Shields swap, Shield Master's Strength-only
+  increase, Weapon Master's removed Martial-proficiency grant, and the
+  soulknife Rend Mind "use you[r]" and ritual-caster "spelicasting" typos.
+  The same broken one-cell table markup remains in 24 records outside the
+  flagged feature/feat/subclass scope (classes, species, spells, rules,
+  monsters, magic items), and the PHB wizard-subclass table lists
+  Bladesinger, which is neither a 2024 PHB subclass nor in the repository.
 - **Compendium translation overlays** `addon-dnd-2024-compendium` — The
   `data/i18n/` record overlays are specified in `data/SCHEMA.md` but nothing
   loads or applies them. Implement them (planned for its own session) so the
