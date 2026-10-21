@@ -1,6 +1,6 @@
 # Backlog
 
-The only task list for the host and the four first-party add-ons. Reference
+The only task list for the host and the five first-party add-ons. Reference
 docs describe what exists; this file says what to do next. Delete an entry when
 it is done (Git keeps the history) and update the reference it changes.
 
@@ -40,9 +40,28 @@ not obvious. Move an entry between sections instead of duplicating it.
   September reconstructions are archived with the backups for reference.
 - **Tiamat** `ttrpg-codex` — Confirm Settings → Add-ons shows nothing
   installed. Tiamat stays without add-ons.
+- **Homebrew Items repository** `addon-dnd-homebrew` — Create
+  `pjunak/addon-dnd-homebrew` on GitHub and push the local repository so CI
+  publishes 1.0.0. To use it on Asurai, update the Engine to 5.4.0 and
+  Character Sheets to the build that shows item properties, then install it,
+  import `docs/examples/cursed-cards.json`, set the class's rarity and curse,
+  and publish.
 
 ## Next
 
+- **Source-text defects: book spot-check and remaining table cleanup**
+  `addon-dnd-2024-compendium` — Follow-ups from fixing the defects the
+  2026-10-21 excerpt pass flagged. Restore glamour Mantle of Majesty's
+  cut-off sentence ("…cast Command as a Bonus Action without expending a
+  spell slot,") from the printed PHB; no checkable source was available.
+  Spot-check against the book what was corrected from record prose alone:
+  the lightly/moderately-armored Shields swap, Shield Master's Strength-only
+  increase, Weapon Master's removed Martial-proficiency grant, and the
+  soulknife Rend Mind "use you[r]" and ritual-caster "spelicasting" typos.
+  The same broken one-cell table markup remains in 24 records outside the
+  flagged feature/feat/subclass scope (classes, species, spells, rules,
+  monsters, magic items), and the PHB wizard-subclass table lists
+  Bladesinger, which is neither a 2024 PHB subclass nor in the repository.
 - **Compendium translation overlays** `addon-dnd-2024-compendium` — The
   `data/i18n/` record overlays are specified in `data/SCHEMA.md` but nothing
   loads or applies them. Implement them (planned for its own session) so the
@@ -213,6 +232,15 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   layouts implement hit points, combat, equipment and spells separately, with
   different behaviour (Compact parses free-text HP changes, Classic sends play
   commands). Share panel data and commands once the Compact refinement settles.
+- **Installed homebrew case** `ttrpg-codex`, `addon-dnd-homebrew` — Move
+  `host-tests/installed-homebrew.browser.mts` into the installed suite behind
+  `CODEX_HOMEBREW_ZIP` once the repository publishes releases, reading the
+  publish planner and the example from the ZIP instead of
+  `CODEX_HOMEBREW_ROOT`.
+- **Import adapter problems in the Import Center** `ttrpg-codex`,
+  `addon-dm-tools` — Browsers receive only a status and error code from service
+  calls, so a rejected preview says only that it failed. Forward a bounded
+  validation message (or `details.issue`) and show it, so a DM can fix the file.
 - **Host locale and Markdown services for add-ons** `ttrpg-codex` — The add-ons
   run three localization systems, and the Compendium ships its own Markdown
   renderer, because the host serves no add-on locales and its Markdown

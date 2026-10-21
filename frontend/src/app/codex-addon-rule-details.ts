@@ -325,7 +325,6 @@ export class CodexAddonRuleDetails extends LitElement {
           })}</div>`
             : nothing
         }
-        ${data.savedSources?.length ? html`<details><summary>${this.#ui.t("ruleDetails.evidence")}</summary>${data.savedSources.map((source) => html`<p>${source.name}<small style="overflow-wrap:anywhere">SHA-256: ${source.hash}</small></p>`)}</details>` : nothing}
         ${this.link.status === "resolved" ? html`<a href=${this.link.href}>${this.#ui.t(data.savedSources?.length ? "ruleDetails.current" : "ruleDetails.open")}</a>` : data.reference || data.wiki ? html`<p role="status">${this.#ui.t(this.link.status === "loading" ? "ruleDetails.loading" : "ruleDetails.missing")}</p>` : nothing}
       </div>`;
   }
