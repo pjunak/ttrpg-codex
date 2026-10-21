@@ -88,31 +88,6 @@ stages in the order listed; entries within a stage are independent, and the
 last three stages can be reordered. Each fix adds a regression test.
 File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 
-### One write path per editor
-
-- **One write controller for host editors** `ttrpg-codex` — Editors learn
-  that a save finished from app-wide state, and an add-on admin view that
-  disconnects mid-request can leave the app-wide `busy` flag stuck until
-  reload. Route saves through one controller that answers each editor's own
-  request, make `busy` a lease released on disconnect, share one request
-  controller across admin views, and test editors against the real app
-  instead of the fake save host.
-- **One inline field and a record-form element** `ttrpg-codex` — Three
-  inline-edit implementations behave differently on conflicts, pending saves
-  and keys. Merge them into one component with explicit commit modes, and move
-  the full record form into its own element that owns the opening snapshot,
-  dirty state and saving lock.
-- **Split `codex-app.ts`** `ttrpg-codex` — Cut it into a session controller,
-  an add-on outlets controller, the write controller, shell elements and a
-  navigation guard; `campaign-controller.ts` already holds campaign loading and
-  live refresh.
-- **Character Sheets session** `addon-dnd-character-sheets` — Saving depends
-  on nine interacting fields in `character-element.ts`, responses are merged
-  by spreading so stale fields survive, and no test touches it. Extract a
-  session with an injected call function and unit-test lost replies,
-  conflicts, refused saves, rule adoption and imports; cancel per-view loads;
-  give every field an explicit key instead of one derived from its label.
-
 ### Typed rules model
 
 - **Typed Engine vocabulary and outputs** `addon-dnd-engine` — Rules code works
