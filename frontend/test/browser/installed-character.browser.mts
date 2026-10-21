@@ -634,8 +634,8 @@ void test(
     await sheet.getByRole("button", { name: "Import character", exact: true }).click();
     const current = await call("load", {}),
       envelope = {
-        format: "dnd-character.v2",
-        schemaVersion: "5.0.0",
+        format: "dnd-character.v3",
+        schemaVersion: "6.0.0",
         inputs: {
           ...current.state.inputs,
           play: { ...current.state.inputs.play, currency: { gp: 77 } },
