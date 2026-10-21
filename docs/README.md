@@ -38,7 +38,7 @@ then the [API reference](../examples/addons/API_V3.md) and the
 
 | Kind | Where | Lifetime |
 | --- | --- | --- |
-| Future work for all five repositories | [BACKLOG.md](BACKLOG.md): owner checks, next, undecided, later, ideas, watch-for | Entry deleted when done |
+| Future work for all six repositories | [BACKLOG.md](BACKLOG.md): owner checks, next, undecided, later, ideas, watch-for | Entry deleted when done |
 | Problems the owner has not decided yet | [design/](design/), marked **Undecided** | Until a decision becomes an ADR |
 | Accepted design decisions and their reasons | [decisions/](decisions/) ([template](decisions/TEMPLATE.md)) | Kept current; edit or delete when the decision changes |
 | A plan for the change in progress | `plans/` (git-ignored) | Deleted when the change lands |
@@ -46,4 +46,6 @@ then the [API reference](../examples/addons/API_V3.md) and the
 Currently undecided: the
 [knowledge and investigation model](design/knowledge-and-investigation.md)
 (knowledge levels, mystery clues, character facts and open questions, Mind
-Palace). Leave that area as it is until the owner decides.
+Palace). Leave that area as it is until the owner decides. Also undecided:
+[homebrew beyond items](design/homebrew-content.md) (subclasses and other
+kinds in the Homebrew add-on); its item editor continues meanwhile.

@@ -44,12 +44,13 @@ not obvious. Move an entry between sections instead of duplicating it.
   September reconstructions are archived with the backups for reference.
 - **Tiamat** `ttrpg-codex` — Confirm Settings → Add-ons shows nothing
   installed. Tiamat stays without add-ons.
-- **Homebrew Items repository** `addon-dnd-homebrew` — Create
-  `pjunak/addon-dnd-homebrew` on GitHub and push the local repository so CI
-  publishes 1.0.0. To use it on Asurai, update the Engine to 5.4.0 and
-  Character Sheets to the build that shows item properties, then install it,
-  import `docs/examples/cursed-cards.json`, set the class's rarity and curse,
-  and publish.
+- **Homebrew Items on Asurai** `addon-dnd-homebrew` — First answer question 1
+  of the [homebrew design note](design/homebrew-content.md) (renaming item
+  classes is free only before the first install). Then download a fresh Asurai
+  backup into `L:\Backups\ttrpg\`, update the Engine to 5.4.0 and Character
+  Sheets to the build that shows item properties, install the latest Homebrew
+  build, import `homebrew-imports/cursed-cards.json` (beside the repositories),
+  set the class's rarity and curse, and publish.
 
 ## Next
 
@@ -80,6 +81,15 @@ not obvious. Move an entry between sections instead of duplicating it.
   per-tab context bars, pips and floating windows; the owner keeps refining it.
   Known gaps: carrying capacity ignores size and features that change it (such
   as Powerful Build), and Classic shows no carried weight or coin-weight toggle.
+- **Homebrew pickers from the rules data** `addon-dnd-homebrew` — The item
+  editor takes spells and class lists as typed ids. Declare an optional
+  `dnd5e.rules-data` consumer (all compatible providers, skipping the add-on's
+  own records) and offer searchable spell and class pickers; keep typed ids when
+  no Compendium is installed. Subclass and feat editors will need the same.
+- **Homebrew item fields the Engine reads** `addon-dnd-homebrew` — Add weight
+  (`weightLb`, for carrying), `cost`, `attunementPrerequisites` (class levels,
+  spellcaster) and `container` (capacity, weightless) to items and published
+  records. Optional fields keep saved data valid, so an update can heal it.
 
 ## Quality pass
 
@@ -190,6 +200,10 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 - **Reordering twin records on the timeline** `ttrpg-codex` — Moving an event
   moves only the DM side of a twin pair, so players keep the public twin in its
   old session. Decide whether both should move.
+- **Homebrew beyond items** `addon-dnd-homebrew` — Subclasses, then feats,
+  spells and more, in the same add-on. The [design note](design/homebrew-content.md)
+  lists the questions (naming item classes, one add-on or several, how far the
+  subclass editor goes, magic weapons) and the phases that follow the answers.
 
 ## Later
 
@@ -213,9 +227,14 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   commands). Share panel data and commands once the Compact refinement settles.
 - **Installed homebrew case** `ttrpg-codex`, `addon-dnd-homebrew` — Move
   `host-tests/installed-homebrew.browser.mts` into the installed suite behind
-  `CODEX_HOMEBREW_ZIP` once the repository publishes releases, reading the
-  publish planner and the example from the ZIP instead of
+  `CODEX_HOMEBREW_ZIP` (the repository now publishes releases), reading the
+  publish planner and the sample from the ZIP instead of
   `CODEX_HOMEBREW_ROOT`.
+- **One owner for the rules-data record schema** `addon-dnd-2024-compendium`,
+  `addon-dnd-homebrew` — Homebrew copies the Compendium's
+  `contracts/rule-record.schema.json` for its provider responses, and the copy
+  fell behind once (`excerpt`). Check the copy in CI or move the schema to the
+  Engine's provider contract before Homebrew serves more kinds.
 - **Import adapter problems in the Import Center** `ttrpg-codex`,
   `addon-dm-tools` — Browsers receive only a status and error code from service
   calls, so a rejected preview says only that it failed. Forward a bounded
