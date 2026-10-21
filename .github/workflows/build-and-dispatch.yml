@@ -113,10 +113,22 @@ jobs:
         run: |
           set -euo pipefail
           main_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
-          if [[ "$main_sha" == "$GITHUB_SHA" ]]; then
-            echo 'current=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'current=false' >> "$GITHUB_OUTPUT"
+          current=true
+          if [[ "$main_sha" != "$GITHUB_SHA" ]]; then
+            # A newer main that only touches paths this workflow ignores never
+            # builds, so this revision is still the one to release.
+            compare="repos/$GITHUB_REPOSITORY/compare/$GITHUB_SHA...$main_sha"
+            status="$(gh api "$compare" --jq .status)"
+            mapfile -t files < <(gh api "$compare" --jq '.files[].filename')
+            if [[ "$status" != ahead || ${#files[@]} -eq 0 || ${#files[@]} -ge 300 ]]; then
+              current=false
+            fi
+            for file in "${files[@]}"; do
+              [[ "$file" == *.md || "$file" == docs/* || "$file" == .github/dependabot.yml ]] || current=false
+            done
+          fi
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          if [[ "$current" == false ]]; then
             echo '::notice::A newer main revision exists; publication and deployment skipped.'
           fi
 
