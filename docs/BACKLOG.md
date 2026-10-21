@@ -33,8 +33,12 @@ not obvious. Move an entry between sections instead of duplicating it.
   buttons once its current build is installed (older builds only report them).
 - **Quality-pass add-on builds on Asurai** `ttrpg-codex` — The host with the
   data-safety fixes is deployed to both sites. Download a fresh Asurai backup
-  into `L:\Backups\ttrpg\`, then in Settings → Add-ons update the Compendium,
-  Engine, Character Sheets and DM Tools to their latest builds, in that order.
+  into `L:\Backups\ttrpg\`, then in Settings → Add-ons update the Engine,
+  Compendium, Character Sheets and DM Tools to their latest builds, in that
+  order: an Engine older than 5.3.0 rejects the Compendium's newer condition
+  fields and turns conditions off until it is updated. If Character Sheets
+  asks, choose **Heal and update**; existing sheets stay. Then open each
+  character and choose **Adopt current rules** before play.
 - **Asurai characters** `addon-dnd-character-sheets` — The players are
   rebuilding Bloodvell, Kael Vor, Ines and Talia in the new builder. The
   September reconstructions are archived with the backups for reference.
