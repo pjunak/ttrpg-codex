@@ -1,6 +1,6 @@
 # Backlog
 
-The only task list for the host and the four first-party add-ons. Reference
+The only task list for the host and the five first-party add-ons. Reference
 docs describe what exists; this file says what to do next. Delete an entry when
 it is done (Git keeps the history) and update the reference it changes.
 
@@ -40,6 +40,12 @@ not obvious. Move an entry between sections instead of duplicating it.
   September reconstructions are archived with the backups for reference.
 - **Tiamat** `ttrpg-codex` — Confirm Settings → Add-ons shows nothing
   installed. Tiamat stays without add-ons.
+- **Homebrew Items repository** `addon-dnd-homebrew` — Create
+  `pjunak/addon-dnd-homebrew` on GitHub and push the local repository so CI
+  publishes 1.0.0. To use it on Asurai, update the Engine to 5.4.0 and
+  Character Sheets to the build that shows item properties, then install it,
+  import `docs/examples/cursed-cards.json`, set the class's rarity and curse,
+  and publish.
 
 ## Next
 
@@ -213,6 +219,15 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   layouts implement hit points, combat, equipment and spells separately, with
   different behaviour (Compact parses free-text HP changes, Classic sends play
   commands). Share panel data and commands once the Compact refinement settles.
+- **Installed homebrew case** `ttrpg-codex`, `addon-dnd-homebrew` — Move
+  `host-tests/installed-homebrew.browser.mts` into the installed suite behind
+  `CODEX_HOMEBREW_ZIP` once the repository publishes releases, reading the
+  publish planner and the example from the ZIP instead of
+  `CODEX_HOMEBREW_ROOT`.
+- **Import adapter problems in the Import Center** `ttrpg-codex`,
+  `addon-dm-tools` — Browsers receive only a status and error code from service
+  calls, so a rejected preview says only that it failed. Forward a bounded
+  validation message (or `details.issue`) and show it, so a DM can fix the file.
 - **Host locale and Markdown services for add-ons** `ttrpg-codex` — The add-ons
   run three localization systems, and the Compendium ships its own Markdown
   renderer, because the host serves no add-on locales and its Markdown
