@@ -75,7 +75,7 @@ docs/                 Operator guide, architecture, references, backlog
 | Host code | `npm run check` |
 | Worker, broker, event or lifecycle concurrency | Also `go test -race` on the package |
 | Public add-on contract (manifest, SDK, services) | Host tests plus the affected add-ons' gates |
-| Installed add-on behaviour | `npm --workspace @ttrpg-codex/frontend run test:installed` with the four `CODEX_*_ZIP` variables ([how](CONTRIBUTING.md#installed-add-on-smoke-test)) |
+| Installed add-on behaviour | `npm --workspace @ttrpg-codex/frontend run test:installed` with the five `CODEX_*_ZIP` variables ([how](CONTRIBUTING.md#installed-add-on-smoke-test)) |
 
 ## Where to read more
 
