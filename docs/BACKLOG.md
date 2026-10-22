@@ -80,14 +80,6 @@ not obvious. Move an entry between sections instead of duplicating it.
   per-tab context bars, pips and floating windows; the owner keeps refining it.
   Known gaps: carrying capacity ignores size and features that change it (such
   as Powerful Build), and Classic shows no carried weight or coin-weight toggle.
-- **Magic weapons and armor** `addon-dnd-engine`, `addon-dnd-2024-compendium`,
-  `addon-dnd-character-sheets`, `addon-dnd-homebrew` — A magic item can be a
-  weapon or armor of a base type with an attack, damage or Armor Class bonus
-  ("+1 longsword", "+2 shield"). Engine contract and rules first, then the
-  Compendium's +1/+2/+3 items, the sheet's display, then a Homebrew item
-  field ([ADR-0006](decisions/0006-homebrew-content.md)). **Done when** an
-  equipped Compendium Weapon, +1 and a homebrew +1 longsword both add to
-  attack and damage, and a +2 shield to Armor Class, on the sheet.
 - **Homebrew: several kinds in one publish** `addon-dnd-homebrew` — After
   magic gear. Key published records by kind, count each kind in the provider's
   catalog, and give the `dnd-homebrew` format a section per kind that the
@@ -216,6 +208,12 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   layouts implement hit points, combat, equipment and spells separately, with
   different behaviour (Compact parses free-text HP changes, Classic sends play
   commands). Share panel data and commands once the Compact refinement settles.
+- **Base forms for the named magic weapons and armor** `addon-dnd-2024-compendium`
+  — The DMG's +1/+2/+3 weapon, armor and shield declare `baseItem`; the named
+  ones (Flame Tongue, Sun Blade, Elven Chain, Dwarven Plate and the rest) do
+  not, so even with DM adjudication they get no attack row or armor AC. Declare
+  their base, and a bonus only where the item is otherwise complete.
+  Ammunition, +1, +2, or +3 waits for ammunition attacks.
 - **Homebrew feats, spells, origins and bundles** `addon-dnd-homebrew` — After
   subclasses, in this order ([ADR-0006](decisions/0006-homebrew-content.md)):
   feats and spells (homebrew spells join class lists through `classes`),

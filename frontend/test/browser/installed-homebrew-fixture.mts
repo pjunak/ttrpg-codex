@@ -40,7 +40,8 @@ export async function homebrewModel(archive: Buffer, directory: string): Promise
 }
 
 /**
- * A dnd-homebrew import: one item set and 13 items covering effects and grants.
+ * A dnd-homebrew import: one item set and 14 items covering effects, grants
+ * and a magic weapon.
  * It copies addon-dnd-homebrew's docs/examples/sample-items.json; the import
  * format is that add-on's public contract, so a change there shows up here.
  */
@@ -306,6 +307,13 @@ export const homebrewSample = {
         capacityLb: 100,
         weightless: true,
       },
+    },
+    {
+      id: "plus-one-longsword",
+      name: "+1 Longsword",
+      text: "You have a +1 bonus to attack rolls and damage rolls made with this magic weapon.",
+      overrides: { itemType: "Weapon (Longsword)", rarity: "Uncommon" },
+      baseItem: { kind: "weapon", ids: ["longsword"], bonus: 1 },
     },
   ],
 };

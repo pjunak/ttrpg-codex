@@ -311,7 +311,7 @@ void test(
     });
     assert.equal(preview.status, 200, JSON.stringify(preview.body));
     assert.deepEqual(preview.body.result.summary, {
-      creates: 14,
+      creates: 15,
       updates: 0,
       skips: 0,
       deletes: 0,
@@ -322,7 +322,7 @@ void test(
       "import-1",
     );
     assert.equal(commit.status, 200, JSON.stringify(commit.body));
-    assert.equal((await all("homebrew_items")).documents.length, 13);
+    assert.equal((await all("homebrew_items")).documents.length, 14);
     const playerImporter = await connect(player, playerCsrf, "dnd-homebrew", {
       contract: "codex.import-adapter",
       own: true,
@@ -346,7 +346,7 @@ void test("published items apply on DM and player sheets", { skip: !enabled }, a
     0,
     "drafts reached the engine",
   );
-  assert.equal(await publish(), 14);
+  assert.equal(await publish(), 15);
   const records: { id: string }[] = [];
   let cursor: string | undefined;
   do {
@@ -361,7 +361,7 @@ void test("published items apply on DM and player sheets", { skip: !enabled }, a
     records.push(...page.records);
     cursor = page.nextCursor;
   } while (cursor);
-  assert.equal(records.filter((record) => record.id.startsWith("hb.")).length, 13);
+  assert.equal(records.filter((record) => record.id.startsWith("hb.")).length, 14);
   assert.ok(
     records.some((record) => record.id === "ring-of-protection"),
     "compendium items are still there",
@@ -449,6 +449,67 @@ void test(
       choice?.options,
       ["INT", "WIS", "CHA"],
       JSON.stringify(result.spellOptions.castingAbilityChoices),
+    );
+  },
+);
+
+void test(
+  "a homebrew +1 longsword and the Compendium's +1 weapon and +2 shield add their bonus",
+  { skip: !enabled },
+  async () => {
+    const engine = await engineAs(dm, dmCsrf);
+    const evaluate = async (inventory: unknown[]) => {
+      const call = await engine("evaluate-character", inputs(inventory));
+      assert.equal(call.status, 200, JSON.stringify(call.body));
+      return (call.body.result as Evaluation).evaluation;
+    };
+    const gear = (id: string, kind: string, ref: string, extra: Record<string, unknown> = {}) => ({
+      ...card(ref, extra),
+      id: `inv-${id}`,
+      reference: { kind, id: ref },
+    });
+    const plain = await evaluate([
+      gear("longsword", "weapon", "longsword"),
+      gear("dagger", "weapon", "dagger"),
+      gear("shield", "armor", "shield"),
+    ]);
+    const magic = await evaluate([
+      card("hb.plus-one-longsword"),
+      gear("weapon", "magic-item", "weapon-1-2-or-3", { baseItemId: "dagger", bonus: 1 }),
+      gear("shield", "magic-item", "shield-1-2-or-3", { bonus: 2 }),
+    ]);
+    const row = (sheet: Record<string, any>, itemId: string) => {
+      const found = sheet.weapons.find((weapon: any) => weapon.itemId === itemId);
+      assert.ok(found, JSON.stringify(sheet.weapons));
+      return found;
+    };
+    // "1d8 +2" becomes "1d8 +3".
+    const raised = (damage: string) =>
+      damage.replace(/([+-]\d+)$/u, (modifier) => {
+        const value = Number(modifier) + 1;
+        return value < 0 ? String(value) : `+${value}`;
+      });
+    for (const [plainId, magicId, base] of [
+      ["inv-longsword", "inv-hb.plus-one-longsword", "longsword"],
+      ["inv-dagger", "inv-weapon", "dagger"],
+    ] as const) {
+      const before = row(plain.sheet, plainId),
+        after = row(magic.sheet, magicId);
+      assert.equal(after.ref, base);
+      assert.equal(after.attackBonus, before.attackBonus + 1, JSON.stringify(after));
+      assert.equal(after.damage, raised(before.damage), JSON.stringify(after));
+      assert.ok(
+        after.modifiers.some(
+          (entry: any) => entry.source.type === "item" && entry.source.id === magicId,
+        ),
+        JSON.stringify(after.modifiers),
+      );
+    }
+    assert.equal(magic.sheet.derived.armorClass, plain.sheet.derived.armorClass + 2);
+    assert.deepEqual(
+      magic.issues.filter((issue) => /^(item-|rules-data:magic-item:)/u.test(issue.id)),
+      [],
+      "picked magic gear raises no item issues",
     );
   },
 );
