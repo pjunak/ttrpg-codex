@@ -87,26 +87,6 @@ stages in the order listed; entries within a stage are independent, and the
 last three stages can be reordered. Each fix adds a regression test.
 File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 
-### Typed rules model
-
-- **Typed Engine vocabulary and outputs** `addon-dnd-engine` — Rules code works
-  on untyped maps, and closed sets (play commands, effect targets and modes,
-  grant sources, choice kinds, calculation operations) are strings dispatched
-  in several places. Give each set a type with one dispatcher checked by the
-  `exhaustive` linter, return a typed sheet, plan and guidance, generate
-  schemas with enums and consistent nullability, report bad rules data instead
-  of coercing it to defaults, move the HP clamp into evaluation and drop the
-  unused `derive` method. This is a breaking major version. **Done when** no
-  public output is `map[string]any` and no closed set is a string switch.
-- **Character Sheets on the typed Engine** `addon-dnd-character-sheets` — Read
-  typed results instead of untyped sheet maps, upgrade stored state by
-  recomputing the snapshot from saved inputs, and pass old exports through the
-  same upgrade chain. Installing it on Asurai is an owner check.
-- **Grants vocabulary in the Compendium schema** `addon-dnd-2024-compendium` —
-  Enforce the `grants` keys that `data/SCHEMA.md` documents, matching the
-  Engine's typed vocabulary, so bad data fails at install instead of at
-  evaluation.
-
 ### Contracts, SDK and shared tooling
 
 - **SDK as its own module** `ttrpg-codex` and add-ons — The SDK imports host
@@ -196,6 +176,12 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 
 ## Later
 
+- **Finish typing the rules paths** `addon-dnd-engine`,
+  `addon-dnd-character-sheets` — Rules-engine 6 returns typed results, but the
+  Engine's internal decisions map still reads records field by field, its
+  magic-item `grants` allowlist checks field names as strings, and many Sheets
+  panels read through generic `object()` helpers. Type them when the area is
+  next touched.
 - **Align owned-feature filters** `addon-dnd-2024-compendium`,
   `addon-dnd-engine` — The Compendium's owned-feature filter and the Engine's
   ownership rules can disagree; make them match.
