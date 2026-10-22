@@ -80,6 +80,25 @@ not obvious. Move an entry between sections instead of duplicating it.
   per-tab context bars, pips and floating windows; the owner keeps refining it.
   Known gaps: carrying capacity ignores size and features that change it (such
   as Powerful Build), and Classic shows no carried weight or coin-weight toggle.
+- **Magic weapons and armor** `addon-dnd-engine`, `addon-dnd-2024-compendium`,
+  `addon-dnd-character-sheets`, `addon-dnd-homebrew` — A magic item can be a
+  weapon or armor of a base type with an attack, damage or Armor Class bonus
+  ("+1 longsword", "+2 shield"). Engine contract and rules first, then the
+  Compendium's +1/+2/+3 items, the sheet's display, then a Homebrew item
+  field ([ADR-0006](decisions/0006-homebrew-content.md)). **Done when** an
+  equipped Compendium Weapon, +1 and a homebrew +1 longsword both add to
+  attack and damage, and a +2 shield to Armor Class, on the sheet.
+- **Homebrew: several kinds in one publish** `addon-dnd-homebrew` — After
+  magic gear. Key published records by kind, count each kind in the provider's
+  catalog, and give the `dnd-homebrew` format a section per kind that the
+  checker and the Import Center follow, without breaking item-only files.
+- **Homebrew subclasses** `addon-dnd-homebrew` — After several kinds. Draft
+  subclasses with nested features; an editor with the Compendium's class
+  picker, subclass level and features by level covering the whole feature
+  vocabulary the Engine applies ([ADR-0006](decisions/0006-homebrew-content.md));
+  flattening into `subclass` and `feature` records checked against the
+  Engine's rules; an installed test that picks a homebrew subclass in the
+  Builder.
 
 ## Quality pass
 
@@ -170,10 +189,6 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 - **Reordering twin records on the timeline** `ttrpg-codex` — Moving an event
   moves only the DM side of a twin pair, so players keep the public twin in its
   old session. Decide whether both should move.
-- **Homebrew beyond items** `addon-dnd-homebrew` — Subclasses, then feats,
-  spells and more, in the same add-on. The [design note](design/homebrew-content.md)
-  lists the open questions (how far the subclass editor goes, magic weapons)
-  and the phases that follow the answers.
 
 ## Later
 
@@ -201,6 +216,11 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   layouts implement hit points, combat, equipment and spells separately, with
   different behaviour (Compact parses free-text HP changes, Classic sends play
   commands). Share panel data and commands once the Compact refinement settles.
+- **Homebrew feats, spells, origins and bundles** `addon-dnd-homebrew` — After
+  subclasses, in this order ([ADR-0006](decisions/0006-homebrew-content.md)):
+  feats and spells (homebrew spells join class lists through `classes`),
+  species and backgrounds, then a `codex.campaign-bundle-contributor` so a
+  campaign bundle carries homebrew drafts.
 - **Host locale and Markdown services for add-ons** `ttrpg-codex` — The add-ons
   run three localization systems, and the Compendium ships its own Markdown
   renderer, because the host serves no add-on locales and its Markdown
@@ -234,8 +254,7 @@ with it.
 - **DM Tools** `addon-dm-tools` — Faster Atlas placement and mouse-wheel
   preferences, if wanted.
 - **Rules data** `addon-dnd-2024-compendium`, `addon-dnd-engine`,
-  `addon-dnd-character-sheets` — Per-item magic weapon/shield base forms,
-  narrative combat effects, renown/facilities/Circle Magic automation. Add
+  `addon-dnd-character-sheets` — Narrative combat effects, renown/facilities/Circle Magic automation. Add
   source data, Engine support and Sheets UI together for a mechanic someone
   needs ([gaps](../../addon-dnd-2024-compendium/data/GAPS.md)).
 
