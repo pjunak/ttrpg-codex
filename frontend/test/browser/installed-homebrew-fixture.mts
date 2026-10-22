@@ -11,6 +11,8 @@ export interface HomebrewModel {
     published: Map<string, unknown>,
     meta: unknown,
     now: number,
+    subclasses: unknown[],
+    publishedSubclasses: Map<string, unknown>,
   ): {
     problems: unknown[];
     mutations: {
@@ -22,6 +24,7 @@ export interface HomebrewModel {
     }[];
   };
   parsePublished(value: unknown): unknown;
+  parsePublishedSubclass(value: unknown): unknown;
 }
 
 /**
@@ -314,6 +317,122 @@ export const homebrewSample = {
       text: "You have a +1 bonus to attack rolls and damage rolls made with this magic weapon.",
       overrides: { itemType: "Weapon (Longsword)", rarity: "Uncommon" },
       baseItem: { kind: "weapon", ids: ["longsword"], bonus: 1 },
+    },
+  ],
+};
+
+/**
+ * A dnd-homebrew import with one fighter subclass: a skill, extra Hit Points,
+ * a pool of uses, a toggle that spends one, and a level 7 feature.
+ * It copies addon-dnd-homebrew's docs/examples/sample-subclass.json.
+ */
+export const homebrewSubclassSample = {
+  format: "dnd-homebrew",
+  schemaVersion: 1,
+  mode: "merge",
+  sets: [],
+  items: [],
+  subclasses: [
+    {
+      id: "banner-warden",
+      name: "Banner Warden",
+      classId: "fighter",
+      subclassLevel: 3,
+      excerpt: "A standard-bearer who rallies allies and holds the line.",
+      text: "Banner Wardens carry their company's colors into battle. Where the banner stands, the line holds.",
+      classResources: [
+        {
+          key: "rallying-cries",
+          name: "Rallying Cries",
+          fixed: 1,
+          proficiencyBonus: true,
+          recharge: "long",
+        },
+      ],
+      tableColumns: [
+        {
+          key: "banner-die",
+          name: "Banner Die",
+          progression: [
+            {
+              level: 3,
+              value: "1d6",
+            },
+            {
+              level: 10,
+              value: "1d8",
+            },
+            {
+              level: 18,
+              value: "1d10",
+            },
+          ],
+        },
+      ],
+      features: [
+        {
+          id: "colors-of-the-company",
+          level: 3,
+          name: "Colors of the Company",
+          excerpt: "Proficiency in Persuasion; Advantage on saves against being Frightened.",
+          text: "You gain proficiency in the Persuasion skill, and you have Advantage on saving throws you make to avoid or end the Frightened condition.",
+          grants: {
+            skills: ["persuasion"],
+            advantages: [
+              {
+                on: "save",
+                when: "to avoid or end the Frightened condition",
+              },
+            ],
+          },
+        },
+        {
+          id: "stalwart-bearer",
+          level: 3,
+          name: "Stalwart Bearer",
+          excerpt: "+1 Hit Point maximum per Fighter level.",
+          text: "Your Hit Point maximum increases by 1 for each Fighter level you have.",
+          grants: {
+            hpPerClassLevel: 1,
+          },
+        },
+        {
+          id: "raise-the-banner",
+          level: 3,
+          name: "Raise the Banner",
+          excerpt: "Bonus Action, 1 Rallying Cry: +1 AC and +10 feet of Speed until you lower it.",
+          text: "As a Bonus Action, you can expend one use of Rallying Cries to raise your banner. While it is raised, you gain a +1 bonus to Armor Class and your Speed increases by 10 feet.",
+          grants: {
+            activations: [
+              {
+                id: "raise-the-banner",
+                name: "Raise the Banner",
+                resource: "rallying-cries",
+                modifiers: [
+                  {
+                    target: "armorClass",
+                    add: 1,
+                  },
+                  {
+                    target: "speed",
+                    add: 10,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          id: "unbroken-line",
+          level: 7,
+          name: "Unbroken Line",
+          excerpt: "Resistance to Psychic damage.",
+          text: "You have Resistance to Psychic damage.",
+          grants: {
+            resistances: ["psychic"],
+          },
+        },
+      ],
     },
   ],
 };

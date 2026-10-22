@@ -22,6 +22,7 @@ import {
 import {
   homebrewModel,
   homebrewSample,
+  homebrewSubclassSample,
   type HomebrewModel,
 } from "./installed-homebrew-fixture.mts";
 
@@ -195,9 +196,16 @@ async function all(dataId: string) {
 }
 /** The browser's Publish, through the same planner and a guarded transaction. */
 async function publish(): Promise<number> {
-  const [sets, items, published, meta] = await Promise.all(
-    ["homebrew_sets", "homebrew_items", "homebrew_published", "homebrew_meta"].map(all),
-  );
+  const collections = [
+    "homebrew_sets",
+    "homebrew_items",
+    "homebrew_published",
+    "homebrew_meta",
+    "homebrew_subclasses",
+    "homebrew_published_subclasses",
+  ];
+  const read = await Promise.all(collections.map(all));
+  const [sets, items, published, meta, subclasses, publishedSubclasses] = read;
   const plan = model.planPublish(
     sets!.documents.map((document) => document.value),
     items!.documents.map((document) => document.value),
@@ -211,14 +219,21 @@ async function publish(): Promise<number> {
       ? { value: meta!.documents[0].value, revision: meta!.documents[0].revision }
       : undefined,
     Date.now(),
+    subclasses!.documents.map((document) => document.value),
+    new Map(
+      publishedSubclasses!.documents.map((document) => [
+        document.key,
+        { value: model.parsePublishedSubclass(document.value), revision: document.revision },
+      ]),
+    ),
   );
   assert.deepEqual(plan.problems, []);
   if (plan.mutations.length === 0) return 0;
   await data("transactions", {
     contractVersion: "addon-data-transaction.v1",
-    expectedDataSets: [sets, items, published, meta].map((set, index) => ({
+    expectedDataSets: read.map((set, index) => ({
       kind: "collection",
-      dataId: ["homebrew_sets", "homebrew_items", "homebrew_published", "homebrew_meta"][index],
+      dataId: collections[index],
       revision: set!.dataRevision,
     })),
     mutations: plan.mutations.map((mutation) => ({ ...mutation, kind: "collection" })),
@@ -586,6 +601,84 @@ void test(
   },
 );
 
+void test(
+  "a homebrew subclass imports, publishes and applies to a character",
+  { skip: !enabled },
+  async () => {
+    const importer = await connect(dm, dmCsrf, "dnd-homebrew", {
+      contract: "codex.import-adapter",
+      own: true,
+    });
+    const preview = await importer("preview", {
+      contractVersion: "import-preview.v1",
+      format: "dnd-homebrew",
+      document: homebrewSubclassSample,
+    });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    assert.deepEqual(preview.body.result.summary, { creates: 1, updates: 0, skips: 0, deletes: 0 });
+    const commit = await importer(
+      "commit",
+      { contractVersion: "import-commit.v1", token: preview.body.result.token },
+      "import-subclass",
+    );
+    assert.equal(commit.status, 200, JSON.stringify(commit.body));
+    assert.equal(await publish(), 2, "the subclass with its features, and the metadata");
+
+    const engine = await engineAs(dm, dmCsrf);
+    const subclassPage = (
+      await engine("query-records", {
+        contractVersion: "rules-engine-query.v1",
+        kind: "subclass",
+        limit: 200,
+      })
+    ).body.result;
+    assert.ok(
+      subclassPage.records.some((record: { id: string }) => record.id === "hb.banner-warden"),
+      "the Builder can offer it",
+    );
+    const build = (subclass?: string, active: Record<string, boolean> = {}) => {
+      const request = inputs([]);
+      if (subclass) request.inputs.build.subclasses = { fighter: subclass };
+      request.inputs.play.activeFeatures = active;
+      return request;
+    };
+    const base = ((await engine("evaluate-character", build())).body.result as Evaluation)
+      .evaluation.sheet;
+    const call = await engine("evaluate-character", build("hb.banner-warden"));
+    assert.equal(call.status, 200, JSON.stringify(call.body));
+    const result = (call.body.result as Evaluation).evaluation;
+    const sheet = result.sheet;
+    assert.deepEqual(
+      result.issues.filter((issue) => /banner-warden/u.test(issue.id)),
+      [],
+    );
+    assert.ok(
+      ["colors-of-the-company", "stalwart-bearer", "raise-the-banner"].every((id) =>
+        sheet.features.some((feature: { id: string }) => feature.id === `hb.banner-warden.${id}`),
+      ),
+      JSON.stringify(sheet.features),
+    );
+    assert.equal(sheet.skills.persuasion.proficient, true);
+    assert.equal(sheet.derived.maxHp, base.derived.maxHp + 3, "1 per Fighter level");
+    assert.equal(
+      sheet.resources.find((entry: { key: string }) => entry.key === "rallying-cries")?.max,
+      3,
+      JSON.stringify(sheet.resources),
+    );
+    assert.ok(!sheet.resistances.includes("psychic"), "the level 7 feature waits for level 7");
+    const banner = sheet.activations.find(
+      (entry: { id: string }) => entry.id === "raise-the-banner",
+    );
+    assert.equal(banner?.resource?.key, "rallying-cries", JSON.stringify(sheet.activations));
+    const raised = (
+      (await engine("evaluate-character", build("hb.banner-warden", { [banner.key]: true }))).body
+        .result as Evaluation
+    ).evaluation.sheet;
+    assert.equal(raised.derived.armorClass, sheet.derived.armorClass + 1);
+    assert.equal(raised.derived.speed, sheet.derived.speed + 10);
+  },
+);
+
 void test("the real UI edits, publishes and shows the gallery", { skip: !enabled }, async () => {
   const { chromium } = await import("playwright");
   const shots = process.env.HOMEBREW_SHOTS;
@@ -720,6 +813,52 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
     );
     const keys = (await all("homebrew_items")).documents.map((document) => document.key);
     assert.ok(keys.includes("temp-2") && !keys.includes("temp"), JSON.stringify(keys));
+
+    // The subclass editor: one grant added through the vocabulary's own form.
+    await page.getByRole("button", { name: /^Banner Warden/u }).click();
+    const unbroken = page
+      .locator("fieldset.hb-feature")
+      .filter({ has: page.locator('input[name="features[3].name"]') });
+    await unbroken.waitFor();
+    assert.equal(await page.locator("fieldset.hb-feature").count(), 4);
+    if (shots) await page.screenshot({ path: `${shots}/ui-subclass.png`, fullPage: true });
+    const addField = unbroken.locator('select[name="features[3].grants#add"]');
+    await addField.evaluate((select: HTMLSelectElement) => {
+      select.value = "hpBonus";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await page.locator('input[name="features[3].grants.hpBonus"]').fill("5");
+    await page.locator(".hb-editor-actions").getByRole("button", { name: "Save" }).click();
+    // The new item above is still unpublished, so the subclass makes two changes.
+    await page.getByText("Unpublished changes: 2.").waitFor();
+    await page.getByRole("button", { name: "Publish changes (2)" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Publish" }).click();
+    await page.getByText("Everything is published.").waitFor();
+    const warden = (await all("homebrew_published_subclasses")).documents.find(
+      (entry) => entry.key === "hb.banner-warden",
+    )!;
+    const line = (
+      warden.value as { records: { id: string; grants?: Record<string, unknown> }[] }
+    ).records.find((record) => record.id === "hb.banner-warden.unbroken-line");
+    assert.deepEqual(line?.grants, { resistances: ["psychic"], hpBonus: 5 });
+    if (shots) {
+      const narrow = await (
+        await browser.newContext({
+          storageState: await dm.storageState(),
+          viewport: { width: 390, height: 844 },
+        })
+      ).newPage();
+      await narrow.goto(`${origin}/#/addons/dnd-homebrew/homebrew`);
+      await narrow.getByRole("button", { name: /^Banner Warden/u }).click();
+      await narrow.locator("fieldset.hb-feature").first().waitFor();
+      await narrow.screenshot({ path: `${shots}/ui-subclass-narrow.png`, fullPage: true });
+      assert.ok(
+        await narrow.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+        "the subclass editor fits a phone",
+      );
+    }
 
     await playerPage.goto(`${origin}/#/addons/dnd-homebrew/homebrew`);
     await playerPage.waitForTimeout(500);
