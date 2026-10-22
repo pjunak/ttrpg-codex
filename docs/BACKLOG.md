@@ -169,10 +169,10 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 - **Reordering twin records on the timeline** `ttrpg-codex` — Moving an event
   moves only the DM side of a twin pair, so players keep the public twin in its
   old session. Decide whether both should move.
-- **Homebrew beyond items** `addon-dnd-homebrew` — Subclasses, then feats,
-  spells and more, in the same add-on. The [design note](design/homebrew-content.md)
-  lists the open questions (how far the subclass editor goes, magic weapons)
-  and the phases that follow the answers.
+- **Homebrew beyond subclasses** `addon-dnd-homebrew` — Items and subclasses
+  are built; feats, spells and more follow in the same add-on. The
+  [design note](design/homebrew-content.md) lists the open question (magic
+  weapons and armor) and the remaining phases.
 
 ## Later
 
