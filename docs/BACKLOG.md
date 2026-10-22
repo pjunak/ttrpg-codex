@@ -44,7 +44,7 @@ not obvious. Move an entry between sections instead of duplicating it.
   September reconstructions are archived with the backups for reference.
 - **Tiamat** `ttrpg-codex` — Confirm Settings → Add-ons shows nothing
   installed. Tiamat stays without add-ons.
-- **Homebrew Items on Asurai** `addon-dnd-homebrew` — Download a fresh Asurai
+- **Homebrew on Asurai** `addon-dnd-homebrew` — Download a fresh Asurai
   backup into `L:\Backups\ttrpg\`, update the Engine to 5.4.0 and Character
   Sheets to the build that shows item properties, install the latest Homebrew
   build, import `homebrew-imports/cursed-cards.json` (beside the repositories),
@@ -171,8 +171,8 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   old session. Decide whether both should move.
 - **Homebrew beyond items** `addon-dnd-homebrew` — Subclasses, then feats,
   spells and more, in the same add-on. The [design note](design/homebrew-content.md)
-  lists the questions (one add-on or several, how far the subclass editor
-  goes, magic weapons) and the phases that follow the answers.
+  lists the open questions (how far the subclass editor goes, magic weapons)
+  and the phases that follow the answers.
 
 ## Later
 

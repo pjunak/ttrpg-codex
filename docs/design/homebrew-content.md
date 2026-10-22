@@ -17,7 +17,7 @@ repository.
 
 ## What exists today
 
-- `addon-dnd-homebrew` (D&D Homebrew Items 1.0.0): item sets and items as
+- `addon-dnd-homebrew` (D&D Homebrew 1.0.0): item sets and items as
   DM-only drafts; **Publish** flattens each item with its set into an
   `hb.<item id>` `magic-item` record; the worker serves the records as
   `dnd5e.rules-data` 3.0.0, which the Engine merges with the Compendium. See
@@ -25,12 +25,9 @@ repository.
   [design notes](../../../addon-dnd-homebrew/docs/DESIGN.md).
 - Items carry weight, containers and who may attune, and the editor picks
   spells and classes from the Compendium.
-- Import format `dnd-homebrew-items` v1 (merge or replace) through the
+- Import format `dnd-homebrew` v1 (merge or replace) through the
   add-on's own adapter, so the Import Center accepts it too;
   `cmd/check-homebrew` checks a file offline before import.
-- Decided 2026-10-21, before the first install: a group of items is an *item
-  set* (`homebrew_sets`, `sets` and `setId` in the file), so `classId` in
-  homebrew records only ever means a D&D class.
 - Content lives in the add-on's collections in the site database, so site
   backups include it and each campaign has its own. The repository holds only a
   neutral sample; the owner's Asurai card pack is in `homebrew-imports/` beside
@@ -69,21 +66,26 @@ sharing fixtures. What differs from items:
   through an optional `dnd5e.rules-data` consumer (`src/references.ts`); other
   kinds extend that loader.
 
+## Decided
+
+- 2026-10-21, before the first install: a group of items is an *item set*
+  (`homebrew_sets`, `sets` and `setId` in the file), so `classId` in
+  homebrew records only ever means a D&D class.
+- 2026-10-22: one add-on, "D&D Homebrew" (id `dnd-homebrew`), holds every
+  kind of homebrew with one Publish and one import format, `dnd-homebrew`,
+  that gains a section per kind. The provider, publish revision, gallery and
+  import adapter are shared, and the add-on stays optional as a whole.
+
 ## Questions for the owner
 
-1. **One add-on or several.** One "D&D Homebrew" add-on (id `dnd-homebrew`
-   unchanged) with one Publish and one import format with a section per kind,
-   or a separate add-on per kind? *Recommendation:* one add-on; the provider,
-   publish revision, gallery and import adapter are shared, and the add-on
-   stays optional as a whole.
-2. **How far the subclass editor goes.** (a) Start with subclasses whose
+1. **How far the subclass editor goes.** (a) Start with subclasses whose
    features are text, plus the common structured grants (proficiencies,
    resistances, limited uses, always-prepared spells, advantages, senses and
    speed), and let a file carry anything else the Compendium schema allows;
    or (b) build an editor for the whole feature vocabulary first.
    *Recommendation:* (a), adding editor sections when a real subclass needs
    them.
-3. **Magic weapons and armor.** "+1 longsword" needs the Engine to know that a
+2. **Magic weapons and armor.** "+1 longsword" needs the Engine to know that a
    magic item is a weapon or armor of a base type and to add its attack,
    damage or Armor Class bonus. Neither the Compendium nor the Engine
    automates this today; it is Engine work first (contract, Compendium data,
@@ -93,11 +95,11 @@ sharing fixtures. What differs from items:
 ## Phases once decided
 
 1. **Several kinds in one publish:** published records keyed by kind, the
-   provider's catalog counting each kind, the format at version 2, and the
-   checker and Import Center following.
+   provider's catalog counting each kind, and a section per kind in the
+   `dnd-homebrew` format, which the checker and Import Center follow.
 2. **Subclasses:** draft collection with features nested, editor (class
    picker, subclass level, features by level with text, excerpt and the grants
-   chosen in question 2), flattening into `subclass` and `feature` records
+   chosen in question 1), flattening into `subclass` and `feature` records
    checked against the Compendium schema and the Engine's subclass rules, and
    an installed test that picks a homebrew subclass in the Builder.
 3. **Feats and spells:** simpler records; homebrew spells join class lists
