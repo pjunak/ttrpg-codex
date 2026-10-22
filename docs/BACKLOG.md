@@ -201,10 +201,6 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   layouts implement hit points, combat, equipment and spells separately, with
   different behaviour (Compact parses free-text HP changes, Classic sends play
   commands). Share panel data and commands once the Compact refinement settles.
-- **Import adapter problems in the Import Center** `ttrpg-codex`,
-  `addon-dm-tools` — Browsers receive only a status and error code from service
-  calls, so a rejected preview says only that it failed. Forward a bounded
-  validation message (or `details.issue`) and show it, so a DM can fix the file.
 - **Host locale and Markdown services for add-ons** `ttrpg-codex` — The add-ons
   run three localization systems, and the Compendium ships its own Markdown
   renderer, because the host serves no add-on locales and its Markdown

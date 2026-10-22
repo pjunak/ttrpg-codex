@@ -293,6 +293,17 @@ void test(
       contract: "codex.import-adapter",
       own: true,
     });
+    // A rejected preview names the bad entry, so the Import Center can say what to fix.
+    const broken = structuredClone(homebrewSample);
+    required(required(broken.items[1]).characterEffects?.[0]).target = "speedy";
+    const rejected = await importer("preview", {
+      contractVersion: "import-preview.v1",
+      format: "dnd-homebrew",
+      document: broken,
+    });
+    assert.equal(rejected.status, 400, JSON.stringify(rejected.body));
+    assert.equal(rejected.body.error.kind, "INVALID_REQUEST");
+    assert.match(rejected.body.error.issue, /^items\[1\]: .*target "speedy" is not supported$/u);
     const preview = await importer("preview", {
       contractVersion: "import-preview.v1",
       format: "dnd-homebrew",

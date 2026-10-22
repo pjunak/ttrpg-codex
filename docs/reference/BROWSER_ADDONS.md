@@ -93,6 +93,10 @@ include the caller's declared native worker without adding a worker dependency
 on itself. The public service guide defines ambiguity, actor and stale-handle
 behavior. Typed worker errors map to fixed HTTP codes/messages so import
 conflicts and expired tokens remain actionable without exposing worker details.
+The one exception is `details.issue` on `INVALID_REQUEST` and
+`VALIDATION_FAILED`: `writeBrowserServiceError` cleans it to one line of at
+most 300 characters and returns it as `error.issue`, and `service-client.ts`
+keeps it as `AddonServiceHTTPError.issue` only when it still meets those rules.
 
 The installed DM Tools workflow test uploads the actual release ZIP, reviews
 and activates it, then checks read-only preview, cancelled review/request,

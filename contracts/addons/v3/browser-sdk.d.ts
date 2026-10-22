@@ -208,12 +208,33 @@ export interface ServiceCallOptions {
   readonly signal?: AbortSignal;
 }
 
+/**
+ * How `connect`, `own` and `call` reject when the host answers with an error
+ * status. Branch on `code`: INVALID_REQUEST, CONFLICT, NOT_FOUND, FORBIDDEN,
+ * STALE_BINDING, STALE_GENERATION, METHOD_NOT_FOUND, RATE_LIMITED, CANCELLED,
+ * DEADLINE_EXCEEDED, SERVICE_UNAVAILABLE, INTERNAL, or HTTP_ERROR when the
+ * response was not a host error. Aborts and invalid arguments reject with
+ * ordinary errors instead.
+ */
+export interface ServiceError extends Error {
+  readonly name: "AddonServiceHTTPError";
+  readonly status: number;
+  readonly code: string;
+  /**
+   * The provider's own explanation of an INVALID_REQUEST, from its worker's
+   * `details.issue`: one line of at most 300 characters in the provider's
+   * language. Show it as text only (`textContent`), never as HTML or Markdown.
+   */
+  readonly issue?: string;
+}
+
 export interface ServiceHandle {
   readonly contract: string;
   readonly range: string;
   readonly cardinality: "one" | "many";
   readonly providers: readonly ServiceProvider[];
   readonly available: boolean;
+  /** Rejects with a {@link ServiceError} when the host answers with an error status. */
   call<TResponse = unknown>(
     method: string,
     params: unknown,

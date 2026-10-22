@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
@@ -20,6 +22,7 @@ const (
 	browserServiceCallVersion             = "addon-service-call.v1"
 	browserServiceResultVersion           = "addon-service-result.v1"
 	maximumBrowserServiceBody       int64 = 2<<20 + 128<<10
+	maximumBrowserServiceIssue            = 300
 )
 
 type BrowserServices interface {
@@ -196,6 +199,7 @@ func objectOrArrayJSON(value json.RawMessage) bool {
 
 func (s *server) writeBrowserServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	status, kind, message := http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "the add-on service is unavailable"
+	issue := ""
 	var workerError *workerrpc.RPCError
 	switch {
 	case errors.Is(err, packagemanager.ErrNotActive):
@@ -230,6 +234,7 @@ func (s *server) writeBrowserServiceError(w http.ResponseWriter, r *http.Request
 				status, kind, message = http.StatusForbidden, "FORBIDDEN", "the service operation is not allowed for this user"
 			case workerrpc.KindInvalidRequest, workerrpc.KindValidationFailed:
 				status, kind, message = http.StatusBadRequest, "INVALID_REQUEST", "the service input failed validation"
+				issue = browserServiceIssue(workerError.Data.Details)
 			case workerrpc.KindRateLimited:
 				status, kind, message = http.StatusTooManyRequests, "RATE_LIMITED", "the service request limit was reached"
 			case workerrpc.KindCancelled:
@@ -244,5 +249,33 @@ func (s *server) writeBrowserServiceError(w http.ResponseWriter, r *http.Request
 		status, kind, message = http.StatusInternalServerError, "INTERNAL", "the add-on service request failed"
 	}
 	s.logger.Error("browser add-on service request failed", "method", r.Method, "path", r.URL.Path, "kind", kind, "error", err)
-	writeAPIError(w, status, kind, message)
+	if issue == "" {
+		writeAPIError(w, status, kind, message)
+		return
+	}
+	writeJSON(w, status, map[string]any{
+		"error": map[string]string{"kind": kind, "message": message, "issue": issue},
+	})
+}
+
+// browserServiceIssue returns the provider's details.issue as one line of
+// plain text for the caller. It is the only worker text a browser receives;
+// messages and other details stay private.
+func browserServiceIssue(details json.RawMessage) string {
+	var body struct {
+		Issue string `json:"issue"`
+	}
+	if len(details) == 0 || json.Unmarshal(details, &body) != nil {
+		return ""
+	}
+	// Control, format (including bidi overrides) and separator characters
+	// could reorder or hide the text, so each run of them becomes one space.
+	words := strings.FieldsFunc(body.Issue, func(character rune) bool {
+		return unicode.IsSpace(character) || unicode.In(character, unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp)
+	})
+	issue := []rune(strings.Join(words, " "))
+	if len(issue) > maximumBrowserServiceIssue {
+		issue = append(issue[:maximumBrowserServiceIssue-1], '…')
+	}
+	return string(issue)
 }

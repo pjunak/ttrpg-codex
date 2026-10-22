@@ -907,8 +907,28 @@ DM Tools worker accepts import methods only for a host-issued DM actor.
 Worker conflicts return `409 CONFLICT`, missing/expired resources return
 `404 NOT_FOUND`, and forbidden operations return `403 FORBIDDEN`. Validation,
 rate limits, cancellation, timeouts and unavailable providers also retain stable
-host error codes. Worker error messages and details are not copied into browser
-responses. After a failed or uncertain single-use commit, inspect current state
+host error codes. A browser call rejects with a `ServiceError` whose `code` is
+that host code; branch on `code`, never on the error message.
+
+Worker error messages and details are not copied into browser responses, with
+one exception: when a worker rejects with `INVALID_REQUEST` or
+`VALIDATION_FAILED` and sets the string `details.issue` (see
+[Errors](#errors)), the browser's `ServiceError` has that text as `issue`. The
+host makes it one line: control, format (including bidi) and line-separator
+characters become spaces, runs of whitespace collapse, and text over 300
+characters is cut to 299 plus `…`. Show `issue` next to your own message, as
+text only (`textContent`), never as HTML or Markdown:
+
+```ts
+try {
+  await importer.call("preview", request, { providerAddonId, signal });
+} catch (error) {
+  const issue = (error as Partial<ServiceError> | undefined)?.issue;
+  notice.textContent = issue === undefined ? previewFailed : `${fixThisProblem} ${issue}`;
+}
+```
+
+After a failed or uncertain single-use commit, inspect current state
 and obtain a new preview rather than replaying a consumed token.
 
 Installed provider declarations and operator bindings survive a host restart;
@@ -1266,6 +1286,14 @@ Initial application error kinds are:
 Messages are diagnostic text and may improve. Logic depends on `kind`, not
 message text. Unknown error kinds are treated as `INTERNAL` and preserved in
 diagnostics.
+
+`details` is private to the host and to worker callers, except
+`details.issue`. For `INVALID_REQUEST` and `VALIDATION_FAILED`, set it to one
+plain sentence that tells the calling user what to fix, such as
+`items[3]: effect 1: target "speed" is not supported`. The host passes it to browser
+callers as `ServiceError.issue`, cleaned to one line of at most 300
+characters. Write it for that user, in your own language, and never include
+data they cannot read.
 
 ### Backpressure and resilience
 
