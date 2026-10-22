@@ -45,10 +45,11 @@ not obvious. Move an entry between sections instead of duplicating it.
 - **Tiamat** `ttrpg-codex` — Confirm Settings → Add-ons shows nothing
   installed. Tiamat stays without add-ons.
 - **Homebrew on Asurai** `addon-dnd-homebrew` — Download a fresh Asurai
-  backup into `L:\Backups\ttrpg\`, update the Engine to 5.4.0 and Character
-  Sheets to the build that shows item properties, install the latest Homebrew
-  build, import `homebrew-imports/cursed-cards.json` (beside the repositories),
-  set the item set's rarity and curse, and publish.
+  backup into `L:\Backups\ttrpg\`, update the Engine to 6.0.0 and then
+  Character Sheets to 6.0.0 (if it asks, choose **Heal and update**; saved
+  sheets stay), install the latest Homebrew build, import
+  `homebrew-imports/cursed-cards.json` (beside the repositories), set the item
+  set's rarity and curse, and publish.
 
 ## Next
 
