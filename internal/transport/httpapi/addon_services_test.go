@@ -135,6 +135,71 @@ func TestBrowserServiceKeepsWorkerErrorKindsWithoutPrivateDetails(t *testing.T) 
 	}
 }
 
+func TestBrowserServiceForwardsOnlyValidationIssues(t *testing.T) {
+	t.Parallel()
+	details := map[string]any{"issue": "items[3]: effect 1: unknown target", "private": "hidden"}
+	for _, check := range []struct {
+		name  string
+		err   error
+		issue string
+	}{
+		{"validation failed", workerrpc.NewRPCError(workerrpc.JSONRPCInvalidParams, workerrpc.KindValidationFailed, "private message", false, details), "items[3]: effect 1: unknown target"},
+		{"invalid request", workerrpc.NewRPCError(workerrpc.JSONRPCInvalidParams, workerrpc.KindInvalidRequest, "private message", false, details), "items[3]: effect 1: unknown target"},
+		{"no issue", workerrpc.NewRPCError(workerrpc.JSONRPCInvalidParams, workerrpc.KindValidationFailed, "private message", false, map[string]any{"issues": []string{"private"}}), ""},
+		{"conflict", workerrpc.NewRPCError(workerrpc.JSONRPCApplication, workerrpc.KindConflict, "private message", false, details), ""},
+		{"not found", workerrpc.NewRPCError(workerrpc.JSONRPCApplication, workerrpc.KindNotFound, "private message", false, details), ""},
+		{"unavailable", workerrpc.NewRPCError(workerrpc.JSONRPCApplication, workerrpc.KindUnavailable, "private message", true, details), ""},
+		{"internal", workerrpc.NewRPCError(workerrpc.JSONRPCApplication, workerrpc.KindInternal, "private message", false, details), ""},
+		{"host validation", errors.Join(servicebroker.ErrInvalidCall, workerrpc.NewRPCError(workerrpc.JSONRPCInvalidParams, workerrpc.KindValidationFailed, "private message", false, details)), ""},
+	} {
+		t.Run(check.name, func(t *testing.T) {
+			source := &recordingBrowserServices{callError: check.err}
+			handler := newBrowserServiceHandler(t, source, func(*http.Request) (workerrpc.Actor, error) { return workerrpc.Actor{Role: "dm", ID: "fixture"}, nil })
+			generation := strings.Repeat("a", 64)
+			response := serveBrowserServiceRequest(handler, "/api/addons/dm-tools/generations/"+generation+"/services/call",
+				`{"contractVersion":"addon-service-call.v1","contract":"codex.import-adapter","providerAddonId":"dnd-homebrew","providerVersion":"3.0.0","providerGeneration":"`+generation+`","bindingRevision":0,"method":"preview","params":{},"deadlineMs":2000}`)
+			var body struct {
+				Error map[string]string `json:"error"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil || strings.Contains(response.Body.String(), "private") {
+				t.Fatalf("response = %d, %s", response.Code, response.Body.String())
+			}
+			issue, present := body.Error["issue"]
+			if issue != check.issue || present != (check.issue != "") {
+				t.Fatalf("issue = %q (present %v), want %q", issue, present, check.issue)
+			}
+		})
+	}
+}
+
+func TestBrowserServiceIssueIsOneBoundedLine(t *testing.T) {
+	t.Parallel()
+	long := strings.Repeat("é", maximumBrowserServiceIssue)
+	for _, check := range []struct {
+		name    string
+		details string
+		issue   string
+	}{
+		{"plain", `{"issue":"sets[0]: set id is required"}`, "sets[0]: set id is required"},
+		{"lines and tabs", `{"issue":"  first\nsecond\r\n\tthird  "}`, "first second third"},
+		{"bidi and zero width", `{"issue":"name \u202etxt.exe\u202c and\u200bjoined"}`, "name txt.exe and joined"},
+		{"control characters", `{"issue":"a\u0000b\u0085c\u2028d\u2029e"}`, "a b c d e"},
+		{"invalid UTF-8", "{\"issue\":\"bad \xff byte\"}", "bad \uFFFD byte"},
+		{"only spaces", `{"issue":" \n\u200b "}`, ""},
+		{"not a string", `{"issue":42}`, ""},
+		{"array details", `["issue"]`, ""},
+		{"no details", ``, ""},
+		{"exact limit", `{"issue":"` + long + `"}`, long},
+		{"over limit", `{"issue":"` + long + `x"}`, strings.Repeat("é", maximumBrowserServiceIssue-1) + "…"},
+	} {
+		t.Run(check.name, func(t *testing.T) {
+			if issue := browserServiceIssue(json.RawMessage(check.details)); issue != check.issue {
+				t.Fatalf("issue = %q, want %q", issue, check.issue)
+			}
+		})
+	}
+}
+
 func newBrowserServiceHandler(
 	t *testing.T,
 	source BrowserServices,

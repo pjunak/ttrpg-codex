@@ -4,7 +4,7 @@ name: Installed add-on smoke test
 # host and exercises the main workflows. Build and dispatch calls it before
 # deploying, so a host change that breaks the released add-ons does not reach
 # the sites. Optional secret ADDON_SUITE_TOKEN (read access to the private
-# compendium) enables the compendium, rules and character cases.
+# compendium) enables the compendium, rules, character and homebrew cases.
 
 on:
   schedule:
@@ -50,10 +50,11 @@ jobs:
           download addon-dm-tools dm-tools CODEX_DM_TOOLS_ZIP
           download addon-dnd-engine engine CODEX_ENGINE_ZIP
           download addon-dnd-character-sheets sheets CODEX_SHEETS_ZIP
+          download addon-dnd-homebrew homebrew CODEX_HOMEBREW_ZIP
           if [[ -n "$PRIVATE_TOKEN" ]]; then
             GH_TOKEN="$PRIVATE_TOKEN" download addon-dnd-2024-compendium compendium CODEX_COMPENDIUM_ZIP
           else
-            echo "::warning::ADDON_SUITE_TOKEN is not set; compendium, rules and character cases are skipped."
+            echo "::warning::ADDON_SUITE_TOKEN is not set; compendium, rules, character and homebrew cases are skipped."
           fi
 
       # Traces are not uploaded: they can contain private compendium text.

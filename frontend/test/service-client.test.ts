@@ -273,6 +273,48 @@ describe("BrowserAddonServiceClient", () => {
       }),
     ).rejects.toEqual(new AddonServiceHTTPError(502, "HTTP_ERROR"));
   });
+
+  it("exposes a provider issue only as bounded one-line text on INVALID_REQUEST", async () => {
+    const rejection = async (error: Record<string, unknown>): Promise<AddonServiceHTTPError> => {
+      const client = createClient(
+        async () =>
+          new Response(JSON.stringify({ error: { message: "host message", ...error } }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          }),
+      );
+      const failure: unknown = await client
+        .api()
+        .connect("dnd5e.rules-engine", { range: "^3.0.0", cardinality: "one" })
+        .catch((reason: unknown) => reason);
+      expect(failure).toBeInstanceOf(AddonServiceHTTPError);
+      return failure as AddonServiceHTTPError;
+    };
+    const issue = "items[3]: effect 1: <b>unknown</b> target";
+    expect(await rejection({ kind: "INVALID_REQUEST", issue })).toMatchObject({
+      status: 400,
+      code: "INVALID_REQUEST",
+      issue,
+    });
+    // Length counts code points, so 300 astral characters still fit.
+    expect((await rejection({ kind: "INVALID_REQUEST", issue: "𝔞".repeat(300) })).issue).toBe(
+      "𝔞".repeat(300),
+    );
+    for (const error of [
+      { kind: "CONFLICT", issue },
+      { kind: "INVALID_REQUEST" },
+      { kind: "INVALID_REQUEST", issue: 42 },
+      { kind: "INVALID_REQUEST", issue: "" },
+      { kind: "INVALID_REQUEST", issue: " padded" },
+      { kind: "INVALID_REQUEST", issue: "two\nlines" },
+      { kind: "INVALID_REQUEST", issue: "a\u202eb" },
+      { kind: "INVALID_REQUEST", issue: "x".repeat(301) },
+    ]) {
+      const failure = await rejection(error);
+      expect(failure.code).toBe(error.kind);
+      expect(failure.issue).toBeUndefined();
+    }
+  });
 });
 
 function connection(): Record<string, unknown> & { providers: Array<Record<string, unknown>> } {

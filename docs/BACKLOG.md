@@ -45,10 +45,11 @@ not obvious. Move an entry between sections instead of duplicating it.
 - **Tiamat** `ttrpg-codex` — Confirm Settings → Add-ons shows nothing
   installed. Tiamat stays without add-ons.
 - **Homebrew on Asurai** `addon-dnd-homebrew` — Download a fresh Asurai
-  backup into `L:\Backups\ttrpg\`, update the Engine to 5.4.0 and Character
-  Sheets to the build that shows item properties, install the latest Homebrew
-  build, import `homebrew-imports/cursed-cards.json` (beside the repositories),
-  set the item set's rarity and curse, and publish.
+  backup into `L:\Backups\ttrpg\`, update the Engine to 6.0.0 and then
+  Character Sheets to 6.0.0 (if it asks, choose **Heal and update**; saved
+  sheets stay), install the latest Homebrew build, import
+  `homebrew-imports/cursed-cards.json` (beside the repositories), set the item
+  set's rarity and curse, and publish.
 
 ## Next
 
@@ -169,10 +170,6 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 - **Reordering twin records on the timeline** `ttrpg-codex` — Moving an event
   moves only the DM side of a twin pair, so players keep the public twin in its
   old session. Decide whether both should move.
-- **Homebrew beyond subclasses** `addon-dnd-homebrew` — Items and subclasses
-  are built; feats, spells and more follow in the same add-on. The
-  [design note](design/homebrew-content.md) lists the open question (magic
-  weapons and armor) and the remaining phases.
 
 ## Later
 
@@ -200,20 +197,18 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   layouts implement hit points, combat, equipment and spells separately, with
   different behaviour (Compact parses free-text HP changes, Classic sends play
   commands). Share panel data and commands once the Compact refinement settles.
-- **Installed homebrew case** `ttrpg-codex`, `addon-dnd-homebrew` — Move
-  `host-tests/installed-homebrew.browser.mts` into the installed suite behind
-  `CODEX_HOMEBREW_ZIP` (the repository now publishes releases), reading the
-  publish planner and the sample from the ZIP instead of
-  `CODEX_HOMEBREW_ROOT`.
-- **One owner for the rules-data record schema** `addon-dnd-2024-compendium`,
-  `addon-dnd-homebrew` — Homebrew copies the Compendium's
-  `contracts/rule-record.schema.json` for its provider responses, and the copy
-  fell behind once (`excerpt`). Check the copy in CI or move the schema to the
-  Engine's provider contract before Homebrew serves more kinds.
-- **Import adapter problems in the Import Center** `ttrpg-codex`,
-  `addon-dm-tools` — Browsers receive only a status and error code from service
-  calls, so a rejected preview says only that it failed. Forward a bounded
-  validation message (or `details.issue`) and show it, so a DM can fix the file.
+- **Base forms for the named magic weapons and armor** `addon-dnd-2024-compendium`
+  — The DMG's +1/+2/+3 weapon, armor and shield declare `baseItem`; the named
+  ones (Flame Tongue, Sun Blade, Elven Chain, Dwarven Plate and the rest) do
+  not, so even with DM adjudication they get no attack row or armor AC. Declare
+  their base, and a bonus only where the item is otherwise complete.
+  Ammunition, +1, +2, or +3 waits for ammunition attacks.
+- **Homebrew feats, spells, origins and bundles** `addon-dnd-homebrew` — Items,
+  magic gear and subclasses are built; next, in this order
+  ([ADR-0006](decisions/0006-homebrew-content.md)): feats and spells (homebrew
+  spells join class lists through `classes`),
+  species and backgrounds, then a `codex.campaign-bundle-contributor` so a
+  campaign bundle carries homebrew drafts.
 - **Host locale and Markdown services for add-ons** `ttrpg-codex` — The add-ons
   run three localization systems, and the Compendium ships its own Markdown
   renderer, because the host serves no add-on locales and its Markdown
@@ -247,8 +242,7 @@ with it.
 - **DM Tools** `addon-dm-tools` — Faster Atlas placement and mouse-wheel
   preferences, if wanted.
 - **Rules data** `addon-dnd-2024-compendium`, `addon-dnd-engine`,
-  `addon-dnd-character-sheets` — Per-item magic weapon/shield base forms,
-  narrative combat effects, renown/facilities/Circle Magic automation. Add
+  `addon-dnd-character-sheets` — Narrative combat effects, renown/facilities/Circle Magic automation. Add
   source data, Engine support and Sheets UI together for a mechanic someone
   needs ([gaps](../../addon-dnd-2024-compendium/data/GAPS.md)).
 

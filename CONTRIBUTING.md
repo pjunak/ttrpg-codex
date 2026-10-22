@@ -93,9 +93,10 @@ the add-ons in their own repositories, then:
 
 ```powershell
 $env:CODEX_DM_TOOLS_ZIP = (Resolve-Path ../addon-dm-tools/dist/dm-tools-3.0.0.zip).Path
-$env:CODEX_ENGINE_ZIP = (Resolve-Path ../addon-dnd-engine/dist/dnd-engine-6.0.0.zip).Path
-$env:CODEX_SHEETS_ZIP = (Resolve-Path ../addon-dnd-character-sheets/dist/dnd-sheets-6.0.0.zip).Path
-$env:CODEX_COMPENDIUM_ZIP = (Resolve-Path ../addon-dnd-2024-compendium/dist/dnd-2024-compendium-3.5.0.zip).Path
+$env:CODEX_ENGINE_ZIP = (Resolve-Path ../addon-dnd-engine/dist/dnd-engine-6.1.0.zip).Path
+$env:CODEX_SHEETS_ZIP = (Resolve-Path ../addon-dnd-character-sheets/dist/dnd-sheets-6.1.0.zip).Path
+$env:CODEX_COMPENDIUM_ZIP = (Resolve-Path ../addon-dnd-2024-compendium/dist/dnd-2024-compendium-3.6.0.zip).Path
+$env:CODEX_HOMEBREW_ZIP = (Resolve-Path ../addon-dnd-homebrew/dist/dnd-homebrew-1.1.0.zip).Path
 npm --workspace @ttrpg-codex/frontend run build
 npm --workspace @ttrpg-codex/frontend run test:installed
 ```
@@ -104,7 +105,7 @@ It takes about two minutes. The **Installed add-on smoke test** workflow runs
 the same suite nightly against the latest published add-on releases, and
 **Build and dispatch** runs it before every deployment: a host change that
 breaks the released add-ons is not deployed. It needs the `ADDON_SUITE_TOKEN` secret (read access to the
-private compendium) for the compendium, rules and character cases, and it does
+private compendium) for the compendium, rules, character and homebrew cases, and it does
 not upload traces because they can contain private compendium text.
 
 Detailed character, rules and planner behaviour is tested in each add-on's own

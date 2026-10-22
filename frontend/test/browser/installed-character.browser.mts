@@ -22,6 +22,7 @@ import { registerCharacterCreationTests } from "./installed-character-creation-f
 import { registerCharacterOutputTests } from "./installed-character-output-fixture.mts";
 import { registerCompactTests } from "./installed-character-compact-fixture.mts";
 import { registerRefusalTest } from "./installed-character-command-fixture.mts";
+import { registerMagicGearTest } from "./installed-character-magic-gear-fixture.mts";
 import { installedHostDiagnostics } from "./installed-host-diagnostics.mts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -201,6 +202,7 @@ async function call(method: string, params: Record<string, unknown>) {
 
 registerCompactTests(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 registerRefusalTest(enabled, () => ({ admin, browser, csrf, origin, output, call }));
+registerMagicGearTest(enabled, () => ({ admin, browser, csrf, origin, output, call }));
 
 void test(
   "incomplete builds autosave with bounded steppers, searchable choices and no draft or history UI",

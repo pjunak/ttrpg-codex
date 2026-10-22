@@ -9,6 +9,8 @@ const maximumResponseBytes = 2 * 1024 * 1024 + 128 * 1024;
 const contractPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
 const methodPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 const generationPattern = /^[0-9a-f]{64}$/;
+const maximumIssueLength = 300;
+const issueRejectedCharacters = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const connectionKeys = new Set([
   "contractVersion",
   "contract",
@@ -72,12 +74,16 @@ export type AddonServiceFetch = (input: string, init: RequestInit) => Promise<Re
 
 export class AddonServiceHTTPError extends HostRequestError {
   override readonly name = "AddonServiceHTTPError";
+  /** The provider's plain-text problem for INVALID_REQUEST; render as text only. */
+  readonly issue?: string;
 
   constructor(
     status: number,
     readonly code: string,
+    issue?: string,
   ) {
     super(status, "add-on service request", `add-on service request returned ${status} (${code})`);
+    if (issue !== undefined) this.issue = issue;
   }
 }
 
@@ -252,7 +258,9 @@ export class BrowserAddonServiceClient {
       maxBytes: maximumResponseBytes,
       signal: combined,
       httpError: (status, body) =>
-        new AddonServiceHTTPError(status, body === undefined ? "HTTP_ERROR" : errorCode(body)),
+        body === undefined
+          ? new AddonServiceHTTPError(status, "HTTP_ERROR")
+          : new AddonServiceHTTPError(status, errorCode(body), errorIssue(body)),
     });
   }
 }
@@ -376,4 +384,26 @@ function errorCode(value: unknown): string {
     return "HTTP_ERROR";
   }
   return value["error"]["kind"];
+}
+
+/** Accepts only the one-line, bounded text the host forwards; anything else is dropped. */
+function errorIssue(value: unknown): string | undefined {
+  if (
+    !isRecord(value) ||
+    !isRecord(value["error"]) ||
+    value["error"]["kind"] !== "INVALID_REQUEST"
+  ) {
+    return undefined;
+  }
+  const issue = value["error"]["issue"];
+  if (
+    typeof issue !== "string" ||
+    issue.length === 0 ||
+    Array.from(issue).length > maximumIssueLength ||
+    issue.trim() !== issue ||
+    issueRejectedCharacters.test(issue)
+  ) {
+    return undefined;
+  }
+  return issue;
 }

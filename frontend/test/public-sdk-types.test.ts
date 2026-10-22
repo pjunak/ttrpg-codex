@@ -6,6 +6,7 @@ import type { AddonDataMutation, AddonQueryOptions } from "../src/addons/data-cl
 import type { BrowserContributionSurface } from "../src/addons/generation-manager.js";
 import type { RuleDetails } from "../src/addons/rule-details.js";
 import type {
+  AddonServiceHTTPError,
   BrowserServiceCallOptions,
   BrowserServiceConnectOptions,
 } from "../src/addons/service-client.js";
@@ -26,6 +27,7 @@ const checks: readonly true[] = [
     Parameters<Public.ServiceAPI["connect"]>[1],
     BrowserServiceConnectOptions
   >,
+  true satisfies Assignable<AddonServiceHTTPError, Public.ServiceError>,
   true satisfies Assignable<Public.ContributionBinding, BrowserContributionBinding>,
   true satisfies Assignable<Public.RuleDetails, RuleDetails>,
 ];
