@@ -201,11 +201,6 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   layouts implement hit points, combat, equipment and spells separately, with
   different behaviour (Compact parses free-text HP changes, Classic sends play
   commands). Share panel data and commands once the Compact refinement settles.
-- **One owner for the rules-data record schema** `addon-dnd-2024-compendium`,
-  `addon-dnd-homebrew` — Homebrew copies the Compendium's
-  `contracts/rule-record.schema.json` for its provider responses, and the copy
-  fell behind once (`excerpt`). Check the copy in CI or move the schema to the
-  Engine's provider contract before Homebrew serves more kinds.
 - **Import adapter problems in the Import Center** `ttrpg-codex`,
   `addon-dm-tools` — Browsers receive only a status and error code from service
   calls, so a rejected preview says only that it failed. Forward a bounded
