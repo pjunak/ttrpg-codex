@@ -23,6 +23,7 @@ import {
   homebrewFeatSample,
   homebrewModel,
   homebrewSample,
+  homebrewSpellSample,
   homebrewSubclassSample,
   type HomebrewModel,
 } from "./installed-homebrew-fixture.mts";
@@ -206,10 +207,22 @@ async function publish(): Promise<number> {
     "homebrew_published_subclasses",
     "homebrew_feats",
     "homebrew_published_feats",
+    "homebrew_spells",
+    "homebrew_published_spells",
   ];
   const read = await Promise.all(collections.map(all));
-  const [sets, items, published, meta, subclasses, publishedSubclasses, feats, publishedFeats] =
-    read;
+  const [
+    sets,
+    items,
+    published,
+    meta,
+    subclasses,
+    publishedSubclasses,
+    feats,
+    publishedFeats,
+    spells,
+    publishedSpells,
+  ] = read;
   const plan = model.planPublish(
     sets!.documents.map((document) => document.value),
     items!.documents.map((document) => document.value),
@@ -235,6 +248,13 @@ async function publish(): Promise<number> {
       publishedFeats!.documents.map((document) => [
         document.key,
         { value: model.parsePublishedFeat(document.value), revision: document.revision },
+      ]),
+    ),
+    spells!.documents.map((document) => document.value),
+    new Map(
+      publishedSpells!.documents.map((document) => [
+        document.key,
+        { value: model.parsePublishedSpell(document.value), revision: document.revision },
       ]),
     ),
   );
@@ -782,6 +802,86 @@ void test(
   },
 );
 
+void test(
+  "homebrew spells import, publish and join the spell lists of their classes",
+  { skip: !enabled },
+  async () => {
+    const importer = await connect(dm, dmCsrf, "dnd-homebrew", {
+      contract: "codex.import-adapter",
+      own: true,
+    });
+    const preview = await importer("preview", {
+      contractVersion: "import-preview.v1",
+      format: "dnd-homebrew",
+      document: homebrewSpellSample,
+    });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    assert.deepEqual(preview.body.result.summary, { creates: 3, updates: 0, skips: 0, deletes: 0 });
+    const commit = await importer(
+      "commit",
+      { contractVersion: "import-commit.v1", token: preview.body.result.token },
+      "import-spells",
+    );
+    assert.equal(commit.status, 200, JSON.stringify(commit.body));
+    assert.equal(await publish(), 4, "three spells and the metadata");
+
+    // Players' sheets read the spells with the player's authority.
+    for (const [request, csrf] of [
+      [dm, dmCsrf],
+      [player, playerCsrf],
+    ] as const) {
+      const engine = await engineAs(request, csrf);
+      const spells: { id: string; value: { level: number; classes: string[] } }[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = (
+          await engine("query-records", {
+            contractVersion: "rules-engine-query.v1",
+            kind: "spell",
+            limit: 200,
+            ...(cursor ? { cursor } : {}),
+          })
+        ).body.result;
+        spells.push(...page.records);
+        cursor = page.nextCursor;
+      } while (cursor);
+      assert.deepEqual(
+        spells
+          .filter((record) => record.id.startsWith("hb."))
+          .sort((left, right) => left.id.localeCompare(right.id))
+          .map((record) => [record.id, record.value.level, record.value.classes]),
+        [
+          ["hb.ember-lance", 1, ["sorcerer", "wizard"]],
+          ["hb.hearth-ward", 0, ["cleric", "druid"]],
+          ["hb.whispered-map", 2, ["bard", "wizard"]],
+        ],
+      );
+      assert.ok(
+        spells.some((record) => record.id === "fireball"),
+        "compendium spells are still there",
+      );
+    }
+    // A caster is offered the homebrew spells of its own list, up to its level.
+    const engine = await engineAs(dm, dmCsrf);
+    const offered = async (classId: string) => {
+      const request = inputs([]);
+      request.inputs.build.levels = Array.from({ length: 3 }, (_, i) => ({
+        id: `level-${i + 1}`,
+        classId,
+      }));
+      const call = await engine("evaluate-character", request);
+      assert.equal(call.status, 200, JSON.stringify(call.body));
+      const options = (call.body.result as Evaluation).evaluation.spellOptions.classes.find(
+        (entry: { classId: string }) => entry.classId === classId,
+      ) as { spellIds: string[] } | undefined;
+      assert.ok(options, `a level 3 ${classId} casts spells`);
+      return options.spellIds.filter((id) => id.startsWith("hb.")).sort();
+    };
+    assert.deepEqual(await offered("wizard"), ["hb.ember-lance", "hb.whispered-map"]);
+    assert.deepEqual(await offered("cleric"), ["hb.hearth-ward"]);
+  },
+);
+
 void test("the real UI edits, publishes and shows the gallery", { skip: !enabled }, async () => {
   const { chromium } = await import("playwright");
   const shots = process.env.HOMEBREW_SHOTS;
@@ -944,6 +1044,23 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
       warden.value as { records: { id: string; grants?: Record<string, unknown> }[] }
     ).records.find((record) => record.id === "hb.banner-warden.unbroken-line");
     assert.deepEqual(line?.grants, { resistances: ["psychic"], hpBonus: 5 });
+
+    // The spell editor: a changed range republishes the record and its stat block.
+    await page.getByRole("button", { name: /^Ember Lance/u }).click();
+    const range = page.locator('input[name="range"]');
+    await range.waitFor();
+    if (shots) await page.screenshot({ path: `${shots}/ui-spell.png`, fullPage: true });
+    await range.fill("90 feet");
+    await page.locator(".hb-editor-actions").getByRole("button", { name: "Save" }).click();
+    await page.getByText("Unpublished changes: 1.").waitFor();
+    await page.getByRole("button", { name: "Publish changes (1)" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Publish" }).click();
+    await page.getByText("Everything is published.").waitFor();
+    const lance = (await all("homebrew_published_spells")).documents.find(
+      (entry) => entry.key === "hb.ember-lance",
+    )!.value as { record: { range: string; text: string } };
+    assert.equal(lance.record.range, "90 feet");
+    assert.match(lance.record.text, /\*\*Range:\*\* 90 feet {2}\n/u);
     if (shots) {
       const narrow = await (
         await browser.newContext({

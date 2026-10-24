@@ -15,6 +15,8 @@ export interface HomebrewModel {
     publishedSubclasses: Map<string, unknown>,
     feats: unknown[],
     publishedFeats: Map<string, unknown>,
+    spells: unknown[],
+    publishedSpells: Map<string, unknown>,
   ): {
     problems: unknown[];
     mutations: {
@@ -28,6 +30,7 @@ export interface HomebrewModel {
   parsePublished(value: unknown): unknown;
   parsePublishedSubclass(value: unknown): unknown;
   parsePublishedFeat(value: unknown): unknown;
+  parsePublishedSpell(value: unknown): unknown;
 }
 
 /**
@@ -552,6 +555,61 @@ export const homebrewFeatSample = {
         },
         resistances: ["lightning", "thunder"],
       },
+    },
+  ],
+};
+
+/**
+ * A dnd-homebrew import with three spells: a level 1 sorcerer and wizard
+ * spell, a cleric and druid concentration cantrip and a bard and wizard ritual.
+ * It copies addon-dnd-homebrew's docs/examples/sample-spells.json.
+ */
+export const homebrewSpellSample = {
+  format: "dnd-homebrew",
+  schemaVersion: 1,
+  mode: "merge",
+  sets: [],
+  items: [],
+  spells: [
+    {
+      id: "ember-lance",
+      name: "Ember Lance",
+      level: 1,
+      school: "Evocation",
+      classes: ["sorcerer", "wizard"],
+      castingTime: "Action",
+      range: "60 feet",
+      components: ["V", "S", "M"],
+      material: "a shard of obsidian",
+      duration: "Instantaneous",
+      text: "A lance of embers streaks toward a creature within range. Make a ranged spell attack against the target. On a hit, the target takes 3d8 Fire damage.\n\n**Using a Higher-Level Spell Slot.** The damage increases by 1d8 for each spell slot level above 1.",
+    },
+    {
+      id: "hearth-ward",
+      name: "Hearth Ward",
+      level: 0,
+      school: "Abjuration",
+      classes: ["cleric", "druid"],
+      concentration: true,
+      castingTime: "Bonus Action",
+      range: "Touch",
+      components: ["V", "S"],
+      duration: "Concentration, up to 1 minute",
+      text: "A willing creature you touch gains a +1 bonus to Armor Class until the spell ends.",
+    },
+    {
+      id: "whispered-map",
+      name: "Whispered Map",
+      level: 2,
+      school: "Divination",
+      classes: ["bard", "wizard"],
+      ritual: true,
+      castingTime: "10 minutes",
+      range: "Self",
+      components: ["V", "S", "M"],
+      material: "a map drawn in your own hand",
+      duration: "1 hour",
+      text: "You whisper the name of a place you have visited within 1 mile, and the map shows you the shortest safe way there. The way updates as you travel until the spell ends.",
     },
   ],
 };
