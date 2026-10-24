@@ -203,12 +203,13 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   not, so even with DM adjudication they get no attack row or armor AC. Declare
   their base, and a bonus only where the item is otherwise complete.
   Ammunition, +1, +2, or +3 waits for ammunition attacks.
-- **Homebrew spells, origins and bundles** `addon-dnd-homebrew` — Items,
-  magic gear, subclasses and feats are built; next, in this order
-  ([ADR-0006](decisions/0006-homebrew-content.md)): spells (homebrew spells
-  join class lists through `classes`), species and backgrounds, then a
-  `codex.campaign-bundle-contributor` so a campaign bundle carries homebrew
-  drafts.
+- **Homebrew origins and bundles** `addon-dnd-homebrew` — Items, magic gear,
+  subclasses, feats and spells are built; next, in this order
+  ([ADR-0006](decisions/0006-homebrew-content.md)): species and backgrounds,
+  then a `codex.campaign-bundle-contributor` so a campaign bundle carries
+  homebrew drafts. An item cannot cast a homebrew spell yet: item spell ids
+  allow no dot, and widening them in `homebrew-common.schema.json` needs a
+  reviewed data migration.
 - **Host locale and Markdown services for add-ons** `ttrpg-codex` — The add-ons
   run three localization systems, and the Compendium ships its own Markdown
   renderer, because the host serves no add-on locales and its Markdown
