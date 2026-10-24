@@ -352,7 +352,11 @@ saves keep the draft, and cancellation/navigation use the unsaved-edit guard.
 The timeline has column/card styling, stacking, horizontal
 scroll slider, and responsive shell. Editing expands stacks to expose the
 keyboard and phone move controls. Session-scoped creation and card editing use
-the common event form; deleting an event returns to the board. Navigation and
+the common event form; deleting an event returns to the board. A new event, or
+one whose session changes in the form or in place, is ordered after the events
+already in that session. Creation without a chosen session (the toolbar, or
+**Event here** on a location) starts in the latest session; an empty board
+shows only session 1 until it has an event. Navigation and
 timeline messages use the English/Czech catalogs. Preparation tests live in
 `frontend/test/campaign-timeline.test.ts`; production browser scenarios in
 `frontend/test/browser/timeline.browser.mts` cover desktop/phone layout, native

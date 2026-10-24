@@ -371,6 +371,35 @@ void test("timeline creates, edits and deletes events with the common revision-p
   assert.equal(writes.at(-1)![0].expectedRevision, 4);
 });
 
+void test("a new event is listed last in its session, and the toolbar adds to the latest session", async (t) => {
+  const { page, writes } = await fixture(t);
+  await page.getByRole("button", { name: "Edit timeline" }).click();
+  assert.equal(
+    await page
+      .locator(".tl-toolbar")
+      .getByRole("link", { name: "New event", exact: false })
+      .getAttribute("href"),
+    "#/timeline/new/3",
+  );
+  await column(page, 1).getByRole("link", { name: "New event", exact: false }).click();
+  const form = page.locator(".record-editor");
+  await form.locator('[name="name"]').fill("Closing words");
+  await form.getByRole("button", { name: "Save entry", exact: true }).click();
+  await form.waitFor({ state: "detached" });
+  const created = writes[0][0].key;
+  assert.equal(event(created).value.order, 6);
+  await page.getByRole("link", { name: /Back to timeline/ }).click();
+  await card(page, created).waitFor();
+  assert.deepEqual(await ids(page, 1), [
+    "event-0",
+    "event-1",
+    "event-2",
+    "event-3",
+    "event-4",
+    created,
+  ]);
+});
+
 void test("DM timeline displays the reciprocal twin once and reorders only that visible event", async (t) => {
   const { page, writes } = await fixture(t, { role: "dm" });
   event("event-0").value.linkedTwinId = "dm-event";
@@ -419,6 +448,14 @@ void test("empty timelines keep an initial session and a way to create the first
     "#/timeline/new/1",
   );
   await page.getByRole("button", { name: "Edit timeline" }).click();
+  assert.equal(await page.locator(".tl-col").count(), 1, "no second session beside an empty first");
+  assert.equal(
+    await page
+      .locator(".tl-toolbar")
+      .getByRole("link", { name: "New event", exact: false })
+      .getAttribute("href"),
+    "#/timeline/new/1",
+  );
   await column(page, 1).getByRole("link", { name: "New event", exact: false }).click();
   await page.locator(".record-editor").waitFor();
   assert.equal(await page.locator('[name="sitting"]').inputValue(), "1");

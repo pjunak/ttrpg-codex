@@ -18,6 +18,7 @@ import type {
   CampaignCollectionName,
   CampaignDataset,
 } from "../src/core/campaign-data.js";
+import type { CampaignMutation } from "../src/core/campaign-mutations.js";
 
 describe("in-place record patches", () => {
   it("edits one field of any collection and moves a re-parented location off its old map", () => {
@@ -426,7 +427,7 @@ describe("campaign record editing", () => {
     const prepared = prepareCampaignRecordSave(
       dataset({
         events: [
-          { key: "gate", revision: 2, value: { id: "gate", name: "Gate", sitting: 5, order: 9 } },
+          { key: "gate", revision: 2, value: { id: "gate", name: "Gate", sitting: 1, order: 9 } },
         ],
       }),
       {
@@ -443,6 +444,58 @@ describe("campaign record editing", () => {
     if (prepared.mutations[0]?.operation !== "put") return;
     expect(prepared.mutations[0].value).toMatchObject({ id: "gate", name: "Gate", order: 9 });
     expect(prepared.mutations[0].value).not.toHaveProperty("sitting");
+  });
+
+  it("lists a new event, or one moved to another session, after that session's events", () => {
+    const gate = { key: "gate", revision: 2, value: { id: "gate", sitting: 2, order: 1 } };
+    const campaign = dataset({
+      events: [
+        gate,
+        { key: "feast", revision: 1, value: { id: "feast", sitting: 2, order: 2 } },
+        { key: "ruin", revision: 1, value: { id: "ruin", sitting: 3, order: 7.5 } },
+        { key: "oath", revision: 1, value: { id: "oath", sitting: 0, order: 4 } },
+      ],
+    });
+    const stored = (mutation: CampaignMutation | undefined) =>
+      mutation?.operation === "put" ? mutation.value : undefined;
+    const create = (current: CampaignDataset, sitting: string) =>
+      stored(
+        prepareCampaignRecordSave(
+          current,
+          {
+            collection: "events",
+            key: "raid",
+            expectedRevision: 0,
+            creating: true,
+            fields: formFields("events", { name: "Raid", sitting }),
+          },
+          false,
+        ).mutations[0],
+      );
+    expect(create(campaign, "2")).toMatchObject({ sitting: 2, order: 3 });
+    expect(create(campaign, "4")).toMatchObject({ sitting: 4, order: 1 });
+    expect(create(dataset({ events: [] }), "1")).toMatchObject({ sitting: 1, order: 1 });
+    const edit = (fields: Readonly<Record<string, unknown>>) =>
+      stored(
+        prepareCampaignRecordSave(
+          campaign,
+          { collection: "events", key: "gate", expectedRevision: 2, creating: false, fields },
+          false,
+        ).mutations[0],
+      );
+    expect(edit({ short: "Changed" })).toMatchObject({ sitting: 2, order: 1 });
+    // A cleared session shows in the first one, after the zero-session event there.
+    expect(edit({ sitting: "" })).toMatchObject({ order: 5 });
+    expect(edit({ sitting: "3" })).toMatchObject({ sitting: 3, order: 8 });
+    expect(
+      stored(
+        prepareCharacterPatch(
+          campaign,
+          { collection: "events", base: gate, fields: { sitting: "3" } },
+          false,
+        ).mutations[0],
+      ),
+    ).toMatchObject({ sitting: 3, order: 8 });
   });
 
   it("normalizes structured references, tags, facts, and attitudes without changing their stored shapes", () => {

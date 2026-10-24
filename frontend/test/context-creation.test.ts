@@ -59,6 +59,26 @@ describe("contextual creation and editor return routes", () => {
     expect(contextualCreationFields(missing, campaign)).toEqual({});
     expect(creationBackHash(missing, campaign)).toBe("#/locations");
   });
+  it("starts a contextual event in the latest session", () => {
+    const route = parseAppRoute(contextualCreateHash("event-here", "gate/upper%2F"));
+    if (route.kind !== "create") throw Error("Expected create route");
+    expect(contextualCreationFields(route, campaign)).toMatchObject({ sitting: 1 });
+    const later = {
+      ...campaign,
+      collections: campaign.collections.map((collection) =>
+        collection.name === "events"
+          ? {
+              ...collection,
+              records: [
+                { key: "raid", revision: 1, value: { id: "raid", sitting: 4 } },
+                { key: "feast", revision: 1, value: { id: "feast", sitting: 2 } },
+              ],
+            }
+          : collection,
+      ),
+    };
+    expect(contextualCreationFields(route, later)).toMatchObject({ sitting: 4 });
+  });
   it("keeps internal collection views and rejects nested or external return destinations", () => {
     const page = campaignPages.find((page) => page.id === "characters")!;
     const returnTo = "#/characters?q=Gate&sort=name";

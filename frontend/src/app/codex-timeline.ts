@@ -12,6 +12,7 @@ import {
   timelineRecords,
   timelineSessions,
   nextTimelineSitting,
+  latestTimelineSitting,
   moveTimelineEvent,
   sameTimelineOrder,
   type TimelineDraft,
@@ -183,7 +184,7 @@ export class CodexTimeline extends LitElement {
           ✎ ${this.#ui.t(this.editing ? "timeline.done" : "timeline.edit")}</button>`
             : nothing
         }
-        ${this.editing ? html`<a class="tl-add-btn" href="#/timeline/new/1">＋ ${this.#ui.t("timeline.newEvent")}</a>` : nothing}
+        ${this.editing ? html`<a class="tl-add-btn" href=${`#/timeline/new/${latestTimelineSitting(columns)}`}>＋ ${this.#ui.t("timeline.newEvent")}</a>` : nothing}
         ${this.#slot("timeline:toolbar", null, [])}
       </header>
       ${this.error === "" ? nothing : html`<p class="tl-message" role="alert">${this.error}</p>`}

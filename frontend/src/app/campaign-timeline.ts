@@ -27,13 +27,15 @@ export function timelineSitting(value: unknown): number {
 export function timelineRecords(campaign: CampaignDataset): readonly CampaignRecord[] {
   return groupTwinRecords(campaignCollection(campaign, "events").records);
 }
+function timelineOrder(record: CampaignRecord): number {
+  const value = recordValue(record)["order"];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
 export function timelineColumns(campaign: CampaignDataset): readonly TimelineColumn[] {
   const groups = new Map<number, string[]>();
-  const order = (record: CampaignRecord) => {
-    const value = recordValue(record)["order"];
-    return typeof value === "number" && Number.isFinite(value) ? value : 0;
-  };
-  for (const record of [...timelineRecords(campaign)].sort((a, b) => order(a) - order(b))) {
+  for (const record of [...timelineRecords(campaign)].sort(
+    (a, b) => timelineOrder(a) - timelineOrder(b),
+  )) {
     const sitting = timelineSitting(recordValue(record)["sitting"]),
       ids = groups.get(sitting) ?? [];
     ids.push(record.key);
@@ -50,13 +52,36 @@ export function timelineDraft(campaign: CampaignDataset): TimelineDraft {
     columns: timelineColumns(campaign),
   };
 }
+/** The session after the last one with events; the empty first session when there are none. */
 export function nextTimelineSitting(columns: readonly TimelineColumn[]): number {
-  const max = columns.reduce((max, column) => Math.max(max, column.sitting), 1);
+  const max = columns.reduce((max, column) => Math.max(max, column.sitting), 0);
   if (max < Number.MAX_SAFE_INTEGER) return max + 1;
   const occupied = new Set(columns.map((column) => column.sitting));
   let next = 1;
   while (occupied.has(next)) next++;
   return next;
+}
+/** The last session with events, where a new event goes unless a session is chosen. */
+export function latestTimelineSitting(columns: readonly TimelineColumn[]): number {
+  return columns.at(-1)?.sitting ?? 1;
+}
+/**
+ * Gives a new event, or one moved to another session, the order after the
+ * events already in that session, so it is listed last instead of first.
+ */
+export function placeTimelineEvent(
+  campaign: CampaignDataset,
+  key: string,
+  value: Record<string, unknown>,
+  previous: Readonly<Record<string, unknown>> | undefined,
+): void {
+  const sitting = timelineSitting(value["sitting"]);
+  if (previous !== undefined && timelineSitting(previous["sitting"]) === sitting) return;
+  const records = new Map(timelineRecords(campaign).map((record) => [record.key, record]));
+  const last = (timelineColumns(campaign).find((column) => column.sitting === sitting)?.ids ?? [])
+    .filter((id) => id !== key)
+    .reduce((max, id) => Math.max(max, timelineOrder(records.get(id)!)), 0);
+  value["order"] = Math.floor(last) + 1;
 }
 export function timelineSessions(columns: readonly TimelineColumn[]): readonly number[] {
   const max = columns.reduce((max, column) => Math.max(max, column.sitting), 1);

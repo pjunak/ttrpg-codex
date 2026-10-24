@@ -1,5 +1,6 @@
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import { recordValue } from "./campaign-projection.js";
+import { latestTimelineSitting, timelineColumns } from "./campaign-timeline.js";
 import {
   campaignPages,
   collectionHash,
@@ -33,7 +34,9 @@ export function contextualCreationFields(
   return {
     [action.field]: action.field === "locations" ? [key] : key,
     visibility: recordValue(source)["visibility"] === "dm" ? "dm" : "public",
-    ...(action.target === "events" ? { sitting: 1 } : {}),
+    ...(action.target === "events"
+      ? { sitting: latestTimelineSitting(timelineColumns(campaign)) }
+      : {}),
   };
 }
 export function creationBackHash(route: CreateRoute, campaign: CampaignDataset): string {

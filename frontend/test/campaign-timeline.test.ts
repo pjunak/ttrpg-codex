@@ -6,6 +6,7 @@ import {
   timelineSessions,
   timelineSitting,
   nextTimelineSitting,
+  latestTimelineSitting,
   moveTimelineEvent,
   prepareTimelineReorder,
   TimelineEditError,
@@ -41,12 +42,19 @@ describe("session timeline", () => {
       1, 1_000_000_000,
     ]);
     expect(nextTimelineSitting(columns)).toBe(4);
+    expect(latestTimelineSitting(columns)).toBe(3);
     expect(timelineSitting(Infinity)).toBe(1);
     expect(
       Number.isSafeInteger(
         nextTimelineSitting([{ sitting: Number.MAX_SAFE_INTEGER, ids: ["far"] }]),
       ),
     ).toBe(true);
+  });
+  it("offers the empty first session, not a second one, before any event exists", () => {
+    const columns = timelineColumns(dataset([]));
+    expect(timelineSessions(columns)).toEqual([1]);
+    expect(nextTimelineSitting(columns)).toBe(1);
+    expect(latestTimelineSitting(columns)).toBe(1);
   });
   it("deduplicates only reciprocal DM twins and keeps a lone public or stale twin visible", () => {
     const publicEvent = event("public", { linkedTwinId: "dm", visibility: "public" });

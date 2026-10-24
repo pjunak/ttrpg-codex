@@ -10,6 +10,7 @@ import {
 import type { CampaignEnumCategory, CampaignMutation } from "../core/campaign-mutations.js";
 import { campaignPages, type CampaignPageDefinition } from "./routes.js";
 import { campaignPartyIdentity } from "./campaign-party.js";
+import { placeTimelineEvent } from "./campaign-timeline.js";
 
 export interface CampaignEditorField {
   readonly key: string;
@@ -148,6 +149,8 @@ export function prepareCharacterPatch(
     );
   if (collection === "locations" && Object.hasOwn(patch.fields, "parentId"))
     dropPlacementIfReparented(value, baseline);
+  if (collection === "events" && Object.hasOwn(patch.fields, "sitting"))
+    placeTimelineEvent(campaign, current.key, value, baseline);
   if (
     character &&
     Object.hasOwn(patch.fields, "faction") &&
@@ -338,6 +341,8 @@ export function prepareCampaignRecordSave(
   if (page.collection === "companions" && detail.creating && line(value["icon"]) === "")
     value["icon"] = "🐾";
   if (page.collection === "locations") dropPlacementIfReparented(value, current);
+  if (page.collection === "events")
+    placeTimelineEvent(campaign, detail.key, value, detail.creating ? undefined : current);
   value["id"] = detail.key;
 
   applyVisibility(value, detail.visibility, page.collection, canManageVisibility);
