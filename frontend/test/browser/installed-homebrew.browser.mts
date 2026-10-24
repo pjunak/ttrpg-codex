@@ -20,6 +20,7 @@ import {
   enableAllRuleSources,
 } from "./installed-graph-fixture.mts";
 import {
+  homebrewFeatSample,
   homebrewModel,
   homebrewSample,
   homebrewSubclassSample,
@@ -203,9 +204,12 @@ async function publish(): Promise<number> {
     "homebrew_meta",
     "homebrew_subclasses",
     "homebrew_published_subclasses",
+    "homebrew_feats",
+    "homebrew_published_feats",
   ];
   const read = await Promise.all(collections.map(all));
-  const [sets, items, published, meta, subclasses, publishedSubclasses] = read;
+  const [sets, items, published, meta, subclasses, publishedSubclasses, feats, publishedFeats] =
+    read;
   const plan = model.planPublish(
     sets!.documents.map((document) => document.value),
     items!.documents.map((document) => document.value),
@@ -224,6 +228,13 @@ async function publish(): Promise<number> {
       publishedSubclasses!.documents.map((document) => [
         document.key,
         { value: model.parsePublishedSubclass(document.value), revision: document.revision },
+      ]),
+    ),
+    feats!.documents.map((document) => document.value),
+    new Map(
+      publishedFeats!.documents.map((document) => [
+        document.key,
+        { value: model.parsePublishedFeat(document.value), revision: document.revision },
       ]),
     ),
   );
@@ -676,6 +687,98 @@ void test(
     ).evaluation.sheet;
     assert.equal(raised.derived.armorClass, sheet.derived.armorClass + 1);
     assert.equal(raised.derived.speed, sheet.derived.speed + 10);
+  },
+);
+
+void test(
+  "homebrew feats import, publish, join the Builder's feats and apply to a character",
+  { skip: !enabled },
+  async () => {
+    const importer = await connect(dm, dmCsrf, "dnd-homebrew", {
+      contract: "codex.import-adapter",
+      own: true,
+    });
+    const preview = await importer("preview", {
+      contractVersion: "import-preview.v1",
+      format: "dnd-homebrew",
+      document: homebrewFeatSample,
+    });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    assert.deepEqual(preview.body.result.summary, { creates: 4, updates: 0, skips: 0, deletes: 0 });
+    const commit = await importer(
+      "commit",
+      { contractVersion: "import-commit.v1", token: preview.body.result.token },
+      "import-feats",
+    );
+    assert.equal(commit.status, 200, JSON.stringify(commit.body));
+    assert.equal(await publish(), 5, "four feats and the metadata");
+
+    const engine = await engineAs(dm, dmCsrf);
+    const feats: { id: string; value: { category: string } }[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = (
+        await engine("query-records", {
+          contractVersion: "rules-engine-query.v1",
+          kind: "feat",
+          limit: 200,
+          ...(cursor ? { cursor } : {}),
+        })
+      ).body.result;
+      feats.push(...page.records);
+      cursor = page.nextCursor;
+    } while (cursor);
+    assert.deepEqual(
+      feats
+        .filter((record) => record.id.startsWith("hb."))
+        .sort((left, right) => left.id.localeCompare(right.id))
+        .map((record) => [record.id, record.value.category]),
+      [
+        ["hb.boon-of-the-tempest", "epicBoon"],
+        ["hb.hearthborn", "origin"],
+        ["hb.shieldwall", "fightingStyle"],
+        ["hb.storm-touched", "general"],
+      ],
+      "the Builder can offer each in its category",
+    );
+    // A DM-given feat applies like one the character chose.
+    const gifted = (featIds: string[]) => {
+      const request = inputs([]);
+      (request.inputs as { grants: unknown[] }).grants = featIds.map((id) => ({
+        id: `gift-${id}`,
+        name: `Gift of ${id}`,
+        reason: "test",
+        actorId: "dm",
+        grantedAt: "2026-10-21T00:00:00Z",
+        active: true,
+        effectiveLevel: 1,
+        condition: "always",
+        feat: { kind: "feat", id },
+        effects: [],
+        waivers: [],
+      }));
+      return request;
+    };
+    const base = ((await engine("evaluate-character", gifted([]))).body.result as Evaluation)
+      .evaluation.sheet;
+    const call = await engine(
+      "evaluate-character",
+      gifted(["hb.hearthborn", "hb.boon-of-the-tempest"]),
+    );
+    assert.equal(call.status, 200, JSON.stringify(call.body));
+    const result = (call.body.result as Evaluation).evaluation;
+    assert.equal(result.sheet.derived.maxHp, base.derived.maxHp + 3, "1 per character level");
+    assert.ok(
+      ["lightning", "thunder"].every((type) => result.sheet.resistances.includes(type)),
+      JSON.stringify(result.sheet.resistances),
+    );
+    assert.deepEqual(
+      result.issues
+        .filter((issue) => issue.id.startsWith("feat:hb."))
+        .map((issue) => [issue.id, issue.severity]),
+      [["feat:hb.boon-of-the-tempest", "blocker"]],
+      "the level 19 prerequisite holds for a level 3 character",
+    );
   },
 );
 

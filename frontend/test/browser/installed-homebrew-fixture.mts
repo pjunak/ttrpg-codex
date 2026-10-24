@@ -13,6 +13,8 @@ export interface HomebrewModel {
     now: number,
     subclasses: unknown[],
     publishedSubclasses: Map<string, unknown>,
+    feats: unknown[],
+    publishedFeats: Map<string, unknown>,
   ): {
     problems: unknown[];
     mutations: {
@@ -25,6 +27,7 @@ export interface HomebrewModel {
   };
   parsePublished(value: unknown): unknown;
   parsePublishedSubclass(value: unknown): unknown;
+  parsePublishedFeat(value: unknown): unknown;
 }
 
 /**
@@ -433,6 +436,122 @@ export const homebrewSubclassSample = {
           },
         },
       ],
+    },
+  ],
+};
+
+/**
+ * A dnd-homebrew import with one feat of each category: an origin feat that
+ * adds Hit Points, a general half-feat with an always-prepared spell, a
+ * fighting style and an epic boon with resistances behind a level 19
+ * prerequisite. It copies addon-dnd-homebrew's docs/examples/sample-feats.json.
+ */
+export const homebrewFeatSample = {
+  format: "dnd-homebrew",
+  schemaVersion: 1,
+  mode: "merge",
+  sets: [],
+  items: [],
+  feats: [
+    {
+      id: "hearthborn",
+      name: "Hearthborn",
+      category: "origin",
+      excerpt: "Hit Point maximum +1 per character level.",
+      text: "You grew up beside a forge and shrug off hardship.\n\n**Hardy.** Your Hit Point maximum increases by 1 for each character level you have.",
+      grants: {
+        hpPerLevel: 1,
+      },
+    },
+    {
+      id: "storm-touched",
+      name: "Storm Touched",
+      category: "general",
+      prerequisites: {
+        level: 4,
+        any: [
+          {
+            abilities: {
+              INT: 13,
+            },
+          },
+          {
+            abilities: {
+              WIS: 13,
+            },
+          },
+        ],
+      },
+      excerpt:
+        "Int or Wis +1 (max 20). Thunderwave always prepared, once per Long Rest without a slot.",
+      text: "Lightning answers you.\n\n**Ability Score Increase.** Increase your Intelligence or Wisdom score by 1, to a maximum of 20.\n\n**Thunder Step.** You always have Thunderwave prepared. You can cast it once without a spell slot, and you regain that use when you finish a Long Rest. Its spellcasting ability is the ability increased by this feat.",
+      grants: {
+        abilityScoreIncrease: {
+          choose: 1,
+          amount: 1,
+          from: ["INT", "WIS"],
+        },
+        castingAbility: {
+          fromAbilityScoreIncrease: true,
+        },
+        spells: [
+          {
+            level: 1,
+            ids: ["thunderwave"],
+            alwaysPrepared: true,
+            free: "1/long",
+          },
+        ],
+      },
+    },
+    {
+      id: "shieldwall",
+      name: "Shieldwall",
+      category: "fightingStyle",
+      prerequisites: {
+        any: [
+          {
+            feature: "fighter-fighting-style",
+          },
+          {
+            feature: "paladin-fighting-style",
+          },
+          {
+            feature: "ranger-fighting-style",
+          },
+        ],
+      },
+      excerpt: "+1 Armor Class while wearing Medium or Heavy armor.",
+      text: "While you are wearing Medium or Heavy armor, you gain a +1 bonus to Armor Class.",
+      grants: {
+        acBonuses: [
+          {
+            add: 1,
+            requires: {
+              armorTypes: ["medium", "heavy"],
+            },
+          },
+        ],
+      },
+    },
+    {
+      id: "boon-of-the-tempest",
+      name: "Boon of the Tempest",
+      category: "epicBoon",
+      prerequisites: {
+        level: 19,
+      },
+      excerpt: "One ability score +1 (max 30). Resistance to Lightning and Thunder damage.",
+      text: "The storm is yours.\n\n**Ability Score Increase.** Increase one ability score of your choice by 1, to a maximum of 30.\n\n**Eye of the Storm.** You have Resistance to Lightning and Thunder damage.",
+      grants: {
+        abilityScoreIncrease: {
+          choose: 1,
+          amount: 1,
+          from: ["STR", "DEX", "CON", "INT", "WIS", "CHA"],
+          cap: 30,
+        },
+        resistances: ["lightning", "thunder"],
+      },
     },
   ],
 };
