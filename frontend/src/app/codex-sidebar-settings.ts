@@ -7,6 +7,8 @@ import {
   moveSidebarPage,
   sidebarPage,
   sidebarRecord,
+  sidebarSectionDefaultLabel,
+  sidebarSectionLabel,
   type SidebarLayout,
   type SidebarSection,
 } from "./campaign-sidebar.js";
@@ -112,17 +114,21 @@ export class CodexSidebarSettings extends LitElement {
     </section>`;
   }
   #section(section: SidebarSection, index: number) {
+    // An unnamed built-in section shows its reader-language name as a placeholder.
+    const name = sidebarSectionLabel(section),
+      fallback = sidebarSectionDefaultLabel(section),
+      typed = fallback !== undefined && name === fallback ? "" : section.label;
     return html`<section class="sb-sec" data-section=${section.id} @dragover=${(event: DragEvent) => this.#allowDrop(event, "section")}
       @drop=${(event: DragEvent) => this.#dropSection(event, index)}>
       <div class="sb-sec-head">
         <span class="sb-grip" draggable="true" aria-hidden="true" @dragstart=${(event: DragEvent) => this.#startDrag(event, "section", section.id)} @dragend=${() => {
           this.#drag = undefined;
         }}>⠿</span>
-        <label><span class="visually-hidden">${this.#ui.t("sidebar.sectionName")}</span><input class="sb-sec-label" maxlength="200" .value=${section.label} @input=${(event: Event) => this.#field(section.id, { label: (event.target as HTMLInputElement).value })} /></label>
+        <label><span class="visually-hidden">${this.#ui.t("sidebar.sectionName")}</span><input class="sb-sec-label" maxlength="200" placeholder=${fallback ?? nothing} .value=${typed} @input=${(event: Event) => this.#field(section.id, { label: (event.target as HTMLInputElement).value })} /></label>
         <label><span class="visually-hidden">${this.#ui.t("sidebar.icon")}</span><input class="sb-sec-icon" maxlength="100" placeholder=${this.#ui.t("sidebar.iconPlaceholder")} title=${this.#ui.t("sidebar.icon")} .value=${section.icon} @input=${(event: Event) => this.#field(section.id, { icon: (event.target as HTMLInputElement).value })} /></label>
-        <span class="sb-order-controls"><button type="button" aria-label=${this.#ui.t("sidebar.sectionUp", { name: section.label })} ?disabled=${index === 0} @click=${() => this.#moveSection(section.id, index - 1)}>↑</button>
-          <button type="button" aria-label=${this.#ui.t("sidebar.sectionDown", { name: section.label })} ?disabled=${index === this.layout!.sections.length - 1} @click=${() => this.#moveSection(section.id, index + 1)}>↓</button></span>
-        <button type="button" aria-label=${this.#ui.t("sidebar.deleteSection", { name: section.label })} @click=${() => this.#delete(section.id)}>🗑</button>
+        <span class="sb-order-controls"><button type="button" aria-label=${this.#ui.t("sidebar.sectionUp", { name })} ?disabled=${index === 0} @click=${() => this.#moveSection(section.id, index - 1)}>↑</button>
+          <button type="button" aria-label=${this.#ui.t("sidebar.sectionDown", { name })} ?disabled=${index === this.layout!.sections.length - 1} @click=${() => this.#moveSection(section.id, index + 1)}>↓</button></span>
+        <button type="button" aria-label=${this.#ui.t("sidebar.deleteSection", { name })} @click=${() => this.#delete(section.id)}>🗑</button>
       </div>
       <div class="sb-sec-flags">
         <label><input type="checkbox" .checked=${section.collapsible} @change=${(event: Event) => this.#field(section.id, { collapsible: (event.target as HTMLInputElement).checked })} />${this.#ui.t("sidebar.collapsible")}</label>
@@ -153,7 +159,7 @@ export class CodexSidebarSettings extends LitElement {
           if (target) this.#movePage(route, target, 128);
         }}>
           <option value="" selected>${this.#ui.t("sidebar.moveTo")}</option>
-          ${this.layout!.sections.filter((group) => group.id !== section).map((group) => html`<option value=${group.id}>${group.label || this.#ui.t("sidebar.newSection")}</option>`)}
+          ${this.layout!.sections.filter((group) => group.id !== section).map((group) => html`<option value=${group.id}>${sidebarSectionLabel(group) || this.#ui.t("sidebar.newSection")}</option>`)}
           ${section === "__hidden__" ? nothing : html`<option value="__hidden__">${this.#ui.t("sidebar.hidden")}</option>`}
         </select>
       </li>`;

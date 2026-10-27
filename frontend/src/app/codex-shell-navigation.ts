@@ -4,6 +4,7 @@ import {
   campaignSidebar,
   defaultSidebarLayout,
   sidebarPage,
+  sidebarSectionLabel,
   type SidebarSection,
 } from "./campaign-sidebar.js";
 import type { AppRoute } from "./routes.js";
@@ -82,13 +83,14 @@ export class CodexShellNavigation extends LitElement {
             return page === undefined ? [] : [page];
           });
           if (entries.length === 0) return nothing;
-          const open = !group.collapsible || this.#isOpen(group);
+          const open = !group.collapsible || this.#isOpen(group),
+            label = sidebarSectionLabel(group);
           return html`<section class=${`navigation-${group.id}`} data-navigation-section=${group.id}>
             <h2>${
               group.collapsible
                 ? html`<button class="sidebar-section-toggle" aria-expanded=${open} @click=${() => this.#toggle(group)}>
-              <span aria-hidden="true">${open ? "▾" : "▸"}</span> ${group.icon} ${group.label}</button>`
-                : html`${group.icon} ${group.label}`
+              <span aria-hidden="true">${open ? "▾" : "▸"}</span> ${group.icon} ${label}</button>`
+                : html`${group.icon} ${label}`
             }</h2>
             <div ?hidden=${!open}>${entries.map(
               (entry) => html`

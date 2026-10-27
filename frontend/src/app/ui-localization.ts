@@ -1285,6 +1285,14 @@ export function uiText(
   return interpolate(template, parameters);
 }
 
+/** Whether `text` is the message `key` in any interface language. */
+export function uiTextInAnyLocale(key: MessageKey, text: string): boolean {
+  return Object.values(catalogs).some((catalog) => {
+    const message = catalog[key];
+    return (typeof message === "string" ? message : message.other) === text;
+  });
+}
+
 export function uiPlural(
   key: MessageKey,
   count: number,

@@ -479,6 +479,9 @@ forms cannot save over each other's pending drafts.
 `settings/sidebarLayout` stores ordered sections and their page routes plus a
 hidden-page list. Section names, icons, collapse/default-open flags, DM-only
 visibility, moves, hiding, add/delete, reset, and drag ordering are editable.
+The four built-in sections read in each reader's language while they have no
+name or their default name in any interface language; a name the DM types is
+shown as written.
 Section IDs and unknown fields survive ordinary edits. Preserved core routes
 resolve through the implemented page registry; unavailable routes stay in the
 editor without becoming broken links. New registry pages start hidden in a

@@ -8,6 +8,7 @@ import {
   parseSidebarLayout,
   prepareSidebarSave,
   sidebarPage,
+  sidebarSectionLabel,
 } from "../src/app/campaign-sidebar.js";
 import type { CampaignCollection, CampaignDataset } from "../src/core/campaign-data.js";
 import { addonSidebarMode, prepareAddonSidebarSave } from "../src/app/campaign-sidebar.js";
@@ -147,6 +148,13 @@ describe("curated sidebar layout", () => {
     });
     expect(curated.hidden).toContain("/party");
     expect(curated.hidden).toContain("/map/world");
+  });
+  it("shows unnamed built-in sections in the reader's language", () => {
+    expect(sidebarSectionLabel({ id: "overview", label: "Přehled" })).toBe("Overview");
+    expect(sidebarSectionLabel({ id: "campaign", label: "" })).toBe("Campaign");
+    expect(sidebarSectionLabel({ id: "world", label: "My world" })).toBe("My world");
+    expect(sidebarSectionLabel({ id: "notes", label: "Přehled" })).toBe("Přehled");
+    expect(sidebarSectionLabel({ id: "constructor", label: "" })).toBe("");
   });
   it("resolves only implemented core pages", () => {
     expect(sidebarPage("/characters")?.route).toBe("/characters");

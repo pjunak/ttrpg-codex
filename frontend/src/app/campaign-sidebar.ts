@@ -2,7 +2,12 @@ import { isRecord } from "../core/boundary.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import type { CampaignMutation } from "../core/campaign-mutations.js";
 import { campaignPages } from "./routes.js";
-import { uiCollectionLabel, uiText } from "./ui-localization.js";
+import {
+  uiCollectionLabel,
+  uiText,
+  uiTextInAnyLocale,
+  type MessageKey,
+} from "./ui-localization.js";
 import type { BrowserNavigationEntry } from "../addons/navigation.js";
 
 export interface SidebarSection extends Readonly<Record<string, unknown>> {
@@ -134,6 +139,30 @@ export function defaultSidebarLayout(): SidebarLayout {
 }
 function section(id: string, label: string, pages: readonly string[]): SidebarSection {
   return { id, label, icon: "", collapsible: false, defaultOpen: true, role: "", pages };
+}
+const builtInSectionNames = new Map<string, MessageKey>([
+  ["overview", "shell.overview"],
+  ["campaign", "shell.campaign"],
+  ["world", "shell.world"],
+  ["compendium", "shell.compendium"],
+]);
+/** The name a built-in section shows in the reader's language until the DM names it. */
+export function sidebarSectionDefaultLabel(
+  section: Pick<SidebarSection, "id">,
+): string | undefined {
+  const key = builtInSectionNames.get(section.id);
+  return key === undefined ? undefined : uiText(key);
+}
+/**
+ * The name a section shows. A built-in section saved without a name, or with
+ * its default name in any interface language, reads in the reader's language.
+ */
+export function sidebarSectionLabel(section: Pick<SidebarSection, "id" | "label">): string {
+  const key = builtInSectionNames.get(section.id),
+    label = section.label.trim();
+  return key !== undefined && (label === "" || uiTextInAnyLocale(key, label))
+    ? uiText(key)
+    : section.label;
 }
 export function sidebarRecord(campaign: CampaignDataset) {
   return campaignCollection(campaign, "settings").records.find(
