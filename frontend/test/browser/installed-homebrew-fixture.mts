@@ -17,6 +17,10 @@ export interface HomebrewModel {
     publishedFeats: Map<string, unknown>,
     spells: unknown[],
     publishedSpells: Map<string, unknown>,
+    species: unknown[],
+    publishedSpecies: Map<string, unknown>,
+    backgrounds: unknown[],
+    publishedBackgrounds: Map<string, unknown>,
   ): {
     problems: unknown[];
     mutations: {
@@ -31,6 +35,8 @@ export interface HomebrewModel {
   parsePublishedSubclass(value: unknown): unknown;
   parsePublishedFeat(value: unknown): unknown;
   parsePublishedSpell(value: unknown): unknown;
+  parsePublishedSpecies(value: unknown): unknown;
+  parsePublishedBackground(value: unknown): unknown;
 }
 
 /**
@@ -610,6 +616,175 @@ export const homebrewSpellSample = {
       material: "a map drawn in your own hand",
       duration: "1 hour",
       text: "You whisper the name of a place you have visited within 1 mile, and the map shows you the shortest safe way there. The way updates as you travel until the spell ends.",
+    },
+  ],
+};
+
+/**
+ * A dnd-homebrew import with two species: Emberkin, with a size choice, two
+ * lineages and a tool choice, and Mossfolk, with a use and a toggle.
+ * It copies addon-dnd-homebrew's docs/examples/sample-species.json.
+ */
+export const homebrewSpeciesSample = {
+  format: "dnd-homebrew",
+  schemaVersion: 1,
+  mode: "merge",
+  sets: [],
+  items: [],
+  species: [
+    {
+      id: "emberkin",
+      name: "Emberkin",
+      sizes: ["Medium", "Small"],
+      speeds: {
+        climb: "speed",
+      },
+      darkvision: 60,
+      resistances: ["fire"],
+      traits: [
+        {
+          name: "Ember Blood",
+          text: "You have Resistance to Fire damage.",
+        },
+        {
+          name: "Kindled Step",
+          text: "You have a Climb Speed equal to your Speed.",
+        },
+        {
+          name: "Forge Sense",
+          text: "You have proficiency in the Perception skill and with one of Smith's Tools or Glassblower's Tools.",
+        },
+      ],
+      lineages: [
+        {
+          id: "cinder",
+          name: "Cinder",
+          text: "You know the Fire Bolt cantrip. Intelligence, Wisdom or Charisma is your spellcasting ability for it (choose when you select this lineage).",
+          grants: {
+            castingAbility: {
+              id: "cinder-casting",
+              choose: ["INT", "WIS", "CHA"],
+            },
+            spells: [
+              {
+                level: 1,
+                ids: ["fire-bolt"],
+                alwaysPrepared: true,
+              },
+            ],
+          },
+        },
+        {
+          id: "hearth",
+          name: "Hearth",
+          text: "Your Hit Point maximum increases by 1, and it increases by 1 again whenever you gain a level.",
+          grants: {
+            hpPerLevel: 1,
+          },
+        },
+      ],
+      grants: {
+        skills: ["perception"],
+        choices: [
+          {
+            id: "craft",
+            prompt: "Forge Sense tool",
+            type: "toolProficiency",
+            count: 1,
+            from: ["smiths-tools", "glassblowers-tools"],
+          },
+        ],
+      },
+      text: "Emberkin carry a spark of the forge in their blood. Their skin is warm to the touch, and their eyes glow like banked coals in the dark.",
+    },
+    {
+      id: "mossfolk",
+      name: "Mossfolk",
+      creatureType: "Plant",
+      sizes: ["Small"],
+      speed: 25,
+      resistances: ["poison"],
+      traits: [
+        {
+          name: "Rooted",
+          text: "You have Resistance to Poison damage.",
+        },
+        {
+          name: "Bloom",
+          text: "As a Bonus Action, you sense through the earth: you gain Tremorsense with a range of 30 feet for 10 minutes. You can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.",
+        },
+      ],
+      grants: {
+        resources: [
+          {
+            key: "mossfolk-bloom",
+            name: "Bloom",
+            proficiencyBonus: true,
+            recharge: "long",
+          },
+        ],
+        activations: [
+          {
+            id: "mossfolk-bloom",
+            name: "Bloom",
+            resource: {
+              key: "mossfolk-bloom",
+            },
+            modifiers: [
+              {
+                key: "tremorsense",
+                target: "sense",
+                value: 30,
+              },
+            ],
+          },
+        ],
+      },
+      text: "Mossfolk grow from the damp roots of old forests and walk where the moss leads them.",
+    },
+  ],
+};
+
+/**
+ * A dnd-homebrew import with two backgrounds: Lamplighter, with Magic Initiate
+ * and its wizard list preset, and Hearth Warden, with the sample feats'
+ * Hearthborn and a tool choice.
+ * It copies addon-dnd-homebrew's docs/examples/sample-backgrounds.json.
+ */
+export const homebrewBackgroundSample = {
+  format: "dnd-homebrew",
+  schemaVersion: 1,
+  mode: "merge",
+  sets: [],
+  items: [],
+  backgrounds: [
+    {
+      id: "lamplighter",
+      name: "Lamplighter",
+      abilityScores: ["DEX", "INT", "WIS"],
+      originFeat: "magic-initiate",
+      originFeatChoices: {
+        "spell-list": "wizard",
+      },
+      skillProficiencies: ["investigation", "perception"],
+      tools: ["tinkers-tools"],
+      equipment:
+        "Choose A or B: (A) Lantern, Oil (2 flasks), Tinker's Tools, Traveler's Clothes, 12 GP; or (B) 50 GP",
+      text: "You kept a city's lamps burning through the long nights, and learned what moves in the dark between them.",
+    },
+    {
+      id: "hearth-warden",
+      name: "Hearth Warden",
+      abilityScores: ["STR", "CON", "WIS"],
+      originFeat: "hb.hearthborn",
+      skillProficiencies: ["athletics", "survival"],
+      tools: ["brewers-supplies", "carpenters-tools", "cooks-utensils"],
+      equipment:
+        "Choose A or B: (A) Cook's Utensils, Blanket, Traveler's Clothes, 14 GP; or (B) 50 GP",
+      grants: {
+        languages: ["dwarvish"],
+      },
+      text: "You tended the common hearth of a mountain hold, where every traveler was fed and every quarrel settled by the fire.",
     },
   ],
 };

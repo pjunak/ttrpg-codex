@@ -20,9 +20,11 @@ import {
   enableAllRuleSources,
 } from "./installed-graph-fixture.mts";
 import {
+  homebrewBackgroundSample,
   homebrewFeatSample,
   homebrewModel,
   homebrewSample,
+  homebrewSpeciesSample,
   homebrewSpellSample,
   homebrewSubclassSample,
   type HomebrewModel,
@@ -209,6 +211,10 @@ async function publish(): Promise<number> {
     "homebrew_published_feats",
     "homebrew_spells",
     "homebrew_published_spells",
+    "homebrew_species",
+    "homebrew_published_species",
+    "homebrew_backgrounds",
+    "homebrew_published_backgrounds",
   ];
   const read = await Promise.all(collections.map(all));
   const [
@@ -222,6 +228,10 @@ async function publish(): Promise<number> {
     publishedFeats,
     spells,
     publishedSpells,
+    species,
+    publishedSpecies,
+    backgrounds,
+    publishedBackgrounds,
   ] = read;
   const plan = model.planPublish(
     sets!.documents.map((document) => document.value),
@@ -255,6 +265,20 @@ async function publish(): Promise<number> {
       publishedSpells!.documents.map((document) => [
         document.key,
         { value: model.parsePublishedSpell(document.value), revision: document.revision },
+      ]),
+    ),
+    species!.documents.map((document) => document.value),
+    new Map(
+      publishedSpecies!.documents.map((document) => [
+        document.key,
+        { value: model.parsePublishedSpecies(document.value), revision: document.revision },
+      ]),
+    ),
+    backgrounds!.documents.map((document) => document.value),
+    new Map(
+      publishedBackgrounds!.documents.map((document) => [
+        document.key,
+        { value: model.parsePublishedBackground(document.value), revision: document.revision },
       ]),
     ),
   );
@@ -879,6 +903,102 @@ void test(
     };
     assert.deepEqual(await offered("wizard"), ["hb.ember-lance", "hb.whispered-map"]);
     assert.deepEqual(await offered("cleric"), ["hb.hearth-ward"]);
+  },
+);
+
+void test(
+  "homebrew species and backgrounds import, publish, join the Builder and apply to a character",
+  { skip: !enabled },
+  async () => {
+    const importer = await connect(dm, dmCsrf, "dnd-homebrew", {
+      contract: "codex.import-adapter",
+      own: true,
+    });
+    for (const [document, key] of [
+      [homebrewSpeciesSample, "import-species"],
+      [homebrewBackgroundSample, "import-backgrounds"],
+    ] as const) {
+      const preview = await importer("preview", {
+        contractVersion: "import-preview.v1",
+        format: "dnd-homebrew",
+        document,
+      });
+      assert.equal(preview.status, 200, JSON.stringify(preview.body));
+      assert.deepEqual(preview.body.result.summary, {
+        creates: 2,
+        updates: 0,
+        skips: 0,
+        deletes: 0,
+      });
+      const commit = await importer(
+        "commit",
+        { contractVersion: "import-commit.v1", token: preview.body.result.token },
+        key,
+      );
+      assert.equal(commit.status, 200, JSON.stringify(commit.body));
+    }
+    assert.equal(await publish(), 5, "two species, two backgrounds and the metadata");
+
+    // The Builder lists them beside the Compendium's, for the DM and players.
+    for (const [request, csrf] of [
+      [dm, dmCsrf],
+      [player, playerCsrf],
+    ] as const) {
+      const engine = await engineAs(request, csrf);
+      for (const [kind, expected, compendium] of [
+        ["species", ["hb.emberkin", "hb.mossfolk"], "dwarf"],
+        ["background", ["hb.hearth-warden", "hb.lamplighter"], "soldier"],
+      ] as const) {
+        const page = (
+          await engine("query-records", {
+            contractVersion: "rules-engine-query.v1",
+            kind,
+            limit: 200,
+          })
+        ).body.result as { records: { id: string }[] };
+        const ids = page.records.map((record) => record.id);
+        assert.deepEqual(ids.filter((id) => id.startsWith("hb.")).sort(), expected);
+        assert.ok(ids.includes(compendium), `compendium ${kind} records are still there`);
+      }
+    }
+
+    const engine = await engineAs(dm, dmCsrf);
+    const evaluate = async (build: Record<string, unknown>) => {
+      const request = inputs([]);
+      Object.assign(request.inputs.build, build);
+      const call = await engine("evaluate-character", request);
+      assert.equal(call.status, 200, JSON.stringify(call.body));
+      return (call.body.result as Evaluation).evaluation;
+    };
+    // A Small Emberkin of the Cinder lineage, with the sample's tool choice.
+    const ember = await evaluate({
+      species: "hb.emberkin",
+      lineage: "cinder",
+      choices: [
+        { id: "species:hb.emberkin:size", slot: 0, value: "Small" },
+        { id: "species:hb.emberkin:craft", slot: 0, value: "smiths-tools" },
+      ],
+    });
+    assert.equal(ember.sheet["speed"], 30);
+    assert.equal(ember.sheet["senses"]["darkvision"], 60);
+    assert.ok(ember.sheet["resistances"].includes("fire"));
+    assert.ok(ember.sheet["proficiencies"]["tools"].includes("smiths-tools"));
+    assert.ok(
+      ember.spellOptions["granted"].some((spell: { ref: string }) => spell.ref === "fire-bolt"),
+      "the lineage grants Fire Bolt",
+    );
+    assert.ok(!ember.issues.some((issue) => issue.id.includes(":size")), "the size is chosen");
+    // Lamplighter's skills, tool and feat, with its wizard list preset.
+    const lamplighter = await evaluate({ background: "hb.lamplighter" });
+    for (const skill of ["investigation", "perception"])
+      assert.equal(lamplighter.sheet["skills"][skill].proficient, true, skill);
+    assert.ok(lamplighter.sheet["proficiencies"]["tools"].includes("tinkers-tools"));
+    assert.ok(
+      lamplighter.sheet["feats"].some((feat: { id: string }) => feat.id === "magic-initiate"),
+    );
+    // Hearth Warden's origin feat is this campaign's Hearthborn.
+    const warden = await evaluate({ background: "hb.hearth-warden" });
+    assert.ok(warden.sheet["feats"].some((feat: { id: string }) => feat.id === "hb.hearthborn"));
   },
 );
 
