@@ -207,9 +207,7 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   subclasses, feats and spells are built; next, in this order
   ([ADR-0006](decisions/0006-homebrew-content.md)): species and backgrounds,
   then a `codex.campaign-bundle-contributor` so a campaign bundle carries
-  homebrew drafts. An item cannot cast a homebrew spell yet: item spell ids
-  allow no dot, and widening them in `homebrew-common.schema.json` needs a
-  reviewed data migration.
+  homebrew drafts.
 - **Host locale and Markdown services for add-ons** `ttrpg-codex` — The add-ons
   run three localization systems, and the Compendium ships its own Markdown
   renderer, because the host serves no add-on locales and its Markdown
