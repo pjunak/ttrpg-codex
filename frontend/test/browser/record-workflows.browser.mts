@@ -790,6 +790,27 @@ void test("encoded record URLs retain Back and dirty-edit guards", async (t) => 
   }
 });
 
+void test("another page opens at its top", async (t) => {
+  const description = "A long passage.\n\n".repeat(200);
+  await put(admin, csrf, "long-read", { name: "Long read", description });
+  await put(admin, csrf, "long-sequel", { name: "Long sequel", description });
+  const dm = await open(t, "dm", true);
+  await dm.page.goto("/#/locations/long-read");
+  await dm.page.getByRole("heading", { name: "Long read", exact: true }).waitFor();
+  await dm.page.evaluate(() => window.scrollTo(0, 4_000));
+  assert.ok(await dm.page.evaluate(() => window.scrollY > 0));
+  await dm.page.evaluate(() => {
+    location.hash = "#/locations/long-sequel";
+  });
+  await dm.page.getByRole("heading", { name: "Long sequel", exact: true }).waitFor();
+  await dm.page.evaluate(() => new Promise(requestAnimationFrame));
+  assert.equal(
+    await dm.page.evaluate(() => window.scrollY),
+    0,
+    "jumps to the top without animating",
+  );
+});
+
 void test("saved creation URLs survive sign-in and cancel without creating records", async (t) => {
   const visitor = await open(t);
   await visitor.page.goto("/#/create/locations");

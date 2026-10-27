@@ -64,6 +64,8 @@ export class CodexApp extends LitElement {
   declare private mobileViewport: boolean;
   #contextNoticeTimer: ReturnType<typeof setTimeout> | undefined;
   #recordSaveDestination = "";
+  /** The address shown, without its query, to notice when another page opens. */
+  #shownPath = "";
   /** The authority the last render showed, to notice when it changes. */
   #shownAuthority: Authority | undefined;
   #longPressAt = 0;
@@ -168,6 +170,7 @@ export class CodexApp extends LitElement {
     super.connectedCallback();
     this.#disposeRuleDetails = bindRuleDetails(this, this.#links);
     this.route = parseAppRoute(this.#guard.hash);
+    this.#shownPath = this.#guard.hash.split("?")[0]!;
     window.addEventListener("keydown", this.#onKeyDown);
     this.#mobileMedia.addEventListener("change", this.#onViewportChange);
     const listening = new AbortController();
@@ -572,7 +575,14 @@ export class CodexApp extends LitElement {
     if (this.#quickSearch?.isOpen) this.#quickSearch.hide(false);
     this.route = parseAppRoute(hash);
     this.characterView = preferredCharacterView(hash);
-    void this.updateComplete.then(() => this.#addons.refresh());
+    // Another page opens at its top; a query change keeps the reader's place.
+    const path = hash.split("?")[0]!;
+    const scroll = path !== this.#shownPath;
+    this.#shownPath = path;
+    void this.updateComplete.then(() => {
+      if (scroll) window.scrollTo({ top: 0, behavior: "instant" });
+      this.#addons.refresh();
+    });
   }
 
   /** The confirmation stays visible on the page the saved form returns to. */
