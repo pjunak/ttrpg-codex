@@ -48,12 +48,10 @@
     padding: 0.35rem 0.65rem;
     font: var(--ui-font-size)/1.4 var(--ui-font);
   }
-  /* A label wraps between words and breaks a word only when it is wider than the space. */
   [data-codex-ui] .ui-button {
-    min-width: auto;
     cursor: pointer;
     white-space: normal;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
   }
   [data-codex-ui] .ui-button:hover:enabled {
     background: var(--ui-surface);

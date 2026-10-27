@@ -1406,6 +1406,7 @@ codex-addon-settings {
 .settings-edit-actions,
 .settings-delete-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.55rem;
   justify-content: flex-end;
   margin-top: 1rem;
