@@ -811,6 +811,19 @@ void test("another page opens at its top", async (t) => {
   );
 });
 
+void test("a new form keeps focus off the text toolbar", async (t) => {
+  const dm = await open(t, "dm", true);
+  await dm.page.goto("/#/locations");
+  await dm.page.getByRole("button", { name: "Add location", exact: true }).click();
+  await dm.page.waitForFunction(
+    () => document.querySelector("form.record-editor dialog")?.hasAttribute("open") === true,
+  );
+  assert.equal(
+    await dm.page.evaluate(() => document.activeElement?.closest("codex-markdown-editor") ?? null),
+    null,
+  );
+});
+
 void test("saved creation URLs survive sign-in and cancel without creating records", async (t) => {
   const visitor = await open(t);
   await visitor.page.goto("/#/create/locations");

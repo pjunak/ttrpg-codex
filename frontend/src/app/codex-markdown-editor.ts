@@ -127,8 +127,9 @@ export class CodexMarkdownEditor extends LitElement {
       },
     });
     if (this.disabled) this.menu = "";
+    // The inline surface opens without show(), which would move focus into its toolbar.
     const dialog = this.querySelector<HTMLDialogElement>("dialog");
-    if (dialog && !dialog.open) dialog.show();
+    if (dialog && !dialog.open) dialog.open = true;
   }
 
   #mount(): void {
