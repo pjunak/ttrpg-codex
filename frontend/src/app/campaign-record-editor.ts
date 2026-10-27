@@ -1,4 +1,4 @@
-import { uiText, uiSourceLabel } from "./ui-localization.js";
+import { currentUiLocale, uiText, uiSourceLabel } from "./ui-localization.js";
 import { validPortraitFile } from "./character-portrait.js";
 import { isRecord } from "../core/boundary.js";
 import {
@@ -447,15 +447,26 @@ export function editorOptionsFor(
       );
     }
   }
+  const records: CampaignEditorOption[] = [];
   for (const record of campaignCollection(campaign, field.referenceCollection).records) {
     if ((field.excludeCurrent === true && record.key === currentKey) || seen.has(record.key))
       continue;
     const value = isRecord(record.value) ? record.value : {};
     const label = line(value["name"]) || record.key;
     seen.add(record.key);
-    options.push(Object.freeze({ value: record.key, label }));
+    records.push(Object.freeze({ value: record.key, label }));
   }
+  options.push(...sortedByLabel(records));
   return Object.freeze(options);
+}
+
+/** Record choices read alphabetically in the reader's language. */
+function sortedByLabel(options: CampaignEditorOption[]): CampaignEditorOption[] {
+  const collator = new Intl.Collator(currentUiLocale(), { numeric: true, sensitivity: "base" });
+  return options.sort(
+    (left, right) =>
+      collator.compare(left.label, right.label) || left.value.localeCompare(right.value),
+  );
 }
 
 function field(
@@ -1355,16 +1366,18 @@ function ownerOptions(campaign: CampaignDataset): readonly CampaignEditorOption[
     ["characters", "character"],
     ["factions", "faction"],
   ] as const) {
+    const records: CampaignEditorOption[] = [];
     for (const record of campaignCollection(campaign, collection).records) {
       const value = isRecord(record.value) ? record.value : {};
       const label = line(value["name"]) || record.key;
-      options.push(
+      records.push(
         Object.freeze({
           value: `${prefix}:${record.key}`,
           label: `${prefix === "character" ? uiText("Character") : uiText("Faction")}: ${label}`,
         }),
       );
     }
+    options.push(...sortedByLabel(records));
   }
   return Object.freeze(options);
 }

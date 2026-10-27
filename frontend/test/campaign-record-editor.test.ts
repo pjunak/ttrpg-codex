@@ -446,6 +446,37 @@ describe("campaign record editing", () => {
     expect(prepared.mutations[0].value).not.toHaveProperty("sitting");
   });
 
+  it("lists record choices by name after the fixed choices", () => {
+    const campaign = dataset({
+      characters: [
+        { key: "zora", revision: 1, value: { id: "zora", name: "Zora" } },
+        { key: "anezka", revision: 1, value: { id: "anezka", name: "Anežka" } },
+        { key: "bela", revision: 1, value: { id: "bela", name: "Běla" } },
+      ],
+      factions: [
+        { key: "watch", revision: 1, value: { name: "Watch" } },
+        { key: "guild", revision: 1, value: { name: "Guild" } },
+      ],
+    });
+    const faction = editorFieldsFor("characters").find(({ key }) => key === "faction")!;
+    expect(editorOptionsFor(campaign, faction, "").map(({ value }) => value)).toEqual([
+      "neutral",
+      "party",
+      "guild",
+      "watch",
+    ]);
+    const owner = editorFieldsFor("companions").find(({ key }) => key === "owner")!;
+    expect(editorOptionsFor(campaign, owner, "").map(({ value }) => value)).toEqual([
+      "none:",
+      "party:",
+      "character:anezka",
+      "character:bela",
+      "character:zora",
+      "faction:guild",
+      "faction:watch",
+    ]);
+  });
+
   it("lists a new event, or one moved to another session, after that session's events", () => {
     const gate = { key: "gate", revision: 2, value: { id: "gate", sitting: 2, order: 1 } };
     const campaign = dataset({
