@@ -51,6 +51,8 @@ export function searchCampaign(
     const results = accepted.filter((result) => result.page.id === page.id);
     if (results.length > 0) groups.push(Object.freeze({ page, results: Object.freeze(results) }));
   }
+  // The group with the best match comes first; equal groups keep the collection order.
+  groups.sort((left, right) => right.results[0]!.score - left.results[0]!.score);
   return Object.freeze(groups);
 }
 

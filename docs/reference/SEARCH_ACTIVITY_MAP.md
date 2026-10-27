@@ -19,7 +19,9 @@ records disappear; unavailable storage falls back to current activity. This is
 convenience state, not campaign data or a cross-device history.
 
 Typing uses the same `CodexSearch`, `searchCampaign` and generation-scoped add-on
-provider controller as the full page. The overlay limits core results to 24;
+provider controller as the full page. Results group by collection, and the
+group holding the strongest match comes first, so an exact name is never buried
+under weaker text matches. The overlay limits core results to 24;
 the full page retains its 60-result limit. Provider loading, unavailable results
 and Retry retain their existing behavior. Open full search carries the query
 into `#/search?q=...`; queries are bounded to 200 characters.

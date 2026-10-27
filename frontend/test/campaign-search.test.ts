@@ -98,7 +98,7 @@ describe("campaign search", () => {
     expect(recentSearchResults(campaign, "dm")).toHaveLength(12);
     expect(recentSearchResults(campaign, "dm")[0]?.key).toBe("19");
   });
-  it("groups matches by campaign type and ranks strong name matches first", () => {
+  it("groups matches by campaign type and puts the group with the strongest match first", () => {
     const campaign = dataset({
       characters: [
         record("zar", {
@@ -120,10 +120,10 @@ describe("campaign search", () => {
 
     const groups = searchCampaign(campaign, "ash gate");
 
-    expect(groups.map(({ page }) => page.id)).toEqual(["characters", "locations"]);
-    expect(groups[0]?.results.map(({ key }) => key)).toEqual(["zar"]);
-    expect(groups[1]?.results.map(({ key }) => key)).toEqual(["ash-gate"]);
-    expect(groups[1]?.results[0]?.score).toBeGreaterThan(groups[0]?.results[0]?.score ?? 0);
+    expect(groups.map(({ page }) => page.id)).toEqual(["locations", "characters"]);
+    expect(groups[0]?.results.map(({ key }) => key)).toEqual(["ash-gate"]);
+    expect(groups[1]?.results.map(({ key }) => key)).toEqual(["zar"]);
+    expect(groups[0]?.results[0]?.score).toBeGreaterThan(groups[1]?.results[0]?.score ?? 0);
   });
 
   it("searches without diacritics, rejects partial token sets, and bounds results", () => {
