@@ -1403,9 +1403,11 @@ codex-addon-settings {
   grid-column: 1 / -1;
 }
 
+/* A tight row wraps whole buttons instead of squeezing labels into broken words. */
 .settings-edit-actions,
 .settings-delete-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.55rem;
   justify-content: flex-end;
   margin-top: 1rem;

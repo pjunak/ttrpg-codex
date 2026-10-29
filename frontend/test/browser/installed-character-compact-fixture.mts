@@ -342,10 +342,35 @@ export function registerCompactTests(enabled: boolean, fixture: () => Fixture): 
             });
           for (const tab of ["sheet", "combat", "equipment", "builder"]) {
             await sheet.locator("#dnd-tab-" + tab).click();
+            // Name the elements that stick out: installed runs upload no traces,
+            // and the probe must stay free of page text (private compendium).
+            const probe = await page.evaluate(() => {
+              const bad: unknown[] = [];
+              const walk = (root: Document | ShadowRoot) => {
+                for (const el of root.querySelectorAll("*")) {
+                  if (el.shadowRoot) walk(el.shadowRoot);
+                  const r = el.getBoundingClientRect();
+                  if (r.right > innerWidth + 1 && r.width > 0)
+                    bad.push({
+                      tag: el.tagName,
+                      cls: String((el as HTMLElement).className).slice(0, 100),
+                      right: Math.round(r.right),
+                      width: Math.round(r.width),
+                    });
+                }
+              };
+              walk(document);
+              return {
+                ok: document.documentElement.scrollWidth <= innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                innerWidth,
+                bad: bad.slice(0, 10),
+              };
+            });
             assert.equal(
-              await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+              probe.ok,
               true,
-              locale + " " + width + " " + tab,
+              locale + " " + width + " " + tab + " " + JSON.stringify(probe),
             );
             if (width === 320)
               await page.screenshot({
