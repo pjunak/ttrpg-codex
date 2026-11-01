@@ -19,6 +19,7 @@ import {
   installReviewedPackage,
   enableAllRuleSources,
 } from "./installed-graph-fixture.mts";
+import { dmToolsPermissions } from "./installed-dm-fixture.mts";
 import {
   homebrewBackgroundSample,
   homebrewFeatSample,
@@ -39,6 +40,8 @@ const paths = [
   process.env.CODEX_HOMEBREW_ZIP,
 ];
 const enabled = paths.every(Boolean);
+// DM Tools' Import Center is the consumer the host lends its campaign-bundle adapter to.
+const dmToolsPath = process.env.CODEX_DM_TOOLS_ZIP;
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const output = resolve(root, "frontend/test-results/installed-homebrew");
 let directory: string,
@@ -115,6 +118,14 @@ before(async () => {
   await installReviewedPackage(dm, dmCsrf, "dnd-engine", engine, []);
   await installReviewedPackage(dm, dmCsrf, "dnd-sheets", sheets, []);
   await installReviewedPackage(dm, dmCsrf, "dnd-homebrew", homebrew, []);
+  if (dmToolsPath)
+    await installReviewedPackage(
+      dm,
+      dmCsrf,
+      "dm-tools",
+      await readFile(resolve(dmToolsPath)),
+      dmToolsPermissions,
+    );
 });
 after(async () => {
   await dm?.dispose();
@@ -136,6 +147,7 @@ async function connect(
   csrf: string,
   addon: string,
   body: Record<string, unknown>,
+  provider?: string,
 ) {
   const base = `/api/addons/${addon}/generations/${await generation(addon)}/services`;
   const connection = await jsonResponse(
@@ -145,7 +157,9 @@ async function connect(
     }),
   );
   return async (method: string, params: unknown, idempotencyKey?: string) => {
-    const target = connection.providers[0];
+    const target = provider
+      ? connection.providers.find((entry: { addonId: string }) => entry.addonId === provider)
+      : connection.providers[0];
     assert.ok(target, `no provider for ${JSON.stringify(body)}: ${JSON.stringify(connection)}`);
     const response = await request.post(`${base}/call`, {
       headers: { "X-Codex-CSRF": csrf },
@@ -1218,3 +1232,76 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
     await browser.close();
   }
 });
+
+void test(
+  "a campaign bundle carries homebrew drafts beside campaign records",
+  { skip: !enabled || !dmToolsPath },
+  async () => {
+    const bundles = await connect(
+      dm,
+      dmCsrf,
+      "dm-tools",
+      { contract: "codex.import-adapter", range: ">=2.0.0 <4.0.0", cardinality: "many" },
+      "codex-core",
+    );
+    const document = {
+      format: "ttrpg-codex-campaign-bundle",
+      schemaVersion: 1,
+      generatedAt: 0,
+      records: {
+        locations: [
+          {
+            ref: "ember-forge",
+            operation: "create",
+            record: { name: "Ember Forge", visibility: "dm" },
+          },
+        ],
+      },
+      addonImports: [
+        {
+          addonId: "dnd-homebrew",
+          contributorId: "dnd-homebrew",
+          document: {
+            format: "dnd-homebrew",
+            schemaVersion: 1,
+            sets: [],
+            items: [{ id: "forge-lantern", name: "Forge Lantern" }],
+          },
+        },
+      ],
+    };
+    const preview = await bundles("preview", {
+      contractVersion: "import-preview.v1",
+      format: "ttrpg-codex-campaign-bundle",
+      document,
+    });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    const review = preview.body.result as {
+      token: string;
+      changes: { collection: string; id: string; operation: string; label: string }[];
+    };
+    assert.deepEqual(
+      review.changes
+        .map(({ collection, operation, label }) => [collection, operation, label])
+        .sort((left, right) => left[0]!.localeCompare(right[0]!)),
+      [
+        ["dnd-homebrew/homebrew_items", "create", "Forge Lantern"],
+        ["locations", "create", "Ember Forge"],
+      ],
+    );
+    const lantern = async () =>
+      (await all("homebrew_items")).documents.find((entry) => entry.key === "forge-lantern");
+    assert.equal(await lantern(), undefined, "a preview writes nothing");
+    const commit = await bundles(
+      "commit",
+      { contractVersion: "import-commit.v1", token: review.token },
+      review.token,
+    );
+    assert.equal(commit.status, 200, JSON.stringify(commit.body));
+    assert.equal(commit.body.result.writes, 2);
+    assert.equal(
+      ((await lantern())?.value as { name?: string } | undefined)?.name,
+      "Forge Lantern",
+    );
+  },
+);
