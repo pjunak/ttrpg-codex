@@ -1,10 +1,10 @@
 # Writing campaign bundles
 
 A campaign bundle creates new characters, locations and relationships, and can
-carry a DM Tools planning document, in one reviewed import. Use it to bring
-prepared content into a campaign, whether written by hand or by an agent. The
-DM reviews the exact result in the Import Center and commits it as a single
-transaction; nothing is written before that.
+carry a DM Tools planning document and D&D Homebrew drafts, in one reviewed
+import. Use it to bring prepared content into a campaign, whether written by
+hand or by an agent. The DM reviews the exact result in the Import Center and
+commits it as a single transaction; nothing is written before that.
 
 The [schema](../../internal/application/campaignimport/campaign-bundle.schema.json)
 is the authority for fields. [ADR-0001](../decisions/0001-campaign-bundle-imports.md)
@@ -206,13 +206,29 @@ relationships: their IDs are not valid planning target IDs.
 
 A bundle may have up to eight `addonImports` entries, one per add-on.
 
+## Homebrew in the same bundle
+
+With D&D Homebrew installed, add one entry whose document is a `dnd-homebrew`
+import file, such as Homebrew's **Export**:
+
+~~~json
+{
+  "addonId": "dnd-homebrew",
+  "contributorId": "dnd-homebrew",
+  "document": { "format": "dnd-homebrew", "schemaVersion": 1, "sets": [], "items": [] }
+}
+~~~
+
+It follows Homebrew's [import rules](../../../addon-dnd-homebrew/docs/FORMAT.md#in-a-campaign-bundle)
+and writes drafts; the DM publishes them from Homebrew afterwards.
+
 ## Limits
 
 | Limit | Value |
 | --- | --- |
 | File size | 2 MiB |
 | Core records | 128 |
-| Total writes, core and planning together | 1–256 |
+| Total writes, core and add-ons together | 1–256 |
 | `addonImports` entries | 8, one per add-on |
 | Preview lifetime | 15 minutes, or until the server restarts |
 
