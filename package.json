@@ -31,8 +31,8 @@
     "node": ">=26"
   },
   "devDependencies": {
-    "oxlint": "1.87.0",
-    "oxlint-tsgolint": "7.0.2003",
-    "prettier": "3.9.9"
+    "oxlint": "1.90.0",
+    "oxlint-tsgolint": "7.0.2005",
+    "prettier": "3.9.10"
   }
 }
