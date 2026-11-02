@@ -314,6 +314,7 @@ codex-markdown-editor {
 .campaign-markdown .md-align-right {
   text-align: right;
 }
+/* Authored sizes are exact pixel sizes (16px base), not interface steps. */
 .campaign-markdown .md-size-10 {
   font-size: var(--text-xs);
 }
@@ -321,31 +322,31 @@ codex-markdown-editor {
   font-size: var(--text-xs);
 }
 .campaign-markdown .md-size-14 {
-  font-size: var(--text-sm);
+  font-size: calc(var(--text-base) * 0.875);
 }
 .campaign-markdown .md-size-16 {
   font-size: var(--text-base);
 }
 .campaign-markdown .md-size-18 {
-  font-size: var(--text-lg);
+  font-size: calc(var(--text-base) * 1.125);
 }
 .campaign-markdown .md-size-20 {
-  font-size: var(--text-xl);
+  font-size: calc(var(--text-base) * 1.25);
 }
 .campaign-markdown .md-size-24 {
-  font-size: var(--text-2xl);
+  font-size: calc(var(--text-base) * 1.5);
 }
 .campaign-markdown .md-size-28 {
-  font-size: var(--text-2xl);
+  font-size: calc(var(--text-base) * 1.75);
 }
 .campaign-markdown .md-size-32 {
   font-size: var(--text-3xl);
 }
 .campaign-markdown .md-size-40 {
-  font-size: var(--text-4xl);
+  font-size: calc(var(--text-base) * 2.5);
 }
 .campaign-markdown .md-size-48 {
-  font-size: var(--text-4xl);
+  font-size: calc(var(--text-base) * 3);
 }
 .writer-swatch.md-color-gold {
   color: var(--accent-gold);
