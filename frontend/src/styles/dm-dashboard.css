@@ -1,40 +1,40 @@
 .dm-panel {
   max-width: 68.75rem;
-  margin: 1.5rem auto;
-  padding: 0 1.5rem;
+  margin: var(--space-6) auto;
+  padding: 0 var(--space-6);
 }
 .dm-panel h1 {
   font-family: var(--font-title);
   color: var(--accent-gold);
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--space-2);
 }
 .dm-stub {
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   max-width: 60ch;
 }
 .dm-section {
-  margin: 2rem 0;
+  margin: var(--space-7) 0;
 }
 .dm-section h2 {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--space-2);
   color: var(--accent-gold);
 }
 .dm-section-hint {
   color: var(--text-muted);
-  font-size: 0.85rem;
-  margin: 0 0 1rem;
+  font-size: var(--text-sm);
+  margin: 0 0 var(--space-4);
 }
 .dm-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(9rem, 100%), 1fr));
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 .dm-count-card {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.75rem 1rem;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   background: var(--bg-raised);
@@ -52,11 +52,11 @@
   border-color: var(--color-danger);
 }
 .dm-count-label {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .dm-count-numbers {
-  font-size: 1.5rem;
+  font-size: var(--text-2xl);
   font-weight: 600;
 }
 .dm-count-numbers strong {
@@ -66,7 +66,7 @@
   color: var(--color-danger-bright);
 }
 .dm-count-meta {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -74,21 +74,21 @@
 .dm-addon-diagnostics {
   list-style: none;
   padding: 0;
-  margin: 0 0 1rem;
+  margin: 0 0 var(--space-4);
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 .dm-addon-diagnostics li {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   background: var(--bg-raised);
   color: var(--text-light);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 .dm-addon-state {
@@ -100,7 +100,7 @@
 .dm-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 .dm-actions > * {
   display: inline-flex;
@@ -110,7 +110,7 @@
   background: rgba(var(--accent-gold-rgb), 0.08);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: var(--radius);
-  font: 0.78rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
   color: var(--accent-gold);
   text-decoration: none;
 }
@@ -124,7 +124,7 @@
 /* Dashboards share the panel's column, so they align with the host sections below them. */
 .dm-panel [data-dm-dashboard-slot] > .addon-contribution {
   padding: 0;
-  margin: 2rem 0 0;
+  margin: var(--space-7) 0 0;
   background: transparent;
   border: 0;
   box-shadow: none;
@@ -133,7 +133,7 @@
   padding: 0;
 }
 .route-dm {
-  padding: 0 0 2rem;
+  padding: 0 0 var(--space-7);
 }
 @media (max-width: 768px) {
   .route-dm {

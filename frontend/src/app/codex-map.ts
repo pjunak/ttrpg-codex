@@ -28,7 +28,6 @@ import {
   eventMapParent,
   hasEventPin,
   eventPage,
-  eventPathColors,
   validBounds,
   mapZoomScaleRatio,
   mapMarkerScale,
@@ -333,9 +332,9 @@ export class CodexMap extends LitElement {
           this.eventsVisible && this.status === "ready"
             ? html`<aside class="sc-legend" aria-label=${this.#ui.t("map.eventPaths")}>
           <div class="legend-title">${this.#ui.t("map.eventPaths")}</div>
-          <div class="legend-item"><span class="legend-line" style=${`border-color:${eventPathColors.path}`}></span>${this.#ui.t("map.storyPath")}</div>
-          <div class="legend-item"><span class="sc-event-marker-tiny" style=${`background:${eventPathColors.sitting}`}>S#</span>${this.#ui.t("map.inSession")}</div>
-          <div class="legend-item"><span class="sc-event-marker-tiny" style=${`background:${eventPathColors.past}`}>✦</span>${this.#ui.t("map.pastEvent")}</div>
+          <div class="legend-item"><span class="legend-line"></span>${this.#ui.t("map.storyPath")}</div>
+          <div class="legend-item"><span class="sc-event-marker-tiny is-sitting">S#</span>${this.#ui.t("map.inSession")}</div>
+          <div class="legend-item"><span class="sc-event-marker-tiny is-past">✦</span>${this.#ui.t("map.pastEvent")}</div>
           ${mapEventPoints(this.campaign, this.route.parentId).length === 0 ? html`<p class="legend-hint">${this.#ui.t("map.noEvents")}</p>` : nothing}
         </aside>`
             : nothing
@@ -680,7 +679,7 @@ export class CodexMap extends LitElement {
     if (this.draft?.expectedRevision === 0 && this.draft.x !== null && this.draft.y !== null) {
       L.circleMarker(this.#point(this.draft.x, this.draft.y), {
         radius: 9,
-        color: "#c8a040",
+        className: "sc-location-draft",
       }).addTo(this.#layers);
     }
     if (
@@ -691,7 +690,6 @@ export class CodexMap extends LitElement {
     ) {
       L.circleMarker(this.#point(this.eventDraft.x, this.eventDraft.y), {
         radius: 14,
-        color: eventPathColors.path,
         className: "sc-event-draft",
       }).addTo(this.#layers);
     }
@@ -712,7 +710,6 @@ export class CodexMap extends LitElement {
       const previous = points[index - 1];
       if (previous !== undefined && (previous.x !== point.x || previous.y !== point.y)) {
         L.polyline([this.#point(previous.x, previous.y), this.#point(point.x, point.y)], {
-          color: eventPathColors.path,
           weight: 2.5,
           opacity: 0.75,
           dashArray: "7, 5",
@@ -721,8 +718,7 @@ export class CodexMap extends LitElement {
         }).addTo(this.#eventLayers!);
       }
       const node = document.createElement("span");
-      node.className = "sc-event-marker";
-      node.style.background = point.sitting ? eventPathColors.sitting : eventPathColors.past;
+      node.className = point.sitting ? "sc-event-marker is-sitting" : "sc-event-marker is-past";
       const label = document.createElement("span");
       label.className = "sc-event-marker-label";
       label.textContent = point.sitting ? `S${point.sitting}` : "✦";

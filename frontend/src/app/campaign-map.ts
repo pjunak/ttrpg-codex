@@ -41,11 +41,6 @@ export interface MapEventPoint {
   readonly x: number;
   readonly y: number;
 }
-export const eventPathColors = Object.freeze({
-  path: "#C8A040",
-  sitting: "#8B6914",
-  past: "#5A3A5A",
-});
 export type MapSaveDetail =
   | {
       readonly kind: "config";

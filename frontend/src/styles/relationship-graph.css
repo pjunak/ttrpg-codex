@@ -15,17 +15,17 @@
 .cm-shell .map-toolbar {
   background: var(--bg-surface);
   border-bottom: 1px solid rgba(var(--accent-gold-rgb), 0.15);
-  padding: 0.6rem 1rem;
+  padding: 0.6rem var(--space-4);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   flex-wrap: wrap;
   z-index: 10;
   flex-shrink: 0;
 }
 .cm-shell .map-title {
   font-family: var(--font-title);
-  font-size: 0.9rem;
+  font-size: var(--text-md);
   color: var(--accent-gold);
   margin: 0 var(--space-3) 0 0;
 }
@@ -33,15 +33,15 @@
   background: var(--bg-raised);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius);
-  padding: 0.35rem 0.75rem;
+  padding: 0.35rem var(--space-3);
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   color: var(--text-light);
   cursor: pointer;
   transition:
-    background 0.15s,
-    border-color 0.15s,
-    color 0.15s;
+    background var(--duration-base),
+    border-color var(--duration-base),
+    color var(--duration-base);
   text-decoration: none;
 }
 .cm-shell .map-mode-btn:hover,
@@ -54,7 +54,7 @@
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   color: var(--text-muted);
-  padding-left: 0.5rem;
+  padding-left: var(--space-2);
   margin-left: auto;
 }
 .cm-shell .cm-viewport {
@@ -148,13 +148,13 @@
   cursor: pointer;
   color: var(--accent-gold);
   font-weight: 600;
-  padding: 0.65rem 0.75rem;
+  padding: 0.65rem var(--space-3);
 }
 .cm-shell .map-legend-shell[open] > summary {
   border-bottom: 1px solid var(--border-subtle);
 }
 .cm-shell .map-legend {
-  padding: 0.75rem;
+  padding: var(--space-3);
 }
 .cm-shell .cm-empty-state {
   position: absolute;
@@ -178,17 +178,17 @@
   font-size: var(--text-lg);
 }
 .cm-shell .cm-empty-icon {
-  font-size: var(--text-3xl);
+  font-size: var(--text-4xl);
 }
 .cm-shell .legend-title {
   color: var(--accent-gold);
   font-weight: 500;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
 }
 .cm-shell .legend-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin-bottom: 0.3rem;
   color: var(--text-light);
 }
@@ -225,8 +225,8 @@
   font-family: var(--font-ui);
   user-select: none;
   transition:
-    opacity 0.2s,
-    box-shadow 0.2s;
+    opacity var(--duration-slow),
+    box-shadow var(--duration-slow);
   cursor: default;
 }
 .cm-shell .cm-cloud::before {
@@ -375,10 +375,10 @@
 .cm-shell .map-filterbar {
   background: rgba(14, 10, 5, 0.82);
   border-bottom: 1px solid rgba(var(--accent-gold-rgb), 0.1);
-  padding: 0.4rem 1rem;
+  padding: 0.4rem var(--space-4);
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: var(--space-2);
   flex-wrap: wrap;
   z-index: 9;
   flex-shrink: 0;
@@ -387,7 +387,7 @@
 
 .cm-shell .cm-chip-group {
   display: flex;
-  gap: 0.2rem;
+  gap: var(--space-1);
   padding: 0.1rem 0.35rem;
   border-left: 1px solid rgba(var(--accent-gold-rgb), 0.15);
   border-right: 1px solid rgba(var(--accent-gold-rgb), 0.15);
@@ -398,17 +398,17 @@
   background: rgba(20, 18, 16, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--text-light);
-  padding: 0.22rem 0.5rem;
+  padding: 0.22rem var(--space-2);
   border-radius: 12px;
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   cursor: pointer;
   white-space: nowrap;
   transition:
-    background 0.12s,
-    border-color 0.12s,
-    color 0.12s,
-    opacity 0.12s;
+    background var(--duration-fast),
+    border-color var(--duration-fast),
+    color var(--duration-fast),
+    opacity var(--duration-fast);
 }
 .cm-shell .cm-chip:hover {
   border-color: color-mix(in srgb, var(--chip-color) 70%, transparent);
@@ -452,7 +452,7 @@
 .cm-shell .cm-focus-hops {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: var(--space-1);
   font-size: var(--text-xs);
   color: var(--text-light);
 }
@@ -469,7 +469,7 @@
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-muted);
-  padding: 0.22rem 0.5rem;
+  padding: 0.22rem var(--space-2);
   border-radius: 50%;
   width: 26px;
   height: 26px;
@@ -487,7 +487,7 @@
 }
 .cm-shell .cm-ctx-menu {
   position: fixed;
-  z-index: 10002;
+  z-index: var(--z-menu);
   background: var(--bg-surface);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.45);
   border-radius: 5px;
@@ -504,7 +504,7 @@
   color: var(--text-cream);
   text-align: left;
   padding: 0.42rem 0.7rem;
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   border-radius: 3px;
   font: inherit;
@@ -537,8 +537,8 @@
     flex: 0 0 auto;
   }
   .cm-shell .map-filterbar {
-    padding: 0.35rem 0.5rem;
-    gap: 0.35rem;
+    padding: 0.35rem var(--space-2);
+    gap: var(--space-1);
   }
   .cm-shell .cm-chip-group {
     padding: 0 0.2rem;
@@ -597,7 +597,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-1);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.25);
   border-radius: var(--radius-sm);
   padding: 0.2rem 0.4rem;
@@ -613,7 +613,7 @@
   min-width: 120px;
   width: 150px;
   flex: 1;
-  font: 0.78rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
   padding: 0.15rem;
 }
 .cm-shell .cm-filter-mount:focus-within {
@@ -626,7 +626,7 @@
 .cm-shell .legend-item {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-2);
   margin-bottom: 0.3rem;
 }
 .cm-shell .legend-line {
@@ -635,19 +635,19 @@
 }
 .cm-shell .legend-title {
   display: block;
-  margin: 0.5rem 0;
+  margin: var(--space-2) 0;
   color: var(--accent-gold);
 }
 .cm-shell .cm-message {
   flex-shrink: 0;
   margin: 0;
-  padding: 0.5rem 1rem;
+  padding: var(--space-2) var(--space-4);
   color: var(--text-parchment);
   background: var(--bg-surface);
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .cm-shell .cm-message button {
-  margin-left: 0.5rem;
+  margin-left: var(--space-2);
 }
 .cm-shell .cm-ctx-menu {
   width: 232px;

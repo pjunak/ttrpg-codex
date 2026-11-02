@@ -428,10 +428,10 @@ export class CodexSettings extends LitElement {
             <div class="settings-theme-list">
               ${campaignThemes.map(
                 (theme) => html`
-                <label class=${`settings-theme-choice theme-sample-${theme.id}`}>
+                <label class="settings-theme-choice">
                   <input type="radio" name="theme" value=${theme.id} .checked=${live(theme.id === current)}
                     @change=${() => void this.#applyTheme(theme.id)} />
-                  <span class="settings-theme-sample" aria-hidden="true"><i></i><b></b><em></em></span>
+                  <span class="settings-theme-sample" data-theme-sample=${theme.id} aria-hidden="true"><i></i><b></b><em></em></span>
                   <span><strong>${this.#ui.t(theme.labelKey)}</strong><small>${this.#ui.t(theme.hintKey)}</small></span>
                 </label>`,
               )}

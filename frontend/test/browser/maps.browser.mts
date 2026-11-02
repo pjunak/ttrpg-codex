@@ -1379,7 +1379,13 @@ for (const mobile of [false, true]) {
       width: "28px",
       text: "S1",
     });
-    assert.equal(await page.locator(".sc-event-path").first().getAttribute("stroke"), "#C8A040");
+    assert.equal(
+      await page
+        .locator(".sc-event-path")
+        .first()
+        .evaluate((path) => getComputedStyle(path).stroke),
+      "rgb(200, 160, 64)",
+    );
     assert.equal(
       await page.locator(".sc-event-path").first().getAttribute("stroke-dasharray"),
       "7, 5",

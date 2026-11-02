@@ -34,27 +34,27 @@ codex-markdown-editor {
   flex-direction: column;
 }
 .writer-dialog::backdrop {
-  background: #000a;
+  background: var(--scrim);
   backdrop-filter: blur(3px);
 }
 .writer-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.6rem 0.75rem 0.6rem 1.1rem;
+  gap: var(--space-3);
+  padding: 0.6rem var(--space-3) 0.6rem 1.1rem;
   border-bottom: 1px solid var(--chrome-field-border);
 }
 .writer-title {
   color: var(--accent-gold);
-  font: 600 1rem/1.3 var(--font-title);
+  font: 600 var(--text-base)/1.3 var(--font-title);
   letter-spacing: 0.04em;
 }
 .writer-heading .writer-expand {
   width: 2rem;
   border-color: transparent;
   background: transparent;
-  font-size: 0.95rem;
+  font-size: var(--text-md);
 }
 .writer-dialog button,
 .writer-dialog select,
@@ -63,12 +63,12 @@ codex-markdown-editor {
   background: var(--bg-surface);
   border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius-sm);
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .writer-dialog button {
   cursor: pointer;
   min-height: 30px;
-  padding: 0.25rem 0.5rem;
+  padding: var(--space-1) var(--space-2);
 }
 .writer-dialog button:hover {
   background: var(--bg-raised);
@@ -140,9 +140,9 @@ codex-markdown-editor {
   right: 0.4rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
   width: min(280px, calc(100% - 1rem));
-  padding: 0.75rem;
+  padding: var(--space-3);
   border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius);
   background: var(--bg-surface);
@@ -150,15 +150,15 @@ codex-markdown-editor {
   max-height: 60dvh;
   overflow: auto;
   box-sizing: border-box;
-  font: 0.85rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .writer-menu label {
   display: grid;
-  gap: 0.35rem;
+  gap: var(--space-1);
 }
 .writer-menu input,
 .writer-menu select {
-  padding: 0.5rem;
+  padding: var(--space-2);
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
@@ -167,7 +167,7 @@ codex-markdown-editor {
 .writer-color-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: var(--space-1);
 }
 .writer-color-grid button {
   flex: 1 0 40%;
@@ -194,7 +194,7 @@ codex-markdown-editor {
   display: none !important;
 }
 .writer-preview {
-  padding: 1rem;
+  padding: var(--space-4);
   border-left: 1px solid var(--chrome-field-border);
   background: var(--bg-deep);
   overflow-wrap: anywhere;
@@ -202,7 +202,7 @@ codex-markdown-editor {
 .writer-rich .ProseMirror {
   min-height: 240px;
   outline: none;
-  padding: 1.25rem;
+  padding: var(--space-5);
   box-sizing: border-box;
   overflow-wrap: anywhere;
 }
@@ -216,11 +216,11 @@ codex-markdown-editor {
   border-radius: 0;
   width: 100%;
   min-height: 290px;
-  padding: 1rem;
+  padding: var(--space-4);
   color: var(--text-parchment);
   background: var(--bg-base);
   box-sizing: border-box;
-  font: 0.87rem/1.65 monospace;
+  font: var(--text-sm)/1.65 var(--font-mono);
 }
 .writer-expanded .writer-panes {
   flex: 1;
@@ -243,8 +243,8 @@ codex-markdown-editor {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 0.6rem 1rem;
+  gap: var(--space-2);
+  padding: 0.6rem var(--space-4);
   border-top: 1px solid var(--chrome-field-border);
   background: var(--bg-raised);
 }
@@ -252,7 +252,7 @@ codex-markdown-editor {
   flex: 1;
 }
 .writer-footer {
-  padding: 0.3rem 0.75rem;
+  padding: 0.3rem var(--space-3);
   border-top: 1px solid var(--border-subtle);
 }
 .writer-dialog .writer-recovery-status {
@@ -275,12 +275,12 @@ codex-markdown-editor {
   background: var(--bg-base);
 }
 .writer-expanded .writer-rich .ProseMirror {
-  padding: 2rem 2.5rem;
-  font-size: 1.02rem;
+  padding: var(--space-7) 2.5rem;
+  font-size: var(--text-base);
 }
 .writer-issue {
-  padding: 0.5rem 1rem;
-  font: 0.85rem var(--font-ui);
+  padding: var(--space-2) var(--space-4);
+  font: var(--text-sm) var(--font-ui);
 }
 .writer-raw-block,
 .writer-raw-inline {
@@ -298,7 +298,7 @@ codex-markdown-editor {
   font-family: var(--font-ui);
 }
 .campaign-markdown .md-font-mono {
-  font-family: monospace;
+  font-family: var(--font-mono);
 }
 .campaign-markdown .md-align-left,
 .campaign-markdown .md-align-center,
@@ -318,34 +318,34 @@ codex-markdown-editor {
   font-size: var(--text-xs);
 }
 .campaign-markdown .md-size-12 {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 .campaign-markdown .md-size-14 {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
 }
 .campaign-markdown .md-size-16 {
-  font-size: 1rem;
+  font-size: var(--text-base);
 }
 .campaign-markdown .md-size-18 {
-  font-size: 1.125rem;
+  font-size: var(--text-lg);
 }
 .campaign-markdown .md-size-20 {
-  font-size: 1.25rem;
+  font-size: var(--text-xl);
 }
 .campaign-markdown .md-size-24 {
-  font-size: 1.5rem;
+  font-size: var(--text-2xl);
 }
 .campaign-markdown .md-size-28 {
-  font-size: 1.75rem;
+  font-size: var(--text-2xl);
 }
 .campaign-markdown .md-size-32 {
-  font-size: 2rem;
+  font-size: var(--text-3xl);
 }
 .campaign-markdown .md-size-40 {
-  font-size: 2.5rem;
+  font-size: var(--text-4xl);
 }
 .campaign-markdown .md-size-48 {
-  font-size: 3rem;
+  font-size: var(--text-4xl);
 }
 .writer-swatch.md-color-gold {
   color: var(--accent-gold);

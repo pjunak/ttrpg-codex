@@ -38,17 +38,17 @@ codex-timeline-slot {
   max-width: 100%;
 }
 .tl-card codex-timeline-slot {
-  padding: 0.2rem 0.75rem;
+  padding: 0.2rem var(--space-3);
 }
 .tl-col > codex-timeline-slot {
-  padding: 0.2rem 0.5rem;
+  padding: 0.2rem var(--space-2);
 }
 
 .tl-toolbar {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 1rem;
+  gap: var(--space-2);
+  padding: 0.6rem var(--space-4);
   background: var(--bg-surface);
   border-bottom: 1px solid rgba(var(--accent-gold-rgb), 0.18);
   flex-shrink: 0;
@@ -58,7 +58,7 @@ codex-timeline-slot {
 /* The title takes the free space, so the actions stay right with or without the hint. */
 .tl-title {
   font-family: var(--font-title);
-  font-size: 0.9rem;
+  font-size: var(--text-md);
   color: var(--accent-gold);
   letter-spacing: 0.06em;
   margin: 0 auto 0 0;
@@ -79,8 +79,8 @@ codex-timeline-slot {
   cursor: pointer;
   letter-spacing: 0.04em;
   transition:
-    background 0.15s,
-    border-color 0.15s;
+    background var(--duration-base),
+    border-color var(--duration-base);
 }
 .tl-add-btn:hover {
   background: rgba(var(--accent-gold-rgb), 0.12);
@@ -176,14 +176,14 @@ codex-timeline-slot {
   flex: 0 0 260px;
   display: flex;
   flex-direction: column;
-  background: rgba(28, 20, 8, 0.55);
+  background: var(--surface-sunken);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.14);
   border-radius: 8px;
   overflow: hidden;
   max-height: 100%;
   transition:
-    border-color 0.15s,
-    background 0.15s;
+    border-color var(--duration-base),
+    background var(--duration-base);
 }
 .tl-col:hover {
   border-color: rgba(var(--accent-gold-rgb), 0.28);
@@ -205,7 +205,7 @@ codex-timeline-slot {
   text-align: left;
   cursor: pointer;
   font-family: var(--font-title);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent-gold);
@@ -233,7 +233,7 @@ codex-timeline-slot {
 .tl-card-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: var(--space-1);
   align-items: center;
   margin-top: 0.6rem;
 }
@@ -263,10 +263,10 @@ codex-timeline-slot {
 }
 .tl-message {
   margin: 0;
-  padding: 0.6rem 1rem;
+  padding: 0.6rem var(--space-4);
   background: var(--bg-surface);
   color: var(--text-parchment);
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .tl-card:focus-within {
   outline: 2px solid var(--accent-gold);
@@ -336,9 +336,9 @@ codex-timeline-slot {
   letter-spacing: 0.05em;
   cursor: pointer;
   transition:
-    color 0.15s,
-    border-color 0.15s,
-    background 0.15s;
+    color var(--duration-base),
+    border-color var(--duration-base),
+    background var(--duration-base);
 }
 .tl-col-add:hover {
   color: var(--accent-gold);
@@ -348,8 +348,8 @@ codex-timeline-slot {
 
 /* ── Card ─────────────────────────────────────────────────────── */
 .tl-card {
-  background: linear-gradient(160deg, rgba(28, 20, 8, 0.97) 0%, rgba(14, 10, 3, 0.99) 100%);
-  border-top: 2px solid var(--tc, #8b6914);
+  background: linear-gradient(160deg, var(--bg-surface) 0%, var(--bg-deep) 100%);
+  border-top: 2px solid var(--tc, var(--accent-gold-dim));
   border-left: 1px solid var(--border-subtle);
   border-right: 1px solid var(--border-faint);
   border-bottom: 1px solid rgba(0, 0, 0, 0.5);
@@ -358,20 +358,20 @@ codex-timeline-slot {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.45),
     0 2px 8px rgba(0, 0, 0, 0.5),
-    0 0 6px -3px var(--tc, #8b6914);
+    0 0 6px -3px var(--tc, var(--accent-gold-dim));
   cursor: pointer;
   user-select: none;
   transition:
-    transform 0.18s ease,
-    box-shadow 0.18s,
-    margin-top 0.22s ease;
+    transform var(--duration-slow) ease,
+    box-shadow var(--duration-slow),
+    margin-top var(--duration-slow) ease;
   flex-shrink: 0;
 }
 .tl-card:hover {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.55),
     0 6px 18px rgba(0, 0, 0, 0.6),
-    0 0 12px -2px var(--tc, #8b6914);
+    0 0 12px -2px var(--tc, var(--accent-gold-dim));
   transform: translateY(-1px);
 }
 .tl-card:focus-visible {
@@ -380,7 +380,7 @@ codex-timeline-slot {
 }
 .tl-card-name {
   font-family: var(--font-title);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-parchment);
   line-height: 1.25;
@@ -390,7 +390,7 @@ codex-timeline-slot {
   font-family: var(--font-ui);
   font-size: var(--text-xs);
   line-height: 1.45;
-  color: rgba(212, 196, 154, 0.78);
+  color: color-mix(in srgb, var(--text-light) 78%, transparent);
   margin-bottom: 6px;
   display: -webkit-box;
   -webkit-line-clamp: 5;
@@ -415,7 +415,7 @@ codex-timeline-slot {
   word-break: break-word;
 }
 .tl-card-loc {
-  color: rgba(130, 180, 130, 0.8);
+  color: color-mix(in srgb, var(--color-place) 80%, transparent);
 }
 .tl-more {
   opacity: 0.55;
@@ -438,9 +438,9 @@ codex-timeline-slot {
 .tl-col-stacked .tl-col-body > .tl-card + .tl-card {
   margin-top: -54px;
   transition:
-    margin-top 0.22s ease,
-    box-shadow 0.18s,
-    transform 0.18s;
+    margin-top var(--duration-slow) ease,
+    box-shadow var(--duration-slow),
+    transform var(--duration-slow);
 }
 .tl-col-stacked .tl-col-body > .tl-card:hover {
   /* Hovering a peeking card pops that one card up without expanding
@@ -449,7 +449,7 @@ codex-timeline-slot {
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.55),
     0 8px 22px rgba(0, 0, 0, 0.65),
-    0 0 14px -2px var(--tc, #8b6914);
+    0 0 14px -2px var(--tc, var(--accent-gold-dim));
 }
 .tl-col-stacked:hover .tl-col-body > .tl-card + .tl-card,
 .tl-shell.is-editing .tl-col-stacked .tl-col-body > .tl-card + .tl-card,

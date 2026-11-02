@@ -243,9 +243,9 @@ export class CodexTimeline extends LitElement {
                     .find((id) => typeof id === "string" && id !== "neutral" && id !== "");
                   const rawColor =
                     typeof faction === "string" ? factions.get(faction)?.["color"] : undefined;
-                  const color = cssHexColor(rawColor) ?? "#8B6914";
+                  const color = cssHexColor(rawColor);
                   return html`${key === this.dragging ? nothing : this.#indicator(sitting, ids.slice(0, index).filter((id) => id !== this.dragging).length)}
-                  <div class=${`tl-card${this.dragging === key ? " tl-drag-src" : ""}`} data-key=${key} style=${`--tc:${color}`}
+                  <div class=${`tl-card${this.dragging === key ? " tl-drag-src" : ""}`} data-key=${key} style=${color === undefined ? "" : `--tc:${color}`}
                     draggable=${this.editing && !this.#locked ? "true" : "false"} @dragstart=${(event: DragEvent) => this.#dragStart(event, record, sitting)} @dragend=${this.#dragEnd}>
                     <a class="tl-card-open" draggable="false" href=${`#/events/${encodeURIComponent(key)}`}
                       @click=${(event: MouseEvent) => {

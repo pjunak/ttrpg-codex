@@ -132,7 +132,7 @@ function classicDesign(viewport: "desktop" | "mobile"): Record<string, Record<st
     ".party-add": {
       padding: "4px 9.6px",
       "font-family": inter,
-      "font-size": "12.48px",
+      "font-size": "12px",
       color: gold,
       "background-color": "rgba(0, 0, 0, 0)",
       "border-radius": "4px",
@@ -140,9 +140,9 @@ function classicDesign(viewport: "desktop" | "mobile"): Record<string, Record<st
     },
     ".section-heading h2": {
       "font-family": cinzel,
-      "font-size": "17.6px",
-      "line-height": "21.12px",
-      "letter-spacing": "0.88px",
+      "font-size": "18.4px",
+      "line-height": "22.08px",
+      "letter-spacing": "0.92px",
       color: gold,
     },
     ".party-member": {
@@ -156,7 +156,7 @@ function classicDesign(viewport: "desktop" | "mobile"): Record<string, Record<st
     ".party-portrait": { width: "88px", height: "88px", "border-radius": "50%" },
     ".party-member-copy strong": {
       "font-family": cinzel,
-      "font-size": "14.72px",
+      "font-size": "15.2px",
       color: parchment,
     },
     ".party-member-copy > span": {
@@ -169,7 +169,7 @@ function classicDesign(viewport: "desktop" | "mobile"): Record<string, Record<st
       "border-radius": "12px",
       "border-top-color": "rgba(255, 255, 255, 0.07)",
     },
-    ".record-row-copy strong": { "font-family": cinzel, "font-size": "14.4px", color: parchment },
+    ".record-row-copy strong": { "font-family": cinzel, "font-size": "15.2px", color: parchment },
   };
 }
 async function expectDesign(
@@ -406,12 +406,17 @@ void test("desktop sidebar, phone menu and settings remain usable across resize"
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole("link", { name: "Appearance", exact: true }).click();
-  assert.equal(
-    (await style(page, ".theme-sample-classic .settings-theme-sample", ["background-color"]))[
-      "background-color"
-    ],
-    "rgb(20, 16, 8)",
-  );
+  // Each preview renders its theme from the real tokens, whichever theme is active.
+  for (const [theme, background] of [
+    ["classic", "rgb(20, 16, 8)"],
+    ["moonlit", "rgb(11, 21, 29)"],
+  ])
+    assert.equal(
+      (await style(page, `[data-theme-sample="${theme}"]`, ["background-color"]))[
+        "background-color"
+      ],
+      background,
+    );
   await fits(page);
   await page.screenshot({
     animations: "disabled",

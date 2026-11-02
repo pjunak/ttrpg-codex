@@ -3,33 +3,33 @@ codex-collection-browser {
 }
 .collection-controls {
   display: grid;
-  gap: 0.6rem;
-  margin-bottom: 1.25rem;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
   font-family: var(--font-ui);
 }
 .collection-quick {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: var(--space-2);
 }
 .collection-quick button,
 .collection-filter-chips button,
 .collection-clear {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-2);
   min-height: 1.9rem;
   padding: 0.2rem 0.8rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-pill);
   background: var(--bg-raised);
   color: var(--text-muted);
-  font: 0.75rem/1.3 var(--font-ui);
+  font: var(--text-xs)/1.3 var(--font-ui);
   cursor: pointer;
   transition:
-    border-color 0.15s,
-    color 0.15s,
-    background 0.15s;
+    border-color var(--duration-base),
+    color var(--duration-base),
+    background var(--duration-base);
 }
 .collection-quick button:hover,
 .collection-filter-chips button:hover,
@@ -50,7 +50,7 @@ codex-collection-browser {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.75rem;
+  gap: var(--space-2) var(--space-3);
 }
 .collection-query {
   position: relative;
@@ -66,7 +66,7 @@ codex-collection-browser {
   border-radius: var(--radius);
   background: var(--bg-raised);
   color: var(--text-parchment);
-  font: 0.85rem/1.4 var(--font-ui);
+  font: var(--text-sm)/1.4 var(--font-ui);
 }
 .collection-controls :is(input, select):focus-visible {
   outline: none;
@@ -96,7 +96,7 @@ codex-collection-browser {
   border-radius: var(--radius);
   background: transparent;
   color: var(--text-muted);
-  font-size: 1rem;
+  font-size: var(--text-base);
 }
 .collection-query .ui-search-clear:hover {
   color: var(--accent-gold);
@@ -105,7 +105,7 @@ codex-collection-browser {
   display: inline-flex;
   min-width: 0;
   align-items: center;
-  gap: 0.45rem;
+  gap: var(--space-2);
   color: var(--text-muted);
   font: var(--text-xs) var(--font-ui);
   letter-spacing: 0.06em;
@@ -131,7 +131,7 @@ codex-collection-browser {
   border-radius: var(--radius);
   background: var(--bg-raised);
   color: var(--text-light);
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
   cursor: pointer;
   list-style: none;
 }
@@ -152,7 +152,7 @@ codex-collection-browser {
   inset-inline-end: 0;
   top: calc(100% + 0.35rem);
   display: grid;
-  gap: 0.6rem;
+  gap: var(--space-2);
   width: min(22rem, 90vw);
   padding: 0.85rem;
   border: 1px solid var(--chrome-field-border);
@@ -163,9 +163,9 @@ codex-collection-browser {
 .collection-filter-menu label,
 .collection-filter-menu .collection-filter-value {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 .collection-filter-menu select {
   width: 100%;
@@ -173,7 +173,7 @@ codex-collection-browser {
 .collection-filter-menu .field-help {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   line-height: 1.45;
 }
 .collection-filter-menu .record-action {
@@ -183,13 +183,13 @@ codex-collection-browser {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem 0.75rem;
+  gap: var(--space-2) var(--space-3);
   min-height: 1.5rem;
 }
 .collection-filter-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: var(--space-2);
   list-style: none;
   padding: 0;
   margin: 0;
@@ -208,7 +208,7 @@ codex-collection-browser {
 .collection-result-count {
   margin: 0;
   color: var(--text-muted);
-  font: 0.78rem/1.5 var(--font-ui);
+  font: var(--text-xs)/1.5 var(--font-ui);
 }
 .collection-clear {
   background: transparent;
@@ -219,12 +219,12 @@ codex-collection-browser {
 .collection-group-title {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--space-2);
   margin: 0 0 0.85rem;
   padding-bottom: 0.4rem;
   border-bottom: 1px solid var(--chrome-divider);
   color: var(--accent-gold);
-  font: 600 1rem/1.3 var(--font-title);
+  font: 600 var(--text-base)/1.3 var(--font-title);
   letter-spacing: 0.06em;
   overflow-wrap: anywhere;
 }
@@ -239,15 +239,15 @@ codex-collection-browser {
 /* Grouped tile lists flow into columns so many small groups stay on one screen. */
 .collection-page:not([data-collection="characters"]) .collection-results.is-grouped {
   columns: 17rem;
-  column-gap: 1.25rem;
+  column-gap: var(--space-5);
 }
 .collection-page:not([data-collection="characters"]) .is-grouped .collection-result-group {
   break-inside: avoid;
-  margin-bottom: 1.25rem;
+  margin-bottom: var(--space-5);
 }
 .collection-page:not([data-collection="characters"]) .is-grouped .record-ledger {
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 @media (pointer: coarse) {
   .collection-controls :is(input, select),
@@ -283,21 +283,21 @@ codex-collection-browser {
 .writer-recovery {
   padding: 0.6rem 0.85rem;
   border-bottom: 1px solid var(--border-subtle);
-  font: 0.85rem/1.5 var(--font-ui);
+  font: var(--text-sm)/1.5 var(--font-ui);
 }
 .writer-recovery-review > summary {
   cursor: pointer;
-  padding: 0.5rem 0;
+  padding: var(--space-2) 0;
   font-weight: 600;
 }
 .writer-recovery-review label {
   display: grid;
-  gap: 0.4rem;
+  gap: var(--space-2);
 }
 .writer-recovery-status {
   margin: 0.4rem 0;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 .writer-recovery-status[role="alert"],
 .writer-recovery-warning {
@@ -311,14 +311,14 @@ codex-collection-browser {
 .writer-recovery-comparison {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
-  gap: 0.75rem;
-  margin: 0.75rem 0;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
 }
 .writer-recovery-comparison section {
   min-width: 0;
 }
 .writer-recovery-comparison h3 {
-  font: 600 0.85rem/1.5 var(--font-ui);
+  font: 600 var(--text-sm)/1.5 var(--font-ui);
 }
 .writer-recovery-comparison pre {
   white-space: pre-wrap;
@@ -329,19 +329,19 @@ codex-collection-browser {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
-  font: 0.85rem/1.6 var(--font-ui);
+  font: var(--text-sm)/1.6 var(--font-ui);
 }
 .writer-recovery-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.65rem;
-  margin: 0.75rem 0;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
 }
 codex-local-drafts {
   display: block;
-  margin-top: 2rem;
-  font: 0.85rem/1.5 var(--font-ui);
+  margin-top: var(--space-7);
+  font: var(--text-sm)/1.5 var(--font-ui);
 }
 .collection-local-drafts > summary,
 .collection-local-draft > summary {
@@ -354,14 +354,14 @@ codex-local-drafts {
 }
 .collection-local-draft {
   border-top: 1px solid var(--border-subtle);
-  margin-top: 0.75rem;
+  margin-top: var(--space-3);
 }
 .collection-local-draft pre {
   max-height: 18rem;
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  padding: 0.75rem;
+  padding: var(--space-3);
   background: var(--bg-raised);
 }
 @media (max-width: 540px) {

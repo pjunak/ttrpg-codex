@@ -6,12 +6,12 @@ codex-app,
 
 .skip-link {
   position: fixed;
-  z-index: 400;
+  z-index: var(--z-skip-link);
   top: 0.75rem;
   left: 0.75rem;
   padding: 0.65rem 0.9rem;
   color: var(--text-ink);
-  background: var(--gold);
+  background: var(--accent-gold);
   transform: translateY(-180%);
 }
 
@@ -21,7 +21,7 @@ codex-app,
 
 .campaign-sidebar {
   position: fixed;
-  z-index: 100;
+  z-index: var(--z-sidebar);
   inset: 0 auto 0 0;
   display: flex;
   width: var(--sidebar-width);
@@ -39,14 +39,14 @@ codex-account-menu {
 }
 
 .campaign-brand {
-  padding: 1.25rem 1rem 1rem;
-  margin-bottom: 0.5rem;
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  margin-bottom: var(--space-2);
   border-bottom: 1px solid var(--chrome-divider-strong);
 }
 
 .campaign-brand a {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: center;
   text-decoration: none;
 }
@@ -77,8 +77,8 @@ codex-account-menu {
 
 .campaign-brand strong {
   display: block;
-  color: var(--gold);
-  font: 700 0.85rem/1.2 var(--font-title);
+  color: var(--accent-gold);
+  font: 700 var(--text-sm)/1.2 var(--font-title);
   letter-spacing: 0.05em;
 }
 
@@ -93,20 +93,20 @@ codex-account-menu {
 .sidebar-search {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  margin: 0.75rem 0.75rem 0.5rem;
-  padding: 0.5rem 0.75rem;
+  gap: var(--space-3);
+  margin: var(--space-3) var(--space-3) var(--space-2);
+  padding: var(--space-2) var(--space-3);
   color: var(--text-muted);
   border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius);
   background: var(--bg-base);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   text-decoration: none;
 }
 
 .sidebar-search kbd {
   margin-left: auto;
-  padding: 0 0.25rem;
+  padding: 0 var(--space-1);
   border: 1px solid var(--border-subtle);
   border-radius: 3px;
   font-size: var(--text-xs);
@@ -115,8 +115,8 @@ codex-account-menu {
 
 .core-navigation h2,
 .addon-navigation-section h2 {
-  padding: 1rem 1rem 0.35rem;
-  margin: 0.5rem 0 0;
+  padding: var(--space-4) var(--space-4) 0.35rem;
+  margin: var(--space-2) 0 0;
   border-top: 1px solid var(--border-faint);
   color: var(--text-muted);
   font: 500 var(--text-xs)/1.6 var(--font-ui);
@@ -125,17 +125,17 @@ codex-account-menu {
 }
 
 .core-navigation .navigation-campaign h2 {
-  margin-top: 1rem;
+  margin-top: var(--space-4);
   color: var(--color-mystery);
-  border-top-color: rgb(156 77 204 / 35%);
+  border-top-color: color-mix(in srgb, var(--color-mystery) 35%, transparent);
   font-weight: 700;
   letter-spacing: 0.16em;
 }
 
 .core-navigation .navigation-world h2 {
-  margin-top: 1rem;
-  color: #9cc69a;
-  border-top-color: rgb(106 160 100 / 35%);
+  margin-top: var(--space-4);
+  color: var(--color-place);
+  border-top-color: color-mix(in srgb, var(--color-place) 35%, transparent);
   font-weight: 700;
   letter-spacing: 0.16em;
 }
@@ -146,17 +146,17 @@ codex-account-menu {
 .sidebar-footer-action {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin: 2px 0.5rem;
-  padding: 0.55rem 0.75rem;
+  gap: var(--space-2);
+  margin: 2px var(--space-2);
+  padding: 0.55rem var(--space-3);
   border-radius: var(--radius);
   color: var(--text-light);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   text-decoration: none;
 }
 
 .core-navigation a > span {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   opacity: 0.7;
 }
 
@@ -164,7 +164,7 @@ codex-account-menu {
    aligned with the core pages above. */
 .addon-navigation-link::before {
   content: "🧩" / "";
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   opacity: 0.7;
 }
 
@@ -172,14 +172,14 @@ codex-account-menu {
 .addon-navigation-link:hover,
 .sidebar-footer > a:hover,
 .sidebar-footer-action:hover:not(:disabled) {
-  color: var(--gold);
+  color: var(--accent-gold);
   background: rgba(var(--accent-gold-rgb), 0.08);
 }
 
 .core-navigation a[aria-current="page"],
 .addon-navigation-link[aria-current="page"],
 .sidebar-footer > a[aria-current="page"] {
-  color: var(--gold);
+  color: var(--accent-gold);
   background: rgba(var(--accent-gold-rgb), 0.12);
 }
 
@@ -188,7 +188,7 @@ codex-account-menu {
   position: sticky;
   bottom: 0;
   margin-top: auto;
-  padding: 0.5rem 0 1rem;
+  padding: var(--space-2) 0 var(--space-4);
   border-top: 1px solid var(--chrome-divider);
   background: var(--bg-surface);
 }
@@ -206,8 +206,8 @@ codex-account-menu {
 }
 
 .account-menu {
-  margin: 0.5rem 1rem 0;
-  font-size: 0.78rem;
+  margin: var(--space-2) var(--space-4) 0;
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 
@@ -217,17 +217,17 @@ codex-account-menu {
 }
 
 .account-panel {
-  padding-top: 0.5rem;
+  padding-top: var(--space-2);
 }
 
 .account-panel h2 {
   color: var(--text-light);
-  font: 500 0.8rem var(--font-ui);
+  font: 500 var(--text-sm) var(--font-ui);
 }
 
 .account-panel form {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .account-panel input {
@@ -246,10 +246,10 @@ codex-account-menu {
 .primary-link {
   padding: 0.55rem 0.8rem;
   color: var(--text-ink);
-  border: 1px solid var(--gold);
+  border: 1px solid var(--accent-gold);
   border-radius: var(--radius);
-  background: var(--gold);
-  font: 500 0.8rem var(--font-ui);
+  background: var(--accent-gold);
+  font: 500 var(--text-sm) var(--font-ui);
 }
 
 .account-panel button:disabled {
@@ -279,8 +279,8 @@ codex-account-menu {
 .content-statusbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
   font: var(--text-xs) var(--font-ui);
   color: var(--text-muted);
 }
@@ -288,7 +288,7 @@ codex-account-menu {
 .host-state,
 .live-state {
   display: inline-flex;
-  gap: 0.35rem;
+  gap: var(--space-1);
   align-items: center;
 }
 
@@ -308,7 +308,7 @@ codex-account-menu {
 .campaign-content {
   min-height: 100vh;
   margin-left: var(--sidebar-width);
-  padding: 2rem;
+  padding: var(--space-7);
 }
 
 .player-preview-notice {
@@ -316,30 +316,30 @@ codex-account-menu {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  margin: 0 0 1rem;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-4);
   padding: 0.65rem 0.8rem;
   color: var(--text-muted);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   background: var(--bg-surface);
-  font: 0.82rem/1.5 var(--font-ui);
+  font: var(--text-sm)/1.5 var(--font-ui);
 }
 
 .connection-alert,
 .application-alert {
-  margin: 0 0 1rem;
+  margin: 0 0 var(--space-4);
   padding: 0.65rem 0.8rem;
   color: var(--color-danger);
   border: 1px solid var(--accent-crimson);
   border-radius: var(--radius);
   background: var(--bg-surface);
-  font: 0.82rem/1.5 var(--font-ui);
+  font: var(--text-sm)/1.5 var(--font-ui);
 }
 
 .application-alert {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-4);
   justify-content: space-between;
 }
 
@@ -362,13 +362,13 @@ codex-account-menu {
 .unavailable-page {
   max-width: 44rem;
   margin: 10vh auto 0;
-  padding: 2rem;
+  padding: var(--space-7);
   text-align: center;
 }
 
 .loading-page > span {
-  color: var(--gold);
-  font-size: 2rem;
+  color: var(--accent-gold);
+  font-size: var(--text-3xl);
 }
 
 .loading-page p,
@@ -377,8 +377,8 @@ codex-account-menu {
 }
 
 .unavailable-page h1 {
-  font-size: 2rem;
-  color: var(--gold);
+  font-size: var(--text-3xl);
+  color: var(--accent-gold);
 }
 
 .page-kicker {
@@ -398,10 +398,10 @@ codex-account-menu {
     overflow: hidden;
   }
   .campaign-sidebar {
-    z-index: 200;
+    z-index: var(--z-drawer);
     width: min(320px, 86vw);
     transform: translateX(-100%);
-    transition: transform 0.2s ease;
+    transition: transform var(--duration-slow) ease;
   }
   /* The bottom navigation overlays the drawer. */
   .sidebar-footer {
@@ -417,16 +417,16 @@ codex-account-menu {
   .sidebar-backdrop {
     display: block;
     position: fixed;
-    z-index: 190;
+    z-index: var(--z-drawer-scrim);
     inset: 0;
     width: 100%;
     height: 100%;
     border: 0;
-    background: rgb(0 0 0 / 60%);
+    background: var(--scrim);
   }
   .mobile-navigation {
     position: fixed;
-    z-index: 210;
+    z-index: var(--z-mobile-nav);
     inset: auto 0 0;
     display: flex;
     height: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
@@ -442,7 +442,7 @@ codex-account-menu {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 0.2rem;
+    gap: var(--space-1);
     color: var(--text-muted);
     border: 0;
     background: transparent;
@@ -450,18 +450,18 @@ codex-account-menu {
     text-decoration: none;
   }
   .mobile-navigation span {
-    font-size: 1.3rem;
+    font-size: var(--text-xl);
   }
   .mobile-navigation [aria-current="page"],
   .mobile-navigation [aria-expanded="true"] {
-    color: var(--gold);
+    color: var(--accent-gold);
   }
 }
 
 /* Short confirmations for actions taken from context menus. */
 .context-notice {
   position: fixed;
-  z-index: 50;
+  z-index: var(--z-notice);
   right: 1rem;
   bottom: 1rem;
   max-width: min(24rem, calc(100vw - 2rem));
@@ -472,7 +472,7 @@ codex-account-menu {
   background: var(--bg-surface);
   box-shadow: var(--shadow-md);
   color: var(--text-parchment);
-  font: 0.82rem/1.4 var(--font-ui);
+  font: var(--text-sm)/1.4 var(--font-ui);
 }
 @media (max-width: 768px) {
   .context-notice {

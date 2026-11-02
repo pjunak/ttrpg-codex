@@ -2,7 +2,7 @@
   width: min(46rem, calc(100vw - 2rem));
   max-width: none;
   max-height: calc(100dvh - 2rem);
-  padding: 1.25rem;
+  padding: var(--space-5);
   border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
@@ -10,13 +10,13 @@
   overflow: auto;
 }
 .quick-search-dialog::backdrop {
-  background: rgb(0 0 0 / 0.65);
+  background: var(--scrim);
 }
 .recent-summary {
   display: block;
-  margin-top: 0.25rem;
+  margin-top: var(--space-1);
   color: var(--text-muted);
-  font: 0.8rem/1.5 var(--font-ui);
+  font: var(--text-sm)/1.5 var(--font-ui);
   overflow-wrap: anywhere;
 }
 .recent-ledger a > span {
@@ -25,12 +25,12 @@
 .sc-detail-fields {
   border: 0;
   padding: 0;
-  margin: 0.75rem 0;
+  margin: var(--space-3) 0;
   min-width: 0;
 }
 .sc-detail-fields label {
   display: grid;
-  gap: 0.35rem;
+  gap: var(--space-1);
   margin: 0.7rem 0;
   min-width: 0;
 }
@@ -39,7 +39,7 @@
 .sc-detail-fields textarea {
   width: 100%;
   min-width: 0;
-  padding: 0.5rem;
+  padding: var(--space-2);
   background: var(--bg-surface);
   color: var(--text-parchment);
   border: 1px solid var(--chrome-field-border);
@@ -56,16 +56,16 @@
 }
 .sc-detail-fields .field-help {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   line-height: 1.5;
 }
 .sc-marker-details summary {
   cursor: pointer;
-  padding: 0.5rem 0;
+  padding: var(--space-2) 0;
 }
 .sc-marker-attitudes {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 .sc-panel.sc-location-editor {
@@ -81,16 +81,16 @@
   flex: 1;
   overflow: auto;
   min-height: 0;
-  padding: 0 0.25rem;
+  padding: 0 var(--space-1);
   scroll-padding-block: 1.5rem;
 }
 .sc-detail-actions {
   flex: none;
   background: var(--bg-surface);
-  padding: 0.5rem 0 0;
+  padding: var(--space-2) 0 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: var(--space-2);
   border-top: 1px solid var(--chrome-field-border);
 }
 .sc-detail-actions .sc-btn {
@@ -110,11 +110,11 @@
   min-height: 2.75rem;
 }
 .quick-search-dialog .search-heading h2 {
-  font: 1.6rem var(--font-title);
-  margin: 0.75rem 0;
+  font: var(--text-2xl) var(--font-title);
+  margin: var(--space-3) 0;
 }
 .quick-search-dialog .search-heading p {
-  font: 0.85rem/1.5 var(--font-ui);
+  font: var(--text-sm)/1.5 var(--font-ui);
   color: var(--text-muted);
 }
 .search-group h3 {
@@ -130,7 +130,7 @@
 }
 .quick-search-dialog > codex-search > article > a {
   display: inline-block;
-  margin-top: 1rem;
+  margin-top: var(--space-4);
   min-height: 2.75rem;
 }
 @media (max-width: 540px) {

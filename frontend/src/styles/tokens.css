@@ -1,13 +1,19 @@
-/* Classic is the original campaign design, also used by add-ons. */
+/* Design tokens: the only place that names colours and scale values. Classic
+   is the original campaign design; Moonlit overrides its palette. Every other
+   stylesheet, and every add-on, uses these names (see
+   contracts/addons/v3/design-tokens.json). A [data-theme-sample] element gets
+   its own copy so a preview can show a theme the page is not using. */
 
-:root {
+:root,
+[data-theme-sample] {
   color-scheme: dark;
+
+  /* Palette */
   --bg-deep: #0e0a05;
   --bg-base: #141008;
   --bg-surface: #1c1509;
   --bg-raised: #241c0d;
   --bg-card: #f5edd8;
-  --bg-card-dark: #ede0c4;
   --text-parchment: #f5edd8;
   --text-light: #d4c49a;
   --text-muted: #9a8660;
@@ -18,7 +24,6 @@
   --accent-gold: #c8a040;
   --accent-gold-rgb: 200, 160, 64;
   --accent-gold-dim: #8b6914;
-  --accent-ember: #c04020;
   --gold-muted: 212, 184, 122;
   --border-subtle: rgb(255 255 255 / 7%);
   --border-faint: rgb(255 255 255 / 4%);
@@ -27,6 +32,7 @@
   --color-success: #a5d6a7;
   --color-info: #90caf9;
   --color-mystery: #ce93d8;
+  --color-place: #9cc69a;
   --color-on-accent: #2b1a00;
   --addon-text: #e9dfca;
   --addon-border: #665536;
@@ -39,64 +45,99 @@
   --status-alive: #2e7d32;
   --status-dead: #8b0000;
   --status-unknown: #6a1b9a;
+  --page-glow:
+    radial-gradient(ellipse at 15% 40%, rgb(139 32 32 / 6%), transparent 55%),
+    radial-gradient(ellipse at 85% 15%, rgb(30 60 10 / 4%), transparent 45%),
+    radial-gradient(ellipse at 50% 90%, rgb(100 80 20 / 5%), transparent 40%);
+
+  /* The paper reading surface (data-ui-tone="paper"). */
+  --paper-field: #fffaf0;
+  --paper-border: #897349;
+  --paper-accent: #74520d;
+  --paper-danger: #9b2020;
+
+  /* Derived colours follow the palette in either theme. */
+  --chrome-divider: rgba(var(--accent-gold-rgb), 0.15);
+  --chrome-divider-strong: rgba(var(--accent-gold-rgb), 0.2);
+  --chrome-field-border: rgba(var(--accent-gold-rgb), 0.3);
+  --surface-overlay: color-mix(in srgb, var(--bg-deep) 88%, transparent);
+  --surface-sunken: color-mix(in srgb, var(--bg-surface) 55%, transparent);
+  --scrim: rgb(0 0 0 / 65%);
+  --shadow-sm: 0 1px 4px rgb(0 0 0 / 35%);
+  --shadow-card: 0 2px 12px rgb(0 0 0 / 50%), 0 1px 3px rgb(0 0 0 / 40%);
+  --shadow-md: 0 6px 20px rgb(0 0 0 / 40%);
+  --shadow-lg: 0 1.5rem 5rem rgb(0 0 0 / 50%);
+
+  /* Type */
   --font-title: "Cinzel Variable", Georgia, serif;
   --font-body: "Lora Variable", Georgia, serif;
   --font-ui: "Inter Variable", "Helvetica Neue", sans-serif;
-  --sidebar-width: 240px;
-  --bottom-nav-h: 60px;
-  --radius: 6px;
-  --radius-sm: 4px;
-  --radius-lg: 12px;
-  --shadow-card: 0 2px 12px rgb(0 0 0 / 50%), 0 1px 3px rgb(0 0 0 / 40%);
-  --shadow-sm: 0 1px 4px rgb(0 0 0 / 35%);
-  --shadow-md: 0 6px 20px rgb(0 0 0 / 40%);
-  --radius-pill: 999px;
+  --font-mono: "Cascadia Code", Consolas, monospace;
+  /* Interface text never goes below --text-xs (12px at the default size). */
+  --text-xs: 0.75rem;
+  --text-sm: 0.85rem;
+  --text-md: 0.95rem;
+  --text-base: 1rem;
+  --text-lg: 1.15rem;
+  --text-xl: 1.35rem;
+  --text-2xl: 1.6rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.6rem;
+  --text-display: 4rem;
+
+  /* Space, shape and layout */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
   --space-5: 1.25rem;
   --space-6: 1.5rem;
-  --text-xs: 0.75rem;
-  --text-sm: 0.85rem;
-  --text-lg: 1.15rem;
-  --text-2xl: 2rem;
-  --text-3xl: 2.6rem;
-  --ui-font: var(--font-ui);
-  --book-font: var(--font-body);
+  --space-7: 2rem;
+  --space-8: 3rem;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  --sidebar-width: 240px;
+  --bottom-nav-h: 60px;
   --reading-width: 1400px;
-  --focus: var(--accent-gold);
-  --gold: var(--accent-gold);
-  --gold-bright: var(--accent-gold);
-  --crimson: var(--accent-crimson);
-  --moss: var(--status-alive);
-  --shadow: rgb(4 3 1 / 42%);
-  --night: var(--bg-deep);
-  --walnut: var(--bg-surface);
-  --walnut-light: var(--bg-raised);
-  --chrome-text: var(--text-parchment);
-  --chrome-soft: var(--text-light);
-  --chrome-muted: var(--text-muted);
-  --chrome-faint: var(--text-muted);
-  --chrome-active: var(--accent-gold);
-  --chrome-hover: var(--accent-gold);
-  --chrome-divider: rgba(var(--accent-gold-rgb), 0.15);
-  --chrome-divider-strong: rgba(var(--accent-gold-rgb), 0.2);
-  --chrome-field: var(--bg-base);
-  --chrome-field-border: rgba(var(--accent-gold-rgb), 0.3);
-  --chrome-mobile: var(--bg-surface);
+
+  /* Motion */
+  --duration-fast: 0.12s;
+  --duration-base: 0.15s;
+  --duration-slow: 0.2s;
+  --ease-out: cubic-bezier(0, 0, 0.25, 1);
+
+  /* Stacking. Values up to 10 order siblings inside one component; anything
+     that must sit above other parts of the page uses a layer here. */
+  --z-sticky: 20;
+  --z-notice: 50;
+  --z-sidebar: 100;
+  --z-toast: 150;
+  --z-drawer-scrim: 190;
+  --z-drawer: 200;
+  --z-mobile-nav: 210;
+  --z-skip-link: 400;
+  /* Leaflet's panes use 200-700 and its controls 800-1000. */
+  --z-map-overlay: 500;
+  --z-map-panel: 1000;
+  --z-menu: 10002;
 }
 
-:root[data-theme="moonlit"] {
+:root[data-theme="moonlit"],
+[data-theme-sample="moonlit"] {
   --bg-deep: #071018;
   --bg-base: #0b151d;
   --bg-surface: #101c24;
   --bg-raised: #18303a;
-  --accent-gold: #add0d8;
-  --accent-gold-rgb: 173, 208, 216;
   --text-parchment: #e2eaeb;
   --text-light: #bac9cc;
   --text-muted: #849aa0;
+  --text-cream: #e6eef0;
+  --accent-gold: #add0d8;
+  --accent-gold-rgb: 173, 208, 216;
+  --accent-gold-dim: #5b8794;
+  --gold-muted: 160, 190, 198;
   --addon-text: var(--text-light);
   --addon-border: var(--chrome-field-border);
   --addon-surface: var(--bg-surface);
@@ -105,6 +146,16 @@
   --addon-heading-surface: var(--bg-raised);
   --addon-meta-text: var(--text-muted);
   --link-underline: var(--accent-gold);
+  --page-glow:
+    radial-gradient(ellipse at 15% 40%, rgb(60 110 140 / 7%), transparent 55%),
+    radial-gradient(ellipse at 85% 15%, rgb(120 160 190 / 5%), transparent 45%),
+    radial-gradient(ellipse at 50% 90%, rgb(40 80 100 / 6%), transparent 40%);
+  /* Derived tokens are recomputed here so they use this palette. */
+  --chrome-divider: rgba(var(--accent-gold-rgb), 0.15);
+  --chrome-divider-strong: rgba(var(--accent-gold-rgb), 0.2);
+  --chrome-field-border: rgba(var(--accent-gold-rgb), 0.3);
+  --surface-overlay: color-mix(in srgb, var(--bg-deep) 88%, transparent);
+  --surface-sunken: color-mix(in srgb, var(--bg-surface) 55%, transparent);
 }
 
 /* Element defaults sit below shared controls and every host or add-on class. */
@@ -126,10 +177,7 @@
     min-height: 100vh;
     margin: 0;
     background-color: var(--bg-base);
-    background-image:
-      radial-gradient(ellipse at 15% 40%, rgb(139 32 32 / 6%), transparent 55%),
-      radial-gradient(ellipse at 85% 15%, rgb(30 60 10 / 4%), transparent 45%),
-      radial-gradient(ellipse at 50% 90%, rgb(100 80 20 / 5%), transparent 40%);
+    background-image: var(--page-glow);
     color: var(--text-parchment);
     font: 16px/1.6 var(--font-body);
   }
@@ -160,7 +208,7 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--focus);
+    outline: 2px solid var(--accent-gold);
     outline-offset: 2px;
   }
 

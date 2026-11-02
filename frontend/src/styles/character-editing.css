@@ -6,7 +6,7 @@ codex-character-profile {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.5rem 0.75rem;
+  gap: var(--space-2) var(--space-3);
   margin-inline-start: auto;
 }
 .character-page-heading,
@@ -15,17 +15,17 @@ codex-character-profile {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.7rem;
+  gap: var(--space-3);
 }
 .character-page-heading {
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
 }
 .character-page-heading .breadcrumb-link {
   margin: 0;
 }
 .character-save-status {
   color: var(--text-muted);
-  font: 0.75rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
   justify-content: flex-end;
 }
 .direct-character .record-reading,
@@ -50,22 +50,22 @@ codex-character-profile {
   background: var(--bg-base);
   color: var(--text-parchment);
   border-radius: var(--radius-sm);
-  padding: 0.4rem 0.5rem;
+  padding: 0.4rem var(--space-2);
   font: inherit;
 }
 .character-subtitle {
-  margin: 0.5rem 0;
+  margin: var(--space-2) 0;
   color: var(--text-muted);
-  font: italic 0.92rem/1.5 var(--font-body);
+  font: italic var(--text-md)/1.5 var(--font-body);
 }
 .character-circumstances {
   border-top: 1px solid var(--chrome-divider);
-  padding-top: 1rem;
-  margin-top: 1rem;
-  font: 0.9rem/1.65 var(--font-body);
+  padding-top: var(--space-4);
+  margin-top: var(--space-4);
+  font: var(--text-md)/1.65 var(--font-body);
 }
 .character-connections {
-  margin-top: 1.5rem;
+  margin-top: var(--space-6);
 }
 .character-more {
   position: relative;
@@ -74,14 +74,14 @@ codex-character-profile {
   list-style: none;
   cursor: pointer;
   padding: 0.2rem 0.65rem;
-  font-size: 1.3rem;
+  font-size: var(--text-xl);
 }
 .character-more > div {
   position: absolute;
   z-index: 4;
   right: 0;
   display: grid;
-  gap: 0.4rem;
+  gap: var(--space-2);
   min-width: 170px;
   background: var(--bg-surface);
   padding: 0.65rem;
@@ -99,7 +99,7 @@ codex-character-profile {
   background: var(--bg-surface);
   padding: 0.45rem 0.65rem;
   cursor: pointer;
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .character-section-heading {
   margin-bottom: 0.8rem;
@@ -110,8 +110,8 @@ codex-character-profile {
 .character-local-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 .direct-character .primary-record-action {
   color: var(--bg-deep);
@@ -125,13 +125,13 @@ codex-character-profile {
 .character-knowledge-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  margin: 2rem 0;
+  gap: var(--space-6);
+  margin: var(--space-7) 0;
 }
 .character-knowledge-grid > section {
   min-width: 0;
   border-top: 1px solid var(--chrome-field-border);
-  padding-top: 1rem;
+  padding-top: var(--space-4);
 }
 .character-fact-list {
   margin: 0 0 0.7rem;
@@ -145,10 +145,10 @@ codex-character-profile {
 }
 .character-answer {
   margin: 0.55rem 0 0 0.65rem;
-  padding-left: 0.75rem;
+  padding-left: var(--space-3);
   border-left: 2px solid var(--chrome-field-border);
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 .character-add {
   color: var(--text-muted);
@@ -160,8 +160,8 @@ codex-character-profile {
   border: 1px solid var(--chrome-field-border);
   background: var(--bg-surface);
   border-radius: var(--radius);
-  padding: 1rem;
-  margin-top: 1.5rem;
+  padding: var(--space-4);
+  margin-top: var(--space-6);
 }
 .character-section-editor > fieldset {
   border: 0;
@@ -171,9 +171,9 @@ codex-character-profile {
 }
 .character-panel-field {
   display: grid;
-  gap: 0.35rem;
+  gap: var(--space-1);
   color: var(--text-light);
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 @media (max-width: 700px) {
   .character-knowledge-grid {
@@ -206,10 +206,10 @@ codex-character-profile {
   box-sizing: border-box;
   cursor: pointer;
   color: var(--accent-gold);
-  font: 0.85rem/1.5 var(--font-ui);
+  font: var(--text-sm)/1.5 var(--font-ui);
 }
 .character-empty-details > .record-facts {
-  margin-top: 0.5rem;
+  margin-top: var(--space-2);
 }
 .character-save-status > span {
   overflow-wrap: anywhere;
@@ -227,7 +227,7 @@ codex-character-profile {
 .inline-edit-row {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: var(--space-1);
   min-width: 0;
 }
 .inline-edit-row > :is(input, textarea, select, .ui-combobox) {
@@ -237,7 +237,7 @@ codex-character-profile {
 .inline-edit-actions {
   display: inline-flex;
   flex: 0 0 auto;
-  gap: 0.2rem;
+  gap: var(--space-1);
 }
 .inline-edit-actions button {
   display: inline-grid;
@@ -249,7 +249,7 @@ codex-character-profile {
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-muted);
-  font: 0.85rem/1 var(--font-ui);
+  font: var(--text-sm)/1 var(--font-ui);
 }
 .inline-edit-actions .inline-edit-confirm {
   border-color: rgba(var(--accent-gold-rgb), 0.6);
@@ -266,7 +266,7 @@ codex-character-profile {
 }
 .inline-field-editor .inline-edit-remove {
   margin-top: 0.3rem;
-  padding: 0.15rem 0.5rem;
+  padding: 0.15rem var(--space-2);
   border-color: transparent;
   background: transparent;
   color: var(--color-danger);
@@ -274,7 +274,7 @@ codex-character-profile {
 }
 .direct-character .character-section-heading {
   justify-content: flex-start;
-  gap: 0.3rem;
+  gap: var(--space-1);
 }
 .direct-character .character-wiki .character-section-heading {
   justify-content: space-between;
@@ -291,23 +291,23 @@ codex-character-profile {
   text-transform: uppercase;
 }
 .character-knowledge-grid {
-  gap: 1.25rem 2rem;
-  margin: 1.5rem 0;
+  gap: var(--space-5) var(--space-7);
+  margin: var(--space-6) 0;
 }
 .character-fact-list li {
   padding: 0.2rem 0;
 }
 .character-questions > div {
-  padding: 0.25rem 0 0.5rem;
+  padding: var(--space-1) 0 var(--space-2);
 }
 .character-answer {
-  margin-top: 0.25rem;
+  margin-top: var(--space-1);
 }
 .character-structured-add {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  margin: 0.5rem 0;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-2) 0;
 }
 @media (pointer: coarse) {
   .inline-edit-actions button {
@@ -341,8 +341,8 @@ codex-inline-field:has(.inline-field-editor) {
   overflow-wrap: anywhere;
   cursor: text;
   transition:
-    background 0.15s,
-    border-color 0.15s;
+    background var(--duration-base),
+    border-color var(--duration-base);
 }
 .inline-field-value::after {
   content: "";
@@ -355,7 +355,7 @@ codex-inline-field:has(.inline-field-editor) {
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m15 5 4 4M4 20l1-5L16 4a2.83 2.83 0 0 1 4 4L9 19l-5 1Z'/%3E%3C/svg%3E")
     center / contain no-repeat;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--duration-base);
 }
 .inline-field-value:is(:hover, :focus-visible) {
   background: rgba(var(--accent-gold-rgb), 0.08);
@@ -417,7 +417,7 @@ codex-inline-field:has(.inline-field-editor) {
 }
 .inline-edit-hint {
   display: block;
-  margin-top: 0.25rem;
+  margin-top: var(--space-1);
   color: var(--text-muted);
   font: var(--text-xs)/1.4 var(--font-ui);
 }
@@ -425,12 +425,12 @@ codex-inline-field:has(.inline-field-editor) {
   display: block;
   margin-top: 0.35rem;
   color: var(--text-parchment);
-  font: 0.78rem/1.5 var(--font-ui);
+  font: var(--text-xs)/1.5 var(--font-ui);
 }
 .inline-edit-recovery {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: var(--space-1);
   margin-top: 0.35rem;
 }
 .inline-edit-recovery button {
@@ -439,7 +439,7 @@ codex-inline-field:has(.inline-field-editor) {
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-parchment);
-  font: 0.75rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
   cursor: pointer;
 }
 .record-more-details {

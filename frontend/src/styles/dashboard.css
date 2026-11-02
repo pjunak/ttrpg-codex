@@ -10,26 +10,26 @@ codex-dashboard {
 
 .campaign-title-page {
   text-align: center;
-  padding: 1.5rem 1rem 1.25rem;
-  margin-bottom: 2rem;
+  padding: var(--space-6) var(--space-4) var(--space-5);
+  margin-bottom: var(--space-7);
 }
 
 /* An open name or tagline keeps the typography it is read in. */
 .campaign-title-page h1,
 .campaign-title-page .identity-name .inline-edit-row > input {
-  color: var(--gold);
-  font: 600 2.6rem/1.2 var(--font-title);
+  color: var(--accent-gold);
+  font: 600 var(--text-4xl)/1.2 var(--font-title);
   letter-spacing: 0.06em;
 }
 .campaign-title-page h1 {
-  margin: 0 0 0.25rem;
+  margin: 0 0 var(--space-1);
   overflow-wrap: anywhere;
 }
 
 .campaign-title-page p,
 .campaign-title-page .identity-tagline .inline-edit-row > input {
   color: var(--text-muted);
-  font: 0.92rem/1.6 var(--font-ui);
+  font: var(--text-md)/1.6 var(--font-ui);
   letter-spacing: 0.08em;
 }
 .campaign-title-page p {
@@ -46,15 +46,15 @@ codex-dashboard {
   display: block;
   width: 180px;
   height: 2px;
-  margin: 1rem auto 0;
-  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  margin: var(--space-4) auto 0;
+  background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
 }
 
 .campaign-identity-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   max-width: 100%;
 }
 
@@ -75,54 +75,54 @@ codex-dashboard {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 .party-add {
-  font: 0.78rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
   background: transparent;
   border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: var(--radius-sm);
-  padding: 0.25rem 0.6rem;
-  color: var(--gold);
+  padding: var(--space-1) 0.6rem;
+  color: var(--accent-gold);
   cursor: pointer;
 }
 .party-add:hover {
   background: rgba(var(--accent-gold-rgb), 0.1);
-  border-color: var(--gold);
+  border-color: var(--accent-gold);
 }
 
 .chronicle-section {
-  margin-bottom: 2rem;
+  margin-bottom: var(--space-7);
 }
 
 .section-heading {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .section-heading h2 {
   display: flex;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: var(--space-2);
   margin: 0;
-  color: var(--gold);
-  font: 600 1.1rem/1.2 var(--font-title);
+  color: var(--accent-gold);
+  font: 600 var(--text-lg)/1.2 var(--font-title);
   letter-spacing: 0.05em;
 }
 
 .section-heading a {
   color: var(--text-muted);
-  font: 0.78rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
   text-decoration: none;
 }
 
 .section-heading a:hover {
-  color: var(--gold);
+  color: var(--accent-gold);
 }
 
 .party-roster {
@@ -130,7 +130,7 @@ codex-dashboard {
   flex-wrap: wrap;
   justify-content: center;
   align-items: stretch;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
 .party-member {
@@ -139,22 +139,22 @@ codex-dashboard {
   width: 160px;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem;
+  gap: var(--space-2);
+  padding: var(--space-3);
   color: var(--text-parchment);
   border: 1px solid rgba(var(--accent-gold-rgb), 0.2);
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
   text-decoration: none;
   transition:
-    border-color 0.12s,
-    transform 0.12s,
-    box-shadow 0.18s;
+    border-color var(--duration-fast),
+    transform var(--duration-fast),
+    box-shadow var(--duration-slow);
 }
 
 .party-member:hover,
 .companion:hover {
-  border-color: var(--gold);
+  border-color: var(--accent-gold);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
@@ -168,7 +168,7 @@ codex-dashboard {
   border-radius: 50%;
   background: var(--bg-surface);
   color: var(--text-muted);
-  font-size: 2.5rem;
+  font-size: var(--text-4xl);
   box-shadow:
     var(--attitude-ring, 0 0 0 transparent),
     0 0 0 2px rgba(var(--gold-muted), 0.25);
@@ -183,8 +183,8 @@ codex-dashboard {
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  gap: 0.35rem;
-  font: 400 0.92rem/1.6 var(--font-title);
+  gap: var(--space-1);
+  font: 400 var(--text-md)/1.6 var(--font-title);
 }
 
 .party-member-copy > span {
@@ -222,8 +222,8 @@ codex-dashboard {
   min-height: 142px;
   flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem;
+  gap: var(--space-2);
+  padding: var(--space-2);
   text-align: center;
   text-decoration: none;
   color: var(--text-parchment);
@@ -241,12 +241,12 @@ codex-dashboard {
   overflow: hidden;
   border-radius: 50%;
   background: var(--bg-surface);
-  font-size: 1.6rem;
+  font-size: var(--text-2xl);
   box-shadow: 0 0 0 2px rgba(var(--gold-muted), 0.2);
 }
 
 .companion strong {
-  font: 400 0.78rem/1.15 var(--font-title);
+  font: 400 var(--text-xs)/1.15 var(--font-title);
 }
 
 .companion > span:last-child {
@@ -266,7 +266,7 @@ codex-dashboard {
 .session-events {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
   list-style: none;
   padding: 0;
   margin: 0;
@@ -274,7 +274,7 @@ codex-dashboard {
 
 .session-events a {
   display: block;
-  padding: 0.75rem 1rem;
+  padding: var(--space-3) var(--space-4);
   color: inherit;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
@@ -284,14 +284,14 @@ codex-dashboard {
 
 .session-events strong {
   display: block;
-  font: 400 0.95rem/1.6 var(--font-title);
+  font: 400 var(--text-md)/1.6 var(--font-title);
 }
 
 .session-events span,
 .session-events small {
   display: block;
   color: var(--text-muted);
-  font: 0.8rem/1.5 var(--font-ui);
+  font: var(--text-sm)/1.5 var(--font-ui);
 }
 
 .session-events small {
@@ -302,7 +302,7 @@ codex-dashboard {
 .recent-ledger {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .recent-ledger a {
@@ -310,13 +310,13 @@ codex-dashboard {
   min-width: 0;
   justify-content: space-between;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-3);
   padding: 0.6rem 0.85rem;
   color: var(--text-parchment);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   background: var(--bg-raised);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   text-decoration: none;
 }
 
@@ -326,7 +326,7 @@ codex-dashboard {
 }
 
 .recent-kind {
-  margin-right: 0.75rem;
+  margin-right: var(--space-3);
   font-style: normal;
 }
 
@@ -337,7 +337,7 @@ codex-dashboard {
 }
 
 .empty-state {
-  padding: 1.5rem;
+  padding: var(--space-6);
   text-align: center;
   color: var(--text-muted);
   font-style: italic;
@@ -348,5 +348,5 @@ codex-dashboard {
 }
 
 .party-page .page-heading {
-  margin-bottom: 2rem;
+  margin-bottom: var(--space-7);
 }

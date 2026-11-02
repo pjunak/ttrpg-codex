@@ -8,22 +8,22 @@ codex-recovery-settings {
 }
 .settings-recovery-panel .settings-hint {
   color: var(--text-muted);
-  font: 0.8rem/1.6 var(--font-ui);
+  font: var(--text-sm)/1.6 var(--font-ui);
   margin-bottom: 0.8rem;
 }
 .settings-recovery-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: var(--space-2);
   align-items: center;
 }
 .settings-recovery-panel .settings-hint a {
-  color: var(--gold);
+  color: var(--accent-gold);
   text-underline-offset: 0.15em;
 }
 .settings-recovery-actions a {
   text-decoration: none;
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
   color: var(--accent-gold);
 }
 .settings-recovery-panel .settings-ledger-heading {
@@ -40,7 +40,7 @@ codex-recovery-settings {
   border-radius: var(--radius);
   color: var(--text-light);
   background: transparent;
-  font: 500 0.8rem/1.3 var(--font-ui);
+  font: 500 var(--text-sm)/1.3 var(--font-ui);
   cursor: pointer;
 }
 .settings-recovery-panel .inline-create-btn {
@@ -64,17 +64,17 @@ codex-recovery-settings {
   display: flex;
   align-items: end;
   flex-wrap: wrap;
-  gap: 0.6rem;
-  margin: 1rem 0;
-  font: 0.8rem var(--font-ui);
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+  font: var(--text-sm) var(--font-ui);
 }
 .settings-revert-row label {
   display: grid;
-  gap: 0.4rem;
+  gap: var(--space-2);
 }
 .settings-revert-row input {
   width: 5rem;
-  padding: 0.5rem;
+  padding: var(--space-2);
   color: var(--text-parchment);
   background: var(--bg-base);
   border: 1px solid var(--chrome-field-border);
@@ -83,11 +83,11 @@ codex-recovery-settings {
 .settings-snapshot-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto auto;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: center;
-  padding: 0.65rem 0.5rem;
+  padding: 0.65rem var(--space-2);
   border-bottom: 1px solid var(--chrome-field-border);
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .settings-snapshot-reason,
 .settings-snapshot-row .settings-row-usage {
@@ -95,16 +95,16 @@ codex-recovery-settings {
   font-size: var(--text-xs);
 }
 .settings-snapshots-older {
-  margin-top: 0.75rem;
+  margin-top: var(--space-3);
 }
 .settings-snapshots-older summary {
   cursor: pointer;
   color: var(--text-muted);
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .settings-recovery-review {
-  margin: 1rem 0;
-  padding: 1rem;
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
   border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius);
   background: var(--bg-raised);
@@ -114,16 +114,16 @@ codex-recovery-settings {
   color: var(--accent-gold);
 }
 .settings-recovery-review p {
-  font: 0.85rem/1.6 var(--font-ui);
+  font: var(--text-sm)/1.6 var(--font-ui);
 }
 .settings-full-restore {
   display: grid;
-  gap: 0.7rem;
+  gap: var(--space-3);
   justify-items: start;
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
   border-top: 1px solid var(--chrome-field-border);
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .settings-full-restore h3 {
   font-family: var(--font-title);
@@ -131,18 +131,18 @@ codex-recovery-settings {
 }
 .settings-full-restore > label[data-ui-field] {
   display: grid;
-  gap: 0.4rem;
+  gap: var(--space-2);
   max-width: 100%;
 }
 .settings-full-restore-confirm {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 @media (max-width: 48rem) {
   .settings-snapshot-row {
     grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 0.5rem;
+    gap: var(--space-2);
   }
   .settings-snapshot-reason {
     grid-column: 2;
@@ -181,7 +181,7 @@ codex-credential-settings {
   font-family: var(--font-title);
 }
 .settings-password-card .settings-hint {
-  font: 0.8rem/1.5 var(--font-ui);
+  font: var(--text-sm)/1.5 var(--font-ui);
   color: var(--text-muted);
 }
 .settings-password-card fieldset {
@@ -229,29 +229,29 @@ codex-sidebar-settings {
 }
 .settings-branding {
   border-top: 1px dashed rgba(var(--accent-gold-rgb), 0.18);
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
 }
 .settings-branding h3 {
   font-family: var(--font-title);
-  color: var(--gold);
+  color: var(--accent-gold);
 }
 .settings-branding .settings-hint,
 .settings-theme-form .settings-hint,
 .settings-sidebar-panel .settings-hint {
   color: var(--text-muted);
-  font: 0.78rem/1.5 var(--font-ui);
+  font: var(--text-xs)/1.5 var(--font-ui);
 }
 .settings-branding-preview {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
+  gap: var(--space-4);
+  padding: var(--space-4);
   border: 1px dashed rgba(var(--accent-gold-rgb), 0.25);
   border-radius: var(--radius);
   background: rgba(0, 0, 0, 0.18);
   color: var(--text-muted);
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .settings-branding-preview img {
   width: 84px;
@@ -264,8 +264,8 @@ codex-sidebar-settings {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.8rem;
-  margin: 1rem 0;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
 }
 .settings-branding-upload input {
   display: block;
@@ -280,11 +280,11 @@ codex-sidebar-settings {
 }
 .sb-editor {
   display: grid;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 .sb-sec {
-  padding: 0.5rem 0.6rem 0.6rem;
+  padding: var(--space-2) 0.6rem 0.6rem;
   border: 1px solid rgba(var(--accent-gold-rgb), 0.18);
   border-radius: var(--radius);
   background: var(--bg-raised);
@@ -298,7 +298,7 @@ codex-sidebar-settings {
 .sb-sec-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 3rem auto auto;
-  gap: 0.4rem;
+  gap: var(--space-2);
   align-items: center;
 }
 .sb-sec label {
@@ -314,17 +314,17 @@ codex-sidebar-settings {
   border-radius: var(--radius);
   background: var(--bg-base);
   padding: 0.35rem;
-  font: 0.78rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
 }
 .sb-sec-label,
 .sb-sec-icon {
   width: 100%;
 }
 .sb-sec input.sb-sec-label {
-  font-size: 0.9rem;
+  font-size: var(--text-md);
   font-weight: 600;
   border-radius: 6px;
-  padding: 0.35rem 0.5rem;
+  padding: 0.35rem var(--space-2);
   background: rgba(0, 0, 0, 0.25);
 }
 .sb-sec button {
@@ -339,7 +339,7 @@ codex-sidebar-settings {
 .sb-sec-flags {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: var(--space-2);
   margin: 0.65rem 0;
   font: var(--text-xs) var(--font-ui);
   color: var(--text-light);
@@ -347,7 +347,7 @@ codex-sidebar-settings {
 .sb-sec-flags label {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-2);
   min-height: 2.25rem;
 }
 .sb-pages {
@@ -356,24 +356,24 @@ codex-sidebar-settings {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: var(--space-1);
   min-height: 1.6rem;
 }
 .sb-page {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto minmax(5rem, 9rem);
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.5rem;
+  gap: var(--space-2);
+  padding: 0.35rem var(--space-2);
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .sb-page-label {
   overflow-wrap: anywhere;
   color: var(--text-light);
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
 }
 .sb-page-label small {
   display: block;
@@ -381,7 +381,7 @@ codex-sidebar-settings {
 }
 .sb-order-controls {
   display: flex;
-  gap: 0.2rem;
+  gap: var(--space-1);
 }
 .sb-grip {
   color: var(--text-muted);
@@ -392,27 +392,27 @@ codex-sidebar-settings {
   min-height: 2.5rem;
   padding: 0.7rem;
   color: var(--text-muted);
-  font: 0.75rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
   text-align: center;
 }
 .sb-hidden h3 {
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
   color: var(--text-muted);
 }
 .sb-addon-panel {
-  margin-top: 1.5rem;
+  margin-top: var(--space-6);
 }
 .sb-addon-panel h3 {
-  font: 0.95rem var(--font-title);
-  color: var(--gold);
+  font: var(--text-md) var(--font-title);
+  color: var(--accent-gold);
 }
 .sb-addon-page {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: var(--space-2);
   padding: 0.7rem 0;
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .sb-addon-page small {
   display: block;
@@ -445,25 +445,25 @@ codex-party-settings {
   min-width: 0;
 }
 .settings-party-panel .settings-hint {
-  font: 0.78rem/1.5 var(--font-ui);
+  font: var(--text-xs)/1.5 var(--font-ui);
   color: var(--text-muted);
 }
 .settings-party-fields {
-  margin: 1rem 0;
+  margin: var(--space-4) 0;
 }
 .settings-party-fields input[type="color"] {
   min-height: 2.65rem;
-  padding: 0.25rem;
+  padding: var(--space-1);
 }
 .settings-party-members {
   border-top: 1px dashed rgba(var(--accent-gold-rgb), 0.18);
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
 }
 .settings-party-members h3 {
   font-family: var(--font-title);
-  font-size: 1rem;
-  color: var(--gold);
+  font-size: var(--text-base);
+  color: var(--accent-gold);
 }
 .settings-party-members ul {
   list-style: none;
@@ -473,7 +473,7 @@ codex-party-settings {
 .settings-party-members a {
   display: grid;
   grid-template-columns: 2rem minmax(0, 1fr) auto;
-  gap: 0.6rem;
+  gap: var(--space-2);
   padding: 0.65rem;
   color: inherit;
   text-decoration: none;
@@ -485,7 +485,7 @@ codex-party-settings {
 }
 .settings-party-open {
   color: var(--text-muted);
-  font: 0.78rem var(--font-ui);
+  font: var(--text-xs) var(--font-ui);
 }
 
 .settings-page {
@@ -511,10 +511,10 @@ codex-addon-manager {
   min-height: 2rem;
   border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: var(--radius);
-  color: var(--gold);
+  color: var(--accent-gold);
   background: transparent;
   padding: 0.3rem 0.8rem;
-  font: 500 0.8rem/1.3 var(--font-ui);
+  font: 500 var(--text-sm)/1.3 var(--font-ui);
 }
 .addon-manager button:disabled {
   opacity: 0.5;
@@ -525,7 +525,7 @@ codex-addon-manager {
   display: flex;
   align-items: end;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: var(--space-2);
   margin: 0.8rem 0;
 }
 .addon-upload label {
@@ -539,14 +539,14 @@ codex-addon-manager {
 }
 .addon-list {
   display: grid;
-  gap: 0.7rem;
+  gap: var(--space-3);
 }
 .addon-row,
 .addon-review {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   background: var(--bg-surface);
-  padding: 1rem;
+  padding: var(--space-4);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -554,7 +554,7 @@ codex-addon-manager {
   display: flex;
   justify-content: space-between;
   align-items: start;
-  gap: 0.75rem;
+  gap: var(--space-3);
   flex-wrap: wrap;
 }
 .addon-row-title {
@@ -593,7 +593,7 @@ codex-addon-manager {
   color: var(--color-danger);
 }
 .addon-chip[data-tone="info"] {
-  color: var(--gold);
+  color: var(--accent-gold);
 }
 .addon-manager .addon-row-description {
   margin: 0;
@@ -612,7 +612,7 @@ codex-addon-manager {
 }
 .addon-manager .addon-more {
   min-width: 2.25rem;
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
   line-height: 1;
 }
 .addon-row-details > summary {
@@ -629,24 +629,24 @@ codex-addon-manager {
 .addon-row h3,
 .addon-review h3 {
   margin: 0;
-  color: var(--gold);
-  font: 1.05rem var(--font-title);
+  color: var(--accent-gold);
+  font: var(--text-base) var(--font-title);
 }
 .addon-manager p {
   color: var(--text-muted);
-  font: 0.8rem/1.5 var(--font-ui);
+  font: var(--text-sm)/1.5 var(--font-ui);
 }
 .addon-manager small {
   display: block;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   margin: 0.3rem 0;
 }
 .addon-manager summary {
-  color: var(--gold);
+  color: var(--accent-gold);
   cursor: pointer;
-  margin: 0.5rem 0;
-  font-size: 0.85rem;
+  margin: var(--space-2) 0;
+  font-size: var(--text-sm);
 }
 .addon-manager ul {
   list-style: none;
@@ -658,18 +658,18 @@ codex-addon-manager {
   justify-content: space-between;
   align-items: start;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 .addon-manager code {
   word-break: break-all;
   font-size: var(--text-xs);
 }
 .addon-review {
-  margin: 1rem 0;
-  border-color: var(--gold);
+  margin: var(--space-4) 0;
+  border-color: var(--accent-gold);
 }
 .addon-review fieldset {
   min-width: 0;
@@ -677,15 +677,15 @@ codex-addon-manager {
 }
 .addon-permission {
   display: flex;
-  gap: 0.6rem;
+  gap: var(--space-2);
   align-items: start;
   padding: 0.6rem 0;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 .addon-permission input {
   flex: none;
-  margin-top: 0.25rem;
-  accent-color: var(--gold);
+  margin-top: var(--space-1);
+  accent-color: var(--accent-gold);
 }
 .addon-permission > span > span {
   display: block;
@@ -697,35 +697,35 @@ codex-addon-manager {
   display: flex;
   /* Scroll instead of wrapping onto several rows on narrow screens. */
   flex-wrap: nowrap;
-  gap: 0.25rem;
+  gap: var(--space-1);
   overflow-x: auto;
   scrollbar-width: thin;
-  margin-bottom: 1.25rem;
+  margin-bottom: var(--space-5);
   border-bottom: 1px solid var(--chrome-field-border);
-  padding: 0.25rem;
+  padding: var(--space-1);
 }
 .addon-settings-tabs [role="tab"] {
   flex: 0 0 auto;
   min-height: 2.75rem;
   max-width: 100%;
-  padding: 0.6rem 0.75rem;
+  padding: 0.6rem var(--space-3);
   border: 0;
   border-bottom: 3px solid transparent;
   border-radius: 0;
   background: transparent;
   color: var(--text-muted);
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
   overflow-wrap: anywhere;
   text-align: start;
 }
 .addon-settings-tabs [aria-selected="true"] {
   color: var(--text-light);
-  border-bottom-color: var(--gold);
+  border-bottom-color: var(--accent-gold);
   background: rgba(var(--accent-gold-rgb), 0.1);
 }
 .addon-settings-tabs [role="tab"]:focus-visible,
 .addon-manager [role="tabpanel"]:focus-visible {
-  outline: 2px solid var(--gold);
+  outline: 2px solid var(--accent-gold);
   outline-offset: 2px;
 }
 .addon-manager [role="tabpanel"],
@@ -736,18 +736,18 @@ codex-addon-manager {
   display: none;
 }
 .addon-manager .addon-toolbar {
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
 }
 codex-addon-settings {
   display: block;
   min-width: 0;
 }
 .addon-settings {
-  margin: 0.75rem 0;
+  margin: var(--space-3) 0;
 }
 [data-addon-settings-outlet] {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-width: 0;
 }
 [data-addon-settings-outlet][hidden] {
@@ -761,13 +761,13 @@ codex-addon-settings {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
-  gap: 0.7rem;
-  margin: 1rem 0;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
 }
 .addon-source-form label {
   flex: 1 1 11rem;
   min-width: 0;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
 }
 .addon-source-form input,
 .addon-source-form select {
@@ -775,7 +775,7 @@ codex-addon-settings {
   box-sizing: border-box;
   width: 100%;
   margin-top: 0.4rem;
-  padding: 0.5rem;
+  padding: var(--space-2);
   border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius);
   background: var(--bg-raised);
@@ -809,10 +809,10 @@ codex-addon-settings {
   overflow-wrap: anywhere;
 }
 .github-tokens {
-  margin: 1rem 0;
+  margin: var(--space-4) 0;
 }
 .github-source a {
-  color: var(--gold);
+  color: var(--accent-gold);
 }
 .addon-manager .settings-ledger-heading {
   flex-wrap: wrap;
@@ -828,25 +828,25 @@ codex-addon-settings {
   }
 }
 .addon-manager .addon-primary {
-  background: var(--gold);
+  background: var(--accent-gold);
   color: var(--bg-base);
-  border-color: var(--gold);
+  border-color: var(--accent-gold);
   font-weight: 600;
 }
 .addon-install-dialog {
   width: min(42rem, calc(100vw - 2rem));
   max-height: calc(100dvh - 2rem);
   box-sizing: border-box;
-  padding: 1.5rem;
+  padding: var(--space-6);
   color: var(--text-parchment);
   background: var(--bg-surface);
   border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius);
-  box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 50%);
+  box-shadow: var(--shadow-lg);
   overflow: auto;
 }
 .addon-install-dialog::backdrop {
-  background: rgb(0 0 0 / 65%);
+  background: var(--scrim);
 }
 .addon-install-dialog[open] {
   display: flex;
@@ -864,13 +864,13 @@ codex-addon-settings {
   flex: none;
 }
 .addon-install-dialog h3 {
-  margin: 0 0 1rem;
-  font: 1.3rem var(--font-title);
-  color: var(--gold);
+  margin: 0 0 var(--space-4);
+  font: var(--text-xl) var(--font-title);
+  color: var(--accent-gold);
 }
 .addon-install-dialog h4 {
-  margin: 1rem 0 0.5rem;
-  font: 1rem var(--font-ui);
+  margin: var(--space-4) 0 var(--space-2);
+  font: var(--text-base) var(--font-ui);
 }
 .addon-install-dialog h3:focus,
 .addon-install-dialog h4:focus {
@@ -881,11 +881,11 @@ codex-addon-settings {
   justify-content: end;
   margin-top: 1.2rem;
   border-top: 1px solid var(--border-subtle);
-  padding-top: 1rem;
+  padding-top: var(--space-4);
 }
 .addon-install-dialog .addon-data-actions {
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 .addon-data-dialog a.ui-button {
   display: inline-flex;
@@ -895,24 +895,24 @@ codex-addon-settings {
 .addon-source-choices {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  gap: var(--space-4);
 }
 .addon-source-choices button {
   display: grid;
   align-content: start;
-  gap: 0.6rem;
+  gap: var(--space-2);
   text-align: start;
   padding: 1.2rem;
 }
 .addon-source-choices span {
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   line-height: 1.5;
 }
 .addon-install-form {
   display: grid;
   align-items: stretch;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 .addon-install-form > button {
   justify-self: end;
@@ -920,20 +920,20 @@ codex-addon-settings {
 .addon-install-form .addon-private-toggle {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: var(--space-3);
   min-height: 44px;
 }
 .addon-private-toggle input {
   width: auto;
   margin: 0;
-  accent-color: var(--gold);
+  accent-color: var(--accent-gold);
 }
 .addon-build-options label {
   display: block;
   margin-block: 0.8rem;
 }
 .addon-repository-access {
-  padding: 1rem;
+  padding: var(--space-4);
   background: var(--bg-raised);
   border-radius: var(--radius);
   min-width: 0;
@@ -948,7 +948,7 @@ codex-addon-settings {
   line-height: 1.5;
 }
 .github-token-help a {
-  color: var(--gold);
+  color: var(--accent-gold);
 }
 .addon-install-step .addon-upload {
   display: grid;
@@ -961,7 +961,7 @@ codex-addon-settings {
     grid-template-columns: 1fr;
   }
   .addon-install-dialog {
-    padding: 1rem;
+    padding: var(--space-4);
   }
   .addon-toolbar {
     width: 100%;
@@ -972,15 +972,15 @@ codex-addon-settings {
 }
 
 .settings-page-heading {
-  padding: 0 0 0.75rem;
-  margin-bottom: 1rem;
+  padding: 0 0 var(--space-3);
+  margin-bottom: var(--space-4);
   border-bottom: 1px solid var(--chrome-divider-strong);
 }
 
 .settings-page-heading h1 {
   margin: 0 0 0.2rem;
   font-family: var(--font-title);
-  font-size: 2rem;
+  font-size: var(--text-3xl);
   font-weight: 600;
   line-height: 1.2;
 }
@@ -989,16 +989,16 @@ codex-addon-settings {
   max-width: 48rem;
   margin: 0;
   color: var(--text-muted);
-  font: 0.85rem/1.5 var(--font-ui);
+  font: var(--text-sm)/1.5 var(--font-ui);
 }
 
 .settings-back {
   display: none;
   align-items: center;
   min-height: 2.75rem;
-  margin-bottom: 0.5rem;
-  color: var(--gold);
-  font: 500 0.9rem var(--font-ui);
+  margin-bottom: var(--space-2);
+  color: var(--accent-gold);
+  font: 500 var(--text-md) var(--font-ui);
   text-decoration: none;
 }
 
@@ -1012,13 +1012,13 @@ codex-addon-settings {
 .settings-index {
   position: sticky;
   top: 1rem;
-  padding: 0.5rem 0 0.75rem;
+  padding: var(--space-2) 0 var(--space-3);
   border-right: 1px solid var(--chrome-field-border);
-  background: rgb(121 93 48 / 7%);
+  background: rgba(var(--accent-gold-rgb), 0.07);
 }
 
 .settings-index-group {
-  margin: 0.75rem 0 0.2rem;
+  margin: var(--space-3) 0 0.2rem;
   padding: 0 0.9rem;
   color: var(--text-muted);
   font: 600 var(--text-xs) / 1.4 var(--font-ui);
@@ -1027,7 +1027,7 @@ codex-addon-settings {
 }
 
 .settings-index-group:first-child {
-  margin-top: 0.25rem;
+  margin-top: var(--space-1);
 }
 
 .settings-index a {
@@ -1035,7 +1035,7 @@ codex-addon-settings {
   width: 100%;
   min-height: 2rem;
   grid-template-columns: 1.2rem minmax(0, 1fr);
-  gap: 0.5rem;
+  gap: var(--space-2);
   align-items: center;
   padding: 0.3rem 0.9rem;
   color: var(--text-light);
@@ -1043,7 +1043,7 @@ codex-addon-settings {
   border-right: 3px solid transparent;
   border-radius: 0;
   background: transparent;
-  font: 500 0.84rem/1.3 var(--font-ui);
+  font: 500 var(--text-sm)/1.3 var(--font-ui);
   text-align: left;
   text-decoration: none;
 }
@@ -1060,43 +1060,43 @@ codex-addon-settings {
 
 .settings-index a[aria-current="page"] {
   color: var(--text-light);
-  border-right-color: var(--gold);
+  border-right-color: var(--accent-gold);
   background: rgba(var(--accent-gold-rgb), 0.1);
 }
 
 .settings-index a > span:first-child {
   color: var(--text-light);
-  font-size: 0.95rem;
+  font-size: var(--text-md);
   text-align: center;
 }
 
 .settings-ledger,
 .settings-invalid {
   min-width: 0;
-  padding: 0.75rem clamp(1rem, 2.5vw, 2rem) 2rem;
+  padding: var(--space-3) clamp(1rem, 2.5vw, 2rem) var(--space-7);
 }
 
 .settings-ledger-heading {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-4);
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 0.75rem;
-  margin-bottom: 1rem;
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-4);
   border-bottom: 1px solid var(--chrome-field-border);
 }
 
 .settings-ledger-heading > div {
   display: grid;
   grid-template-columns: 1.8rem minmax(0, 1fr);
-  gap: 0.15rem 0.5rem;
+  gap: var(--space-1) var(--space-2);
   align-items: center;
 }
 
 .settings-category-mark {
-  color: var(--gold);
+  color: var(--accent-gold);
   font-family: var(--font-title);
-  font-size: 1.3rem;
+  font-size: var(--text-xl);
   line-height: 1.2;
   text-align: center;
 }
@@ -1105,7 +1105,7 @@ codex-addon-settings {
 .settings-invalid h2 {
   margin: 0;
   font-family: var(--font-title);
-  font-size: 1.2rem;
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
@@ -1115,7 +1115,7 @@ codex-addon-settings {
   max-width: 48rem;
   margin: 0;
   color: var(--text-muted);
-  font: 0.8rem/1.45 var(--font-ui);
+  font: var(--text-sm)/1.45 var(--font-ui);
 }
 
 .settings-account-panel button,
@@ -1128,7 +1128,7 @@ codex-addon-settings {
   border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
   border-radius: var(--radius);
   background: transparent;
-  font: 500 0.8rem/1.3 var(--font-ui);
+  font: 500 var(--text-sm)/1.3 var(--font-ui);
   cursor: pointer;
 }
 
@@ -1140,7 +1140,7 @@ codex-addon-settings {
   border-radius: var(--radius);
   background: transparent;
   color: var(--text-light);
-  font: 500 0.8rem/1.3 var(--font-ui);
+  font: 500 var(--text-sm)/1.3 var(--font-ui);
   cursor: pointer;
 }
 :where(.settings-ledger) :where(button:not([role="tab"])):hover:enabled {
@@ -1170,7 +1170,7 @@ codex-addon-settings {
   :where(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"]), select) {
   min-height: 2.1rem;
   padding: 0.3rem 0.6rem;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 @media (pointer: coarse) {
   :where(.settings-ledger) :where(button:not([role="tab"]), a.record-action),
@@ -1192,7 +1192,7 @@ codex-addon-settings {
 .settings-definition {
   display: grid;
   grid-template-columns: minmax(12rem, 1fr) minmax(8rem, auto) auto;
-  gap: 1rem;
+  gap: var(--space-4);
   align-items: center;
   min-height: 4.8rem;
   padding: 0.7rem 0;
@@ -1203,7 +1203,7 @@ codex-addon-settings {
   display: grid;
   min-width: 0;
   grid-template-columns: 2.15rem minmax(0, 1fr);
-  gap: 0.7rem;
+  gap: var(--space-3);
   align-items: center;
 }
 
@@ -1214,9 +1214,9 @@ codex-addon-settings {
   height: 2.15rem;
   place-items: center;
   color: var(--text-light);
-  border: 1px solid rgb(43 33 22 / 35%);
+  border: 1px solid rgb(0 0 0 / 35%);
   border-radius: 50%;
-  background: var(--setting-color, #806b49);
+  background: var(--setting-color, var(--accent-gold-dim));
   box-shadow: inset 0 0 0 3px rgb(255 255 255 / 22%);
   font-family: var(--font-title);
   font-weight: 700;
@@ -1226,7 +1226,7 @@ codex-addon-settings {
   margin: 0;
   overflow: hidden;
   font-family: var(--font-title);
-  font-size: 1.05rem;
+  font-size: var(--text-base);
   font-weight: 650;
   text-overflow: ellipsis;
 }
@@ -1245,7 +1245,7 @@ codex-addon-settings {
 
 .settings-definition-actions {
   display: flex;
-  gap: 0.35rem;
+  gap: var(--space-1);
 }
 
 .settings-definition-actions button {
@@ -1266,7 +1266,7 @@ codex-addon-settings {
 
 .settings-empty {
   margin: 1.2rem 0 0;
-  padding: 1rem 0;
+  padding: var(--space-4) 0;
   color: var(--text-muted);
   border-bottom: 1px solid var(--chrome-field-border);
   font: italic var(--text-sm) / 1.5 var(--font-body);
@@ -1274,10 +1274,10 @@ codex-addon-settings {
 
 .settings-edit-form,
 .settings-delete-panel {
-  margin: 1rem 0;
-  padding: 1rem;
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
   border: 1px solid var(--chrome-field-border);
-  border-left: 4px solid var(--gold);
+  border-left: 4px solid var(--accent-gold);
   background: var(--bg-surface);
 }
 
@@ -1285,22 +1285,22 @@ codex-addon-settings {
 .settings-delete-panel h3 {
   margin: 0;
   font-family: var(--font-title);
-  font-size: 1.25rem;
+  font-size: var(--text-xl);
 }
 
 .settings-edit-form > header p,
 .settings-delete-panel p {
-  margin: 0.25rem 0 0;
+  margin: var(--space-1) 0 0;
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   line-height: 1.45;
 }
 
 .settings-edit-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 
 .settings-party-fields {
@@ -1311,7 +1311,7 @@ codex-addon-settings {
 .settings-replacement {
   position: relative;
   display: grid;
-  gap: 0.3rem;
+  gap: var(--space-1);
 }
 
 /* One label style for every settings field. */
@@ -1337,7 +1337,7 @@ codex-addon-settings {
   border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius);
   background: var(--bg-raised);
-  font: 0.86rem var(--ui-font);
+  font: var(--text-sm) var(--ui-font);
 }
 
 .settings-edit-grid small {
@@ -1360,7 +1360,7 @@ codex-addon-settings {
   align-self: center;
   width: 1rem;
   height: 1rem;
-  border: 1px solid rgb(43 33 22 / 35%);
+  border: 1px solid rgb(0 0 0 / 35%);
   border-radius: 50%;
   background: var(--setting-color);
 }
@@ -1368,7 +1368,7 @@ codex-addon-settings {
 .settings-direction-field {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.45rem;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   border: 0;
@@ -1385,9 +1385,9 @@ codex-addon-settings {
 .settings-direction-field label {
   display: flex;
   min-height: 2.65rem;
-  gap: 0.45rem;
+  gap: var(--space-2);
   align-items: center;
-  padding: 0.5rem;
+  padding: var(--space-2);
   border: 1px solid var(--chrome-field-border);
   background: var(--bg-raised);
   font-size: var(--text-xs);
@@ -1396,7 +1396,7 @@ codex-addon-settings {
 .settings-direction-field input {
   width: 1rem;
   min-height: auto;
-  accent-color: var(--gold);
+  accent-color: var(--accent-gold);
 }
 
 .settings-direction-field small {
@@ -1408,24 +1408,24 @@ codex-addon-settings {
 .settings-delete-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.55rem;
+  gap: var(--space-2);
   justify-content: flex-end;
-  margin-top: 1rem;
+  margin-top: var(--space-4);
 }
 
 .settings-account-panel .primary,
 .settings-edit-actions .primary {
-  color: var(--walnut);
-  border-color: var(--gold);
-  background: var(--gold);
+  color: var(--bg-surface);
+  border-color: var(--accent-gold);
+  background: var(--accent-gold);
 }
 
 .settings-delete-panel {
   display: grid;
   grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 0.7fr);
-  gap: 1rem;
+  gap: var(--space-4);
   align-items: end;
-  border-left-color: var(--gold);
+  border-left-color: var(--accent-gold);
 }
 
 .settings-delete-actions {
@@ -1446,14 +1446,14 @@ codex-addon-settings {
 .settings-maps-shell {
   display: grid;
   grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
-  gap: 1.2rem;
+  gap: var(--space-5);
   align-items: start;
 }
 .settings-maps-tree {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.5rem 0.4rem;
+  gap: var(--space-1);
+  padding: var(--space-2) 0.4rem;
   background: rgba(0, 0, 0, 0.18);
   border: 1px solid rgba(var(--gold-muted), 0.15);
   border-radius: 6px;
@@ -1463,14 +1463,14 @@ codex-addon-settings {
 .settings-map-node {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-2);
   width: 100%;
   padding: 0.35rem 0.55rem;
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   color: var(--text-parchment);
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
   text-align: left;
   overflow-wrap: anywhere;
   cursor: pointer;
@@ -1479,13 +1479,13 @@ codex-addon-settings {
 .settings-map-node[aria-current="page"] {
   background: rgba(var(--gold-muted), 0.1);
   border-color: rgba(var(--gold-muted), 0.35);
-  color: var(--gold);
+  color: var(--accent-gold);
 }
 .settings-maps-detail {
   min-width: 0;
 }
 .settings-maps-detail-title {
-  font: 1rem var(--font-title);
+  font: var(--text-base) var(--font-title);
   color: var(--accent-gold);
   margin: 0 0 0.6rem;
 }
@@ -1498,9 +1498,9 @@ codex-addon-settings {
 }
 .settings-map-upload {
   display: grid;
-  gap: 0.4rem;
+  gap: var(--space-2);
   margin: 0.8rem 0;
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
 }
 .settings-map-upload input {
   max-width: 100%;
@@ -1509,36 +1509,36 @@ codex-addon-settings {
 .settings-map-views {
   border-top: 1px dashed rgba(var(--gold-muted), 0.18);
   margin-top: 1.2rem;
-  padding-top: 1rem;
+  padding-top: var(--space-4);
 }
 .settings-map-config > label {
-  font: 0.85rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
   color: var(--text-parchment);
 }
 .settings-map-config .settings-strength-row {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--space-2);
   margin: 0.8rem 0;
 }
 .settings-map-config input[type="range"] {
   flex: 1;
   min-width: 0;
-  accent-color: var(--gold);
+  accent-color: var(--accent-gold);
 }
 .settings-map-config output {
-  font: 0.8rem var(--font-ui);
+  font: var(--text-sm) var(--font-ui);
   min-width: 3ch;
 }
 .settings-map-config .sc-btn {
   margin-right: 0.3rem;
 }
 .settings-map-views h3 {
-  font: 0.92rem var(--font-title);
+  font: var(--text-md) var(--font-title);
   color: var(--accent-gold);
 }
 .settings-map-panel .settings-hint {
-  font: 0.78rem/1.5 var(--font-ui);
+  font: var(--text-xs)/1.5 var(--font-ui);
   color: var(--text-muted);
 }
 @media (max-width: 1000px) {
@@ -1557,7 +1557,7 @@ codex-addon-settings {
 .settings-preference-field {
   display: grid;
   max-width: 24rem;
-  gap: 0.4rem;
+  gap: var(--space-2);
   margin-top: 1.4rem;
 }
 
@@ -1567,21 +1567,21 @@ codex-addon-settings {
   color: var(--text-parchment);
   border: 1px solid var(--chrome-field-border);
   background: var(--bg-raised);
-  font: 0.9rem var(--ui-font);
+  font: var(--text-md) var(--ui-font);
 }
 
 .settings-progress-note {
   max-width: 45rem;
-  margin: 1.25rem 0 0;
+  margin: var(--space-5) 0 0;
   padding: 0.85rem 0;
   color: var(--text-muted);
   border-top: 1px dotted var(--border-subtle);
   border-bottom: 1px dotted var(--border-subtle);
-  font: italic 0.82rem/1.55 var(--book-font);
+  font: italic var(--text-sm)/1.55 var(--font-body);
 }
 
 .settings-theme-form {
-  margin-top: 1.25rem;
+  margin-top: var(--space-5);
 }
 
 .settings-theme-form fieldset {
@@ -1605,10 +1605,10 @@ codex-addon-settings {
 .settings-theme-choice {
   display: grid;
   grid-template-columns: auto 7rem minmax(0, 1fr);
-  gap: 0.85rem;
+  gap: var(--space-3);
   align-items: center;
   min-height: 5.3rem;
-  padding: 0.75rem 0;
+  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--chrome-field-border);
   cursor: pointer;
 }
@@ -1616,7 +1616,7 @@ codex-addon-settings {
 .settings-theme-choice > input {
   width: 1rem;
   height: 1rem;
-  accent-color: var(--gold);
+  accent-color: var(--accent-gold);
 }
 
 .settings-theme-choice strong,
@@ -1626,7 +1626,7 @@ codex-addon-settings {
 
 .settings-theme-choice strong {
   font-family: var(--font-title);
-  font-size: 1.05rem;
+  font-size: var(--text-base);
 }
 
 .settings-theme-choice small {
@@ -1641,38 +1641,22 @@ codex-addon-settings {
   grid-template-columns: 1.2fr 2fr 0.65fr;
   overflow: hidden;
   border: 1px solid var(--chrome-field-border);
-  background: var(--sample-paper);
-  box-shadow: 0.2rem 0.2rem 0 rgb(55 43 27 / 14%);
+  background: var(--bg-base);
+  box-shadow: 0.2rem 0.2rem 0 rgb(0 0 0 / 14%);
 }
 
 .settings-theme-sample i {
-  background: var(--sample-chrome);
+  background: var(--bg-surface);
 }
 
 .settings-theme-sample b {
-  margin: 0.65rem 0.5rem;
-  border-top: 2px solid var(--sample-ink);
-  border-bottom: 1px solid var(--sample-line);
+  margin: 0.65rem var(--space-2);
+  border-top: 2px solid var(--text-parchment);
+  border-bottom: 1px solid var(--text-muted);
 }
 
 .settings-theme-sample em {
-  background: var(--sample-accent);
-}
-
-.theme-sample-classic {
-  --sample-chrome: #1c1509;
-  --sample-paper: #141008;
-  --sample-ink: #f5edd8;
-  --sample-line: #9a8660;
-  --sample-accent: #c8a040;
-}
-
-.theme-sample-moonlit {
-  --sample-chrome: #101c24;
-  --sample-paper: #0b151d;
-  --sample-ink: #e2eaeb;
-  --sample-line: #849aa0;
-  --sample-accent: #7ea6b2;
+  background: var(--accent-gold);
 }
 
 @media (max-width: 66rem) {
@@ -1737,7 +1721,7 @@ codex-addon-settings {
   }
   .settings-definition {
     grid-template-columns: 1fr;
-    gap: 0.45rem;
+    gap: var(--space-2);
   }
   .settings-definition-usage {
     grid-column: 1;
@@ -1783,5 +1767,5 @@ codex-package-storage {
   overflow-wrap: anywhere;
 }
 codex-package-storage li {
-  margin-block: 0.75rem;
+  margin-block: var(--space-3);
 }
