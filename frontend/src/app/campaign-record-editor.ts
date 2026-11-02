@@ -524,7 +524,6 @@ const editorFields: Readonly<
     field("age", "Age"),
     field("status", "Status", { kind: "enum", enumCategory: "characterStatuses" }),
     field("circumstances", "Current circumstances", { maximumLength: 1_000 }),
-    field("knowledge", "Knowledge", { kind: "number", maximumLength: 1, minimum: 0, maximum: 4 }),
     field("faction", "Faction", {
       kind: "reference",
       referenceCollection: "factions",

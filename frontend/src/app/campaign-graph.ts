@@ -1,4 +1,3 @@
-import { characterReadingValue } from "./character-reading.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import { campaignPartyIdentity } from "./campaign-party.js";
@@ -126,9 +125,8 @@ export function projectRelationshipGraph(campaign: CampaignDataset): CampaignGra
   );
   const party = campaignPartyIdentity(campaign);
   const nodes = characters.map((record) => {
-    const original = recordValue(record),
-      value = characterReadingValue(original),
-      faction = text(original["faction"]),
+    const value = recordValue(record),
+      faction = text(value["faction"]),
       factionValue = factions.get(faction);
     const factionName = value["faction"]
       ? faction === "party"

@@ -21,7 +21,6 @@ function dataset(
       row("captain", {
         name: "Captain",
         faction: "watch",
-        knowledge: 4,
         title: "Commander",
         location: "gate",
         locationRoles: [{ locationId: "gate" }, { locationId: "outpost" }],
@@ -29,13 +28,12 @@ function dataset(
       row("scout", {
         name: "Scout",
         faction: "watch",
-        knowledge: 1,
-        title: "Hidden title",
+        title: "Lookout",
         location: "gate",
       }),
-      row("outsider", { name: "Stranger", faction: "guild", knowledge: 0, location: "gate" }),
-      row("party", { name: "Player", faction: "party", knowledge: 4 }),
-      row("neutral", { name: "Traveler", faction: "neutral", knowledge: 4 }),
+      row("outsider", { name: "Stranger", faction: "guild", location: "gate" }),
+      row("party", { name: "Player", faction: "party" }),
+      row("neutral", { name: "Traveler", faction: "neutral" }),
     ],
     factions: [
       row("watch", { name: "The Watch", color: "#886633", badge: "♜" }),
@@ -100,7 +98,7 @@ describe("faction and mystery graph modes", () => {
       commander: "",
     });
     expect(graph.nodes.find((node) => node.key === key("character", "scout"))).toMatchObject({
-      title: "",
+      title: "Lookout",
       commander: "Captain",
     });
     expect(graph.edges.filter((edge) => edge.type === "member").map((edge) => edge.target)).toEqual(
@@ -116,7 +114,7 @@ describe("faction and mystery graph modes", () => {
   });
   it("uses only involved visible characters, preserves question shapes and avoids identity collisions", () => {
     const data = dataset({
-      characters: [row("gate", { name: "Gatekeeper", knowledge: 4 })],
+      characters: [row("gate", { name: "Gatekeeper" })],
       mysteries: [row("collision", { name: "Collision", characters: ["gate"] })],
     });
     const graph = projectCampaignGraph(data, "mysteries");

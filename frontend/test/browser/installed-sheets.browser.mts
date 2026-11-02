@@ -126,7 +126,7 @@ for (const role of ["dm", "player"])
                 collection: "characters",
                 key,
                 expectedRevision: 0,
-                value: { id: key, name: "Standalone hero", visibility: "public", knowledge: 4 },
+                value: { id: key, name: "Standalone hero", visibility: "public" },
               },
             ],
           },

@@ -556,7 +556,6 @@ describe("campaign record editing", () => {
           name: "Ryn",
           faction: "watch",
           location: "gate",
-          knowledge: "3",
           tags: ["Scout", " scout ", "Guide"],
           known: ["Found the pass", "  Knows the old road  "],
           attitudes: ["ally", "wary"],
@@ -570,7 +569,6 @@ describe("campaign record editing", () => {
     expect(prepared.mutations[0].value).toMatchObject({
       faction: "watch",
       location: "gate",
-      knowledge: 3,
       tags: ["Scout", "Guide"],
       known: ["Found the pass", "Knows the old road"],
       attitudes: [{ id: "ally" }, { id: "wary" }],
@@ -1010,7 +1008,6 @@ describe("campaign record editing", () => {
       "age",
       "status",
       "circumstances",
-      "knowledge",
       "faction",
       "rankAssignment",
       "location",

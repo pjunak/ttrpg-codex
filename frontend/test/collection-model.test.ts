@@ -237,31 +237,6 @@ it("keeps all characters as the default and persists explicit NPC/party filterin
   ).toBe(1);
 });
 
-it("does not infer unrevealed party membership in restricted roster filters", () => {
-  const hidden = collectionModel(
-    dataset({
-      characters: [record("unknown", { name: "Not revealed", knowledge: 1, faction: "party" })],
-    }),
-    characters,
-  );
-  expect(queryCollection(hidden, defaultCollectionView).count).toBe(1);
-  expect(
-    queryCollection(hidden, { ...defaultCollectionView, group: "roster" }).groups[0]?.entries.map(
-      (entry) => entry.key,
-    ),
-  ).toEqual(["unknown"]);
-  expect(
-    collectionFacetChoices(hidden, defaultCollectionView, "roster").find(
-      (choice) => choice.value === "",
-    )?.count,
-  ).toBe(1);
-  for (const value of ["npc", "party"])
-    expect(
-      queryCollection(hidden, { ...defaultCollectionView, filters: [{ field: "roster", value }] })
-        .count,
-    ).toBe(0);
-});
-
 it("groups characters by faction and locations by kind until a view is saved", () => {
   expect(defaultCollectionViewFor("characters").group).toBe("faction");
   expect(defaultCollectionViewFor("locations").group).toBe("type");

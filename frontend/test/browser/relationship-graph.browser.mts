@@ -675,7 +675,7 @@ void test("same IDs in different collections keep separate cards, links and save
     collection("characters").records.push({
       key: "gate",
       revision: 1,
-      value: { name: "Gatekeeper", knowledge: 4, faction: "watch" },
+      value: { name: "Gatekeeper", faction: "watch" },
     });
     fixtureRecord<{ characters: string[] }>(collection("mysteries"), "gate").value.characters.push(
       "gate",

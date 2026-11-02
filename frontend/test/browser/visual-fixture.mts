@@ -46,7 +46,6 @@ export const visualCampaign: FixtureCampaign = {
               title: ["Scout", "Wizard", "Guardian", "Ranger"][index],
               faction: "party",
               status: "alive",
-              knowledge: 4,
               description:
                 "## At the northern gate\nThe party followed the old road into the mountains.\n\n### A promise\nReturn before the first snow.",
               updatedAt: "2026-08-20T10:00:00Z",

@@ -370,7 +370,6 @@ for (const mobile of [false, true])
                 value: {
                   id: key,
                   name: "Library notes",
-                  knowledge: 4,
                   visibility: "public",
                   description:
                     "[[Fireball|spell]] and [[Ward|spell:shield]] and [[Equipment|armor:shield]]. Ambiguous: [[Shield]].",

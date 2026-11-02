@@ -52,7 +52,7 @@ const data = dataset({
     private: { name: "Private member", faction: "watch", visibility: "dm", linkedTwinId: "public" },
     unranked: { name: "Unranked", faction: "watch" },
     orphan: { name: "Retained rank", faction: "watch", rankChain: "old", rank: "Old rank" },
-    unknown: { name: "Unrevealed name", knowledge: 0, location: "gate" },
+    guard: { name: "Gate guard", location: "gate" },
   },
   events: { arrival: { name: "Arrival", characters: ["captain"], locations: ["gate"] } },
   companions: {
@@ -66,9 +66,9 @@ const entries = (collection: string, key: string, id: string) =>
     ?.groups.flatMap((group) => group.entries) ?? [];
 describe("connected article projections", () => {
   it("resolves exact references and never guesses unavailable targets", () => {
-    expect(articleReference(data, "characters", "unknown")).toEqual({
-      label: "Unknown character",
-      href: "#/characters/unknown",
+    expect(articleReference(data, "characters", "guard")).toEqual({
+      label: "Gate guard",
+      href: "#/characters/guard",
     });
     expect(articleReference(data, "characters", "missing")).toEqual({ label: "Unavailable entry" });
     expect(articleOwner(data, { ownerType: "party" })[0]?.href).toBe("#/party");
@@ -79,7 +79,7 @@ describe("connected article projections", () => {
     expect(entries("locations", "gate", "children").map((item) => item.label)).toEqual(["Child"]);
     expect(entries("locations", "gate", "residents").map((item) => item.label)).toEqual([
       "Captain",
-      "Unknown character",
+      "Gate guard",
     ]);
     expect(entries("locations", "gate", "connections")).toEqual([{ label: "Unavailable entry" }]);
     expect(entries("locations", "gate", "events")[0]?.label).toBe("Arrival");

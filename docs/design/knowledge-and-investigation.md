@@ -5,7 +5,7 @@ area. Do not redesign its UI or change its stored data until a decision is
 recorded as an [ADR](../decisions/) and the work moves to the
 [backlog](../BACKLOG.md). Bug fixes that keep current behaviour are fine.
 
-**Last reviewed:** 2026-10-07
+**Last reviewed:** 2026-11-02
 
 This note collects how the area works today, what feels wrong, and the
 questions a decision has to answer. Add observations as they come up.
@@ -14,18 +14,12 @@ questions a decision has to answer. Add observations as they come up.
 
 ### Knowledge levels
 
-- **Characters** store `knowledge` 0–4. Level 0 shows "Unknown character",
-  level 1 shows only the name, levels 2–4 show everything. Missing or invalid
-  values read as 4. Cards, search, facets, activity, graph labels and the
-  roster filter (party/NPC is only revealed from level 2) use the same reading
-  projection (`frontend/src/app/character-reading.ts`). DMs can inspect the
-  authored fields without changing anything.
-- Knowledge is a reading convention, **not** a security boundary. Real secrecy
-  uses record visibility and DM/player twins
-  ([core data](../reference/CORE_DATA.md#character-knowledge-and-dm-inspection)).
-- **Locations** also store `knowledge` 0–4 (editable, filterable), but nothing
-  in the host reads it.
-- There is one level per record for the whole campaign, not per player or party.
+- **Characters** have no knowledge level: the owner decided to remove it
+  because it was rarely used. Every reader sees the whole profile of a
+  character visible to them; secrecy uses record visibility and DM/player
+  twins ([core data](../reference/CORE_DATA.md#twin-reading-and-management)).
+- **Locations** store `knowledge` 0–4 (editable, filterable), but nothing in
+  the host reads it.
 
 ### Facts, questions and clues
 
@@ -50,15 +44,11 @@ its first question only
 
 ## What feels wrong
 
-- Levels 2, 3 and 4 look identical to readers, so the scale has more steps than
-  meaning.
 - Location knowledge is stored and edited but has no effect.
 - Clues mix prose and record references in one list, and event keys only
   become links by coincidence of matching an event key.
 - Characters and mysteries each have their own way to hold facts and open
   threads, so the same investigation can live in two shapes.
-- A single campaign-wide level cannot express "the party knows, one player
-  does not".
 - Mind Palace shows only the first question of a mystery.
 - Mind Palace colours a mystery's priority only when the value is the Czech
   *kritická* or *vysoká*, so other languages get the default colour.
@@ -67,22 +57,18 @@ its first question only
 
 ## Questions to answer
 
-1. What should each knowledge level reveal, and how many levels are useful?
-2. Should knowledge apply to locations, factions and other records, and with
-   the same scale?
-3. Campaign-wide, per party, or per player?
-4. Are clues references to records (events, locations, characters), prose, or
+1. Should location knowledge go as well, or gain a meaning?
+2. Are clues references to records (events, locations, characters), prose, or
    typed entries that can be either?
-5. Should character facts and questions stay on characters, move to mysteries,
+3. Should character facts and questions stay on characters, move to mysteries,
    or become their own linked records?
-6. How should Mind Palace and the questions list present an investigation?
-7. How do existing records migrate without losing anything (event-key clues,
+4. How should Mind Palace and the questions list present an investigation?
+5. How do existing records migrate without losing anything (event-key clues,
    answered questions, unknown fields), and what does the reviewed migration
    look like?
 
 ## Code and docs
 
-- `frontend/src/app/character-reading.ts` — knowledge reading projection
 - `frontend/src/app/campaign-investigation.ts`, `investigation-view.ts`,
   `codex-investigation-queue.ts` — questions, status and the queue
 - `frontend/src/app/codex-character-profile.ts` — facts and questions on profiles

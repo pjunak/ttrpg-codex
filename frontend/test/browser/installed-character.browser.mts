@@ -121,7 +121,7 @@ before(async () => {
             collection: "characters",
             key: "new-hero",
             expectedRevision: 0,
-            value: { id: "new-hero", name: "New Hero", knowledge: 4, visibility: "public" },
+            value: { id: "new-hero", name: "New Hero", visibility: "public" },
           },
         ],
       },

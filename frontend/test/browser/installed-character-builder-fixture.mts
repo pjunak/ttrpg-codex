@@ -24,7 +24,7 @@ export async function createCharacterRecord(f: Fixture, key: string) {
             collection: "characters",
             key,
             expectedRevision: 0,
-            value: { id: key, name: key, knowledge: 4, visibility: "public" },
+            value: { id: key, name: key, visibility: "public" },
           },
         ],
       },

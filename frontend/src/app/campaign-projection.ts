@@ -1,4 +1,3 @@
-import { characterReadingValue } from "./character-reading.js";
 import { groupTwinRecords, twinRepresentatives } from "./campaign-twins.js";
 import { isRecord } from "../core/boundary.js";
 import { activityTimestamp } from "../core/campaign-activity.js";
@@ -125,15 +124,8 @@ export function projectEntity(
   dataset: CampaignDataset,
   record: CampaignRecord,
   page: CampaignPageDefinition,
-  inspectCharacter = false,
 ): EntitySummary {
-  return projectEntityWithContext(
-    dataset,
-    record,
-    page,
-    createAttitudeContext(dataset),
-    inspectCharacter,
-  );
+  return projectEntityWithContext(dataset, record, page, createAttitudeContext(dataset));
 }
 
 /**
@@ -152,11 +144,8 @@ function projectEntityWithContext(
   record: CampaignRecord,
   page: CampaignPageDefinition,
   context: AttitudeContext,
-  inspectCharacter = false,
 ): EntitySummary {
-  const original = recordValue(record);
-  const value =
-    page.collection === "characters" ? characterReadingValue(original, inspectCharacter) : original;
+  const value = recordValue(record);
   const attitudes = effectiveAttitudes(context, page.collection, value);
   const partyIdentity =
     page.collection === "characters" && value["faction"] === "party"
@@ -184,7 +173,7 @@ function projectEntityWithContext(
     attitudeFilter: attitudeFilter(attitudes),
     route: recordHash(page, record.key),
     updatedAt: timestamp(value["updatedAt"]),
-    raw: Object.freeze({ ...original }),
+    raw: Object.freeze({ ...value }),
   });
 }
 

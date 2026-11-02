@@ -28,13 +28,12 @@ const campaign = (): CampaignDataset => ({
       records: [
         row("a", {
           name: "Ária",
-          knowledge: 4,
           faction: "party",
           status: "alive",
           tags: ["scout"],
         }),
-        row("b", { name: "Bram", knowledge: 2, faction: "watch", status: "dead" }),
-        row("c", { name: "Unknown identity", knowledge: 0 }),
+        row("b", { name: "Bram", faction: "watch", status: "dead" }),
+        row("c", { name: "Cora" }),
       ],
     },
     {
@@ -101,7 +100,7 @@ describe("relationship graph projection and local arrangement", () => {
       statusLabel: "Alive",
     });
     expect(graph.nodes[1]).toMatchObject({ color: "#666666", count: 3 });
-    expect(graph.nodes[2]?.name).toBe("Unknown character");
+    expect(graph.nodes[2]?.name).toBe("Cora");
     expect(data).toEqual(before);
   });
   it("keeps encoded detail identities and does not include absent private records", () => {
@@ -110,7 +109,7 @@ describe("relationship graph projection and local arrangement", () => {
     const projected = projectRelationshipGraph({
       ...data,
       collections: [
-        { ...characters, records: [row("key/with ?#", { name: "Visible", knowledge: 4 })] },
+        { ...characters, records: [row("key/with ?#", { name: "Visible" })] },
         ...data.collections.slice(1),
       ],
     });
@@ -147,8 +146,8 @@ describe("relationship graph projection and local arrangement", () => {
             ? {
                 ...collection,
                 records: [
-                  row("hub", { name: "Hub", knowledge: 4 }),
-                  ...people.map((key) => row(key, { name: key, knowledge: 4 })),
+                  row("hub", { name: "Hub" }),
+                  ...people.map((key) => row(key, { name: key })),
                 ],
               }
             : collection.name === "relationships"

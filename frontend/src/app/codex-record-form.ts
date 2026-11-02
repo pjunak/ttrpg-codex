@@ -214,7 +214,6 @@ export class CodexRecordForm extends LitElement {
       const status = editorFieldsFor(this.page.collection).find(({ key }) => key === "status");
       return {
         faction: "party",
-        knowledge: 4,
         status:
           status !== undefined &&
           editorOptionsFor(this.#snapshot, status, "").some(({ value }) => value === "alive")
@@ -272,7 +271,7 @@ export class CodexRecordForm extends LitElement {
       "locationRoles",
       "attitudes",
     ]);
-    const knowledge = new Set(["knowledge", "known", "unknown"]);
+    const knowledge = new Set(["known", "unknown"]);
     const group = (key: string): CharacterTab =>
       connections.has(key) ? "connections" : knowledge.has(key) ? "knowledge" : "details";
     return html`<div class="character-editor-layout">

@@ -75,7 +75,6 @@ async function fixture(t: TestContext, width = 1440, theme = "classic", locale =
         id: key,
         name: "Card " + key,
         visibility: "public",
-        knowledge: 4,
         faction: "party",
         ownerType: "party",
         icon: "★",
@@ -235,7 +234,6 @@ void test(
         id: "art",
         name: "Card art",
         faction: "party",
-        knowledge: 4,
         portrait: replacement,
       };
       await page.locator("codex-dashboard").evaluate((node, campaign) => {
@@ -252,7 +250,6 @@ void test(
         id: "art",
         name: "Card art",
         faction: "party",
-        knowledge: 4,
         portrait: tall,
       };
       await page.locator("codex-dashboard").evaluate((node, campaign) => {

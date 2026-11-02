@@ -6,8 +6,6 @@ import {
   renderCharacterLocationRoles,
   renderRecordBadges,
 } from "./article-context-view.js";
-import { characterKnowledge, characterReadingValue } from "./character-reading.js";
-import { campaignPages } from "./routes.js";
 import { LitElement, html, nothing } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { isRecord } from "../core/boundary.js";
@@ -22,13 +20,7 @@ import {
   type CampaignCharacterPatch,
 } from "./campaign-record-editor.js";
 import { saveCampaign, type CampaignWriteResult } from "./campaign-writes.js";
-import {
-  projectEntity,
-  recordValue,
-  text,
-  stringList,
-  type EntitySummary,
-} from "./campaign-projection.js";
+import { recordValue, text, stringList, type EntitySummary } from "./campaign-projection.js";
 import {
   factionRankChains,
   locationRoleDrafts,
@@ -67,7 +59,6 @@ export class CodexCharacterProfile extends LitElement {
     canEdit: { type: Boolean },
     canManageVisibility: { type: Boolean },
     actorRole: { attribute: false },
-    inspect: { state: true },
     status: { state: true },
     panel: { state: true },
     wikiOpen: { state: true },
@@ -84,7 +75,6 @@ export class CodexCharacterProfile extends LitElement {
   declare canManageVisibility: boolean;
   declare actorRole: BrowserRole | undefined;
   declare private status: string;
-  declare private inspect: boolean;
   declare private panel: string;
   declare private wikiOpen: boolean;
   declare private wikiSaving: boolean;
@@ -106,7 +96,6 @@ export class CodexCharacterProfile extends LitElement {
 
   constructor() {
     super();
-    this.inspect = false;
     new UiLocalizationController(this);
     this.canEdit = false;
     this.canManageVisibility = false;
@@ -127,7 +116,6 @@ export class CodexCharacterProfile extends LitElement {
       this.#wikiBase = undefined;
       this.#panelBase = undefined;
       this.#undo = undefined;
-      this.inspect = false;
       this.wikiOpen = false;
       this.panel = "";
       this.#lastKey = this.record?.key ?? "";
@@ -143,34 +131,16 @@ export class CodexCharacterProfile extends LitElement {
   }
   protected override render() {
     if (!this.record || !this.campaign || !this.entity) return nothing;
-    const inspecting = this.inspect && this.actorRole === "dm";
-    const original = recordValue(this.record),
-      value = characterReadingValue(original, inspecting);
-    const revealed = inspecting || characterKnowledge(original) >= 2;
-    const entity = inspecting
-      ? projectEntity(
-          this.campaign,
-          this.record,
-          campaignPages.find((page) => page.collection === "characters")!,
-          true,
-        )
-      : this.entity;
+    const value = recordValue(this.record),
+      entity = this.entity;
     const wiki = parseCampaignMarkdown(text(value["description"]));
     const hasRelationships =
       relationshipEditorRowsFor(this.campaign, this.record.key, this.canManageVisibility).length >
       0;
     const hasLocationRoles = locationRoleDrafts(value["locationRoles"]).length > 0;
-    return html`<article class=${`record-article character-profile direct-character${entity.portrait ? "" : " no-artwork"}${revealed ? "" : " knowledge-limited"}`} aria-labelledby="record-title">
+    return html`<article class=${`record-article character-profile direct-character${entity.portrait ? "" : " no-artwork"}`} aria-labelledby="record-title">
       <div class="character-page-heading"><a href="#/characters" class="breadcrumb-link">${uiText("Characters")}</a>
         <div class="character-heading-tools">
-        ${
-          this.actorRole === "dm"
-            ? html`<button type="button" class="knowledge-toggle" aria-pressed=${inspecting} ?disabled=${this.hasDraft}
-          @click=${() => {
-            this.inspect = !this.inspect;
-          }}>${uiText(inspecting ? "knowledge.read" : "knowledge.inspect")}</button>`
-            : nothing
-        }
         ${this.headerExtras ?? nothing}
         ${
           this.canEdit
@@ -182,7 +152,6 @@ export class CodexCharacterProfile extends LitElement {
         </div></details></div>`
             : nothing
         }</div></div>
-      ${inspecting ? html`<p class="knowledge-inspection">${uiText("knowledge.inspectHint")}</p>` : nothing}
       <div class="record-reading-layout">
         <aside class="record-side"><header class="record-masthead">
           ${artwork({
@@ -192,30 +161,24 @@ export class CodexCharacterProfile extends LitElement {
             fallback: html`<span class="record-visual-glyph">${entity.icon || "♟"}</span>`,
           })}
           <div><span class="record-kind">${uiText("Character")}</span><h1 id="record-title" aria-label=${text(value["name"])}>${this.#inline("name")}</h1>
-            ${revealed && this.#hasValue("title") ? html`<div class="character-subtitle">${this.#inline("title")}</div>` : nothing}
+            ${this.#hasValue("title") ? html`<div class="character-subtitle">${this.#inline("title")}</div>` : nothing}
             ${renderRecordBadges(entity)}
           </div></header>
-          <dl class="record-facts">${this.#facts((revealed ? ["species", "gender", "age", "status", "knowledge", "tags"] : ["knowledge"]).filter((key) => this.#hasValue(key)))}</dl>
+          <dl class="record-facts">${this.#facts(["species", "gender", "age", "status", "tags"].filter((key) => this.#hasValue(key)))}</dl>
           ${
-            revealed
-              ? html`${
-                  ["faction", "location", "rank"].some((key) => this.#hasValue(key)) ||
-                  entity.attitudes.length
-                    ? html`<section class="character-connections"><h2 class="record-section-title">${uiText("Connections")}</h2>
+            ["faction", "location", "rank"].some((key) => this.#hasValue(key)) ||
+            entity.attitudes.length
+              ? html`<section class="character-connections"><h2 class="record-section-title">${uiText("Connections")}</h2>
             <dl class="record-facts">${this.#facts(["faction", "location"].filter((key) => this.#hasValue(key)))}${this.#rankLabel() ? html`<div><dt>${uiText("Faction rank")}</dt><dd>${this.#panelValue("rankAssignment", this.#rankLabel())}</dd></div>` : nothing}
             ${entity.attitudes.length ? html`<div><dt>${uiText("Attitudes toward the party")}</dt><dd>${this.#panelValue("attitudes", entity.attitudes.map((item) => item.label).join(", "))}</dd></div>` : nothing}</dl>
           </section>`
-                    : nothing
-                }
-          ${this.#hasValue("circumstances") ? html`<section class="character-circumstances"><h2 class="record-section-title">${uiText("Current circumstances")}</h2>${this.#inline("circumstances")}</section>` : nothing}
-          ${this.canEdit ? this.#emptyDetails() : nothing}`
               : nothing
           }
+          ${this.#hasValue("circumstances") ? html`<section class="character-circumstances"><h2 class="record-section-title">${uiText("Current circumstances")}</h2>${this.#inline("circumstances")}</section>` : nothing}
+          ${this.canEdit ? this.#emptyDetails() : nothing}
           ${wiki.outline.length ? html`<aside class="record-outline" aria-label=${uiText("Article contents")}><p>${uiText("In this entry")}</p><ol>${wiki.outline.map((item) => html`<li class=${`outline-depth-${item.depth}`}><button type="button" @click=${() => this.querySelector<HTMLElement>(`#${item.id}`)?.scrollIntoView({ block: "start" })}>${item.text}</button></li>`)}</ol></aside>` : nothing}
         </aside>
-        <div class="record-reading">${
-          revealed
-            ? html`<section class="character-wiki"><div class="character-section-heading"><h2 class="record-section-title">${uiText("Overview")}</h2>
+        <div class="record-reading"><section class="character-wiki"><div class="character-section-heading"><h2 class="record-section-title">${uiText("Overview")}</h2>
           ${this.canEdit && !this.wikiOpen ? html`<button type="button" class="record-action" @click=${this.#openWiki}>${uiText("Edit wiki")}</button>` : nothing}</div>
           ${
             this.wikiOpen
@@ -284,9 +247,6 @@ export class CodexCharacterProfile extends LitElement {
         }
         ${renderArticleContext(articleContext(this.campaign, "characters", this.record.key))}
         ${this.extraSections?.map((section) => html`<section class="record-structured-section"><h2 class="record-section-title">${section.heading}</h2>${renderCampaignMarkdown(parseCampaignMarkdown(section.body), this.context)}</section>`)}
-        `
-            : html`<p class="empty-state">${uiText(characterKnowledge(original) === 0 ? "knowledge.hidden" : "knowledge.nameOnly")}</p>`
-        }
         ${this.panel ? this.#panelContent() : nothing}
         </div>
       </div>
@@ -312,7 +272,6 @@ export class CodexCharacterProfile extends LitElement {
       "gender",
       "age",
       "status",
-      "knowledge",
       "tags",
       "faction",
       "location",
@@ -366,13 +325,6 @@ export class CodexCharacterProfile extends LitElement {
   }
   /** A field edited in place; its draft lives here, so it survives the field moving. */
   #inline(key: string) {
-    if (
-      key === "name" &&
-      !this.inspect &&
-      this.#fields.get("name") === undefined &&
-      characterKnowledge(recordValue(this.record)) < 1
-    )
-      return html`<span>${uiText("knowledge.unknown")}</span>`;
     return recordInlineField({
       owner: this,
       drafts: this.#fields,

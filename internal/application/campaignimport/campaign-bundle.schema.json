@@ -209,11 +209,6 @@
             "$ref": "#/$defs/attitude"
           }
         },
-        "knowledge": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 4
-        },
         "portrait": {
           "type": "string"
         },

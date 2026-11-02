@@ -158,7 +158,6 @@ try {
           description: prose,
           title: "Campaign witness",
           visibility: index % 10 === 0 ? "dm" : "public",
-          knowledge: 4,
           tags: ["synthetic", `region-${index % 20}`],
         },
       });

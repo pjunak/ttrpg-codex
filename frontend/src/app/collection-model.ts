@@ -1,5 +1,4 @@
 import { investigationStatus } from "./campaign-investigation.js";
-import { characterKnowledge, characterReadingValue } from "./character-reading.js";
 import { groupTwinRecords } from "./campaign-twins.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
@@ -88,20 +87,15 @@ export function collectionModel(
     sorts.push({ key: "members", label: uiText("browse.members") });
   const entries = projectEntities(dataset, page).map((original) => {
     const entity =
-      page.collection === "characters"
-        ? { ...original, raw: characterReadingValue(original.raw) }
-        : page.collection === "mysteries"
-          ? {
-              ...original,
-              raw: { ...original.raw, solved: investigationStatus(original.raw).solved },
-            }
-          : original;
+      page.collection === "mysteries"
+        ? {
+            ...original,
+            raw: { ...original.raw, solved: investigationStatus(original.raw).solved },
+          }
+        : original;
     const facets = new Map<string, readonly string[]>();
     if (page.collection === "characters")
-      facets.set(
-        "roster",
-        characterKnowledge(original.raw) < 2 ? [""] : [entity.partyIdentity ? "party" : "npc"],
-      );
+      facets.set("roster", [entity.partyIdentity ? "party" : "npc"]);
     const sortValues = new Map<string, string | number | undefined>([
       ["name", entity.name],
       ["updatedAt", entity.updatedAt ? Date.parse(entity.updatedAt) : undefined],
@@ -184,15 +178,9 @@ export function collectionModel(
       key: "roster",
       label: uiText("browse.roster"),
       multiple: false,
-      choices: ["npc", "party", ""].map((value) => ({
+      choices: ["npc", "party"].map((value) => ({
         value,
-        label: uiText(
-          value === "party"
-            ? "browse.rosterParty"
-            : value === "npc"
-              ? "browse.rosterNPC"
-              : "browse.rosterUnknown",
-        ),
+        label: uiText(value === "party" ? "browse.rosterParty" : "browse.rosterNPC"),
         count: entries.filter((entry) => entry.facets.get("roster")?.includes(value)).length,
       })),
     });

@@ -1079,7 +1079,6 @@ void test("character tabs reveal invalid fields and keep all groups in the saved
   await page.keyboard.press("ArrowRight");
   await page.locator('[name="faction"]').selectOption("party");
   await page.getByRole("tab", { name: "Connections", exact: true }).press("ArrowRight");
-  await page.getByRole("spinbutton", { name: "Knowledge", exact: true }).fill("3");
   await page.getByRole("button", { name: "Add question", exact: true }).click();
   await page.locator('[data-part="text"]').fill("Who sent the letter?");
   await page.getByRole("tab", { name: "Knowledge", exact: true }).press("Home");
@@ -1089,7 +1088,6 @@ void test("character tabs reveal invalid fields and keep all groups in the saved
   const stored = await saved(host, "characters", "ryn");
   assert.equal(stored.name, "New name");
   assert.equal(stored.faction, "party");
-  assert.equal(stored.knowledge, 3);
   assert.equal((stored.unknown as { text: string }[])[0]?.text, "Who sent the letter?");
 });
 

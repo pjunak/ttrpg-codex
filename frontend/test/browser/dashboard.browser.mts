@@ -266,7 +266,6 @@ void test("party creation uses the original defaults, survives live refresh, and
   await page.getByRole("button", { name: "＋ Add", exact: true }).click();
   await page.locator(".record-editor").waitFor();
   assert.equal(await page.locator('[name="faction"]').inputValue(), "party");
-  assert.equal(await page.locator('[name="knowledge"]').inputValue(), "4");
   assert.equal(await page.locator('[name="status"]').inputValue(), "alive");
   assert.equal(await page.locator('[name="visibility"]').count(), 0);
   await page.getByLabel("Name", { exact: true }).fill("New companion");
@@ -294,13 +293,10 @@ void test("party creation uses the original defaults, survives live refresh, and
   assert.equal(writes.length, 1);
   assert.equal(writes[0][0].expectedRevision, 0);
   assert.deepEqual(
-    Object.fromEntries(
-      ["name", "faction", "knowledge", "status"].map((key) => [key, writes[0][0].value[key]]),
-    ),
+    Object.fromEntries(["name", "faction", "status"].map((key) => [key, writes[0][0].value[key]])),
     {
       name: "New companion",
       faction: "party",
-      knowledge: 4,
       status: "alive",
     },
   );

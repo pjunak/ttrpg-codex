@@ -47,7 +47,7 @@ Scalar and multi-record facts, relationship endpoints, additional location roles
 rank members and companion owners are semantic links with separate edit actions.
 Targets resolve against the current authorized campaign snapshot. Unknown or
 deleted targets show an unavailable label without a guessed URL or retained
-identity; character names use the knowledge reading projection.
+identity.
 
 Location articles derive bounded ancestor navigation, direct sublocations,
 connected places, present characters and event mentions. Cycles terminate with
@@ -59,12 +59,11 @@ Context includes references to either side of an available reciprocal twin pair.
 Matching records group only when both counterpart records qualify; direct links
 continue to address the exact referenced identity. These are read projections,
 not copied lists, new ownership or additional authorization rules. Existing
-visibility filtering remains authoritative. Profile knowledge still controls
-when its associated sections appear.
+visibility filtering remains authoritative.
 
 Live context refresh does not replace opening editor snapshots or inline drafts.
-Projection tests cover missing targets, cycles, knowledge labels, complete
-membership and grouping. Real-host desktop/phone tests cover player/DM visibility,
+Projection tests cover missing targets, cycles, complete membership and
+grouping. Real-host desktop/phone tests cover player/DM visibility,
 connected navigation, ownership, relationships, English/Czech and an unrelated
 live update while a name draft remains open.
 
@@ -124,13 +123,12 @@ mystery's unanswered questions remain visible in the queue.
 Sources link to exact records and signed-in editors can return from the normal
 record form to Mysteries. The queue groups available reciprocal DM/player twins
 using the same representatives as collection cards. It uses only the authorized
-dataset, applies character knowledge reading, and keeps private or unrevealed
-questions out of the player view. Live dataset replacement refreshes the queue
+dataset, so private questions stay out of the player view. Live dataset replacement refreshes the queue
 without replacing its search input.
 
 Pure tests cover derived/manual/empty status, whitespace and historical question
-shapes, source immutability, effective facet counts, Czech search, knowledge and
-twin links. Real-host desktop/phone tests cover articles, cards, source editing
+shapes, source immutability, effective facet counts, Czech search and twin
+links. Real-host desktop/phone tests cover articles, cards, source editing
 and Cancel, manual overrides, answers, role filtering and Czech labels.
 
 ## Record context menus
@@ -156,7 +154,7 @@ Long lists are searchable submenus; current values show as check marks or a
 trailing detail. Writes go through the in-place patch path (one field, current
 revision, conflicts reported) and confirm with a short notice. While another
 edit is open or saving, write actions are disabled with the reason. The menu
-leaves clues, knowledge and questions alone while that model is
+leaves clues, location knowledge and questions alone while that model is
 [undecided](../design/knowledge-and-investigation.md).
 
 ## Compact reading and save feedback

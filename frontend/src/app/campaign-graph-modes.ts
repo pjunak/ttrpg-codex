@@ -1,4 +1,3 @@
-import { characterReadingValue } from "./character-reading.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import {
@@ -175,7 +174,7 @@ export function projectCampaignGraph(campaign: CampaignDataset, mode: GraphMode)
       }
     return {
       ...character,
-      title: text(characterReadingValue(value)["title"]),
+      title: text(value["title"]),
       commandCount: commands.filter((edge) => edge.source === character.recordKey).length,
       commander: characterById.get(incoming[0]?.source ?? "")?.name ?? "",
       glow: factionColors.get(character.faction) ?? "",

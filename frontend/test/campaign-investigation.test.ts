@@ -116,7 +116,7 @@ describe("investigation reading", () => {
     }
     expect(JSON.stringify(data)).toBe(before);
   });
-  it("combines role-projected sources, prefers available twins and respects knowledge reading", () => {
+  it("combines role-projected sources and prefers available twins", () => {
     const publicCase = record("case/%2F", {
       name: "Veřejná záhada",
       questions: ["Public clue?"],
@@ -130,12 +130,7 @@ describe("investigation reading", () => {
       linkedTwinId: "case/%2F",
     });
     const characters = [
-      record("known", {
-        name: "Žofie",
-        knowledge: 2,
-        unknown: [{ text: "Kde je Žofie?", answer: "" }],
-      }),
-      record("hidden", { name: "Hidden", knowledge: 1, unknown: ["Secret question"] }),
+      record("known", { name: "Žofie", unknown: [{ text: "Kde je Žofie?", answer: "" }] }),
     ];
     const dm = investigationQueue(dataset({ mysteries: [publicCase, dmCase], characters }));
     expect(dm.map((item) => item.source)).toEqual(["Žofie", "Tajná záhada"]);

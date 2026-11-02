@@ -104,7 +104,6 @@ before(async () => {
             value: {
               id: "captain",
               name: "Captain",
-              knowledge: 4,
               faction: "party",
               visibility: "public",
             },
@@ -114,7 +113,7 @@ before(async () => {
             collection: "characters",
             key: "secret",
             expectedRevision: 0,
-            value: { id: "secret", name: "Hidden witness", knowledge: 4, visibility: "dm" },
+            value: { id: "secret", name: "Hidden witness", visibility: "dm" },
           },
         ],
       },

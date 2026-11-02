@@ -454,7 +454,6 @@ for (const unavailable of ["deleted", "private"] as const)
     const key = "unavailable-" + unavailable;
     await put(key, {
       name: "Retain this portrait reference",
-      knowledge: 4,
       visibility: unavailable === "private" ? "dm" : "public",
       extension: { keep: true },
     });
@@ -472,7 +471,6 @@ for (const unavailable of ["deleted", "private"] as const)
       key,
       {
         name: "Retain this portrait reference",
-        knowledge: 4,
         visibility: "public",
         portrait: media.url,
         extension: { keep: true },

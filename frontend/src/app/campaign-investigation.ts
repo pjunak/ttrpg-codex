@@ -1,6 +1,5 @@
 import { isRecord } from "../core/boundary.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
-import { characterReadingValue } from "./character-reading.js";
 import { projectEntities } from "./campaign-projection.js";
 import { campaignPages, recordEditHash } from "./routes.js";
 import { searchable, searchTokens } from "./campaign-search.js";
@@ -61,8 +60,7 @@ export function investigationQueue(
     .flatMap((page) =>
       projectEntities(dataset, page).flatMap((entity) => {
         const kind = page.collection as InvestigationQueueItem["kind"];
-        const value = kind === "characters" ? characterReadingValue(entity.raw) : entity.raw;
-        return investigationQuestions(value[kind === "characters" ? "unknown" : "questions"])
+        return investigationQuestions(entity.raw[kind === "characters" ? "unknown" : "questions"])
           .filter((question) =>
             tokens.every((token) =>
               searchable([entity.name, question.text, question.answer].join(" ")).includes(token),

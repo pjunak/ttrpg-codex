@@ -45,5 +45,5 @@ then the [API reference](../examples/addons/API_V3.md) and the
 
 Currently undecided: the
 [knowledge and investigation model](design/knowledge-and-investigation.md)
-(knowledge levels, mystery clues, character facts and open questions, Mind
+(location knowledge, mystery clues, character facts and open questions, Mind
 Palace). Leave that area as it is until the owner decides.

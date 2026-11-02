@@ -92,7 +92,6 @@ target and type.
 | `faction` | Key of an existing faction; `party` marks a party member |
 | `status`, `gender` | IDs from the campaign's character statuses and genders |
 | `attitudes` | Attitudes toward the party: `[{"id": "attitude-id"}]` |
-| `knowledge` | How much players know, 0–4 (see [visibility](#visibility-and-knowledge)) |
 | `known` | Known facts, as an array of strings |
 | `unknown` | Open questions: `[{"text": "question", "answer": ""}]`; an answer closes the question |
 | `tags` | Array of strings |
@@ -114,7 +113,8 @@ and ranks need the exact IDs of a faction's rank chain.
 | `x`, `y` | Map marker position, as fractions 0–1 of the map image's width and height |
 | `size` | Marker size, 14–64 |
 | `mapNotes` | Notes shown with the map marker and on the location page |
-| `attitudes`, `knowledge`, `tags` | As for characters |
+| `attitudes`, `tags` | As for characters |
+| `knowledge` | A number 0–4; stored, but the host does not use it ([undecided](../design/knowledge-and-investigation.md)) |
 
 Leave out `status`, which the location editor does not use. The schema does not
 include a location's private DM notes; put private material in a DM-visibility
@@ -155,19 +155,13 @@ name the collection the field expects, and an `$id` record must exist.
 | Relationship `source` | `characters` |
 | Relationship `target` | `characters`, or `locations` as described above |
 
-## Visibility and knowledge
+## Visibility
 
 `public` records are visible to players; `dm` records are visible only to the
 DM, and players do not see relationships that involve them. Party characters
 must be public. The player view in the preview is the exact player projection,
 but it does not scan prose: a secret written into a public description is
 shown to players.
-
-`knowledge` follows the host's current [reading convention](CORE_DATA.md#character-knowledge-and-dm-inspection):
-0 hides the identity, 1 shows the name, and 2–4 show the profile. It is not a
-security boundary. The knowledge model is still
-[undecided](../design/knowledge-and-investigation.md); use the levels as they
-are and do not invent new meanings for them.
 
 ## Campaign-defined values
 
