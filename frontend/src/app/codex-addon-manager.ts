@@ -239,7 +239,7 @@ export class CodexAddonManager extends LitElement {
           ? html`<div id="addon-management-panel" role=${tabbed ? "tabpanel" : nothing} aria-labelledby=${tabbed ? "addon-tab-management" : nothing} tabindex=${tabbed ? 0 : nothing} ?hidden=${selected !== ""}>
         <div class="addon-actions addon-toolbar"><button ?disabled=${this.#busy} @click=${() => this.#checkUpdates()}>${t(this.#github.pending ? "github.checking" : "github.check")}</button>
           ${updateTargets(this.#github.results).length > 1 ? html`<button ?disabled=${this.#busy} @click=${() => this.#updateAll()}>${t(this.#requests.pending ? "github.updatingAll" : "github.updateAll")}</button>` : nothing}
-          <button class="addon-primary" ?disabled=${this.#busy} @click=${() => this.#openInstall()}>${t("github.add")}</button></div>
+          <button data-ui-variant="primary" ?disabled=${this.#busy} @click=${() => this.#openInstall()}>${t("github.add")}</button></div>
         ${this.installOpen ? this.#installDialog() : nothing}
         ${this.removal ? this.#uninstallPanel(this.removal) : nothing}
         ${this.disabling ? this.#disablePanel(this.disabling) : nothing}
@@ -328,7 +328,7 @@ export class CodexAddonManager extends LitElement {
     void this.updateComplete.then(() => {
       (this.#opener?.isConnected
         ? this.#opener
-        : this.querySelector<HTMLElement>(".addon-primary")
+        : this.querySelector<HTMLElement>(`[data-ui-variant="primary"]`)
       )?.focus();
     });
   }
@@ -566,13 +566,13 @@ export class CodexAddonManager extends LitElement {
           ${failed ? html`<p role="alert">${t("addons.notRunningHelp")}</p>` : nothing}
         </div>
         <div class="addon-actions">
-          ${found && update ? html`<button class="addon-primary" ?disabled=${this.#busy} @click=${() => this.#stageCandidate(found, update.id, state.addonId)}>${t("addons.updateTo", { version: update.version })}</button>` : nothing}
+          ${found && update ? html`<button data-ui-variant="primary" ?disabled=${this.#busy} @click=${() => this.#stageCandidate(found, update.id, state.addonId)}>${t("addons.updateTo", { version: update.version })}</button>` : nothing}
           ${settings ? html`<button ?disabled=${this.#busy} @click=${() => this.#selectTab(state.addonId)}>${t("addons.settings")}</button>` : nothing}
           ${
             active
               ? html`<button ?disabled=${this.#busy} @click=${() => this.#prepareDisable(state.addonId)}>${t("addons.disable")}</button>`
               : shown
-                ? html`<button class=${update ? "" : "addon-primary"} ?disabled=${this.#busy} @click=${() => this.#prepare(state.addonId, shown.generationId)}>${t("addons.enable")}</button>`
+                ? html`<button data-ui-variant=${update ? nothing : "primary"} ?disabled=${this.#busy} @click=${() => this.#prepare(state.addonId, shown.generationId)}>${t("addons.enable")}</button>`
                 : nothing
           }
           <button class="addon-more" aria-haspopup="menu" aria-label=${t("addons.moreActions")} title=${t("addons.moreActions")}

@@ -114,9 +114,11 @@ export class CodexApp extends LitElement {
       this.recordSaved = false;
     },
     refused: (message) => {
-      this.errorMessage = message;
+      this.errorMessage = this.#refusal = message;
     },
   });
+  /** A refused navigation explains itself until the next one succeeds. */
+  #refusal = "";
   readonly #session = new SessionController(this, {
     campaign: this.#campaign,
     addons: this.#addons,
@@ -570,6 +572,8 @@ export class CodexApp extends LitElement {
 
   /** The guard accepted a new address. */
   #navigated(hash: string): void {
+    if (this.#refusal !== "" && this.errorMessage === this.#refusal) this.errorMessage = "";
+    this.#refusal = "";
     this.menuOpen = false;
     if (hash !== this.#recordSaveDestination) this.recordSaved = false;
     if (this.#quickSearch?.isOpen) this.#quickSearch.hide(false);

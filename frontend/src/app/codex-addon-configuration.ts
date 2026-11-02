@@ -184,18 +184,19 @@ export class CodexAddonConfiguration extends LitElement {
       <fieldset ?disabled=${this.#blocked || !!this.review}><legend>${t("configuration.books")}</legend><p>${t("configuration.booksHelp")}</p>
         ${
           sources.length > 8
-            ? html`<label>${t("configuration.search")}<input type="search" .value=${this.search} @input=${(
-                event: Event,
-              ) => {
-                this.search = (event.target as HTMLInputElement).value;
-              }}></label>`
+            ? html`<div data-ui-field data-ui-key="configuration-search">
+                <label for="configuration-source-search">${t("configuration.search")}</label>
+                <input id="configuration-source-search" type="search" data-ui="search" .value=${this.search}
+                  @codex-query=${(event: CustomEvent<{ value: string }>) => {
+                    this.search = event.detail.value;
+                  }}></div>`
             : nothing
         }
         ${this.#sourceGroups()}
         <div class="addon-actions">
         <button type="button" @click=${() => this.#setAllSources(true)}>${t("configuration.selectAll")}</button>
         <button type="button" @click=${() => this.#setAllSources(false)}>${t("configuration.clearOptional")}</button>
-        <button class="addon-primary" ?disabled=${!policy.sources.length || (!this.#selected && !policy.sources.some((source) => source.pending))} @click=${() => {
+        <button data-ui-variant="primary" ?disabled=${!policy.sources.length || (!this.#selected && !policy.sources.some((source) => source.pending))} @click=${() => {
           this.review = {
             kind: "sources",
             snapshot: policy,

@@ -648,27 +648,25 @@ void test("an empty mysteries page shows its empty states without search tools",
 void test("direct character edits confirm with Enter, cancel with Escape and preserve the article", async (t) => {
   const host = await campaign(t, { characters: [character()], settings: [gender()] });
   const { page, writes } = await open(t, host, "#/characters/ryn");
-  await page.getByRole("button", { name: "Edit Name", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Name, / }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("Ryn of the Watch");
   await page.getByRole("textbox", { name: "Name", exact: true }).press("Enter");
   await page
-    .getByRole("button", { name: "Edit Name", exact: true })
+    .getByRole("button", { name: /^Edit Name, / })
     .filter({ hasText: "Ryn of the Watch" })
     .waitFor();
   assert.equal(await page.getByRole("button", { name: "Save entry", exact: true }).count(), 0);
   assert.equal((await saved(host, "characters", "ryn")).description, "Old notes");
-  await page.getByRole("button", { name: "Edit Title", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Title, / }).click();
   await page.getByRole("textbox", { name: "Title", exact: true }).fill("Unconfirmed");
   await page.getByRole("textbox", { name: "Title", exact: true }).press("Escape");
-  assert.equal(
-    await page.getByRole("button", { name: "Edit Title", exact: true }).textContent(),
-    "Scout",
-  );
+  // The value button's name keeps the visible value (WCAG 2.5.3).
+  await page.getByRole("button", { name: "Edit Title, Scout", exact: true }).waitFor();
   await page.locator(".character-empty-details > summary").click();
-  await page.getByRole("button", { name: "Edit Gender", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Gender, / }).click();
   await page.getByRole("combobox", { name: "Gender", exact: true }).selectOption("unspecified");
   await page
-    .getByRole("button", { name: "Edit Gender", exact: true })
+    .getByRole("button", { name: /^Edit Gender, / })
     .filter({ hasText: "Unspecified" })
     .waitFor();
   // The second edit builds on the revision the first one saved.
@@ -685,22 +683,19 @@ void test("location facts edit in place: Enter saves the location, Escape keeps 
     locations: [{ key: "gate", value: { name: "Gate", type: "Town" } }],
   });
   const { page, writes } = await open(t, host, "#/locations/gate");
-  await page.getByRole("button", { name: "Edit Kind", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Kind, / }).click();
   const kind = page.getByRole("textbox", { name: "Kind", exact: true });
   await kind.fill("City");
   await kind.press("Enter");
   await page
-    .getByRole("button", { name: "Edit Kind", exact: true })
+    .getByRole("button", { name: /^Edit Kind, / })
     .filter({ hasText: "City" })
     .waitFor();
   assert.equal((await saved(host, "locations", "gate")).type, "City");
-  await page.getByRole("button", { name: "Edit Kind", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Kind, / }).click();
   await kind.fill("Not kept");
   await kind.press("Escape");
-  assert.equal(
-    (await page.getByRole("button", { name: "Edit Kind", exact: true }).textContent())?.trim(),
-    "City",
-  );
+  await page.getByRole("button", { name: "Edit Kind, City", exact: true }).waitFor();
   assert.equal(writes.length, 1);
 });
 
@@ -713,13 +708,13 @@ void test("multi-value location fields edit in place with the chip picker", asyn
   });
   const { page } = await open(t, host, "#/locations/gate");
   await page.locator(".record-more-details > summary").click();
-  await page.getByRole("button", { name: "Edit Connected locations", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Connected locations(, |$)/ }).click();
   const picker = page.getByRole("combobox", { name: "Connected locations", exact: true });
   await picker.fill("val");
   await picker.press("ArrowDown");
   await picker.press("Enter");
   await picker.press("Enter");
-  await page.getByRole("button", { name: "Edit Connected locations", exact: true }).waitFor();
+  await page.getByRole("button", { name: /^Edit Connected locations(, |$)/ }).waitFor();
   assert.deepEqual((await saved(host, "locations", "gate")).connections, ["vale"]);
 });
 
@@ -727,20 +722,14 @@ void test("an inline save shows the value read back from the campaign", async (t
   const host = await campaign(t, { locations: [{ key: "gate", value: { name: "Gate" } }] });
   const { page } = await open(t, host, "#/locations/gate");
   await page.locator(".record-more-details > summary").click();
-  await page.getByRole("button", { name: "Edit Region", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Region, / }).click();
   const region = page.getByRole("textbox", { name: "Region", exact: true });
   await region.fill("  Northern reach  ");
   await region.press("Enter");
-  await page
-    .getByRole("button", { name: "Edit Region", exact: true })
-    .filter({ hasText: /^Northern reach$/ })
-    .waitFor();
+  await page.getByRole("button", { name: "Edit Region, Northern reach", exact: true }).waitFor();
   assert.equal((await saved(host, "locations", "gate")).region, "Northern reach");
   await reload(page);
-  await page
-    .getByRole("button", { name: "Edit Region", exact: true })
-    .filter({ hasText: /^Northern reach$/ })
-    .waitFor();
+  await page.getByRole("button", { name: "Edit Region, Northern reach", exact: true }).waitFor();
 });
 
 void test("circumstances autosave while wiki text remains an explicit draft, and Undo affects only the quick edit", async (t) => {
@@ -751,7 +740,7 @@ void test("circumstances autosave while wiki text remains an explicit draft, and
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
   await source.fill("## An unsaved wiki draft");
   await page.locator(".character-empty-details > summary").click();
-  await page.getByRole("button", { name: "Edit Current circumstances", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Current circumstances, / }).click();
   await page
     .getByRole("textbox", { name: "Current circumstances", exact: true })
     .fill("Travelling north");
@@ -784,7 +773,7 @@ void test("known facts and open questions edit in place, each list saving as a w
   await fact.fill("Owes the guild a debt");
   await fact.press("Enter");
   await page
-    .getByRole("button", { name: "Edit Known facts", exact: true })
+    .getByRole("button", { name: /^Edit Known facts(, |$)/ })
     .filter({ hasText: "Owes the guild a debt" })
     .waitFor();
   await page.waitForFunction(
@@ -797,10 +786,10 @@ void test("known facts and open questions edit in place, each list saving as a w
   await question.fill("Who hired Ryn?");
   await question.press("Enter");
   await page
-    .getByRole("button", { name: "Edit Question", exact: true })
+    .getByRole("button", { name: /^Edit Question, / })
     .filter({ hasText: "Who hired Ryn?" })
     .waitFor();
-  await page.getByRole("button", { name: "Edit Answer", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Answer, / }).click();
   const answer = page.getByRole("textbox", { name: "Answer", exact: true });
   await answer.fill("The harbour master");
   await until(() => writes.length === 3, "the answer saves after a pause");
@@ -810,7 +799,7 @@ void test("known facts and open questions edit in place, each list saving as a w
     .waitFor();
   await answer.press("Escape");
   await page
-    .getByRole("button", { name: "Edit Answer", exact: true })
+    .getByRole("button", { name: /^Edit Answer, / })
     .filter({ hasText: "The harbour master" })
     .waitFor();
   const questions = (await saved(host, "characters", "ryn")).unknown as {
@@ -822,7 +811,7 @@ void test("known facts and open questions edit in place, each list saving as a w
     [{ text: "Who hired Ryn?", answer: "The harbour master" }],
   );
 
-  await page.getByRole("button", { name: "Edit Known facts", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Known facts(, |$)/ }).click();
   await page.getByRole("button", { name: "Remove", exact: true }).click();
   await page.locator(".character-fact-list li").waitFor({ state: "detached" });
   await until(() => writes.length === 4, "removing the fact saves the list");
@@ -834,7 +823,7 @@ void test("failed saves retain values for retry, and edits typed during a pendin
   const host = await campaign(t, { characters: [character()] });
   const { page, writes } = await open(t, host, "#/characters/ryn");
   await failNextWrite(page);
-  await page.getByRole("button", { name: "Edit Name", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Name, / }).click();
   const name = page.getByRole("textbox", { name: "Name", exact: true });
   await name.fill("Retained draft");
   await name.press("Enter");
@@ -856,7 +845,7 @@ void test("failed saves retain values for retry, and edits typed during a pendin
   await name.press("Enter");
   delayed.resolve();
   await page
-    .getByRole("button", { name: "Edit Name", exact: true })
+    .getByRole("button", { name: /^Edit Name, / })
     .filter({ hasText: "Changed while saving" })
     .waitFor();
   assert.equal(writes.length, 3);
@@ -938,12 +927,20 @@ void test("the compact writer applies formatting, preserves source, and retains 
   assert.match(formatted, /\*\*/);
   assert.match(formatted, /data-md-size="24"/);
   await source.fill(formatted + "\n\n- [x] An existing task");
+  // Inline the writer is a labelled part of the form, not a dialog.
+  assert.equal(await page.locator(".writer-inline").getAttribute("role"), "group");
+  assert.equal(await page.locator("codex-markdown-editor dialog").count(), 0);
   await page.getByRole("button", { name: "Expand writer", exact: true }).click();
-  assert.equal(await page.locator("dialog").evaluate((dialog) => dialog.matches(":modal")), true);
+  const expanded = page.locator("dialog.writer-expanded");
+  assert.equal(await expanded.evaluate((dialog) => dialog.matches(":modal")), true);
+  // Tab from the last control wraps inside the full-screen writer.
+  await expanded.getByRole("button", { name: "Save text", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  assert.equal(await expanded.evaluate((dialog) => dialog.contains(document.activeElement)), true);
   await source.press("End");
   await source.pressSequentially(" remains");
   await page.keyboard.press("Escape");
-  assert.equal(await page.locator("dialog").evaluate((dialog) => dialog.matches(":modal")), false);
+  assert.equal(await expanded.count(), 0);
   assert.match(await source.inputValue(), /existing task remains$/);
   await page.getByRole("combobox", { name: "Editor view", exact: true }).selectOption("formatted");
   await rich.locator(".writer-raw-block").filter({ hasText: "existing task remains" }).waitFor();
@@ -1365,12 +1362,12 @@ void test("a confirmed field save leaves another field's open draft unsaved", as
   await sourceView(page);
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
   await source.fill("A wiki draft kept open");
-  await page.getByRole("button", { name: "Edit Title", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Title, / }).click();
   const title = page.getByRole("textbox", { name: "Title", exact: true });
   await title.fill("Captain");
   await title.press("Enter");
   await page
-    .getByRole("button", { name: "Edit Title", exact: true })
+    .getByRole("button", { name: /^Edit Title, / })
     .filter({ hasText: "Captain" })
     .waitFor();
   assert.equal(await source.inputValue(), "A wiki draft kept open");

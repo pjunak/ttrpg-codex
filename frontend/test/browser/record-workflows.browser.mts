@@ -734,9 +734,7 @@ void test("a new form keeps focus off the text toolbar", async (t) => {
   const dm = await open(t, "dm", true);
   await dm.page.goto("/#/locations");
   await dm.page.getByRole("button", { name: "Add location", exact: true }).click();
-  await dm.page.waitForFunction(
-    () => document.querySelector("form.record-editor dialog")?.hasAttribute("open") === true,
-  );
+  await dm.page.locator("form.record-editor .writer-inline").first().waitFor();
   assert.equal(
     await dm.page.evaluate(() => document.activeElement?.closest("codex-markdown-editor") ?? null),
     null,
@@ -926,7 +924,7 @@ for (const mobile of [false, true])
       .getByRole("link", { name: "Private context resident", exact: true })
       .waitFor();
     await dm.page.goto("/#/characters/" + key("captain"));
-    await dm.page.getByRole("button", { name: "Edit Name", exact: true }).click();
+    await dm.page.getByRole("button", { name: /^Edit Name, / }).click();
     const draft = dm.page.getByRole("textbox", { name: "Name", exact: true });
     await draft.fill("Unsubmitted context name");
     const event = await record(key("event"), "events");
@@ -1199,7 +1197,7 @@ void test("direct card editing keeps collection views, party return paths and st
   const dm = await open(t, "dm");
   const view = "#/locations?q=Direct&sort=name";
   await dm.page.goto("/" + view);
-  await dm.page.getByRole("link", { name: "Edit Direct editing town", exact: true }).waitFor();
+  await dm.page.getByRole("link", { name: /^Edit Direct editing town(, |$)/ }).waitFor();
   if (process.env["CODEX_UI_SCREENSHOTS"] === "1") {
     await dm.page.setViewportSize({ width: 390, height: 844 });
     await dm.page.screenshot({
@@ -1212,7 +1210,7 @@ void test("direct card editing keeps collection views, party return paths and st
     );
     await dm.page.setViewportSize({ width: 1440, height: 1000 });
   }
-  const edit = dm.page.getByRole("link", { name: "Edit Direct editing town", exact: true });
+  const edit = dm.page.getByRole("link", { name: /^Edit Direct editing town(, |$)/ });
   await edit.focus();
   await edit.press("Enter");
   const name = dm.page.locator('form.record-editor input[name="name"]');
@@ -1223,7 +1221,7 @@ void test("direct card editing keeps collection views, party return paths and st
     .click();
   await dm.page.getByRole("heading", { name: "Locations", exact: true }).waitFor();
   assert.equal(new URL(dm.page.url()).hash, view);
-  await dm.page.getByRole("link", { name: "Edit Direct renamed town", exact: true }).click();
+  await dm.page.getByRole("link", { name: /^Edit Direct renamed town(, |$)/ }).click();
   await name.fill("Stale direct draft");
   const current = await record("direct-edit");
   await put(
@@ -1245,7 +1243,7 @@ void test("direct card editing keeps collection views, party return paths and st
     .getByRole("button", { name: "Cancel", exact: true })
     .click();
   await dm.page.goto("/#/party");
-  await dm.page.getByRole("link", { name: "Edit Direct party member", exact: true }).click();
+  await dm.page.getByRole("link", { name: /^Edit Direct party member(, |$)/ }).click();
   await dm.page
     .locator("form.record-editor")
     .getByRole("button", { name: "Cancel", exact: true })
@@ -1495,8 +1493,7 @@ for (const mobile of [false, true])
           await dm.page.keyboard.press("Enter");
           await extra
             .getByRole("button", {
-              name: locale === "en" ? "Edit Age" : "Upravit: Věk",
-              exact: true,
+              name: locale === "en" ? /^Edit Age, / : /^Upravit: Věk, /,
             })
             .waitFor();
           await extra.locator("summary").click();
@@ -1637,7 +1634,7 @@ void test("empty profile fields keep keyboard focus when saved or cancelled", as
   const dm = await open(t, "dm", true);
   await dm.page.goto("/#/characters/focus-character");
   await dm.page.locator(".character-empty-details > summary").click();
-  await dm.page.getByRole("button", { name: "Edit Age", exact: true }).click();
+  await dm.page.getByRole("button", { name: /^Edit Age, / }).click();
   const age = dm.page.getByRole("textbox", { name: "Age", exact: true });
   await age.fill("30");
   await age.press("Escape");
@@ -1646,11 +1643,11 @@ void test("empty profile fields keep keyboard focus when saved or cancelled", as
     "age",
   );
   assert.equal((await record("focus-character", "characters")).value.age, undefined);
-  await dm.page.getByRole("button", { name: "Edit Age", exact: true }).click();
+  await dm.page.getByRole("button", { name: /^Edit Age, / }).click();
   await age.fill("31");
   await age.press("Enter");
   await dm.page
-    .getByRole("button", { name: "Edit Age", exact: true })
+    .getByRole("button", { name: /^Edit Age, / })
     .filter({ hasText: "31" })
     .waitFor();
   await dm.page.waitForFunction(
@@ -1666,7 +1663,7 @@ void test("a rejected inline field save keeps the draft and shows why", async (t
   await put(admin, csrf, "inline-conflict-town", { name: "Inline conflict town" });
   const dm = await open(t, "dm");
   await dm.page.goto("/#/locations/inline-conflict-town");
-  await dm.page.getByRole("button", { name: "Edit Name", exact: true }).click();
+  await dm.page.getByRole("button", { name: /^Edit Name, / }).click();
   const draft = dm.page.getByRole("textbox", { name: "Name", exact: true });
   await draft.fill("Inline draft name");
   const current = await record("inline-conflict-town");
@@ -1733,7 +1730,7 @@ void test("a rejected inline draft stays open and editable while another field s
   await put(admin, csrf, "kept-draft-town", { name: "Kept draft town", region: "North" });
   const dm = await open(t, "dm");
   await dm.page.goto("/#/locations/kept-draft-town");
-  await dm.page.getByRole("button", { name: "Edit Name", exact: true }).click();
+  await dm.page.getByRole("button", { name: /^Edit Name, / }).click();
   const name = dm.page.getByRole("textbox", { name: "Name", exact: true });
   await name.fill("Rejected name draft");
   const current = await record("kept-draft-town");
@@ -1761,7 +1758,7 @@ void test("a rejected inline draft stays open and editable while another field s
     await gate;
     await route.continue();
   });
-  await dm.page.getByRole("button", { name: "Edit Region", exact: true }).click();
+  await dm.page.getByRole("button", { name: /^Edit Region, / }).click();
   const region = dm.page.getByRole("textbox", { name: "Region", exact: true });
   await region.fill("South");
   await region.press("Enter");
@@ -1771,7 +1768,7 @@ void test("a rejected inline draft stays open and editable while another field s
   assert.equal(await name.isEditable(), true);
   release();
   await dm.page
-    .getByRole("button", { name: "Edit Region", exact: true })
+    .getByRole("button", { name: /^Edit Region, / })
     .filter({ hasText: "South" })
     .waitFor();
   await rejected.waitFor();
@@ -1924,7 +1921,7 @@ void test("an inline save changed again before its readback says that it was sav
   await put(admin, csrf, "overwritten-town", { name: "Overwritten town" });
   const dm = await open(t, "dm");
   await dm.page.goto("/#/locations/overwritten-town");
-  await dm.page.getByRole("button", { name: "Edit Name", exact: true }).click();
+  await dm.page.getByRole("button", { name: /^Edit Name, / }).click();
   const held = await holdCoreWrite(dm.page, "/api/campaign/transactions", "headers");
   const name = dm.page.getByRole("textbox", { name: "Name", exact: true });
   await name.fill("Our name");

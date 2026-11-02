@@ -50,7 +50,7 @@
 .sc-search {
   width: 190px;
   max-width: 100%;
-  padding: 0.35rem 0.6rem;
+  padding: 0.35rem 2rem 0.35rem 0.6rem;
   border-radius: var(--radius-sm);
   border: 1px solid rgba(var(--gold-muted), 0.25);
   background: var(--bg-surface);
@@ -69,15 +69,37 @@
   border: 1px solid var(--accent-gold);
   padding: var(--space-2);
 }
-.sc-search-results button {
-  display: block;
-  width: 100%;
-  background: none;
-  border: 0;
-  color: var(--text-parchment);
+.sc-search-results [role="option"] {
   padding: 0.4rem;
-  text-align: left;
+  border-radius: var(--radius-sm);
+  color: var(--text-parchment);
   cursor: pointer;
+}
+.sc-search-results [role="option"]:hover,
+.sc-search-results [aria-selected="true"] {
+  background: rgba(var(--accent-gold-rgb), 0.14);
+  color: var(--accent-gold);
+}
+.sc-search-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font: var(--text-sm) var(--font-ui);
+}
+.sc-search-clear {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 2rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: var(--text-base) / 1 var(--font-ui);
+}
+.sc-search-clear:hover {
+  color: var(--accent-gold);
+}
+.sc-search::-webkit-search-cancel-button {
+  appearance: none;
 }
 .sc-stage {
   flex: 1;

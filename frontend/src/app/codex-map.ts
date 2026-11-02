@@ -70,6 +70,7 @@ export class CodexMap extends LitElement {
     draft: { state: true },
     selected: { state: true },
     query: { state: true },
+    activeResult: { state: true },
     status: { state: true },
     zoom: { state: true },
     viewDraft: { state: true },
@@ -98,6 +99,8 @@ export class CodexMap extends LitElement {
   declare private draft: LocationDraft | undefined;
   declare private selected: string | undefined;
   declare private query: string;
+  /** The highlighted search result, or -1 while the pointer and arrows have not chosen one. */
+  declare private activeResult: number;
   declare private status: "loading" | "ready" | "empty" | "error" | "missing";
   declare private zoom: number;
   declare private minZoom: number;
@@ -138,6 +141,7 @@ export class CodexMap extends LitElement {
     this.draft = undefined;
     this.selected = undefined;
     this.query = "";
+    this.activeResult = -1;
     this.status = "loading";
     this.zoom = 0;
     this.viewDraft = undefined;
@@ -191,6 +195,10 @@ export class CodexMap extends LitElement {
   }
   protected override updated(changed: Map<PropertyKey, unknown>): void {
     this.#syncPanelControls();
+    if (changed.has("activeResult") && this.activeResult >= 0)
+      this.querySelector(`#map-search-result-${this.activeResult}`)?.scrollIntoView({
+        block: "nearest",
+      });
     if (
       changed.has("route") ||
       (changed.has("campaign") &&
@@ -898,6 +906,33 @@ export class CodexMap extends LitElement {
       });
     else this.#fit();
   };
+  /** Arrows move the highlight, Enter takes it (or the only match), Escape clears. */
+  #searchKey(event: KeyboardEvent, results: readonly MapLocation[]): void {
+    if (event.isComposing) return;
+    if ((event.key === "ArrowDown" || event.key === "ArrowUp") && results.length > 0) {
+      event.preventDefault();
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      this.activeResult =
+        this.activeResult < 0 || this.activeResult >= results.length
+          ? step > 0
+            ? 0
+            : results.length - 1
+          : (this.activeResult + step + results.length) % results.length;
+    } else if (event.key === "Enter") {
+      const choice = results[this.activeResult] ?? (results.length === 1 ? results[0] : undefined);
+      if (choice === undefined) return;
+      event.preventDefault();
+      this.#select(choice, true);
+    } else if (event.key === "Escape" && this.query !== "") {
+      event.preventDefault();
+      this.#clearSearch();
+    }
+  }
+  readonly #clearSearch = (): void => {
+    this.query = "";
+    this.activeResult = -1;
+    this.querySelector<HTMLInputElement>(".sc-search")?.focus();
+  };
   #select(location: MapLocation, pan = false): void {
     if (!this.#discard()) return;
     this.draft = undefined;
@@ -1174,27 +1209,31 @@ export class CodexMap extends LitElement {
     });
   };
   #navigationTools(results: readonly MapLocation[], views: readonly MapView[]) {
-    return html`<div class="sc-search-wrap"><input class="sc-search" type="search" aria-label=${this.#ui.t("map.search")}
-          placeholder=${this.#ui.t("map.search")} .value=${this.query} @input=${(event: Event) => {
+    const listed = this.query !== "" && results.length > 0;
+    const active = listed && this.activeResult < results.length ? this.activeResult : -1;
+    return html`<div class="sc-search-wrap"><input class="sc-search" type="search" role="combobox"
+          aria-autocomplete="list" aria-expanded=${listed ? "true" : "false"} aria-controls="map-search-results"
+          aria-activedescendant=${active >= 0 ? `map-search-result-${active}` : nothing}
+          aria-label=${this.#ui.t("map.search")} placeholder=${this.#ui.t("map.search")} .value=${this.query}
+          @input=${(event: Event) => {
             this.query = (event.target as HTMLInputElement).value;
+            this.activeResult = -1;
           }}
-          @keydown=${(event: KeyboardEvent) => {
-            if (event.key === "Enter" && !event.isComposing && results[0]) {
-              event.preventDefault();
-              this.#select(results[0], true);
-            }
-          }} />
+          @keydown=${(event: KeyboardEvent) => this.#searchKey(event, results)} />
           ${
             this.query === ""
               ? nothing
-              : html`<div class="sc-search-results">${
-                  results.length === 0
-                    ? this.#ui.t("map.noResults")
-                    : results.map(
-                        (location) => html`
-            <button type="button" @click=${() => this.#select(location, true)}>${location.name}</button>`,
-                      )
-                }</div>`
+              : html`<button type="button" class="sc-search-clear" aria-label=${this.#ui.t("map.clearSearch")}
+            title=${this.#ui.t("map.clearSearch")} @click=${this.#clearSearch}>×</button>
+          <div class="sc-search-results">${
+            results.length === 0
+              ? html`<p class="sc-search-empty" role="status">${this.#ui.t("map.noResults")}</p>`
+              : html`<div id="map-search-results" role="listbox" aria-label=${this.#ui.t("map.search")}>${results.map(
+                  (location, index) => html`<div role="option" id=${`map-search-result-${index}`}
+                aria-selected=${index === active ? "true" : "false"} @pointerdown=${(event: PointerEvent) => event.preventDefault()}
+                @click=${() => this.#select(location, true)}>${location.name}</div>`,
+                )}</div>`
+          }</div>`
           }
         </div>
         <button class="ui-action" aria-pressed=${this.eventsVisible} @click=${this.#toggleEvents} ?disabled=${this.status !== "ready"}>📜 ${this.#ui.t("map.eventPaths")}</button>

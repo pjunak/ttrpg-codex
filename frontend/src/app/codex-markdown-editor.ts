@@ -34,6 +34,7 @@ import { uiText, UiLocalizationController } from "./ui-localization.js";
 import { MarkdownDraftController } from "./markdown-draft-controller.js";
 import type { MarkdownDraft, MarkdownDraftContext } from "../core/markdown-drafts.js";
 import { selectOptions } from "./select-options.js";
+import { containDialogTab } from "../ui/focus.js";
 
 type Mode = "formatted" | "markdown" | "preview";
 let writerID = 0;
@@ -113,7 +114,13 @@ export class CodexMarkdownEditor extends LitElement {
   protected override updated(changed: Map<PropertyKey, unknown>): void {
     this.#drafts.configure(this.draftContext);
     if (!this.#view) this.#mount();
-    else if (
+    // Expanding or collapsing replaces the surface; keep the document, selection and history.
+    else if (!this.contains(this.#view.dom)) {
+      const state = this.#view.state;
+      this.#view.destroy();
+      this.#view = undefined;
+      this.#mount(state);
+    } else if (
       changed.has("identity") ||
       (changed.has("value") && this.value !== this.#lastEmitted && this.value !== this.#richValue)
     )
@@ -127,19 +134,19 @@ export class CodexMarkdownEditor extends LitElement {
       },
     });
     if (this.disabled) this.menu = "";
-    // The inline surface opens without show(), which would move focus into its toolbar.
-    const dialog = this.querySelector<HTMLDialogElement>("dialog");
-    if (dialog && !dialog.open) dialog.open = true;
   }
 
-  #mount(): void {
+  #mount(state?: EditorState): void {
     const target = this.querySelector<HTMLElement>(".writer-rich");
     if (!target) return;
-    const parsed = parseRichMarkdown(this.value);
-    this.#originals = parsed.originals;
-    this.#richValue = this.value;
+    if (state === undefined) {
+      const parsed = parseRichMarkdown(this.value);
+      this.#originals = parsed.originals;
+      this.#richValue = this.value;
+      state = this.#state(parsed.doc);
+    }
     this.#view = new EditorView(target, {
-      state: this.#state(parsed.doc),
+      state,
       dispatchTransaction: (transaction) => {
         const view = this.#view;
         if (!view || this.disabled || this.recoveryBusy) return;
@@ -296,8 +303,17 @@ export class CodexMarkdownEditor extends LitElement {
   }
 
   protected override render() {
-    return html`<dialog class=${`writer-dialog ${this.expanded ? "writer-expanded" : "writer-inline"}${this.split ? " is-split" : ""}`}
-      aria-label=${this.label || uiText("Wiki text")} @cancel=${this.#cancelDialog} @keydown=${this.#keyDown}>
+    const className = `writer-dialog ${this.expanded ? "writer-expanded" : "writer-inline"}${this.split ? " is-split" : ""}`,
+      label = this.label || uiText("Wiki text");
+    // Inline the writer is part of the form; only the full-screen writer is a (modal) dialog.
+    return this.expanded
+      ? html`<dialog class=${className} aria-label=${label} @cancel=${this.#cancelDialog}
+          @keydown=${this.#keyDown}>${this.#surface()}</dialog>`
+      : html`<div class=${className} role="group" aria-label=${label} @keydown=${this.#keyDown}>
+          ${this.#surface()}</div>`;
+  }
+  #surface() {
+    return html`
       ${
         this.expanded
           ? html`<div class="writer-heading"><span class="writer-title">${this.label || uiText("Wiki text")}</span>
@@ -374,8 +390,7 @@ export class CodexMarkdownEditor extends LitElement {
         <button type="button" @click=${this.#expand}>${uiText("writer.collapse")}</button>
         <button type="button" class="ui-action" data-ui-variant="primary" ?disabled=${this.disabled} @click=${this.#requestSave}>${this.saveLabel || uiText("Save text")}</button></footer>`
           : html`<div class="writer-footer">${this.#recoveryStatus()}</div>`
-      }
-    </dialog>`;
+      }`;
   }
   #button(
     content: string | TemplateResult,
@@ -733,26 +748,19 @@ export class CodexMarkdownEditor extends LitElement {
     view?.focus();
   };
   readonly #expand = async (): Promise<void> => {
-    const dialog = this.querySelector<HTMLDialogElement>("dialog");
-    if (!dialog) return;
     const expanding = !this.expanded;
     if (expanding)
       this.#returnFocus =
         document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    else this.querySelector<HTMLDialogElement>("dialog.writer-expanded")?.close();
     this.expanded = expanding;
     this.menu = "";
     if (expanding && this.mode === "preview") this.#setMode("formatted");
     if (expanding) this.split = this.mode === "markdown";
-    dialog.close();
     await this.updateComplete;
     if (!this.isConnected) return;
-    // showModal requires a closed dialog; updated() also opens the ordinary inline surface.
-    if (dialog.open) dialog.close();
-    if (expanding) dialog.showModal();
-    else {
-      dialog.show();
-      this.#returnFocus?.focus();
-    }
+    if (expanding) this.querySelector<HTMLDialogElement>("dialog.writer-expanded")?.showModal();
+    else this.#returnFocus?.focus();
   };
   readonly #cancelDialog = (e: Event): void => {
     e.preventDefault();
@@ -768,6 +776,8 @@ export class CodexMarkdownEditor extends LitElement {
   };
   readonly #keyDown = (e: KeyboardEvent): void => {
     if (e.isComposing) return;
+    // List indentation claims Tab first; otherwise Tab stays inside the full-screen writer.
+    if (e.currentTarget instanceof HTMLDialogElement) containDialogTab(e.currentTarget, e);
     if (e.key === "Escape" && this.menu) {
       e.preventDefault();
       e.stopPropagation();

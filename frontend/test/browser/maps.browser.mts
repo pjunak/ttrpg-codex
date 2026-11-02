@@ -403,16 +403,34 @@ void test("map quick edits retain text through conflicts and remote deletion", a
   await page.locator(".sc-panel").waitFor({ state: "detached" });
 });
 
-void test("map Enter follows the visible accent-insensitive search order without writing", async (t) => {
+void test("map search lists accent-insensitive matches; arrows and Enter choose one without writing", async (t) => {
   const { page, writes } = await fixture(t);
   record("gate").value.name = "Žár Gate";
   record("inn").value.name = "Žár Inn";
   await changed(page);
-  await page.locator(".sc-search").fill("zar");
-  await page.locator(".sc-search-results button").first().filter({ hasText: "Žár Gate" }).waitFor();
-  await page.locator(".sc-search").press("Enter");
+  const search = page.getByRole("combobox", { name: "Find a place" });
+  await search.fill("zar");
+  const options = page.getByRole("listbox", { name: "Find a place" }).getByRole("option");
+  await options.first().waitFor();
+  assert.deepEqual(await options.allTextContents(), ["Žár Gate", "Žár Inn"]);
+  // Two matches and nothing highlighted: Enter does not guess.
+  await search.press("Enter");
+  assert.equal(await search.inputValue(), "zar");
+  await search.press("ArrowUp");
+  assert.equal(await options.nth(1).getAttribute("aria-selected"), "true");
+  await search.press("ArrowDown");
+  assert.equal(
+    await search.getAttribute("aria-activedescendant"),
+    await options.nth(0).getAttribute("id"),
+  );
+  await search.press("Enter");
   await page.locator(".sc-panel h2").filter({ hasText: "Žár Gate" }).waitFor();
-  assert.equal(await page.locator(".sc-search").inputValue(), "");
+  assert.equal(await search.inputValue(), "");
+  await search.fill("zar inn");
+  await page.getByRole("button", { name: "Clear search" }).click();
+  assert.equal(await search.inputValue(), "");
+  assert.equal(await search.getAttribute("aria-expanded"), "false");
+  assert.ok(await search.evaluate((input) => input === document.activeElement));
   assert.equal(writes.length, 0);
 });
 async function chooseEventPoint(page: Page, mobile = false) {

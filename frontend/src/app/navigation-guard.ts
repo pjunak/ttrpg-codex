@@ -84,7 +84,10 @@ export class NavigationGuard implements ReactiveController {
    * stays open through a query change keeps its edits.
    */
   confirmDiscard(nextHash?: string): boolean {
-    if (this.#options.busy() || this.#edits.saving) return false;
+    if (this.#options.busy() || this.#edits.saving) {
+      this.#options.refused(uiText("Wait for the save to finish before leaving this view."));
+      return false;
+    }
     const currentRoute = parseBrowserAddonLocation(this.#accepted)?.routeHash;
     const nextRoute =
       nextHash === undefined ? undefined : parseBrowserAddonLocation(nextHash)?.routeHash;

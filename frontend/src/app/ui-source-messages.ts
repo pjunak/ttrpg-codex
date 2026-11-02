@@ -462,6 +462,8 @@ export const sourceCs = {
     "Vzhled se během ukládání změnil. Zkontrolujte aktuální motiv a zkuste to znovu.",
   "Wait for the add-on save to finish before leaving this view.":
     "Před opuštěním tohoto pohledu počkejte na dokončení ukládání doplňku.",
+  "Wait for the save to finish before leaving this view.":
+    "Před opuštěním tohoto pohledu počkejte na dokončení ukládání.",
   "Unknown application failure": "Neznámá chyba aplikace",
   "Session check failed: {0}": "Ověření přihlášení selhalo: {0}",
   "Add-ons could not start: {0}": "Doplňky se nepodařilo spustit: {0}",

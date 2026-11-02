@@ -275,11 +275,11 @@ void test("direct fields and the wiki commit independently through the authentic
   await page.getByRole("combobox", { name: "Editor view", exact: true }).selectOption("markdown");
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
   await source.fill('## Wiki draft\n\n<span data-md-color="info">Blue ink</span>');
-  await page.getByRole("button", { name: "Edit Name", exact: true }).click();
+  await page.getByRole("button", { name: /^Edit Name, / }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("After");
   await page.getByRole("textbox", { name: "Name", exact: true }).press("Enter");
   await page
-    .getByRole("button", { name: "Edit Name", exact: true })
+    .getByRole("button", { name: /^Edit Name, / })
     .filter({ hasText: "After" })
     .waitFor();
   const renamed = await record(key);

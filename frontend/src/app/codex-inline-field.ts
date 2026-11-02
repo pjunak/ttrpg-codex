@@ -153,9 +153,11 @@ export class CodexInlineField extends LitElement {
         data-edit-field=${this.name} aria-label=${edit} title=${edit} ?disabled=${this.disabled}
         @click=${this.#start}>${pencilIcon()}</button>`;
     const empty = text === "" && this.display === undefined;
+    // The name starts with the action and keeps the visible value, so speech
+    // input can target the value it sees (WCAG 2.5.3).
     return html`<button type="button" class=${`inline-field-value${empty ? " is-empty" : ""}`}
-      data-edit-field=${this.name} aria-label=${edit} ?disabled=${this.disabled}
-      @click=${this.#start}>${
+      data-edit-field=${this.name} ?disabled=${this.disabled}
+      @click=${this.#start}><span class="visually-hidden">${edit}, </span>${
         empty
           ? (this.placeholder ?? uiText("Add {0}", { "0": this.label.toLocaleLowerCase() }))
           : (this.display ?? text)
