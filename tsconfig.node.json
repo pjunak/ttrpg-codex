@@ -16,6 +16,7 @@
   },
   "include": [
     "scripts/**/*.mts",
+    "contracts/**/*.mts",
     "scripts/**/*.ts",
     ".github/actions/**/*.mts",
     "frontend/test/browser/**/*.mts"

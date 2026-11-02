@@ -90,9 +90,9 @@ your own subset; it drifts from what the host actually provides.
   covers markers, skin tokens and cleanup. Keep domain behaviour in your add-on.
 - Style with the host's [design tokens](API_V3.md#package-format) so your pages
   follow the campaign theme: colours, type sizes (never below `--text-xs`),
-  spacing, radii, motion and stacking layers. Keep a copy of
-  `contracts/addons/v3/design-tokens.json` beside the browser types and check
-  your stylesheets against it.
+  spacing, radii, motion and stacking layers. Keep copies of
+  `contracts/addons/v3/design-tokens.json` and `style-check.mts` with your
+  tools and run the check on your sources in CI.
 - Render loading, empty, unavailable, retry and error states.
 - Everything you create (listeners, timers, subscriptions, requests, caches)
   belongs to one activation generation. Dispose it on abort, and make disposal

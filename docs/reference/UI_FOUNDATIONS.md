@@ -222,7 +222,7 @@ scales are:
 | Type | `--text-xs` (12px, the minimum) through `--text-4xl`, plus `--text-display` for decorative glyphs |
 | Space | `--space-1` (0.25rem) through `--space-8` (3rem); gaps always use it, padding and margins where a step fits |
 | Motion | `--duration-fast`, `--duration-base`, `--duration-slow`, `--ease-out` |
-| Stacking | Values up to 10 order siblings inside one component; page layers (`--z-sticky`, `--z-toast`, `--z-drawer`, map and menu layers) are named |
+| Stacking | Values up to 10 order siblings inside one component; page layers (`--z-sticky`, `--z-float` for non-modal windows and popovers, `--z-toast`, `--z-drawer`, map, menu and `--z-fullscreen` layers) are named |
 
 `npm run check:source` runs `scripts/check-styles.mts`: colour literals outside
 the token file (theme-neutral black and white shades excepted; Mind Palace
@@ -230,7 +230,10 @@ waits for its design), literal font sizes, unnamed z-index layers, literal
 transition durations and `var()` names nothing defines all fail. The token
 names are published in
 [`design-tokens.json`](../../contracts/addons/v3/design-tokens.json), and the
-same check keeps that list equal to the tokens. A `[data-theme-sample]`
+same check keeps that list equal to the tokens, and add-ons run the shared
+rules in [`style-check.mts`](../../contracts/addons/v3/style-check.mts) over
+their own sources (host tokens by name, no redefinitions or fallbacks, colours
+named once as their own properties). A `[data-theme-sample]`
 element gets its own copy of a theme, which is how Settings previews both.
 
 [Control CSS](../../frontend/src/ui/controls.css) supplies defaults from those

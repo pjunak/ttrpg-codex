@@ -12,6 +12,15 @@ boundaries validate browser models.
   contribution elements. The host implementation is checked against it in
   `frontend/test/public-sdk-types.test.ts`; add-ons copy it unchanged.
 - `ui-controls.d.ts` is the public integrated DOM UI handle and query-event type contract; see [shared UI](../../../docs/reference/UI_FOUNDATIONS.md) for markers and tokens.
+- `design-tokens.json` lists the CSS custom properties (colours, type, space,
+  radii, shadows, motion and stacking layers) the host defines for every theme.
+  The host's style check keeps it equal to `frontend/src/styles/tokens.css`
+  and the public control tokens.
+- `style-check.mts` applies the shared style rules to an add-on's sources:
+  host tokens by name only (no redefinition, no fallback), colours named once
+  as the add-on's own properties, and the host's type, layer and motion
+  scales. Copy it unchanged beside `design-tokens.json` and run
+  `node style-check.mts <source directory>`.
 - `manifest.schema.json` validates the declarative package manifest.
 - `checksums.schema.json` validates the complete SHA-256 file inventory.
 - `protocol.schema.json` validates individual JSON-RPC worker messages after

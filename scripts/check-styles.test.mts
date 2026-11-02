@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { addonStyleProblems } from "../contracts/addons/v3/style-check.mts";
 import { controlsFile, styleProblems, tokenFile } from "./check-styles.mts";
 
 const tokens = ":root { --bg-base: #141008; --text-sm: 0.85rem; --z-toast: 150; }";
@@ -77,4 +78,39 @@ void test("the published list must match the tokens exactly", () => {
     "design-tokens.json:1: --bg-base is not listed",
     "design-tokens.json:1: --retired is not a token",
   ]);
+});
+
+void test("add-ons use host tokens by name and name their own values once", () => {
+  const styles = new Map([
+    [
+      "src/sheet.css",
+      `.sheet {
+  --sheet-gold: #c8a040;
+  --space-5: 1.5rem;
+  color: var(--text-light, #d4c49a);
+  background: var(--sheet-gold);
+  border-color: var(--bg-hover);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 0 4px #222;
+  font-size: 0.62rem;
+  z-index: 40;
+  width: var(--sheet-width);
+}`,
+    ],
+  ]);
+  assert.deepEqual(
+    addonStyleProblems(
+      styles,
+      ["el.style.setProperty('--sheet-width', w)"],
+      ["--text-light", "--space-5"],
+    ).map(({ line, message }) => `${line}: ${message}`),
+    [
+      "3: --space-5 is a host token; do not redefine it",
+      "4: --text-light needs no fallback: the host always defines it",
+      "4: colour #d4c49a: use a host token or name it once as your own property",
+      "6: --bg-hover is not a host token or defined here",
+      "7: colour #222: use a host token or name it once as your own property",
+      "8: font-size 0.62rem: use a --text-* token or a relative size",
+      "9: z-index 40: use a --z-* layer above 10",
+    ],
+  );
 });
