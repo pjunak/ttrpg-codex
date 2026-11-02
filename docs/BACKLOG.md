@@ -123,26 +123,6 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 
 ### UI styling and structure
 
-- **Complete and publish design tokens** `ttrpg-codex` and add-on UIs — The
-  Moonlit theme overrides only some tokens, so timeline, map and Mind Palace
-  panels stay Classic brown (theme Mind Palace only once its design is
-  decided); display colours live in TypeScript; the theme preview copies the
-  palettes; add-ons redefine host tokens with different values, and Sheets uses
-  an undefined `--bg-hover`. Theme every surface through tokens, publish the
-  host token names, and make add-on source checks reject redefined or unknown
-  tokens.
-- **Spacing, type and stacking scales, and one button** `ttrpg-codex` and
-  add-on UIs — Most padding, gaps and font sizes are literals, z-index and
-  durations have no scale, Sheets has text below the 12 px minimum, and several
-  feature button styles sit beside the shared variants. Add the missing scales,
-  move literals to tokens when touching a file, lint new literals, and use one
-  button with variants.
-- **Shared controls and accessibility** `ttrpg-codex`,
-  `addon-dnd-character-sheets` — The map search lacks listbox roles and arrow
-  keys; the inline Markdown writer is announced as a dialog and its full-screen
-  mode lets Tab escape; inline value buttons hide the value from their name;
-  navigation during a save is refused without a message; Sheets' non-modal
-  windows trap Tab.
 - **Split the remaining large UI files** `ttrpg-codex`, `addon-dm-tools` —
   Split `campaign-record-editor.ts` (field descriptors, parsing, relationship
   planning), the article and collection views out of `codex-record-page.ts`,
@@ -172,6 +152,14 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 
 ## Later
 
+- **Theme Mind Palace** `ttrpg-codex` — Mind Palace keeps Classic colours in
+  `relationship-graph.css` (exempt from the style check) and in
+  `campaign-graph*.ts`, so Moonlit shows it brown. Move them to tokens once its
+  design is decided.
+- **Spacing in add-on styles** add-on UIs — The host's gaps follow the space
+  scale and add-ons use the host's type, layer and motion scales, but add-on
+  padding, margins and gaps are still literals. Move them to `--space-*` when
+  a stylesheet is next touched.
 - **Finish typing the rules paths** `addon-dnd-engine`,
   `addon-dnd-character-sheets` — Rules-engine 6 returns typed results, but the
   Engine's internal decisions map still reads records field by field, its
