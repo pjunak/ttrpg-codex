@@ -129,14 +129,13 @@ function classicDesign(viewport: "desktop" | "mobile"): Record<string, Record<st
       opacity: "1",
       "border-top-color": "rgba(0, 0, 0, 0)",
     },
-    ".party-add": {
-      padding: "4px 9.6px",
+    ".party-section-actions .ui-action": {
+      padding: "4.8px 12.8px",
       "font-family": inter,
-      "font-size": "12px",
-      color: gold,
+      "font-size": "13.6px",
+      color: "rgb(212, 196, 154)",
       "background-color": "rgba(0, 0, 0, 0)",
-      "border-radius": "4px",
-      "border-top-color": "rgba(200, 160, 64, 0.3)",
+      "border-radius": "6px",
     },
     ".section-heading h2": {
       "font-family": cinzel,
@@ -210,7 +209,7 @@ for (const [name, viewport] of Object.entries({
       "#campaign-title",
       ".campaign-title-page",
       ".campaign-identity-pen",
-      ".party-add",
+      ".party-section-actions .ui-action",
       ".section-heading h2",
       ".party-member",
       ".party-portrait",

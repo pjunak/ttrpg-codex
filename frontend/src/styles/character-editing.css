@@ -90,9 +90,7 @@ codex-character-profile {
   box-shadow: var(--shadow-card);
 }
 .character-more button,
-.character-local-actions button,
-.character-save-status button,
-.character-add {
+.character-save-status button {
   border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius-sm);
   color: var(--text-parchment);
@@ -113,7 +111,7 @@ codex-character-profile {
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
-.direct-character .primary-record-action {
+.direct-character [data-ui-variant="primary"] {
   color: var(--bg-deep);
   background: var(--accent-gold);
   border-color: var(--accent-gold);
@@ -149,12 +147,6 @@ codex-character-profile {
   border-left: 2px solid var(--chrome-field-border);
   color: var(--text-muted);
   font-size: var(--text-sm);
-}
-.character-add {
-  color: var(--text-muted);
-  background: transparent;
-  border-color: transparent;
-  padding-left: 0;
 }
 .character-section-editor {
   border: 1px solid var(--chrome-field-border);

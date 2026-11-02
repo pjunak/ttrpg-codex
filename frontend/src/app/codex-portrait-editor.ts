@@ -66,13 +66,13 @@ export class CodexPortraitEditor extends LitElement {
           ${
             image === undefined
               ? nothing
-              : html`<button class="record-action" type="button" ?disabled=${this.disabled}
+              : html`<button class="ui-action" type="button" ?disabled=${this.disabled}
             @click=${this.#remove}>${uiText("Remove portrait")}</button>`
           }
           ${
             this.#draft === undefined
               ? nothing
-              : html`<button class="record-action" type="button" ?disabled=${this.disabled}
+              : html`<button class="ui-action" type="button" ?disabled=${this.disabled}
             @click=${this.#undo}>${uiText("Undo portrait change")}</button>`
           }
           ${this.error ? html`<p role="alert">${uiText("Choose a supported image between 1 byte and 20 MiB.")}</p>` : nothing}

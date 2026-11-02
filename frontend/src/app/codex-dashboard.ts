@@ -171,7 +171,7 @@ export class CodexDashboard extends LitElement {
           <h2 id="party-heading"><span aria-hidden="true">${model.partyIdentity.badge}</span> ${model.partyIdentity.name}</h2>
           <div class="party-section-actions">
             ${compact ? html`<a href="#/party">${this.#ui.t("dashboard.openRoster")}</a>` : nothing}
-            <button class="party-add" type="button" title=${this.#ui.t("dashboard.addPartyMember")}
+            <button class="ui-action" type="button" title=${this.#ui.t("dashboard.addPartyMember")}
               @click=${this.#addPartyMember} ?disabled=${this.busy}>＋ ${this.#ui.t("dashboard.add")}</button>
           </div>
         </div>

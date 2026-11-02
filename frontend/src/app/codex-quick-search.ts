@@ -87,7 +87,7 @@ export class CodexQuickSearch extends LitElement {
         event.preventDefault();
         this.hide();
       }}>
-      <button type="button" class="record-action quick-search-close" @click=${() => this.hide()}>${uiText("jump.close")}</button>
+      <button type="button" class="ui-action quick-search-close" @click=${() => this.hide()}>${uiText("jump.close")}</button>
       <codex-search .quick=${true} .campaign=${this.campaign} .registry=${this.registry}
         .actorRole=${this.actorRole}></codex-search>
     </dialog>`;

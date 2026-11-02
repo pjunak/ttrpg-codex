@@ -175,16 +175,16 @@ export class CodexTimeline extends LitElement {
           this.draft === undefined
             ? nothing
             : html`
-          <button class="tl-add-btn" ?disabled=${this.#locked} @click=${this.#save}>${this.#ui.t(this.saving ? "dashboard.saving" : "timeline.save")}</button>
-          <button class="tl-add-btn" ?disabled=${this.#locked} @click=${this.#cancel}>${this.#ui.t("dashboard.cancel")}</button>`
+          <button class="ui-action" ?disabled=${this.#locked} @click=${this.#save}>${this.#ui.t(this.saving ? "dashboard.saving" : "timeline.save")}</button>
+          <button class="ui-action" ?disabled=${this.#locked} @click=${this.#cancel}>${this.#ui.t("dashboard.cancel")}</button>`
         }
         ${
           this.canEdit
-            ? html`<button class="tl-add-btn" aria-pressed=${this.editing} ?disabled=${this.#locked} @click=${this.#toggleEditing}>
+            ? html`<button class="ui-action" aria-pressed=${this.editing} ?disabled=${this.#locked} @click=${this.#toggleEditing}>
           ✎ ${this.#ui.t(this.editing ? "timeline.done" : "timeline.edit")}</button>`
             : nothing
         }
-        ${this.editing ? html`<a class="tl-add-btn" href=${`#/timeline/new/${latestTimelineSitting(columns)}`}>＋ ${this.#ui.t("timeline.newEvent")}</a>` : nothing}
+        ${this.editing ? html`<a class="ui-action" href=${`#/timeline/new/${latestTimelineSitting(columns)}`}>＋ ${this.#ui.t("timeline.newEvent")}</a>` : nothing}
         ${this.#slot("timeline:toolbar", null, [])}
       </header>
       ${this.error === "" ? nothing : html`<p class="tl-message" role="alert">${this.error}</p>`}

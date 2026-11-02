@@ -32,30 +32,11 @@ codex-recovery-settings {
 .settings-recovery-panel .settings-ledger-heading > .settings-recovery-actions {
   display: flex;
 }
-.settings-recovery-panel .inline-create-btn {
-  min-height: 2rem;
-  box-sizing: border-box;
-  padding: 0.3rem 0.8rem;
-  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
-  border-radius: var(--radius);
-  color: var(--text-light);
-  background: transparent;
-  font: 500 var(--text-sm)/1.3 var(--font-ui);
-  cursor: pointer;
-}
-.settings-recovery-panel .inline-create-btn {
-  display: inline-flex;
-  align-items: center;
-}
 .settings-recovery-panel .settings-snapshot-row button {
   min-height: 2rem;
   width: 2rem;
   padding: 0;
   background: transparent;
-}
-.settings-recovery-panel .inline-create-btn:hover {
-  border-color: var(--ui-accent);
-  color: var(--ui-accent);
 }
 .settings-recovery-panel .settings-btn-del:hover {
   color: var(--color-danger);
@@ -1133,7 +1114,7 @@ codex-addon-settings {
 }
 
 /* Consistent compact controls in every settings section; any class rule still wins. */
-:where(.settings-ledger) :where(button:not([role="tab"]), a.record-action) {
+:where(.settings-ledger) :where(button:not([role="tab"]):not(.ui-action)) {
   min-height: 2rem;
   padding: 0.3rem 0.8rem;
   border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
@@ -1143,27 +1124,21 @@ codex-addon-settings {
   font: 500 var(--text-sm)/1.3 var(--font-ui);
   cursor: pointer;
 }
-:where(.settings-ledger) :where(button:not([role="tab"])):hover:enabled {
+:where(.settings-ledger) :where(button:not([role="tab"]):not(.ui-action)):hover:enabled {
   border-color: var(--accent-gold);
   color: var(--accent-gold);
 }
-:where(.settings-ledger)
-  :where(button):where([data-ui-variant="primary"], .primary, .primary-record-action) {
+:where(.settings-ledger) :where(button[data-ui-variant="primary"]) {
   border-color: var(--accent-gold);
   background: var(--accent-gold);
   color: var(--color-on-accent);
   font-weight: 600;
 }
-:where(.settings-ledger)
-  :where(button):where(
-    [data-ui-variant="primary"],
-    .primary,
-    .primary-record-action
-  ):hover:enabled {
+:where(.settings-ledger) :where(button[data-ui-variant="primary"]):hover:enabled {
   color: var(--color-on-accent);
   filter: brightness(1.08);
 }
-:where(.settings-ledger) :where(button):where([data-ui-variant="danger"], .danger) {
+:where(.settings-ledger) :where(button[data-ui-variant="danger"]) {
   color: var(--color-danger);
 }
 :where(.settings-ledger)
@@ -1173,7 +1148,7 @@ codex-addon-settings {
   font-size: var(--text-sm);
 }
 @media (pointer: coarse) {
-  :where(.settings-ledger) :where(button:not([role="tab"]), a.record-action),
+  :where(.settings-ledger) :where(button:not([role="tab"]):not(.ui-action)),
   :where(.settings-ledger) :where(input, select),
   .settings-index a {
     min-height: 2.75rem;
@@ -1413,8 +1388,8 @@ codex-addon-settings {
   margin-top: var(--space-4);
 }
 
-.settings-account-panel .primary,
-.settings-edit-actions .primary {
+.settings-account-panel [data-ui-variant="primary"],
+.settings-edit-actions [data-ui-variant="primary"] {
   color: var(--bg-surface);
   border-color: var(--accent-gold);
   background: var(--accent-gold);
@@ -1433,7 +1408,7 @@ codex-addon-settings {
   margin-top: 0;
 }
 
-.settings-delete-actions .danger {
+.settings-delete-actions [data-ui-variant="danger"] {
   color: var(--text-light);
   border-color: var(--chrome-field-border);
   background: var(--bg-raised);
@@ -1530,7 +1505,7 @@ codex-addon-settings {
   font: var(--text-sm) var(--font-ui);
   min-width: 3ch;
 }
-.settings-map-config .sc-btn {
+.settings-map-config .ui-action {
   margin-right: 0.3rem;
 }
 .settings-map-views h3 {

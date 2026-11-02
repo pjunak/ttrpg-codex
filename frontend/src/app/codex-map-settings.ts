@@ -118,13 +118,13 @@ export class CodexMapSettings extends LitElement {
           ${
             this.imageURL === undefined
               ? html`<p class="settings-hint" role="status">${this.#ui.t(this.preview === "loading" ? "map.loading" : this.preview === "error" ? "map.failed" : "map.empty")}</p>
-            ${this.preview === "error" ? html`<button class="sc-btn" @click=${() => void this.#loadPreview()}>${this.#ui.t("shell.tryAgain")}</button>` : nothing}`
+            ${this.preview === "error" ? html`<button class="ui-action" @click=${() => void this.#loadPreview()}>${this.#ui.t("shell.tryAgain")}</button>` : nothing}`
               : html`<div class="settings-worldmap-preview"><img src=${previewResourceURL(this.imageURL)} alt=${this.#ui.t("map.previewImage")} @error=${() => {
                   this.imageURL = undefined;
                   this.preview = "error";
                 }} /></div>`
           }
-          <a class="sc-btn" href=${mapHash(this.parentId)}>${this.#ui.t("map.openMap")}</a>
+          <a class="ui-action" href=${mapHash(this.parentId)}>${this.#ui.t("map.openMap")}</a>
           <label class="settings-map-upload">${this.#ui.t("map.upload")}<input type="file" aria-label=${this.#ui.t("map.upload")}
             accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" ?disabled=${this.#locked || missing} @change=${this.#upload} /></label>
           ${saveFailure(this.error)}
@@ -137,15 +137,15 @@ export class CodexMapSettings extends LitElement {
             <p class="settings-hint">${this.#ui.t("map.markerZoomHint")}</p>
             <div class="settings-strength-row"><input id="map-marker-zoom" type="range" min="0" max="1" step="0.05"
               .value=${String(this.draft.zoomScaleRatio)} ?disabled=${this.#locked} @input=${this.#input} /><output for="map-marker-zoom">${Math.round(this.draft.zoomScaleRatio * 100)}%</output></div>
-            <button class="sc-btn" type="submit" ?disabled=${this.#locked}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
-            <button class="sc-btn" type="button" ?disabled=${this.#locked} @click=${() => {
+            <button class="ui-action" type="submit" ?disabled=${this.#locked}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
+            <button class="ui-action" type="button" ?disabled=${this.#locked} @click=${() => {
               if (this.#discard()) this.#reset();
             }}>${this.#ui.t("dashboard.cancel")}</button>
           </form>`
           }
           <div class="settings-map-views"><h3>${this.#ui.t("map.savedViews")}</h3>
             ${views.length ? html`<ul>${views.map((view) => html`<li>${view.icon} ${view.label}</li>`)}</ul>` : html`<p class="settings-hint">${this.#ui.t("map.noViews")}</p>`}
-            <a class="sc-btn" href=${mapHash(this.parentId)}>${this.#ui.t("map.manageViews")}</a>
+            <a class="ui-action" href=${mapHash(this.parentId)}>${this.#ui.t("map.manageViews")}</a>
           </div>
         </section>
       </div>

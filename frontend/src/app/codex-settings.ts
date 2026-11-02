@@ -505,7 +505,7 @@ export class CodexSettings extends LitElement {
         ${saveFailure(this.writeError)}
         <div class="settings-edit-actions">
           <button type="button" @click=${this.#cancelEdit} ?disabled=${this.#locked}>${uiText("Cancel")}</button>
-          <button class="primary" type="submit" ?disabled=${this.#locked}>${this.writing ? uiText("Saving…") : uiText("Save definition")}</button>
+          <button data-ui-variant="primary" type="submit" ?disabled=${this.#locked}>${this.writing ? uiText("Saving…") : uiText("Save definition")}</button>
         </div>
         <input type="hidden" name="expectedRevision" value=${String(expectedRevision)} />
       </form>`;
@@ -579,7 +579,7 @@ export class CodexSettings extends LitElement {
             ? html`
           <div class="settings-delete-actions">
             <button type="button" @click=${this.#cancelDelete}>${uiText("Keep it")}</button>
-            <button class="danger" type="button" data-id=${item.id} data-revision=${String(expectedRevision)}
+            <button data-ui-variant="danger" type="button" data-id=${item.id} data-revision=${String(expectedRevision)}
               data-mode="reject-if-used" @click=${this.#delete}>${uiText("Delete definition")}</button>
           </div>
         `
@@ -587,7 +587,7 @@ export class CodexSettings extends LitElement {
               ? html`
           <div class="settings-delete-actions">
             <button type="button" @click=${this.#cancelDelete}>${uiText("Keep it")}</button>
-            <button class="danger" type="button" data-id=${item.id} data-revision=${String(expectedRevision)}
+            <button data-ui-variant="danger" type="button" data-id=${item.id} data-revision=${String(expectedRevision)}
               data-mode="clear" @click=${this.#delete}>${uiText("Delete type and relationships")}</button>
           </div>
         `
@@ -601,7 +601,7 @@ export class CodexSettings extends LitElement {
             <button type="button" @click=${this.#cancelDelete}>${uiText("Cancel")}</button>
             <button type="button" data-id=${item.id} data-revision=${String(expectedRevision)} data-mode="replace"
               @click=${this.#delete} ?disabled=${replacements.length === 0}>${uiText("Replace uses and delete")}</button>
-            <button class="danger" type="button" data-id=${item.id} data-revision=${String(expectedRevision)}
+            <button data-ui-variant="danger" type="button" data-id=${item.id} data-revision=${String(expectedRevision)}
               data-mode="clear" @click=${this.#delete}>${uiText("Clear uses and delete")}</button>
           </div>
         `

@@ -83,6 +83,70 @@
     cursor: progress;
     border-style: dashed;
   }
+
+  /* A compact action (button or link) for headings, toolbars and rows in any
+     view, with the same variants as .ui-button. The :is() list gives it the
+     specificity of [data-codex-ui] .ui-button, so an action inside an
+     enhanced root keeps this look. */
+  :is([data-codex-ui] .ui-action, .ui-action) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    min-height: 2rem;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid color-mix(in srgb, var(--ui-accent) 30%, transparent);
+    border-radius: var(--ui-radius);
+    background: transparent;
+    color: var(--ui-muted);
+    font: 500 var(--text-sm) / 1.3 var(--ui-font);
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      border-color var(--duration-base),
+      color var(--duration-base),
+      background var(--duration-base);
+  }
+  :is([data-codex-ui] .ui-action, .ui-action):is(:hover, [aria-pressed="true"]):not(
+      :disabled,
+      [aria-disabled="true"],
+      [data-ui-variant="primary"]
+    ) {
+    border-color: var(--ui-accent);
+    color: var(--ui-accent);
+  }
+  :is([data-codex-ui] .ui-action, .ui-action):hover:not(:disabled, [aria-disabled="true"]) {
+    background: color-mix(in srgb, var(--ui-accent) 8%, transparent);
+  }
+  :is([data-codex-ui] .ui-action, .ui-action)[data-ui-variant="primary"] {
+    border-color: var(--ui-accent);
+    background: var(--ui-accent);
+    color: var(--ui-on-accent);
+    font-weight: 600;
+  }
+  :is([data-codex-ui] .ui-action, .ui-action)[data-ui-variant="primary"]:hover:not(:disabled) {
+    background: var(--ui-accent);
+    filter: brightness(1.08);
+  }
+  :is([data-codex-ui] .ui-action, .ui-action)[data-ui-variant="danger"] {
+    color: var(--ui-danger);
+  }
+  :is([data-codex-ui] .ui-action, .ui-action)[data-ui-variant="quiet"] {
+    border-color: transparent;
+  }
+  :is([data-codex-ui] .ui-action, .ui-action):is(:disabled, [aria-disabled="true"]) {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  :is([data-codex-ui] .ui-action, .ui-action)[aria-busy="true"] {
+    cursor: progress;
+  }
+  @media (pointer: coarse) {
+    :is([data-codex-ui] .ui-action, .ui-action) {
+      min-height: var(--ui-target);
+    }
+  }
+
   [data-codex-ui] .ui-control[aria-invalid="true"] {
     border: 2px solid var(--ui-danger);
   }

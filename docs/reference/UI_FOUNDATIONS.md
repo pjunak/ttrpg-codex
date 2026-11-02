@@ -31,6 +31,17 @@ not a claim that automated tests establish full WCAG conformance.
 | Dialogs and confirmations | Native showModal supplies the top layer, inert background and normal focus return. Shared Tab containment includes visible controls only. Owners supply a title, close action, initial focus and any dirty/pending close guard. An open combo consumes the first Escape. | [APG dialog](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/), [W3C native dialog technique](https://www.w3.org/WAI/WCAG21/Techniques/html/H102) |
 | Skins, focus and responsive layout | Semantic colors, visible focus, wrapping controls and viewport-bounded popups. Default buttons are 40 CSS px high, 44 on coarse pointers; checkbox/radio labels provide the larger target. Support forced colors without animation dependence. | [WCAG contrast](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html), [target size](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html), [reflow](https://www.w3.org/WAI/WCAG22/Understanding/reflow.html) |
 
+## Compact actions
+
+`.ui-action` is the one compact action for headings, toolbars, panels and
+rows: a native button or link, 2rem high (the coarse-pointer target on touch),
+with the same `data-ui-variant="primary|danger|quiet"` values as form buttons
+and `aria-pressed` for toggles. It works in any view, enhanced or not, and an
+action inside an enhanced root keeps this look. Feature styles only position
+it (margins, a smaller masthead size); they never restyle its colours or
+variants. Settings ledgers keep the same compact look for their unclassed
+buttons and use the same variant attribute.
+
 ## Entity card actions
 
 Collection, party and companion cards use the same `ui-card` wrapper and

@@ -120,7 +120,7 @@ export class CodexCredentialSettings extends LitElement {
         ${this.#field(role, "password", this.#ui.t("credentials.new"), "new-password")}
         ${this.#field(role, "confirmation", this.#ui.t("credentials.confirm"), "new-password")}
       </div>
-      <button class="primary" type="submit" ?disabled=${this.#reloadRequired}>${this.#ui.t(this.saving ? "settings.saving" : draft.disable ? "credentials.disableSave" : "credentials.save")}</button>
+      <button data-ui-variant="primary" type="submit" ?disabled=${this.#reloadRequired}>${this.#ui.t(this.saving ? "settings.saving" : draft.disable ? "credentials.disableSave" : "credentials.save")}</button>
       </fieldset>
     </form>`;
   }

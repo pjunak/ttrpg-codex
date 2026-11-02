@@ -176,7 +176,7 @@ codex-collection-browser {
   font-size: var(--text-xs);
   line-height: 1.45;
 }
-.collection-filter-menu .record-action {
+.collection-filter-menu .ui-action {
   justify-self: end;
 }
 .collection-status {

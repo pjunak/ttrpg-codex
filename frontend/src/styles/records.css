@@ -298,64 +298,8 @@
   font: var(--text-xs) var(--font-ui);
 }
 
-.record-action,
-.record-editor-actions button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  min-height: 2rem;
-  padding: 0.3rem 0.8rem;
-  color: var(--text-light);
-  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
-  border-radius: var(--radius);
-  background: transparent;
-  font: 500 var(--text-xs)/1.3 var(--font-ui);
-  text-decoration: none;
-  cursor: pointer;
-  transition:
-    border-color var(--duration-base),
-    color var(--duration-base),
-    background var(--duration-base);
-}
-
-.record-action:hover:not(:disabled),
-.record-editor-actions button:hover:not(:disabled) {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-  background: rgba(var(--accent-gold-rgb), 0.08);
-}
-
-.record-action .edit-icon {
+.ui-action .edit-icon {
   flex: 0 0 auto;
-}
-
-.collection-heading .primary-record-action {
-  color: var(--accent-gold) !important;
-  border-color: rgba(var(--accent-gold-rgb), 0.55) !important;
-  background: transparent !important;
-}
-
-.collection-heading .primary-record-action:hover:not(:disabled) {
-  background: rgba(var(--accent-gold-rgb), 0.1) !important;
-}
-
-.record-action:disabled,
-.record-editor-actions button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-
-.primary-record-action {
-  font-weight: 600 !important;
-  color: var(--bg-surface) !important;
-  border-color: var(--accent-gold) !important;
-  background: var(--accent-gold) !important;
-}
-
-.danger-record-action {
-  color: var(--color-danger) !important;
-  border-color: var(--chrome-field-border) !important;
 }
 
 .record-editor {
@@ -1263,7 +1207,6 @@ campaign-relationship-editor {
 }
 
 .record-editor,
-.record-action,
 .record-editor-actions,
 .structured-editor {
   font-family: var(--font-ui);
@@ -1634,7 +1577,7 @@ campaign-relationship-editor {
   font-size: var(--text-3xl);
   align-self: start;
 }
-.record-article.no-artwork .record-masthead > .record-action {
+.record-article.no-artwork .record-masthead > .ui-action {
   grid-column: 1 / -1;
   justify-self: start;
 }
@@ -1756,7 +1699,7 @@ campaign-relationship-editor {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-.record-masthead-actions .record-action {
+.record-masthead-actions .ui-action {
   min-height: 1.8rem;
   padding: 0.2rem 0.65rem;
   font-size: var(--text-xs);
@@ -1862,8 +1805,7 @@ a.article-chip:hover {
   margin-top: 1.6rem;
 }
 @media (pointer: coarse) {
-  .record-action,
-  .record-masthead-actions .record-action,
+  .record-masthead-actions .ui-action,
   .context-create-actions a,
   .article-chip,
   .record-twins :is(a, button, select) {

@@ -331,7 +331,7 @@ export class CodexRecordPage extends LitElement {
           ${
             this.canEdit
               ? html`
-            <button class="record-action primary-record-action" type="button" @click=${this.#startCreate} ?disabled=${this.busy || this.editor !== "closed"}>
+            <button class="ui-action" data-ui-variant="primary" type="button" @click=${this.#startCreate} ?disabled=${this.busy || this.editor !== "closed"}>
               <span aria-hidden="true">+</span>${uiText("Add {0}", { "0": route.page.singular.toLocaleLowerCase() })}
             </button>
           `
@@ -343,7 +343,7 @@ export class CodexRecordPage extends LitElement {
           // The queue sits right under an empty list, so it needs no shortcut then.
           route.page.collection === "mysteries" &&
           campaignCollection(this.campaign!, "mysteries").records.length > 0
-            ? html`<button type="button" class="record-action investigation-jump" @click=${() => {
+            ? html`<button type="button" class="ui-action investigation-jump" @click=${() => {
                 const queue = this.querySelector<HTMLElement>(".investigation-queue");
                 queue?.scrollIntoView({ block: "start" });
                 queue?.focus({ preventScroll: true });
@@ -578,17 +578,17 @@ export class CodexRecordPage extends LitElement {
       event = route.page.collection === "events";
     const actions = [
       this.canEdit
-        ? html`<button class="record-action" type="button" @click=${this.#startEdit} ?disabled=${this.busy}>${pencilIcon()} ${uiText("Edit")}</button>`
+        ? html`<button class="ui-action" type="button" @click=${this.#startEdit} ?disabled=${this.busy}>${pencilIcon()} ${uiText("Edit")}</button>`
         : nothing,
       location ? locationPlacementLinks(record, this.canEdit) : nothing,
       location && (value["localMap"] || this.canEdit)
-        ? html`<a class="record-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>`
+        ? html`<a class="ui-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>`
         : nothing,
       event && hasEventPin(value)
-        ? html`<a class="record-action" href=${eventMapHash(eventMapParent(value), record.key, "show")}>${this.#ui.t("map.show")}</a>`
+        ? html`<a class="ui-action" href=${eventMapHash(eventMapParent(value), record.key, "show")}>${this.#ui.t("map.show")}</a>`
         : nothing,
       event && this.canEdit
-        ? html`<a class="record-action" href=${eventMapHash(eventMapParent(value), record.key, "place")}>${this.#ui.t(hasEventPin(value) ? "map.moveEvent" : "map.placeEvent")}</a>`
+        ? html`<a class="ui-action" href=${eventMapHash(eventMapParent(value), record.key, "place")}>${this.#ui.t(hasEventPin(value) ? "map.moveEvent" : "map.placeEvent")}</a>`
         : nothing,
     ];
     return this.canEdit || location || (event && hasEventPin(value))
@@ -609,7 +609,7 @@ export class CodexRecordPage extends LitElement {
     return actions.length
       ? html`<nav class="context-create-actions" aria-label=${uiText("creation.related")}>${actions.map(
           (action) =>
-            html`<a class="record-action" href=${contextualCreateHash(action, route.key)}><span aria-hidden="true">+</span> ${uiText(labels[action])}</a>`,
+            html`<a class="ui-action" href=${contextualCreateHash(action, route.key)}><span aria-hidden="true">+</span> ${uiText(labels[action])}</a>`,
         )}</nav>`
       : nothing;
   }

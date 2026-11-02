@@ -179,7 +179,7 @@ export class CodexCharacterProfile extends LitElement {
           ${wiki.outline.length ? html`<aside class="record-outline" aria-label=${uiText("Article contents")}><p>${uiText("In this entry")}</p><ol>${wiki.outline.map((item) => html`<li class=${`outline-depth-${item.depth}`}><button type="button" @click=${() => this.querySelector<HTMLElement>(`#${item.id}`)?.scrollIntoView({ block: "start" })}>${item.text}</button></li>`)}</ol></aside>` : nothing}
         </aside>
         <div class="record-reading"><section class="character-wiki"><div class="character-section-heading"><h2 class="record-section-title">${uiText("Overview")}</h2>
-          ${this.canEdit && !this.wikiOpen ? html`<button type="button" class="record-action" @click=${this.#openWiki}>${uiText("Edit wiki")}</button>` : nothing}</div>
+          ${this.canEdit && !this.wikiOpen ? html`<button type="button" class="ui-action" @click=${this.#openWiki}>${uiText("Edit wiki")}</button>` : nothing}</div>
           ${
             this.wikiOpen
               ? html`<codex-markdown-editor .value=${this.#wikiValue} .label=${uiText("Overview")} .identity=${`${this.record.key}:wiki`}
@@ -212,7 +212,7 @@ export class CodexCharacterProfile extends LitElement {
                 : nothing
             }
             <div class="character-local-actions"><button type="button" ?disabled=${this.wikiSaving} @click=${this.#cancelWiki}>${uiText("Cancel")}</button>
-              <button type="button" class="primary-record-action" ?disabled=${this.wikiSaving} @click=${this.#saveWiki}>${uiText(this.wikiSaving ? "Saving…" : "Save text")}</button></div>`
+              <button type="button" class="ui-action" data-ui-variant="primary" ?disabled=${this.wikiSaving} @click=${this.#saveWiki}>${uiText(this.wikiSaving ? "Saving…" : "Save text")}</button></div>`
               : wiki.tokens.length
                 ? renderCampaignMarkdown(wiki, this.context)
                 : html`<p class="empty-state">${uiText("This entry does not have article text yet.")}</p>`
@@ -220,11 +220,11 @@ export class CodexCharacterProfile extends LitElement {
         </section>
         <div class="character-knowledge-grid"><section><h2 class="record-section-title">${uiText("What is known")}</h2>
           <ul class="character-fact-list">${this.#known().map((_item, index) => html`<li>${this.#row("known", index)}</li>`)}</ul>
-          ${this.canEdit ? html`<button class="character-add" type="button" @click=${() => this.#addItem("known")}>+ ${uiText("Add fact")}</button>` : nothing}</section>
+          ${this.canEdit ? html`<button class="ui-action" data-ui-variant="quiet" type="button" @click=${() => this.#addItem("known")}>+ ${uiText("Add fact")}</button>` : nothing}</section>
           <section><h2 class="record-section-title">${uiText("Open questions")}</h2>
           <p class="investigation-count">${uiText("investigation.count", { open: investigationQuestions(value["unknown"]).filter((question) => !question.answer).length, total: investigationQuestions(value["unknown"]).length })}</p>
           <div class="character-questions">${this.#questions().map((_item, index) => html`<div>${this.#row("unknown", index, "text")}<div class="character-answer">${this.#row("unknown", index, "answer")}</div></div>`)}</div>
-          ${this.canEdit ? html`<button class="character-add" type="button" @click=${() => this.#addItem("unknown")}>+ ${uiText("Add question")}</button>` : nothing}</section></div>
+          ${this.canEdit ? html`<button class="ui-action" data-ui-variant="quiet" type="button" @click=${() => this.#addItem("unknown")}>+ ${uiText("Add question")}</button>` : nothing}</section></div>
         ${
           hasRelationships
             ? html`<section class="record-structured-section">${this.#sectionHeading("relationships", uiText("Relationships"))}
@@ -240,8 +240,8 @@ export class CodexCharacterProfile extends LitElement {
         ${
           this.canEdit && (!hasRelationships || !hasLocationRoles)
             ? html`<div class="character-structured-add">
-          ${hasRelationships ? nothing : html`<button class="character-add" type="button" @click=${() => this.#openPanel("relationships")}>+ ${uiText("Relationships")}</button>`}
-          ${hasLocationRoles ? nothing : html`<button class="character-add" type="button" @click=${() => this.#openPanel("locationRoles")}>+ ${uiText("Other location roles")}</button>`}
+          ${hasRelationships ? nothing : html`<button class="ui-action" data-ui-variant="quiet" type="button" @click=${() => this.#openPanel("relationships")}>+ ${uiText("Relationships")}</button>`}
+          ${hasLocationRoles ? nothing : html`<button class="ui-action" data-ui-variant="quiet" type="button" @click=${() => this.#openPanel("locationRoles")}>+ ${uiText("Other location roles")}</button>`}
         </div>`
             : nothing
         }
@@ -573,7 +573,7 @@ export class CodexCharacterProfile extends LitElement {
                 : html`<campaign-structured-field .campaign=${this.#panelCampaign} .field=${this.#field(this.panel)} .record=${value} .factionId=${text(value["faction"])} .recordIdentity=${`${base.key}:${base.revision}:${this.panel}`}></campaign-structured-field>`
       }
       ${this.#panelError ? html`<p role="alert">${this.#panelError}</p>` : nothing}
-      <div class="character-local-actions"><button type="button" ?disabled=${this.#panelSaving} @click=${this.#cancelPanel}>${uiText("Cancel")}</button><button type="button" class="primary-record-action" ?disabled=${this.#panelSaving} @click=${this.#savePanel}>${uiText("Save changes")}</button></div>
+      <div class="character-local-actions"><button class="ui-action" type="button" ?disabled=${this.#panelSaving} @click=${this.#cancelPanel}>${uiText("Cancel")}</button><button type="button" class="ui-action" data-ui-variant="primary" ?disabled=${this.#panelSaving} @click=${this.#savePanel}>${uiText("Save changes")}</button></div>
     </fieldset></section>`;
   }
   readonly #panelChanged = (): void => {

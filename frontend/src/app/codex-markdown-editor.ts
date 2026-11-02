@@ -372,7 +372,7 @@ export class CodexMarkdownEditor extends LitElement {
         this.expanded
           ? html`<footer class="writer-expanded-actions">${this.#recoveryStatus()}<span class="writer-toolbar-space"></span>
         <button type="button" @click=${this.#expand}>${uiText("writer.collapse")}</button>
-        <button type="button" class="primary-record-action" ?disabled=${this.disabled} @click=${this.#requestSave}>${this.saveLabel || uiText("Save text")}</button></footer>`
+        <button type="button" class="ui-action" data-ui-variant="primary" ?disabled=${this.disabled} @click=${this.#requestSave}>${this.saveLabel || uiText("Save text")}</button></footer>`
           : html`<div class="writer-footer">${this.#recoveryStatus()}</div>`
       }
     </dialog>`;

@@ -23,7 +23,7 @@
   color: var(--text-parchment);
   margin: 0 var(--space-2) 0 0;
 }
-.sc-btn {
+.sc-select {
   display: inline-block;
   padding: 0.3rem var(--space-3);
   background: var(--bg-raised);
@@ -34,13 +34,9 @@
   cursor: pointer;
   text-decoration: none;
 }
-.sc-btn:hover {
+.sc-select:hover {
   background: rgba(var(--gold-muted), 0.1);
   border-color: rgba(var(--gold-muted), 0.5);
-}
-.sc-btn[aria-pressed="true"] {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
 }
 .sc-hint {
   font: var(--text-xs) var(--font-ui);
@@ -186,7 +182,7 @@
   margin-top: var(--space-4);
   overflow-wrap: anywhere;
 }
-.sc-panel .sc-btn {
+.sc-panel .ui-action {
   margin: var(--space-1) 0.15rem var(--space-1) 0;
 }
 .sc-panel label {

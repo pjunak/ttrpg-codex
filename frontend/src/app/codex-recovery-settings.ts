@@ -75,7 +75,7 @@ export class CodexRecoverySettings extends LitElement {
     return html`<section class="settings-ledger settings-recovery-panel" aria-labelledby="recovery-title">
       <header class="settings-ledger-heading"><div><span class="settings-category-mark" aria-hidden="true">💾</span><div><h2 id="recovery-title">${this.#ui.t("recovery.title")}</h2></div></div>
         <div class="settings-recovery-actions">
-          <a class="inline-create-btn" href="/api/backup" download>📥 ${this.#ui.t("recovery.download")}</a>
+          <a class="ui-action" href="/api/backup" download>📥 ${this.#ui.t("recovery.download")}</a>
           <button type="button" ?disabled=${this.busy || !!this.review} @click=${() => void this.#request({ kind: "create" })}>＋ ${this.#ui.t("recovery.create")}</button>
           <button type="button" ?disabled=${this.busy} @click=${() => void this.#request()}>↻ ${this.#ui.t("recovery.refresh")}</button>
         </div>

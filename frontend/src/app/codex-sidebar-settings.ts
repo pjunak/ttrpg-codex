@@ -107,7 +107,7 @@ export class CodexSidebarSettings extends LitElement {
           }
         </section>
         ${saveFailure(this.error)}
-        <div class="settings-edit-actions"><button class="primary" type="button" @click=${this.#save}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
+        <div class="settings-edit-actions"><button data-ui-variant="primary" type="button" @click=${this.#save}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
           <button type="button" @click=${this.#cancel}>${this.#ui.t("dashboard.cancel")}</button></div>
       </fieldset>`
       }

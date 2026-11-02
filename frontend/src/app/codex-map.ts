@@ -264,16 +264,16 @@ export class CodexMap extends LitElement {
     return html`<section class="sc-shell" aria-label=${this.#ui.t("map.world")}>
       <header class="sc-toolbar">
         <h1 class="sc-title">🗺 ${parent === undefined ? this.#ui.t("map.world") : text(recordValue(parent)["name"])}</h1>
-        ${parent === undefined ? nothing : html`<a class="sc-btn" href=${mapHash(null)}>↩ ${this.#ui.t("map.world")}</a>`}
+        ${parent === undefined ? nothing : html`<a class="ui-action" href=${mapHash(null)}>↩ ${this.#ui.t("map.world")}</a>`}
         ${imageless ? nothing : this.#navigationTools(results, mapViews(this.campaign, this.route.parentId))}
         ${
           this.editing
             ? html`
-          <button class="sc-btn" ?disabled=${this.#locked || this.status !== "ready"} @click=${() => this.#place("")}>＋ ${this.#ui.t("map.add")}</button>
+          <button class="ui-action" ?disabled=${this.#locked || this.status !== "ready"} @click=${() => this.#place("")}>＋ ${this.#ui.t("map.add")}</button>
           ${
             unplaced.length === 0
               ? nothing
-              : html`<select class="sc-btn" aria-label=${this.#ui.t("map.placeExisting")} ?disabled=${this.#locked || this.status !== "ready"}
+              : html`<select class="sc-select" aria-label=${this.#ui.t("map.placeExisting")} ?disabled=${this.#locked || this.status !== "ready"}
             @change=${(event: Event) => {
               const select = event.target as HTMLSelectElement;
               if (select.value) this.#place(select.value);
@@ -285,7 +285,7 @@ export class CodexMap extends LitElement {
           ${
             events.length === 0
               ? nothing
-              : html`<select class="sc-btn sc-event-select" aria-label=${this.#ui.t("map.pickEvent")} ?disabled=${this.#locked || this.status !== "ready"}
+              : html`<select class="sc-select sc-event-select" aria-label=${this.#ui.t("map.pickEvent")} ?disabled=${this.#locked || this.status !== "ready"}
             @change=${(event: Event) => {
               const select = event.target as HTMLSelectElement;
               if (select.value) this.#openEvent(select.value, true);
@@ -294,15 +294,15 @@ export class CodexMap extends LitElement {
             <option value="">${this.#ui.t("map.pickEvent")}</option>${events.map((record) => html`<option value=${record.key}>${text(recordValue(record)["name"]) || record.key}</option>`)}
           </select>`
           }
-          ${this.canManageCampaign ? html`<button class="sc-btn" ?disabled=${this.#locked || this.status !== "ready"} @click=${() => this.#openView()}>✚ ${this.#ui.t("map.saveView")}</button>` : nothing}
-          ${this.canManageCampaign ? html`<a class="sc-btn" href=${mapSettingsHash(this.route.parentId)}>⚙ ${this.#ui.t("map.settings")}</a>` : nothing}
+          ${this.canManageCampaign ? html`<button class="ui-action" ?disabled=${this.#locked || this.status !== "ready"} @click=${() => this.#openView()}>✚ ${this.#ui.t("map.saveView")}</button>` : nothing}
+          ${this.canManageCampaign ? html`<a class="ui-action" href=${mapSettingsHash(this.route.parentId)}>⚙ ${this.#ui.t("map.settings")}</a>` : nothing}
         `
             : nothing
         }
         ${imageless ? nothing : html`<span class="sc-hint">${this.placing !== null || this.eventDraft?.x === null ? this.#ui.t("map.placeHint") : this.#ui.t("map.panHint")}</span>`}
         ${
           this.canEdit
-            ? html`<button class="sc-btn" aria-pressed=${this.editing} ?disabled=${this.#locked}
+            ? html`<button class="ui-action" aria-pressed=${this.editing} ?disabled=${this.#locked}
           @click=${this.#toggleEditing}>✏ ${this.#ui.t(this.editing ? "map.done" : "map.edit")}</button>`
             : nothing
         }
@@ -324,7 +324,7 @@ export class CodexMap extends LitElement {
           <button class="sc-zoom-btn sc-zoom-readout-btn" aria-label=${this.#ui.t("map.actualSize")} @click=${() => this.#map?.setZoom(0)}>${(2 ** this.zoom).toFixed(2)}×</button>
         </div>`
             : html`<div class="sc-map-state" role="status">${this.#ui.t(this.status === "loading" ? "map.loading" : this.status === "empty" ? "map.empty" : this.status === "missing" ? "map.missing" : "map.failed")}
-          ${this.status === "error" ? html`<button class="sc-btn" @click=${() => void this.#loadMap()}>${this.#ui.t("shell.tryAgain")}</button>` : nothing}
+          ${this.status === "error" ? html`<button class="ui-action" @click=${() => void this.#loadMap()}>${this.#ui.t("shell.tryAgain")}</button>` : nothing}
           ${this.status === "empty" && canUpload ? this.#uploadControl() : nothing}
         </div>`
         }
@@ -349,21 +349,21 @@ export class CodexMap extends LitElement {
     return html`<aside class="sc-panel" aria-label=${this.#ui.t("map.eventPosition")}>
       <button class="sc-panel-close" aria-label=${this.#ui.t("map.close")} @click=${this.#closePanel} ?disabled=${this.#locked}>✕</button>
       <h2>${draft.name}</h2>
-      <a class="sc-btn" href=${recordHash(eventPage, draft.key)}>${this.#ui.t("map.eventArticle")}</a>
+      <a class="ui-action" href=${recordHash(eventPage, draft.key)}>${this.#ui.t("map.eventArticle")}</a>
       ${
         draft.x === null
           ? html`<p>${this.#ui.t("map.placeHint")}</p>`
           : html`<form @submit=${this.#saveEvent} @input=${this.#eventInput}>
         <label>${this.#ui.t("map.x")}<input name="x" type="number" required step="any" .value=${percent(draft.x)} ?readonly=${this.#locked} /></label>
         <label>${this.#ui.t("map.y")}<input name="y" type="number" required step="any" .value=${percent(draft.y)} ?readonly=${this.#locked} /></label>
-        <button class="sc-btn" type="submit" ?disabled=${this.#locked}>${this.#ui.t("dashboard.save")}</button>
-        <button class="sc-btn" type="button" ?disabled=${this.#locked} @click=${() => {
+        <button class="ui-action" type="submit" ?disabled=${this.#locked}>${this.#ui.t("dashboard.save")}</button>
+        <button class="ui-action" type="button" ?disabled=${this.#locked} @click=${() => {
           this.eventDraft = { ...draft, x: null, y: null };
         }}>${this.#ui.t("map.chooseEventPosition")}</button>
       </form>`
       }
-      <button class="sc-btn" type="button" @click=${this.#closePanel} ?disabled=${this.#locked}>${this.#ui.t("dashboard.cancel")}</button>
-      ${draft.hadPin ? html`<button class="sc-btn" type="button" @click=${this.#removeEvent} ?disabled=${this.#locked}>${this.#ui.t("map.removeEvent")}</button>` : nothing}
+      <button class="ui-action" type="button" @click=${this.#closePanel} ?disabled=${this.#locked}>${this.#ui.t("dashboard.cancel")}</button>
+      ${draft.hadPin ? html`<button class="ui-action" type="button" @click=${this.#removeEvent} ?disabled=${this.#locked}>${this.#ui.t("map.removeEvent")}</button>` : nothing}
     </aside>`;
   }
   #viewPanel() {
@@ -376,11 +376,11 @@ export class CodexMap extends LitElement {
         <label>${this.#ui.t("map.viewName")}<input name="label" required maxlength="200" .value=${draft.label} ?readonly=${this.#locked} /></label>
         <label>${this.#ui.t("map.viewIcon")}<input name="icon" maxlength="32" .value=${draft.icon} ?readonly=${this.#locked} /></label>
         <p class="sc-view-bounds">${this.#ui.t("map.viewBounds", { x1: percent(draft.bounds.x1, 1), y1: percent(draft.bounds.y1, 1), x2: percent(draft.bounds.x2, 1), y2: percent(draft.bounds.y2, 1) })}</p>
-        <button class="sc-btn" type="button" ?disabled=${this.#locked || this.status !== "ready"} @click=${this.#captureView}>${this.#ui.t("map.captureView")}</button>
-        <button class="sc-btn" type="button" ?disabled=${this.status !== "ready"} @click=${() => this.#fitView(draft.bounds)}>${this.#ui.t("map.previewView")}</button>
-        <div><button class="sc-btn" type="submit" ?disabled=${this.#locked}>${this.#ui.t("dashboard.save")}</button>
-          <button class="sc-btn" type="button" @click=${this.#closePanel} ?disabled=${this.#locked}>${this.#ui.t("dashboard.cancel")}</button></div>
-        ${draft.action === "create" ? nothing : html`<button class="sc-btn" type="button" @click=${this.#deleteView} ?disabled=${this.#locked}>${this.#ui.t("map.deleteView")}</button>`}
+        <button class="ui-action" type="button" ?disabled=${this.#locked || this.status !== "ready"} @click=${this.#captureView}>${this.#ui.t("map.captureView")}</button>
+        <button class="ui-action" type="button" ?disabled=${this.status !== "ready"} @click=${() => this.#fitView(draft.bounds)}>${this.#ui.t("map.previewView")}</button>
+        <div><button class="ui-action" type="submit" ?disabled=${this.#locked}>${this.#ui.t("dashboard.save")}</button>
+          <button class="ui-action" type="button" @click=${this.#closePanel} ?disabled=${this.#locked}>${this.#ui.t("dashboard.cancel")}</button></div>
+        ${draft.action === "create" ? nothing : html`<button class="ui-action" type="button" @click=${this.#deleteView} ?disabled=${this.#locked}>${this.#ui.t("map.deleteView")}</button>`}
       </form>
     </aside>`;
   }
@@ -416,9 +416,9 @@ export class CodexMap extends LitElement {
           ${markerType ? html`<p class="sc-marker-type">${typeField.label}: ${markerType}</p>` : nothing}
           ${attitudes.length ? html`<p class="sc-marker-attitudes">${attitudes.map((attitude) => html`<span class="attitude-badge" style=${`--attitude-color: ${attitude.color}`}>${attitude.label}</span>`)}</p>` : nothing}
           <p>${text(value["mapNotes"])}</p>
-          <a class="sc-btn" href=${recordHash(locationPage, record.key)}>${this.#ui.t("map.article")}</a>
-          ${safeMediaURL(value["localMap"]) === undefined ? nothing : html`<a class="sc-btn" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>`}
-          ${this.editing ? html`<button class="sc-btn" @click=${() => this.#editSelected()}>${this.#ui.t("map.editLocation")}</button>` : nothing}
+          <a class="ui-action" href=${recordHash(locationPage, record.key)}>${this.#ui.t("map.article")}</a>
+          ${safeMediaURL(value["localMap"]) === undefined ? nothing : html`<a class="ui-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>`}
+          ${this.editing ? html`<button class="ui-action" @click=${() => this.#editSelected()}>${this.#ui.t("map.editLocation")}</button>` : nothing}
           <codex-record-contributions .registry=${this.registry} .actorRole=${this.actorRole} .record=${record}
             .collection=${"locations"} .mode=${"map"}></codex-record-contributions>
         `
@@ -440,9 +440,9 @@ export class CodexMap extends LitElement {
         <label>${this.#ui.t("map.y")}<input name="y" type="number" required step="any" .value=${percent(this.draft.y)} ?readonly=${this.#locked} /></label>
         </div>
         <div class="sc-detail-actions">
-          <button class="sc-btn" type="submit" ?disabled=${this.#locked}>${this.#ui.t("dashboard.save")}</button>
-          <button class="sc-btn" type="button" @click=${this.#closePanel} ?disabled=${this.#locked}>${this.#ui.t("dashboard.cancel")}</button>
-          ${this.draft.expectedRevision === 0 ? nothing : html`<button class="sc-btn" type="button" @click=${this.#removePin} ?disabled=${this.#locked}>${this.#ui.t("map.removePin")}</button>`}
+          <button class="ui-action" type="submit" ?disabled=${this.#locked}>${this.#ui.t("dashboard.save")}</button>
+          <button class="ui-action" type="button" @click=${this.#closePanel} ?disabled=${this.#locked}>${this.#ui.t("dashboard.cancel")}</button>
+          ${this.draft.expectedRevision === 0 ? nothing : html`<button class="ui-action" type="button" @click=${this.#removePin} ?disabled=${this.#locked}>${this.#ui.t("map.removePin")}</button>`}
         </div>
       </form>`
       }
@@ -1197,16 +1197,16 @@ export class CodexMap extends LitElement {
                 }</div>`
           }
         </div>
-        <button class="sc-btn" aria-pressed=${this.eventsVisible} @click=${this.#toggleEvents} ?disabled=${this.status !== "ready"}>📜 ${this.#ui.t("map.eventPaths")}</button>
-        <button class="sc-btn" @click=${this.#fit} ?disabled=${this.status !== "ready"}>🌐 ${this.#ui.t("map.fit")}</button>
+        <button class="ui-action" aria-pressed=${this.eventsVisible} @click=${this.#toggleEvents} ?disabled=${this.status !== "ready"}>📜 ${this.#ui.t("map.eventPaths")}</button>
+        <button class="ui-action" @click=${this.#fit} ?disabled=${this.status !== "ready"}>🌐 ${this.#ui.t("map.fit")}</button>
         ${views.map(
           (
             view,
-          ) => html`<span class="sc-view-preset"><button class="sc-btn" ?disabled=${this.status !== "ready"}
+          ) => html`<span class="sc-view-preset"><button class="ui-action" ?disabled=${this.status !== "ready"}
           @click=${() => this.#fitView(view.bounds)}>${view.icon} ${view.label}</button>
           ${
             this.editing && this.canManageCampaign
-              ? html`<button class="sc-btn sc-view-edit" aria-label=${this.#ui.t("map.editView", { name: view.label })}
+              ? html`<button class="ui-action sc-view-edit" aria-label=${this.#ui.t("map.editView", { name: view.label })}
             ?disabled=${this.#locked} @click=${() => this.#openView(view)}>✎</button>`
               : nothing
           }</span>`,

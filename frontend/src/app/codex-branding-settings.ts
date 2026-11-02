@@ -71,7 +71,7 @@ export class CodexBrandingSettings extends LitElement {
           ${this.file ? html`<span class="settings-hint">${this.file.name}</span>` : nothing}
           ${
             this.draft.logoUrl || this.file
-              ? html`<button class="sc-btn" ?disabled=${this.#disabled} @click=${() => {
+              ? html`<button class="ui-action" ?disabled=${this.#disabled} @click=${() => {
                   this.file = undefined;
                   this.draft = { ...this.draft!, logoUrl: "" };
                   this.#setDirty(true);
@@ -85,7 +85,7 @@ export class CodexBrandingSettings extends LitElement {
             <label><span>${this.#ui.t("branding.subtitle")}</span><input name="brandingSubtitle" maxlength="300" .value=${this.draft.subtitle} ?disabled=${this.#disabled} @input=${(event: Event) => this.#input("subtitle", event)} /></label>
           </div>
           ${saveFailure(this.error)}
-          <div class="settings-edit-actions"><button class="primary" ?disabled=${this.#disabled}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
+          <div class="settings-edit-actions"><button data-ui-variant="primary" ?disabled=${this.#disabled}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
             <button type="button" ?disabled=${this.#disabled} @click=${() => {
               if (confirmDiscardUnsavedEdit(this.dirty, (message) => window.confirm(message)))
                 this.#reset();

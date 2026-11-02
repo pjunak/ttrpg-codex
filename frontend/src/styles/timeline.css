@@ -68,25 +68,6 @@ codex-timeline-slot {
   font-size: var(--text-xs);
   color: var(--text-muted);
 }
-.tl-add-btn {
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  padding: 0.3rem 0.7rem;
-  background: transparent;
-  color: var(--accent-gold);
-  border: 1px solid rgba(var(--accent-gold-rgb), 0.5);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  letter-spacing: 0.04em;
-  transition:
-    background var(--duration-base),
-    border-color var(--duration-base);
-}
-.tl-add-btn:hover {
-  background: rgba(var(--accent-gold-rgb), 0.12);
-  border-color: var(--accent-gold);
-}
-
 /* Board: horizontally scrollable row of columns. The native scrollbar
    is hidden in favor of the styled slider and mouse-wheel panning. */
 .tl-board-viewport {
@@ -218,7 +199,6 @@ codex-timeline-slot {
   outline: 2px solid var(--accent-gold);
   outline-offset: 3px;
 }
-.tl-add-btn,
 .tl-col-add,
 .tl-card-open {
   text-decoration: none;
@@ -257,10 +237,6 @@ codex-timeline-slot {
   text-decoration: none;
 }
 .tl-card-actions :disabled,
-.tl-add-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
 .tl-message {
   margin: 0;
   padding: 0.6rem var(--space-4);

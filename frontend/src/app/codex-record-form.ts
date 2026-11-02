@@ -185,7 +185,7 @@ export class CodexRecordForm extends LitElement {
           ${
             record === undefined
               ? nothing
-              : html`<button class="danger-record-action" type="button" @click=${this.#delete} ?disabled=${this.#locked}>${uiText("Delete")}</button>`
+              : html`<button class="ui-action" data-ui-variant="danger" type="button" @click=${this.#delete} ?disabled=${this.#locked}>${uiText("Delete")}</button>`
           }
           <span class="record-form-status" role="status">${uiText(
             this.saving
@@ -196,8 +196,8 @@ export class CodexRecordForm extends LitElement {
                   ? "save.draft"
                   : "save.explicit",
           )}</span>
-          <button type="button" @click=${this.#cancel} ?disabled=${this.#locked}>${uiText("Cancel")}</button>
-          <button class="primary-record-action" type="submit" ?disabled=${this.#locked}>
+          <button class="ui-action" type="button" @click=${this.#cancel} ?disabled=${this.#locked}>${uiText("Cancel")}</button>
+          <button class="ui-action" data-ui-variant="primary" type="submit" ?disabled=${this.#locked}>
             ${this.saving ? uiText("Saving…") : uiText("Save entry")}
           </button>
         </footer>
@@ -236,7 +236,7 @@ export class CodexRecordForm extends LitElement {
         record === undefined
           ? html`<p class="field-help">${this.#ui.t("map.saveLocationFirst")}</p>`
           : html`<div class="location-map-actions">${locationPlacementLinks(record, true)}
-            <a class="record-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>
+            <a class="ui-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>
           </div>
           ${image === undefined ? nothing : html`<img class="location-map-preview" src=${previewResourceURL(image)} alt=${this.#ui.t("map.local")} />`}`
       }

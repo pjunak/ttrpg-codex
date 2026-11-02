@@ -75,7 +75,7 @@ export class CodexPartySettings extends LitElement {
         </div>
         ${saveFailure(this.error)}
         <div class="settings-edit-actions">
-          <button class="primary" type="submit" ?disabled=${this.#locked}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
+          <button data-ui-variant="primary" type="submit" ?disabled=${this.#locked}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
           <button type="button" ?disabled=${this.#locked} @click=${this.#cancel}>${this.#ui.t("dashboard.cancel")}</button>
         </div>
       </form>`

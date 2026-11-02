@@ -91,7 +91,7 @@ export class CodexLocalDrafts extends LitElement {
       if (this.open) void this.#refresh();
     }}>
       <summary>${uiText("draft.library")}${this.drafts.length ? ` (${this.drafts.length})` : ""}</summary><p>${uiText("draft.libraryIntro")}</p>
-      <button class="record-action" type="button" ?disabled=${this.loading} @click=${this.#refresh}>${uiText("draft.refresh")}</button>
+      <button class="ui-action" type="button" ?disabled=${this.loading} @click=${this.#refresh}>${uiText("draft.refresh")}</button>
       ${
         this.failed
           ? html`<p role="alert">${uiText("draft.loadFailed")}</p>`
@@ -133,9 +133,9 @@ export class CodexLocalDrafts extends LitElement {
       identity[3];
     return html`<details class="collection-local-draft"><summary>${label} · ${field} · ${new Date(draft.savedAt).toLocaleString(this.#ui.locale)}</summary>
       <pre tabindex="0">${draft.value}</pre><div class="writer-recovery-actions">
-        ${record ? html`<a class="record-action" href=${recordHash(this.page, record.key)}>${uiText("draft.openEntry")}</a>` : nothing}
-        <a class="record-action" download="draft.md" href=${`data:text/markdown;charset=utf-8,${encodeURIComponent(draft.value)}`}>${uiText("draft.download")}</a>
-        <button class="record-action" type="button" ?disabled=${this.loading} @click=${async () => {
+        ${record ? html`<a class="ui-action" href=${recordHash(this.page, record.key)}>${uiText("draft.openEntry")}</a>` : nothing}
+        <a class="ui-action" download="draft.md" href=${`data:text/markdown;charset=utf-8,${encodeURIComponent(draft.value)}`}>${uiText("draft.download")}</a>
+        <button class="ui-action" type="button" ?disabled=${this.loading} @click=${async () => {
           if (!window.confirm(uiText("draft.deleteConfirm"))) return;
           this.loading = true;
           try {

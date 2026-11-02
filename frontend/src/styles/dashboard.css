@@ -77,19 +77,6 @@ codex-dashboard {
   justify-content: flex-end;
   gap: var(--space-3);
 }
-.party-add {
-  font: var(--text-xs) var(--font-ui);
-  background: transparent;
-  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
-  border-radius: var(--radius-sm);
-  padding: var(--space-1) 0.6rem;
-  color: var(--accent-gold);
-  cursor: pointer;
-}
-.party-add:hover {
-  background: rgba(var(--accent-gold-rgb), 0.1);
-  border-color: var(--accent-gold);
-}
 
 .chronicle-section {
   margin-bottom: var(--space-7);
