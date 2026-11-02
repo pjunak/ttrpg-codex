@@ -760,7 +760,10 @@ export class CodexMarkdownEditor extends LitElement {
     await this.updateComplete;
     if (!this.isConnected) return;
     if (expanding) this.querySelector<HTMLDialogElement>("dialog.writer-expanded")?.showModal();
-    else this.#returnFocus?.focus();
+    // The inline surface was rebuilt, so a control the writer opened from is gone;
+    // return to its replacement, the expand button.
+    else if (this.#returnFocus?.isConnected) this.#returnFocus.focus();
+    else this.querySelector<HTMLElement>(".writer-inline .writer-expand")?.focus();
   };
   readonly #cancelDialog = (e: Event): void => {
     e.preventDefault();

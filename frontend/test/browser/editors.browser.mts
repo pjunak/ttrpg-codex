@@ -941,6 +941,10 @@ void test("the compact writer applies formatting, preserves source, and retains 
   await source.pressSequentially(" remains");
   await page.keyboard.press("Escape");
   assert.equal(await expanded.count(), 0);
+  // Focus returns to the rebuilt inline surface, not the page.
+  await page.waitForFunction(
+    () => document.activeElement?.getAttribute("aria-label") === "Expand writer",
+  );
   assert.match(await source.inputValue(), /existing task remains$/);
   await page.getByRole("combobox", { name: "Editor view", exact: true }).selectOption("formatted");
   await rich.locator(".writer-raw-block").filter({ hasText: "existing task remains" }).waitFor();
