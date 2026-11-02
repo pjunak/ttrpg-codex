@@ -12,7 +12,7 @@
     "build": "npm --workspace @ttrpg-codex/frontend run build && go build ./cmd/codex",
     "test": "npm --workspace @ttrpg-codex/frontend test && go test ./cmd/... ./contracts/... ./internal/... ./sdk/...",
     "typecheck": "npm --workspace @ttrpg-codex/frontend run typecheck",
-    "check:source": "node scripts/check-source.mts",
+    "check:source": "node scripts/check-source.mts && node scripts/check-styles.mts",
     "lint:app": "oxlint --type-aware --deny-warnings --report-unused-disable-directives --tsconfig frontend/tsconfig.json --ignore-pattern \"**/*.mts\" frontend/src frontend/test frontend/vite.config.ts contracts",
     "lint:tools": "oxlint --type-aware --deny-warnings --report-unused-disable-directives --tsconfig tsconfig.node.json --ignore-pattern \"**/*.ts\" scripts .github frontend/test/browser",
     "lint": "npm run lint:app && npm run lint:tools",

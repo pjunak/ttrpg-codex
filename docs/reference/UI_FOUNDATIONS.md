@@ -200,8 +200,30 @@ for now; lending them to add-ons would be a contract change.
 
 ## Theme contract
 
-[Control CSS](../../frontend/src/ui/controls.css) supplies defaults from the host's
-existing theme tokens. A skin overrides these public variables at its container:
+[`styles/tokens.css`](../../frontend/src/styles/tokens.css) is the only place
+that names colours and scale values. Classic sets them on `:root`; Moonlit
+overrides the palette, and derived colours (dividers, overlays, sunken
+surfaces) are recomputed from it, so every surface follows the theme. The
+scales are:
+
+| Scale | Tokens |
+| --- | --- |
+| Type | `--text-xs` (12px, the minimum) through `--text-4xl`, plus `--text-display` for decorative glyphs |
+| Space | `--space-1` (0.25rem) through `--space-8` (3rem); gaps always use it, padding and margins where a step fits |
+| Motion | `--duration-fast`, `--duration-base`, `--duration-slow`, `--ease-out` |
+| Stacking | Values up to 10 order siblings inside one component; page layers (`--z-sticky`, `--z-toast`, `--z-drawer`, map and menu layers) are named |
+
+`npm run check:source` runs `scripts/check-styles.mts`: colour literals outside
+the token file (theme-neutral black and white shades excepted; Mind Palace
+waits for its design), literal font sizes, unnamed z-index layers, literal
+transition durations and `var()` names nothing defines all fail. The token
+names are published in
+[`design-tokens.json`](../../contracts/addons/v3/design-tokens.json), and the
+same check keeps that list equal to the tokens. A `[data-theme-sample]`
+element gets its own copy of a theme, which is how Settings previews both.
+
+[Control CSS](../../frontend/src/ui/controls.css) supplies defaults from those
+tokens. A skin overrides these public variables at its container:
 
 | Tokens | Meaning |
 | --- | --- |

@@ -82,6 +82,11 @@ locales/                      localization catalogs
 Every `runtime.ui.entry` is a `.js` or `.mjs` module and every
 `runtime.ui.styles` item is CSS under `web/`. Browser modules may use
 additional files from that subtree; `runtime.ui.mode` is always `integrated`.
+Stylesheets read the host's design tokens (colours, type, spacing, radii,
+shadows, motion and stacking layers) as CSS custom properties. The names in
+[`design-tokens.json`](../../contracts/addons/v3/design-tokens.json) are public
+and follow the active theme; use them without fallback values, never redefine
+them, and prefix any custom property of your own with your add-on's name.
 The host never serves worker binaries, contracts, content
 sets, locales, or package metadata through the browser asset route.
 

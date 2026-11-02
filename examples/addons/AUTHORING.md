@@ -88,6 +88,11 @@ your own subset; it drifts from what the host actually provides.
 - For forms and controls, declare `ui.controls.v1` and call
   `context.ui.enhance(ownRoot)`; the [shared UI contract](../../docs/reference/UI_FOUNDATIONS.md)
   covers markers, skin tokens and cleanup. Keep domain behaviour in your add-on.
+- Style with the host's [design tokens](API_V3.md#package-format) so your pages
+  follow the campaign theme: colours, type sizes (never below `--text-xs`),
+  spacing, radii, motion and stacking layers. Keep a copy of
+  `contracts/addons/v3/design-tokens.json` beside the browser types and check
+  your stylesheets against it.
 - Render loading, empty, unavailable, retry and error states.
 - Everything you create (listeners, timers, subscriptions, requests, caches)
   belongs to one activation generation. Dispose it on abort, and make disposal
