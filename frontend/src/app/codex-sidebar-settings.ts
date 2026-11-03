@@ -83,16 +83,15 @@ export class CodexSidebarSettings extends LitElement {
             <h3>${this.#ui.t("sidebar.hidden")}</h3>${this.#pages(this.layout.hidden, "__hidden__")}
           </section>
         </div>
-        <section class="sb-addon-panel"><h3>🧩 ${this.#ui.t("sidebar.addonPages")}</h3><p class="settings-hint">${this.#ui.t("sidebar.addonHint")}</p>
-          ${
-            this.addonPages.length === 0
-              ? html`<p class="settings-hint">${this.#ui.t("sidebar.noAddons")}</p>`
-              : this.addonPages.map((page) => {
-                  const key = addonSidebarKey(page),
-                    mode =
-                      this.#visibilityChanges[key] ??
-                      addonSidebarMode(this.#visibilityCampaign, key);
-                  return html`<label class="sb-addon-page"><span>${page.label}<small>${page.addonId}</small></span>
+        ${
+          this.addonPages.length === 0
+            ? nothing
+            : html`<section class="sb-addon-panel"><h3>🧩 ${this.#ui.t("sidebar.addonPages")}</h3><p class="settings-hint">${this.#ui.t("sidebar.addonHint")}</p>
+          ${this.addonPages.map((page) => {
+            const key = addonSidebarKey(page),
+              mode =
+                this.#visibilityChanges[key] ?? addonSidebarMode(this.#visibilityCampaign, key);
+            return html`<label class="sb-addon-page"><span>${page.label}<small>${page.addonId}</small></span>
               <select aria-label=${this.#ui.t("sidebar.addonVisibility", { name: page.label })} @change=${(
                 event: Event,
               ) => {
@@ -103,9 +102,9 @@ export class CodexSidebarSettings extends LitElement {
                 this.#setDirty(true);
                 this.requestUpdate();
               }}>${(["everyone", "dm", "hidden"] as const).map((option) => html`<option value=${option} ?selected=${mode === option}>${this.#ui.t(option === "everyone" ? "sidebar.everyone" : option === "dm" ? "sidebar.dmOnly" : "sidebar.hidden")}</option>`)}</select></label>`;
-                })
-          }
-        </section>
+          })}
+        </section>`
+        }
         ${saveFailure(this.error)}
         <div class="settings-edit-actions"><button data-ui-variant="primary" type="button" @click=${this.#save}>${this.#ui.t(this.saving ? "settings.saving" : "dashboard.save")}</button>
           <button type="button" @click=${this.#cancel}>${this.#ui.t("dashboard.cancel")}</button></div>

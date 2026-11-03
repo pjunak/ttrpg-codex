@@ -143,7 +143,9 @@ export class CodexDmDashboard extends LitElement {
         )}</nav>
       </section>`;
   }
+  /** Shown once there are add-ons to report on, or when starting them failed. */
   #addonStatus() {
+    if (this.health.length === 0 && !this.degraded && !this.failed) return nothing;
     return html`<section class="dm-section" aria-labelledby="dm-addon-health-title">
         <h2 id="dm-addon-health-title">${this.#ui.t("dm.addonHealth")}</h2>
         <p class="dm-section-hint">${this.#ui.t("dm.addonHealthHint")}</p>

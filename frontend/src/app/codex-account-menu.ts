@@ -1,4 +1,4 @@
-import { LitElement, html, type PropertyValues } from "lit";
+import { LitElement, html, nothing, type PropertyValues } from "lit";
 import { formText } from "../core/forms.js";
 import { isPlayerPreview } from "../core/player-preview.js";
 import type { AddonState } from "./addon-outlets-controller.js";
@@ -102,7 +102,7 @@ export class CodexAccountMenu extends LitElement {
     return html`
       <section class="account-panel signed-in">
         <button class="text-button" type="button" @click=${() => this.signOut()} ?disabled=${this.busy}>${uiText("shell.signOut")}</button>
-        <small title=${this.#addonTitle()}>${this.#addonLabel()}</small>
+        ${this.#addonStatus()}
       </section>
     `;
   }
@@ -118,26 +118,17 @@ export class CodexAccountMenu extends LitElement {
     return uiText(this.authority.auth.role === "dm" ? "shell.signedInDm" : "shell.signedInPlayer");
   }
 
-  #addonLabel(): string {
+  /** A site without add-ons shows nothing about them. */
+  #addonStatus() {
     const state = this.addonState;
-    switch (state.state) {
-      case "idle":
-        return uiText("shell.addonsIdle");
-      case "loading":
-        return uiText("shell.addonsLoading");
-      case "ready":
-        return state.failures === 0
-          ? uiPlural("shell.browserAddonsRunning", state.active)
-          : uiText("shell.addonsActiveFailed", { active: state.active, failed: state.failures });
-      case "degraded":
-        return uiText("shell.addonsAttention");
-    }
-  }
-
-  #addonTitle(): string {
-    if (this.addonState.state === "ready") return this.addonState.revision;
-    if (this.addonState.state === "degraded") return this.addonState.message;
-    return this.#addonLabel();
+    if (state.state === "degraded")
+      return html`<small title=${state.message}>${uiText("shell.addonsAttention")}</small>`;
+    if (state.state !== "ready" || state.active + state.failures === 0) return nothing;
+    const label =
+      state.failures === 0
+        ? uiPlural("shell.browserAddonsRunning", state.active)
+        : uiText("shell.addonsActiveFailed", { active: state.active, failed: state.failures });
+    return html`<small title=${state.revision}>${label}</small>`;
   }
 
   #hostState() {

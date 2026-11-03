@@ -493,6 +493,24 @@ void test("add-on sidebar pages show by default and hide without disabling their
   await page.locator("visual-fixture-addon").waitFor();
 });
 
+for (const addon of [false, true])
+  void test(`add-on status and sidebar options appear only with add-ons (${addon ? "one" : "none"})`, async (t) => {
+    const { page } = await fixture(t, { addon });
+    await page.waitForFunction(
+      () =>
+        document.querySelector<HTMLElement & { addonState: { state: string } }>("codex-app")
+          ?.addonState.state === "ready",
+    );
+    const shown = addon ? 1 : 0;
+    await openCategory(page, "sidebar");
+    await page.locator("codex-sidebar-settings .sb-editor").waitFor();
+    assert.equal(await page.locator(".sb-addon-panel").count(), shown);
+    assert.equal(await page.locator(".account-panel small").count(), shown);
+    await page.goto(`${origin}/#/dm`);
+    await page.locator("#dm-hidden-title").waitFor();
+    assert.equal(await page.locator("#dm-addon-health-title").count(), shown);
+  });
+
 void test("malformed branding and sidebar records show errors without offering destructive default saves", async (t) => {
   const { page, writes } = await fixture(t, { malformed: true });
   await openCategory(page, "appearance");

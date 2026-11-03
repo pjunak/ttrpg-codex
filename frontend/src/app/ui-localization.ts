@@ -311,10 +311,7 @@ const enCatalog = {
   "shell.campaignArchive": "Campaign archive",
   "shell.openOverview": "Open campaign overview",
   "shell.addons": "Add-ons",
-  "shell.noAddonPages": "No add-on pages are active.",
   "shell.signInForTools": "Sign in to open campaign tools.",
-  "shell.addonsIdle": "Add-ons are idle",
-  "shell.addonsLoading": "Loading add-ons…",
   "shell.browserAddonsRunning": {
     one: "{n} browser add-on running",
     other: "{n} browser add-ons running",
@@ -554,7 +551,6 @@ const enCatalog = {
   "sidebar.addonPages": "Add-on pages",
   "sidebar.addonHint":
     "Choose which installed pages appear in the sidebar. Add-on role restrictions still apply.",
-  "sidebar.noAddons": "No active add-on pages.",
   "sidebar.addonVisibility": "Visibility of {name}",
   "sidebar.everyone": "Everyone",
   "sidebar.intro":
@@ -900,10 +896,7 @@ const csCatalog = {
   "shell.campaignArchive": "Archiv kampaně",
   "shell.openOverview": "Otevřít přehled kampaně",
   "shell.addons": "Doplňky",
-  "shell.noAddonPages": "Nejsou aktivní žádné stránky doplňků.",
   "shell.signInForTools": "Přihlas se pro přístup k nástrojům kampaně.",
-  "shell.addonsIdle": "Doplňky jsou nečinné",
-  "shell.addonsLoading": "Načítám doplňky…",
   "shell.browserAddonsRunning": {
     one: "Běží {n} doplněk prohlížeče",
     few: "Běží {n} doplňky prohlížeče",
@@ -1148,7 +1141,6 @@ const csCatalog = {
   "sidebar.addonPages": "Stránky doplňků",
   "sidebar.addonHint":
     "Vyberte stránky nainstalovaných doplňků do postranního panelu. Omezení rolí doplňku stále platí.",
-  "sidebar.noAddons": "Žádné aktivní stránky doplňků.",
   "sidebar.addonVisibility": "Viditelnost stránky {name}",
   "sidebar.everyone": "Všichni",
   "sidebar.intro":

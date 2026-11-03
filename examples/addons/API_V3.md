@@ -649,8 +649,9 @@ generic contribution headings or cards. The host owns slot lifetime and keeps
 unchanged widgets connected during campaign refresh. Leaving the route,
 changing role, replacing a generation, or disabling it disposes the old outlet.
 
-Below the contributions the host always shows hidden-record counts and browser
-add-on status, with a reload action while an add-on is not ready. When no
+Below the contributions the host always shows hidden-record counts. Once a
+browser add-on is loaded, or starting them failed, it also shows browser add-on
+status, with a reload action while an add-on is not ready. When no
 dashboard mounts, or an add-on reports a display failure, the host also links
 to active role-allowed add-on routes, independent of the optional sidebar
 preference. A dashboard should therefore link its own add-on's tools. None of
