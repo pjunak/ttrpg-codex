@@ -299,8 +299,9 @@ void test("direct fields and the wiki commit independently through the authentic
       .evaluate((element) => getComputedStyle(element).color),
     "rgb(144, 202, 249)",
   );
-  await page.getByLabel("More actions", { exact: true }).click();
-  await page.getByRole("menuitem", { name: "Portrait", exact: true }).click();
+  // The portrait's own pencil opens its panel under the portrait, not below the article.
+  await page.getByRole("button", { name: "Change portrait", exact: true }).click();
+  assert.equal(await page.locator(".record-side .character-section-editor").count(), 1);
   await page.getByLabel("Choose portrait", { exact: true }).setInputFiles(await picture(page));
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await page.waitForFunction(

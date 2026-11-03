@@ -108,6 +108,23 @@ codex-character-profile {
   padding: var(--space-4);
   margin-top: var(--space-6);
 }
+/* The portrait's own pencil sits on its top corner. */
+.character-profile .record-masthead {
+  position: relative;
+}
+.record-portrait-edit.inline-edit-button {
+  position: absolute;
+  inset-block-start: calc(var(--space-4) + var(--space-2));
+  inset-inline-end: calc(var(--space-4) + var(--space-2));
+  margin: 0;
+  border-color: var(--chrome-field-border);
+  background: var(--surface-overlay);
+  color: var(--text-light);
+}
+/* A panel opened in the narrow side column stacks its controls. */
+.record-side .character-section-editor {
+  margin-top: 0;
+}
 .character-section-editor > fieldset {
   border: 0;
   margin: 0;

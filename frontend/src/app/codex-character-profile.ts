@@ -143,6 +143,9 @@ export class CodexCharacterProfile extends LitElement {
       relationshipEditorRowsFor(this.campaign, this.record.key, this.canManageVisibility).length >
       0;
     const hasLocationRoles = locationRoleDrafts(value["locationRoles"]).length > 0;
+    const connected =
+      ["faction", "location", "rank"].some((key) => this.#hasValue(key)) ||
+      entity.attitudes.length > 0;
     return html`<article class=${`record-article character-profile direct-character${entity.portrait ? "" : " no-artwork"}`} aria-labelledby="record-title">
       ${recordPageBar(this.crumbs ?? [{ label: uiText("Characters"), href: "#/characters" }], {
         status: this.canEdit
@@ -159,22 +162,30 @@ export class CodexCharacterProfile extends LitElement {
             style: entity.attitudeRing ? `--attitude-ring: ${entity.attitudeRing}` : undefined,
             fallback: html`<span class="record-visual-glyph">${entity.icon || "♟"}</span>`,
           })}
+          ${
+            this.canEdit
+              ? html`<button type="button" class="inline-edit-button record-portrait-edit" aria-label=${uiText("Change portrait")}
+            title=${uiText("Change portrait")} @click=${() => this.#openPanel("portrait")}>${pencilIcon()}</button>`
+              : nothing
+          }
           <div><span class="record-kind">${uiText("Character")}</span><h1 id="record-title" aria-label=${text(value["name"])}>${this.#inline("name")}</h1>
             ${this.#hasValue("title") ? html`<div class="character-subtitle">${this.#inline("title")}</div>` : nothing}
             ${renderRecordBadges(entity)}
           </div></header>
+          ${this.#panelHere("portrait", "visibility")}
           <dl class="record-facts">${this.#facts(["species", "gender", "age", "status", "tags"].filter((key) => this.#hasValue(key)))}</dl>
           ${
-            ["faction", "location", "rank"].some((key) => this.#hasValue(key)) ||
-            entity.attitudes.length
+            connected
               ? html`<section class="character-connections"><h2 class="record-section-title">${uiText("Connections")}</h2>
             <dl class="record-facts">${this.#facts(["faction", "location"].filter((key) => this.#hasValue(key)))}${this.#rankLabel() ? html`<div><dt>${uiText("Faction rank")}</dt><dd>${this.#panelValue("rankAssignment", this.#rankLabel())}</dd></div>` : nothing}
             ${entity.attitudes.length ? html`<div><dt>${uiText("Attitudes toward the party")}</dt><dd>${this.#panelValue("attitudes", entity.attitudes.map((item) => item.label).join(", "))}</dd></div>` : nothing}</dl>
+            ${this.#panelHere("rankAssignment", "attitudes")}
           </section>`
               : nothing
           }
           ${this.#hasValue("circumstances") ? html`<section class="character-circumstances"><h2 class="record-section-title">${uiText("Current circumstances")}</h2>${this.#inline("circumstances")}</section>` : nothing}
           ${this.canEdit ? this.#emptyDetails() : nothing}
+          ${connected ? nothing : this.#panelHere("rankAssignment", "attitudes")}
           ${wiki.outline.length ? html`<aside class="record-outline" aria-label=${uiText("Article contents")}><p>${uiText("In this entry")}</p><ol>${wiki.outline.map((item) => html`<li class=${`outline-depth-${item.depth}`}><button type="button" @click=${() => this.querySelector<HTMLElement>(`#${item.id}`)?.scrollIntoView({ block: "start" })}>${item.text}</button></li>`)}</ol></aside>` : nothing}
         </aside>
         <div class="record-reading"><section class="character-wiki"><div class="character-section-heading"><h2 class="record-section-title">${uiText("Overview")}</h2></div>
@@ -226,13 +237,13 @@ export class CodexCharacterProfile extends LitElement {
         ${
           hasRelationships
             ? html`<section class="record-structured-section">${this.#sectionHeading("relationships", uiText("Relationships"))}
-          ${renderCharacterRelationships(this.campaign, this.record.key, this.canManageVisibility)}</section>`
+          ${this.panel === "relationships" ? this.#panelContent() : renderCharacterRelationships(this.campaign, this.record.key, this.canManageVisibility)}</section>`
             : nothing
         }
         ${
           hasLocationRoles
             ? html`<section class="record-structured-section">${this.#sectionHeading("locationRoles", uiText("Other location roles"))}
-          ${renderCharacterLocationRoles(this.campaign, value["locationRoles"])}</section>`
+          ${this.panel === "locationRoles" ? this.#panelContent() : renderCharacterLocationRoles(this.campaign, value["locationRoles"])}</section>`
             : nothing
         }
         ${
@@ -240,12 +251,13 @@ export class CodexCharacterProfile extends LitElement {
             ? html`<div class="character-structured-add">
           ${hasRelationships ? nothing : html`<button class="ui-action" data-ui-variant="quiet" type="button" @click=${() => this.#openPanel("relationships")}>+ ${uiText("Relationships")}</button>`}
           ${hasLocationRoles ? nothing : html`<button class="ui-action" data-ui-variant="quiet" type="button" @click=${() => this.#openPanel("locationRoles")}>+ ${uiText("Other location roles")}</button>`}
-        </div>`
+        </div>
+        ${hasRelationships ? nothing : this.#panelHere("relationships")}
+        ${hasLocationRoles ? nothing : this.#panelHere("locationRoles")}`
             : nothing
         }
         ${renderArticleContext(articleContext(this.campaign, "characters", this.record.key))}
         ${this.extraSections?.map((section) => html`<section class="record-structured-section"><h2 class="record-section-title">${section.heading}</h2>${renderCampaignMarkdown(parseCampaignMarkdown(section.body), this.context)}</section>`)}
-        ${this.panel ? this.#panelContent() : nothing}
         </div>
       </div>
     </article>`;
@@ -553,6 +565,10 @@ export class CodexCharacterProfile extends LitElement {
         )
         ?.focus();
     });
+  }
+  /** The open panel, when it edits one of these; each panel opens beside what it edits. */
+  #panelHere(...panels: readonly string[]) {
+    return this.panel && panels.includes(this.panel) ? this.#panelContent() : nothing;
   }
   #panelContent() {
     const base = this.#panelBase!;

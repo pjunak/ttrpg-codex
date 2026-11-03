@@ -189,7 +189,9 @@ or more become a searchable combobox. Multi-value references (connections,
 event characters and locations) and attitudes use the shared chip picker.
 Linked values keep their link with a separate pencil. Missing facts are grouped
 under **Add details and connections**. Long text and structured fields still
-open the full editor.
+open the full editor. On a character the panels for the portrait (also opened by
+the portrait's own pencil), visibility, rank, attitudes, relationships and
+location roles open beside what they edit, not below the article.
 
 The page showing a field keeps its draft, so the draft survives the field
 moving or the page re-rendering; a profile's known facts and its open questions

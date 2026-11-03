@@ -76,6 +76,7 @@ export const sourceCs = {
   "Discard the unsaved changes in this entry?": "Zahodit neuložené změny tohoto záznamu?",
   "Save changes": "Uložit změny",
   "Changes saved": "Změny uloženy",
+  "Change portrait": "Změnit portrét",
   "Finish or cancel the open edits first.": "Nejprve dokončete nebo zrušte rozpracované úpravy.",
   "Wiki text": "Text wiki",
   "The text is too long.": "Text je příliš dlouhý.",
