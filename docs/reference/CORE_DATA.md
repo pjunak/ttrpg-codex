@@ -143,8 +143,11 @@ writes remain unable to edit `linkedTwinId`.
 
 ### Twin reading and management
 
-DM articles expose counterpart navigation and a reviewed create/link/unlink
-control for every supported collection. Creating a public copy explicitly
+DM articles show a two-icon version switch in the page's top-right actions
+(shield for the DM version, eye for the player version): the current version is
+lit, the other opens its counterpart, or, when there is none, opens the reviewed
+create/link panel. **Manage versions** under More actions opens the same panel
+for unlinking, for every supported collection. Creating a public copy explicitly
 explains immediate player visibility; unlinking keeps both records. Management
 uses the existing twin API and session authority. Open core/add-on edits must
 be saved or cancelled first. Review captures opening revisions; stale or
@@ -257,7 +260,7 @@ Enter or blur and cancel on Escape; choices save when selected. Circumstances
 and question answers save after a 700 ms pause, retain failed drafts, and expose
 Undo. Wiki text and compound relationship, rank, location-role, portrait and
 visibility changes keep explicit local Save/Cancel controls. The existing full
-form remains available under More actions, and creation still uses that form.
+form remains available under More actions in the page bar, and creation still uses that form.
 
 Each independent draft retains its opening record. Before writing, the client
 compares the touched fields and their dependencies against the latest visible

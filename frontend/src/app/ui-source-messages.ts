@@ -52,6 +52,8 @@ export const sourceCs = {
     "Změna byla uložena, ale toto pole bylo mezitím znovu změněno jinde. Zkontrolujte aktuální hodnotu.",
   Undo: "Zpět",
   "More actions": "Další akce",
+  Breadcrumbs: "Drobečková navigace",
+  "Page actions": "Akce stránky",
   "Edit all fields": "Upravit všechna pole",
   Portrait: "Portrét",
   "Edit wiki": "Upravit wiki",

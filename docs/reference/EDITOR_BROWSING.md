@@ -159,6 +159,16 @@ leaves clues, location knowledge and questions alone while that model is
 
 ## Compact reading and save feedback
 
+Record and character pages share one page bar. Breadcrumbs on the left lead to
+the collection (or the timeline for events, or the page a record was opened
+from) and, for places, through the places containing them; on a phone only the
+nearest one stays, as a back link. The actions sit in the top-right corner of
+the screen: save feedback, the DM/player version switch, **Edit** (or **Edit
+wiki**) and More actions (**Edit all fields**, Portrait, Visibility, **Manage
+versions**). Panels they open float below them, so the bar never pushes the
+article down. Record, collection, search and settings pages share one centred
+frame.
+
 Missing artwork uses a compact identity mark in article mastheads. Character
 cards keep their 3:4 portrait area whether or not an image loads. Other records
 with artwork use an image card; records that never had artwork are compact

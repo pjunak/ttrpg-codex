@@ -244,7 +244,10 @@ for (const mobile of [false, true]) {
     await card(page, "event-0").locator(".tl-card-open").focus();
     await page.keyboard.press("Enter");
     await page.waitForURL(/#\/events\/event-0$/);
-    await page.getByRole("link", { name: /Back to timeline/ }).click();
+    await page
+      .getByRole("navigation", { name: "Breadcrumbs" })
+      .getByRole("link", { name: "Timeline", exact: true })
+      .click();
     await page.locator(".tl-board").waitFor();
     assert.equal(writes.length, 0);
   });
@@ -352,7 +355,10 @@ void test("timeline creates, edits and deletes events with the common revision-p
   await form.waitFor({ state: "detached" });
   const created = writes[0][0].key;
   assert.equal(event(created).value.sitting, 2);
-  await page.getByRole("link", { name: /Back to timeline/ }).click();
+  await page
+    .getByRole("navigation", { name: "Breadcrumbs" })
+    .getByRole("link", { name: "Timeline", exact: true })
+    .click();
   await page.getByRole("button", { name: "Edit timeline" }).click();
   await card(page, "event-0").getByRole("link", { name: "Edit event", exact: true }).click();
   await form.locator('[name="short"]').fill("Changed summary");
@@ -388,7 +394,10 @@ void test("a new event is listed last in its session, and the toolbar adds to th
   await form.waitFor({ state: "detached" });
   const created = writes[0][0].key;
   assert.equal(event(created).value.order, 6);
-  await page.getByRole("link", { name: /Back to timeline/ }).click();
+  await page
+    .getByRole("navigation", { name: "Breadcrumbs" })
+    .getByRole("link", { name: "Timeline", exact: true })
+    .click();
   await card(page, created).waitFor();
   assert.deepEqual(await ids(page, 1), [
     "event-0",

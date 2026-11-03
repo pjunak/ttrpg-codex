@@ -1,7 +1,6 @@
 import "./codex-investigation-queue.js";
 import { UIControlsController } from "../ui/controller.js";
 import { cardEditLink } from "../ui/card-actions.js";
-import { pencilIcon } from "./edit-icon.js";
 import { investigationStatus } from "./campaign-investigation.js";
 import { investigationBadge, investigationAnswers } from "./investigation-view.js";
 import { creationSource, creationBackHash } from "./context-creation.js";
@@ -14,6 +13,8 @@ import {
 import { uiPlural, uiText, uiSourceLabel } from "./ui-localization.js";
 import { artwork } from "../ui/artwork.js";
 import "./codex-record-twins.js";
+import type { CodexRecordTwins } from "./codex-record-twins.js";
+import { recordPageBar, type Crumb } from "./record-chrome.js";
 import "./codex-record-form.js";
 import { CodexCharacterProfile } from "./codex-character-profile.js";
 import { previewResourceURL } from "../core/player-preview.js";
@@ -435,6 +436,7 @@ export class CodexRecordPage extends LitElement {
     if (route.page.collection === "characters")
       return html`${this.#linkFailure()}<codex-character-profile
       .campaign=${dataset} .record=${record} .entity=${entity} .context=${markdownContext} .headerExtras=${twins}
+      .crumbs=${this.#crumbs(dataset, route, entity.name)}
       .actorRole=${this.actorRole}
       .extraSections=${articleSections({ ...value, description: undefined, known: undefined, unknown: undefined })}
       .canEdit=${this.canEdit} .canManageVisibility=${this.canManageVisibility}
@@ -442,10 +444,13 @@ export class CodexRecordPage extends LitElement {
     return html`
       <article class=${`record-article${entity.portrait ? "" : " no-artwork"}`} aria-labelledby="record-title">
         ${this.#linkFailure()}
-        <div class="record-topbar">
-          <a href=${route.returnTo ?? (route.page.collection === "events" ? "#/timeline" : collectionHash(route.page))} class="breadcrumb-link">${route.returnTo ? uiText("creation.backPage") : route.page.collection === "events" ? this.#ui.t("timeline.back") : route.page.plural}</a>
-          ${twins}
-        </div>
+        ${recordPageBar(this.#crumbs(dataset, route, entity.name), {
+          versions: twins,
+          edit: this.canEdit
+            ? { label: uiText("Edit"), disabled: this.busy, run: this.#startEdit }
+            : undefined,
+          menu: () => this.#moreActions(),
+        })}
         <div class="record-reading-layout">
           <aside class="record-side">
             <header class="record-masthead">
@@ -577,9 +582,6 @@ export class CodexRecordPage extends LitElement {
     const location = route.page.collection === "locations",
       event = route.page.collection === "events";
     const actions = [
-      this.canEdit
-        ? html`<button class="ui-action" type="button" @click=${this.#startEdit} ?disabled=${this.busy}>${pencilIcon()} ${uiText("Edit")}</button>`
-        : nothing,
       location ? locationPlacementLinks(record, this.canEdit) : nothing,
       location && (value["localMap"] || this.canEdit)
         ? html`<a class="ui-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>`
@@ -591,9 +593,49 @@ export class CodexRecordPage extends LitElement {
         ? html`<a class="ui-action" href=${eventMapHash(eventMapParent(value), record.key, "place")}>${this.#ui.t(hasEventPin(value) ? "map.moveEvent" : "map.placeEvent")}</a>`
         : nothing,
     ];
-    return this.canEdit || location || (event && hasEventPin(value))
+    return location || (event && (this.canEdit || hasEventPin(value)))
       ? html`<div class="record-masthead-actions">${actions}</div>`
       : nothing;
+  }
+
+  /**
+   * The pages above a record: where it was opened from, the timeline for an
+   * event, or its collection and, for a place, the places that contain it.
+   */
+  #crumbs(
+    dataset: CampaignDataset,
+    route: Extract<RecordRoute, { kind: "record" }>,
+    name: string,
+  ): Crumb[] {
+    if (route.returnTo)
+      return [{ label: uiText("creation.backPage"), href: route.returnTo }, { label: name }];
+    if (route.page.collection === "events")
+      return [
+        { label: this.#ui.t("timeline.title"), href: "#/timeline", icon: "⏳" },
+        { label: name },
+      ];
+    const crumbs: Crumb[] = [
+      { label: route.page.plural, href: collectionHash(route.page), icon: route.page.icon },
+    ];
+    if (route.page.collection === "locations")
+      for (const place of containingPlaces(dataset, route.key))
+        crumbs.push({
+          label: text(recordValue(place)["name"]) || place.key,
+          href: recordHash(route.page, place.key),
+        });
+    return [...crumbs, { label: name }];
+  }
+
+  /** The rarer record actions; only the DM manages versions. */
+  #moreActions() {
+    return this.canManageVisibility && this.actorRole === "dm"
+      ? [
+          {
+            label: uiText("twins.manage"),
+            run: () => this.querySelector<CodexRecordTwins>("codex-record-twins")?.manage(),
+          },
+        ]
+      : [];
   }
 
   #contextCreationLinks(route: Extract<RecordRoute, { kind: "record" }>) {
@@ -723,6 +765,22 @@ function recordArtwork(
 }
 
 /** Older mysteries store clues as event keys; show those as links to the events. */
+/** The places containing a location, outermost first; a broken or circular chain stops. */
+function containingPlaces(dataset: CampaignDataset, key: string): CampaignRecord[] {
+  const places = campaignCollection(dataset, "locations").records,
+    chain: CampaignRecord[] = [],
+    seen = new Set([key]);
+  let parent = text(recordValue(places.find((place) => place.key === key))["parentId"]);
+  while (parent && !seen.has(parent) && chain.length < 8) {
+    const place = places.find((candidate) => candidate.key === parent);
+    if (place === undefined) break;
+    seen.add(parent);
+    chain.unshift(place);
+    parent = text(recordValue(place)["parentId"]);
+  }
+  return chain;
+}
+
 function clueLinks(dataset: CampaignDataset, value: unknown): unknown {
   if (!Array.isArray(value)) return value;
   const events = campaignCollection(dataset, "events").records;

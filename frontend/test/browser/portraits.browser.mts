@@ -173,7 +173,7 @@ async function picture(page: Page, color = "green") {
 }
 async function edit(page: Page) {
   await page.getByLabel("More actions", { exact: true }).click();
-  await page.getByRole("button", { name: "Edit all fields", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Edit all fields", exact: true }).click();
 }
 async function save(page: Page) {
   await page.getByRole("button", { name: "Save entry", exact: true }).click();
@@ -215,7 +215,7 @@ for (const mode of ["all fields", "direct portrait"] as const) {
         );
       });
       await page.getByLabel("More actions", { exact: true }).click();
-      await page.getByRole("button", { name: "Portrait", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Portrait", exact: true }).click();
     }
     await page.getByLabel("Choose portrait", { exact: true }).setInputFiles(await picture(page));
     const upload = await holdCoreWrite(page, `/api/media/character-portrait/${key}`, "headers");
@@ -299,7 +299,7 @@ void test("direct fields and the wiki commit independently through the authentic
     "rgb(144, 202, 249)",
   );
   await page.getByLabel("More actions", { exact: true }).click();
-  await page.getByRole("button", { name: "Portrait", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Portrait", exact: true }).click();
   await page.getByLabel("Choose portrait", { exact: true }).setInputFiles(await picture(page));
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await page.waitForFunction(
@@ -437,7 +437,7 @@ void test("portrait controls localize, explain creation and obey signed-in visib
   await page.evaluate(() => localStorage.setItem("codex_lang", "cs"));
   await page.reload();
   await page.getByLabel("Další akce", { exact: true }).click();
-  await page.getByRole("button", { name: "Upravit všechna pole", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Upravit všechna pole", exact: true }).click();
   await page.getByLabel("Vybrat portrét", { exact: true }).waitFor();
   const anonymous = await open(t, "access", false, null);
   assert.equal(await anonymous.page.locator("codex-portrait-editor").count(), 0);

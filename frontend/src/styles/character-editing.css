@@ -1,27 +1,12 @@
 codex-character-profile {
   display: block;
 }
-.character-heading-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2) var(--space-3);
-  margin-inline-start: auto;
-}
-.character-page-heading,
 .character-save-status,
 .character-section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-}
-.character-page-heading {
-  margin-bottom: var(--space-4);
-}
-.character-page-heading .breadcrumb-link {
-  margin: 0;
 }
 .character-save-status {
   color: var(--text-muted);
@@ -66,38 +51,6 @@ codex-character-profile {
 }
 .character-connections {
   margin-top: var(--space-6);
-}
-.character-more {
-  position: relative;
-}
-.character-more summary {
-  list-style: none;
-  cursor: pointer;
-  padding: 0.2rem 0.65rem;
-  font-size: var(--text-xl);
-}
-.character-more > div {
-  position: absolute;
-  z-index: 4;
-  right: 0;
-  display: grid;
-  gap: var(--space-2);
-  min-width: 170px;
-  background: var(--bg-surface);
-  padding: 0.65rem;
-  border: 1px solid var(--chrome-field-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
-}
-.character-more button,
-.character-save-status button {
-  border: 1px solid var(--chrome-field-border);
-  border-radius: var(--radius-sm);
-  color: var(--text-parchment);
-  background: var(--bg-surface);
-  padding: 0.45rem 0.65rem;
-  cursor: pointer;
-  font: var(--text-sm) var(--font-ui);
 }
 .character-section-heading {
   margin-bottom: 0.8rem;
@@ -174,19 +127,6 @@ codex-character-profile {
   .character-save-status {
     flex-wrap: wrap;
   }
-  /* On a phone the back link takes its own line and the record's tools read
-     left to right below it, instead of wrapping into right-aligned rows. */
-  .character-page-heading {
-    flex-wrap: wrap;
-  }
-  .character-heading-tools {
-    flex-basis: 100%;
-    justify-content: flex-start;
-    margin-inline-start: 0;
-  }
-  .character-heading-tools .character-save-status {
-    justify-content: flex-start;
-  }
   .direct-character .record-masthead {
     overflow: visible;
   }
@@ -207,10 +147,6 @@ codex-character-profile {
   overflow-wrap: anywhere;
 }
 @media (max-width: 700px) {
-  .character-page-heading {
-    align-items: start;
-    flex-wrap: wrap;
-  }
   .character-save-status {
     max-width: 100%;
   }

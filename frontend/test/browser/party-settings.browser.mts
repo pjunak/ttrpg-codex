@@ -249,7 +249,7 @@ for (const mobile of [false, true])
       ["rgb(153, 204, 255)", "rgb(32, 48, 64)"],
     );
     await page.getByLabel("More actions", { exact: true }).click();
-    await page.getByRole("button", { name: "Edit all fields", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Edit all fields", exact: true }).click();
     await page.getByRole("tab", { name: "Connections", exact: true }).click();
     await page.locator('[name="faction"]').waitFor();
     assert.equal(

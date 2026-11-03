@@ -529,12 +529,19 @@ void test("DM location notes round-trip privately through the real editor and pu
   assert.equal(saved.value.description, "Public overview");
   assert.equal(saved.value.mapNotes, "Public map notes");
 });
+/** Opens the versions panel from the page's ⋯ menu. */
+async function manageVersions(page: Page) {
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Manage versions", exact: true }).click();
+}
+
 void test("DM twins create, navigate, unlink and link without losing exact record routes", async (t) => {
   await put(admin, csrf, "twin-town", { name: "Twin town", description: "Public town" }, 0);
   const dm = await open(t, "dm"),
     player = await open(t, "player");
   await dm.page.goto("/#/locations/twin-town");
-  await dm.page.getByRole("button", { name: "Manage versions", exact: true }).click();
+  // The player version is lit; the missing DM version offers to add one.
+  await dm.page.getByRole("button", { name: "Add a DM version", exact: true }).click();
   await dm.page.getByRole("button", { name: "Create DM version", exact: true }).click();
   const dmLink = dm.page.getByRole("link", { name: "Open DM version", exact: true });
   await dmLink.waitFor();
@@ -560,12 +567,12 @@ void test("DM twins create, navigate, unlink and link without losing exact recor
     ),
   );
   await dm.page.goto("/#/locations/twin-town");
-  await dm.page.getByRole("button", { name: "Manage versions", exact: true }).click();
+  await manageVersions(dm.page);
   await dm.page.getByRole("button", { name: "Unlink versions", exact: true }).click();
   await dm.page.getByText("Versions updated.", { exact: true }).waitFor();
   assert.equal((await record("twin-town")).value.linkedTwinId, undefined);
   assert.equal((await record(privateKey)).value.description, "Public town");
-  await dm.page.getByRole("button", { name: "Manage versions", exact: true }).click();
+  await manageVersions(dm.page);
   await dm.page
     .getByLabel("Or link an existing opposite version", { exact: true })
     .selectOption(privateKey);
@@ -578,7 +585,7 @@ void test("stale twin review rejects without losing a draft or repeating an unce
   await put(admin, csrf, "stale-twin", { name: "Stale twin" }, 0);
   const dm = await open(t, "dm");
   await dm.page.goto("/#/locations/stale-twin");
-  await dm.page.getByRole("button", { name: "Manage versions", exact: true }).click();
+  await manageVersions(dm.page);
   const initial = await record("stale-twin");
   await put(
     admin,
@@ -610,7 +617,7 @@ void test("an uncertain twin response is refreshed without replaying the write",
     await route.fetch();
     await route.abort("failed");
   });
-  await dm.page.getByRole("button", { name: "Manage versions", exact: true }).click();
+  await manageVersions(dm.page);
   await dm.page.getByRole("button", { name: "Create DM version", exact: true }).click();
   await dm.page.getByRole("alert").filter({ hasText: "Could not confirm the change." }).waitFor();
   assert.equal(writes, 1);
@@ -650,7 +657,7 @@ for (const mobile of [false, true])
       .getByRole("combobox", { name: "Editor view", exact: true })
       .selectOption("markdown");
     await writer.locator(".writer-source").fill("Unsubmitted draft");
-    await dm.page.getByRole("button", { name: "Manage versions", exact: true }).click();
+    await manageVersions(dm.page);
     await dm.page.getByRole("button", { name: "Create DM version", exact: true }).click();
     await dm.page
       .getByRole("alert")
@@ -666,8 +673,8 @@ for (const mobile of [false, true])
     await writer.waitFor({ state: "detached" });
     assert.equal((await record(key, "characters")).value.description, "Saved biography");
     await dm.page
-      .locator(".record-twins")
-      .getByRole("button", { name: "Cancel", exact: true })
+      .locator(".record-versions-panel")
+      .getByRole("button", { name: "Close", exact: true })
       .click();
     assert.equal(
       await dm.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),

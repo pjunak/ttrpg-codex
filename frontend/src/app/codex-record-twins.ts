@@ -9,6 +9,7 @@ import { recordHash, type CampaignPageDefinition } from "./routes.js";
 import { recordValue, text } from "./campaign-projection.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
 import { saveCampaign } from "./campaign-writes.js";
+import { dmVersionIcon, playerVersionIcon } from "./record-chrome.js";
 
 export class CodexRecordTwins extends LitElement {
   static override properties = {
@@ -58,27 +59,35 @@ export class CodexRecordTwins extends LitElement {
     const base = this.#base ?? this.record,
       linked = text(recordValue(base)["linkedTwinId"]);
     const dm = recordValue(base)["visibility"] === "dm";
-    return html`<section class="record-twins" aria-label=${uiText("twins.title")}>
-      <div class="record-twin-actions"><strong>${uiText("twins.title")}</strong>
-        ${
-          twin
-            ? html`<a href=${recordHash(this.page, twin.key)}>${uiText(recordValue(twin)["visibility"] === "dm" ? "twins.openDM" : "twins.openPublic")}</a>`
-            : twinKey
-              ? html`<span>${uiText("twins.unavailable")}</span>`
-              : nothing
-        }
-        <button type="button" ?disabled=${this.disabled || this.pending} @click=${this.#review}>${uiText(this.open ? "twins.review" : "twins.manage")}</button>
-      </div>
+    const current = recordValue(this.record)["visibility"] === "dm" ? "dm" : "public";
+    const side = (kind: "dm" | "public") => {
+      const icon = kind === "dm" ? dmVersionIcon() : playerVersionIcon(),
+        name = uiText(kind === "dm" ? "twins.dmVersion" : "twins.publicVersion");
+      if (kind === current)
+        return html`<span class="record-version is-current" title=${name}>${icon}<span class="visually-hidden">${name}</span></span>`;
+      if (twin) {
+        const open = uiText(kind === "dm" ? "twins.openDM" : "twins.openPublic");
+        return html`<a class="record-version" href=${recordHash(this.page, twin.key)} aria-label=${open} title=${open}>${icon}</a>`;
+      }
+      if (twinKey)
+        return html`<span class="record-version is-unavailable" title=${uiText("twins.unavailable")}>${icon}<span class="visually-hidden">${uiText("twins.unavailable")}</span></span>`;
+      const add = uiText(kind === "dm" ? "twins.addDM" : "twins.addPublic");
+      return html`<button type="button" class="record-version is-missing" aria-label=${add} title=${add}
+        aria-expanded=${this.open ? "true" : "false"} ?disabled=${this.disabled || this.pending} @click=${this.manage}>${icon}</button>`;
+    };
+    return html`<div class="record-versions">
+      <div class="record-version-switch" role="group" aria-label=${uiText("twins.title")}>${side("dm")}${side("public")}</div>
       ${
         this.open
-          ? html`<div class="record-twin-review">
+          ? html`<section class="record-versions-panel" aria-label=${uiText("twins.manage")}>
+        <h2>${uiText("twins.title")}</h2>
         <p>${uiText("twins.visibility")}</p>
         ${
           linked
-            ? html`<p>${uiText("twins.unlinkHint")}</p><button type="button" ?disabled=${this.disabled || this.pending || this.#failed} @click=${() => this.#submit("unlink")}>${uiText("twins.unlink")}</button>`
+            ? html`<p>${uiText("twins.unlinkHint")}</p><button type="button" class="ui-action" ?disabled=${this.disabled || this.pending || this.#failed} @click=${() => this.#submit("unlink")}>${uiText("twins.unlink")}</button>`
             : html`
           <p>${uiText(dm ? "twins.publishHint" : "twins.privateHint")}</p>
-          <button type="button" ?disabled=${this.disabled || this.pending || this.#failed} @click=${() => this.#submit("create")}>${uiText(dm ? "twins.createPublic" : "twins.createDM")}</button>
+          <button type="button" class="ui-action" ?disabled=${this.disabled || this.pending || this.#failed} @click=${() => this.#submit("create")}>${uiText(dm ? "twins.createPublic" : "twins.createDM")}</button>
           <label>${uiText("twins.existing")}<select aria-label=${uiText("twins.existing")} .value=${this.#target} ?disabled=${this.disabled || this.pending || this.#failed} @change=${(
             event: Event,
           ) => {
@@ -87,19 +96,28 @@ export class CodexRecordTwins extends LitElement {
           }}>
             <option value="">${uiText("twins.choose")}</option>${this.#candidates.map((record) => html`<option value=${record.key}>${text(recordValue(record)["name"]) || text(recordValue(record)["title"]) || record.key}</option>`)}
           </select></label>
-          <button type="button" ?disabled=${!this.#target || this.disabled || this.pending || this.#failed} @click=${() => this.#submit("link")}>${uiText("twins.link")}</button>
+          <button type="button" class="ui-action" ?disabled=${!this.#target || this.disabled || this.pending || this.#failed} @click=${() => this.#submit("link")}>${uiText("twins.link")}</button>
         `
         }
-        <button type="button" ?disabled=${this.pending} @click=${() => {
-          this.open = false;
-          this.message = "";
-        }}>${uiText("Cancel")}</button>
-      </div>`
-          : nothing
+        ${this.message ? html`<p role=${this.#failed ? "alert" : "status"}>${this.message}</p>` : nothing}
+        <div class="record-versions-actions">
+          <button type="button" class="ui-action" ?disabled=${this.disabled || this.pending} @click=${this.#review}>${uiText("twins.review")}</button>
+          <button type="button" class="ui-action" ?disabled=${this.pending} @click=${this.#close}>${uiText("Close")}</button>
+        </div>
+      </section>`
+          : this.message
+            ? html`<p class="record-versions-panel record-versions-note" role=${this.#failed ? "alert" : "status"}><span>${this.message}</span>
+          <button type="button" class="ui-action" data-ui-variant="quiet" @click=${this.#close}>${uiText("Close")}</button></p>`
+            : nothing
       }
-      ${this.message ? html`<p role=${this.#failed ? "alert" : "status"}>${this.message}</p>` : nothing}
-    </section>`;
+    </div>`;
   }
+  /** Opens the panel that creates, links or unlinks this record's other version. */
+  readonly manage = (): void => this.#review();
+  readonly #close = (): void => {
+    this.open = false;
+    this.message = "";
+  };
   #review = (): void => {
     this.#base = this.record;
     this.#target = "";

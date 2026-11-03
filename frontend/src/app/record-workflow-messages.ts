@@ -43,6 +43,10 @@ export const recordWorkflowEn = {
   "twins.review": "Review current records",
   "twins.openDM": "Open DM version",
   "twins.openPublic": "Open player version",
+  "twins.dmVersion": "DM version",
+  "twins.publicVersion": "Player version",
+  "twins.addDM": "Add a DM version",
+  "twins.addPublic": "Add a player version",
   "twins.unavailable": "The linked version is unavailable.",
   "twins.visibility":
     "Linked versions keep their audiences. Unlink them before changing visibility.",
@@ -129,6 +133,10 @@ export const recordWorkflowCs: Record<keyof typeof recordWorkflowEn, string> = {
   "twins.review": "Zkontrolovat aktuální záznamy",
   "twins.openDM": "Otevřít verzi pro PJ",
   "twins.openPublic": "Otevřít verzi pro hráče",
+  "twins.dmVersion": "Verze pro PJ",
+  "twins.publicVersion": "Verze pro hráče",
+  "twins.addDM": "Přidat verzi pro PJ",
+  "twins.addPublic": "Přidat verzi pro hráče",
   "twins.unavailable": "Propojená verze není dostupná.",
   "twins.visibility":
     "Propojené verze si zachovávají své publikum. Před změnou viditelnosti je odpojte.",

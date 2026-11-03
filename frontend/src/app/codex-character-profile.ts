@@ -6,7 +6,7 @@ import {
   renderCharacterLocationRoles,
   renderRecordBadges,
 } from "./article-context-view.js";
-import { LitElement, html, nothing } from "lit";
+import { LitElement, html, nothing, type TemplateResult } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { isRecord } from "../core/boundary.js";
 import { type CampaignDataset, type CampaignRecord } from "../core/campaign-data.js";
@@ -38,6 +38,8 @@ import type { BrowserRole } from "../addons/generation-manager.js";
 import { CodexPortraitEditor } from "./codex-portrait-editor.js";
 import { artwork } from "../ui/artwork.js";
 import { pencilIcon } from "./edit-icon.js";
+import { recordPageBar, type Crumb } from "./record-chrome.js";
+import type { CodexRecordTwins } from "./codex-record-twins.js";
 import { confirmDiscardUnsavedEdit, reportEditState, type EditState } from "./unsaved-edit.js";
 import type { CodexInlineField, InlineControl, InlineProjection } from "./codex-inline-field.js";
 import { InlineDraftController, type InlineDraft } from "./inline-draft.js";
@@ -56,6 +58,7 @@ export class CodexCharacterProfile extends LitElement {
     context: { attribute: false },
     extraSections: { attribute: false },
     headerExtras: { attribute: false },
+    crumbs: { attribute: false },
     canEdit: { type: Boolean },
     canManageVisibility: { type: Boolean },
     actorRole: { attribute: false },
@@ -71,6 +74,8 @@ export class CodexCharacterProfile extends LitElement {
   declare extraSections: readonly { heading: string; body: string }[] | undefined;
   /** Host-owned controls (DM/player versions) shown beside the breadcrumb. */
   declare headerExtras: unknown;
+  /** The pages above this profile, supplied by the record page. */
+  declare crumbs: readonly Crumb[];
   declare canEdit: boolean;
   declare canManageVisibility: boolean;
   declare actorRole: BrowserRole | undefined;
@@ -139,19 +144,17 @@ export class CodexCharacterProfile extends LitElement {
       0;
     const hasLocationRoles = locationRoleDrafts(value["locationRoles"]).length > 0;
     return html`<article class=${`record-article character-profile direct-character${entity.portrait ? "" : " no-artwork"}`} aria-labelledby="record-title">
-      <div class="character-page-heading"><a href="#/characters" class="breadcrumb-link">${uiText("Characters")}</a>
-        <div class="character-heading-tools">
-        ${this.headerExtras ?? nothing}
-        ${
-          this.canEdit
-            ? html`<div class="character-save-status"><span role="status">${this.#feedback()}</span>${this.#undo ? html`<button type="button" ?disabled=${this.#saves > 0} @click=${this.#undoSave}>${uiText("Undo")}</button>` : nothing}
-        <details class="character-more"><summary aria-label=${uiText("More actions")}>⋯</summary><div>
-          <button type="button" @click=${this.#editAll}>${uiText("Edit all fields")}</button>
-          <button type="button" @click=${() => this.#openPanel("portrait")}>${uiText("Portrait")}</button>
-          ${this.canManageVisibility ? html`<button type="button" @click=${() => this.#openPanel("visibility")}>${uiText("Visibility")}</button>` : nothing}
-        </div></details></div>`
-            : nothing
-        }</div></div>
+      ${recordPageBar(this.crumbs ?? [{ label: uiText("Characters"), href: "#/characters" }], {
+        status: this.canEdit
+          ? html`<span class="character-save-status" data-state=${this.#feedback() === uiText("save.saved") ? "saved" : "active"}><span role="status">${this.#feedback()}</span>${this.#undo ? html`<button type="button" class="ui-action" data-ui-variant="quiet" ?disabled=${this.#saves > 0} @click=${this.#undoSave}>${uiText("Undo")}</button>` : nothing}</span>`
+          : undefined,
+        versions: this.headerExtras as TemplateResult | undefined,
+        edit:
+          this.canEdit && !this.wikiOpen
+            ? { label: uiText("Edit wiki"), run: this.#openWiki }
+            : undefined,
+        menu: () => this.#moreActions(),
+      })}
       <div class="record-reading-layout">
         <aside class="record-side"><header class="record-masthead">
           ${artwork({
@@ -178,8 +181,7 @@ export class CodexCharacterProfile extends LitElement {
           ${this.canEdit ? this.#emptyDetails() : nothing}
           ${wiki.outline.length ? html`<aside class="record-outline" aria-label=${uiText("Article contents")}><p>${uiText("In this entry")}</p><ol>${wiki.outline.map((item) => html`<li class=${`outline-depth-${item.depth}`}><button type="button" @click=${() => this.querySelector<HTMLElement>(`#${item.id}`)?.scrollIntoView({ block: "start" })}>${item.text}</button></li>`)}</ol></aside>` : nothing}
         </aside>
-        <div class="record-reading"><section class="character-wiki"><div class="character-section-heading"><h2 class="record-section-title">${uiText("Overview")}</h2>
-          ${this.canEdit && !this.wikiOpen ? html`<button type="button" class="ui-action" @click=${this.#openWiki}>${uiText("Edit wiki")}</button>` : nothing}</div>
+        <div class="record-reading"><section class="character-wiki"><div class="character-section-heading"><h2 class="record-section-title">${uiText("Overview")}</h2></div>
           ${
             this.wikiOpen
               ? html`<codex-markdown-editor .value=${this.#wikiValue} .label=${uiText("Overview")} .identity=${`${this.record.key}:wiki`}
@@ -644,6 +646,21 @@ export class CodexCharacterProfile extends LitElement {
       (item) => item.id === value["rankChain"],
     );
     return chain ? `${chain.name} — ${text(value["rank"])}` : text(value["rank"]);
+  }
+  /** Rarer edits; the DM also manages the record's DM/player versions here. */
+  #moreActions() {
+    if (!this.canEdit) return [];
+    const versions = this.querySelector<CodexRecordTwins>("codex-record-twins");
+    return [
+      { label: uiText("Edit all fields"), run: this.#editAll },
+      { label: uiText("Portrait"), run: () => this.#openPanel("portrait") },
+      ...(this.canManageVisibility
+        ? [{ label: uiText("Visibility"), run: () => this.#openPanel("visibility") }]
+        : []),
+      ...(versions
+        ? [{ label: uiText("twins.manage"), separator: true, run: () => versions.manage() }]
+        : []),
+    ];
   }
   readonly #editAll = (): void => {
     if (

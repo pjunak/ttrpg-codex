@@ -252,7 +252,7 @@ async function reviewLocalDraft(page: Page) {
 async function editRecordOrDefinition(page: Page) {
   if (await page.locator("codex-character-profile").count()) {
     await page.getByLabel("More actions", { exact: true }).click();
-    await page.getByRole("button", { name: "Edit all fields", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Edit all fields", exact: true }).click();
   } else await page.getByRole("button", { name: "Edit", exact: true }).click();
 }
 async function sourceView(page: Page) {

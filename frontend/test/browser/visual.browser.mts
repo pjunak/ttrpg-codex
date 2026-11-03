@@ -297,7 +297,7 @@ void test("mobile drawer stays accessible and preserves dirty record edits", asy
   assert.equal(await page.locator("[data-menu-toggle]").getAttribute("aria-expanded"), "false");
   await page.locator('.record-row[href="#/characters/ryn"]').click();
   await page.getByLabel("More actions", { exact: true }).click();
-  await page.getByRole("button", { name: "Edit all fields", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Edit all fields", exact: true }).click();
   await page.locator('[name="name"]').fill("Keep this draft");
   await page.locator("[data-menu-toggle]").click();
   page.once("dialog", (dialog) => dialog.dismiss());
@@ -324,7 +324,7 @@ void test("quick search preserves the mounted editor and guards destination navi
   const page = await fixture(t, { width: 1440, height: 1000 }, "dm");
   await page.goto(`${origin}/#/characters/ryn`);
   await page.getByLabel("More actions", { exact: true }).click();
-  await page.getByRole("button", { name: "Edit all fields", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Edit all fields", exact: true }).click();
   const name = page.locator('[name="name"]');
   await name.fill("Unsaved Ryn");
   await name.evaluate((element) => {
@@ -447,6 +447,46 @@ void test("one add-on navigation outlet survives desktop and mobile transitions"
   await page.setViewportSize({ width: 1440, height: 1000 });
   assert.equal(await page.locator("visual-fixture-addon").count(), 1);
   assert.equal(await page.locator(".application-alert").count(), 0);
+});
+
+void test("record pages centre their frame and keep the trail and actions on one line", async (t) => {
+  for (const [width, height, wide] of [
+    [2560, 1200, true],
+    [390, 844, false],
+  ] as const) {
+    const page = await fixture(t, { width, height }, "dm");
+    await page.evaluate(() => (location.hash = "#/characters/ryn"));
+    await page
+      .locator(".record-toolbar")
+      .getByRole("button", { name: "Edit wiki", exact: true })
+      .waitFor();
+    const box = await page.evaluate(() => {
+      const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
+      const main = document.querySelector<HTMLElement>(".campaign-content")!,
+        style = getComputedStyle(main),
+        content = main.getBoundingClientRect();
+      return {
+        left: content.left + parseFloat(style.paddingLeft),
+        right: content.left + main.clientWidth - parseFloat(style.paddingRight),
+        article: rect(".record-article").toJSON() as DOMRect,
+        bar: rect(".record-page-bar").toJSON() as DOMRect,
+        crumbs: rect(".breadcrumbs").toJSON() as DOMRect,
+        tools: rect(".record-toolbar").toJSON() as DOMRect,
+      };
+    });
+    if (wide) {
+      // Equal space on both sides of the frame; the actions sit in the screen's corner.
+      assert.ok(Math.abs(box.article.left - box.left - (box.right - box.article.right)) < 2);
+      assert.ok(box.article.left - box.left > 100, "the frame is centred, not pinned left");
+      assert.ok(Math.abs(box.tools.right - box.right) < 2, "actions reach the right edge");
+      assert.ok(
+        Math.abs(box.crumbs.left - box.article.left) < 2,
+        "the trail starts with the frame",
+      );
+    }
+    assert.ok(Math.abs(box.tools.top - box.crumbs.top) < 12, "trail and actions share a line");
+    assert.ok(box.bar.height < 60, `one line, not ${box.bar.height}px`);
+  }
 });
 
 void test("skip link moves focus into the campaign without changing its route", async (t) => {
