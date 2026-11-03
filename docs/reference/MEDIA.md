@@ -9,6 +9,7 @@ browser never learns the hash-addressed filesystem location.
 | Kind | Target | Upload/delete authority | Read visibility |
 |---|---|---|---|
 | `character-portrait` | existing character key | authenticated player for a public character; effective DM for any character | follows the character |
+| `faction-picture` | existing faction key | authenticated player for a public faction; effective DM for any faction | follows the faction |
 | `companion-portrait` | existing companion key | authenticated player or effective DM | public |
 | `location-map` | existing location key | authenticated player for a public location; effective DM for any location | follows the location |
 | `world-map` | `main` | effective DM | public |
@@ -44,8 +45,11 @@ upload from attaching its URL in a new application lifetime; it does not delete
 accepted bytes, previous images or recovery data. The reconnect reads current
 server records before another explicit save.
 
+A faction's **Edit** form has the same picture controls and save rules; the
+picture becomes the faction's artwork and shows on its members' faction chips.
+
 Save visibility changes separately before replacing a portrait: media visibility
-is fixed at upload, independently of the character's later visibility. The UI
+is fixed at upload, independently of the record's later visibility. The UI
 supports English and Czech and uses the normal authenticated record authority.
 
 Regression coverage: `frontend/test/campaign-record-editor.test.ts` validates

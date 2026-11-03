@@ -70,8 +70,6 @@ export class CodexPartySettings extends LitElement {
             .value=${this.draft.icon} ?disabled=${this.#locked} @input=${(event: Event) => this.#input("icon", event)} /></label>
           <label><span>${this.#ui.t("settings.partyColor")}</span><input type="color" name="partyColor"
             .value=${this.draft.color} ?disabled=${this.#locked} @input=${(event: Event) => this.#input("color", event)} /></label>
-          <label><span>${this.#ui.t("settings.partyTextColor")}</span><input type="color" name="partyTextColor"
-            .value=${this.draft.textColor} ?disabled=${this.#locked} @input=${(event: Event) => this.#input("textColor", event)} /></label>
         </div>
         ${saveFailure(this.error)}
         <div class="settings-edit-actions">
@@ -113,7 +111,7 @@ export class CodexPartySettings extends LitElement {
     this.dirty = dirty;
     reportEditState(this, { dirty });
   }
-  #input(field: "name" | "icon" | "color" | "textColor", event: Event): void {
+  #input(field: "name" | "icon" | "color", event: Event): void {
     if (this.#locked || this.draft === undefined) return;
     this.draft = { ...this.draft, [field]: (event.currentTarget as HTMLInputElement).value };
     this.error = "";

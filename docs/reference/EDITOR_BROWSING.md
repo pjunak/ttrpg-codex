@@ -173,8 +173,12 @@ Missing artwork uses a compact identity mark in article mastheads. Character
 cards keep their 3:4 portrait area whether or not an image loads. Other records
 with artwork use an image card; records that never had artwork are compact
 tiles with their emblem beside the text (locations use their map-marker icon,
-factions their colour and member count). Character cards show status and
-visible party identity.
+factions their colour and member count). Character cards and mastheads show
+status and the character's faction (the party included) as a chip: its picture
+or icon and name on the dark surface tinted with the faction's colour, so the
+name stays readable whatever colour is chosen. A faction's form has a colour
+picker beside the hex code, an icon field with a grid of common symbols, and a
+picture upload; colour and icon are edited only there.
 
 Facts edit in place on record pages, the character profile and the dashboard,
 all with one inline field. A value reads as text and shows a pencil on hover or

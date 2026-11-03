@@ -6,12 +6,32 @@ import {
   type ArticleContextSection,
 } from "./article-context.js";
 import type { EntitySummary } from "./campaign-projection.js";
+import type { CampaignFactionIdentity } from "./campaign-party.js";
+import { previewResourceURL } from "../core/player-preview.js";
 import { relationshipEditorRowsFor, relationshipTypeOptionsFor } from "./campaign-record-editor.js";
 import { locationRoleDrafts } from "./campaign-structured-editors.js";
 import { uiText } from "./ui-localization.js";
 
 /**
- * A record's header badges. A party member's party badge stands in for the
+ * A character's faction, the party included, as a chip: its picture or icon
+ * and its name on the page's dark surface tinted with the faction's colour, so
+ * the name stays readable whatever colour the faction has. Inside a link (a
+ * collection card) pass `link: false`.
+ */
+export function renderFactionChip(faction: CampaignFactionIdentity, link = true) {
+  const content = html`${
+    faction.picture
+      ? html`<img class="faction-chip-mark" src=${previewResourceURL(faction.picture)} alt="" loading="lazy" />`
+      : html`<span class="faction-chip-mark" aria-hidden="true">${faction.icon}</span>`
+  }<span class="faction-chip-name">${faction.name}</span>`;
+  const style = faction.color ? `--faction-color: ${faction.color}` : nothing;
+  return link && faction.href
+    ? html`<a class="faction-chip" href=${faction.href} style=${style}>${content}</a>`
+    : html`<span class="faction-chip" style=${style}>${content}</span>`;
+}
+
+/**
+ * A record's header badges. A party member's faction chip stands in for the
  * "party" attitude, so that attitude is not shown a second time.
  */
 export function renderRecordBadges(
@@ -22,7 +42,7 @@ export function renderRecordBadges(
   return html`<div class="record-badges">
     ${entity.visibility === "dm" ? html`<span class="dm-badge">${uiText("DM")}</span>` : nothing}
     ${status && entity.status !== "" ? html`<span>${entity.statusLabel}</span>` : nothing}
-    ${party === undefined ? nothing : html`<span class="party-identity-badge" style=${`background: ${party.color}; color: ${party.textColor}`}>${party.badge} ${party.name}</span>`}
+    ${entity.faction ? renderFactionChip(entity.faction) : nothing}
     ${entity.attitudes
       .filter((attitude) => party === undefined || attitude.id !== "party")
       .map(

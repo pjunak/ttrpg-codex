@@ -186,7 +186,6 @@ for (const mobile of [false, true])
     await panel(page).getByLabel("Name", { exact: true }).fill("Night Owls");
     await panel(page).getByLabel("Icon / emoji", { exact: true }).fill("🦉");
     await panel(page).getByLabel("Color (glow / chip)", { exact: true }).fill("#99ccff");
-    await panel(page).getByLabel("Text color", { exact: true }).fill("#203040");
     await publish(page, "characters", () => {
       fixtureRecord(collection("characters"), "ryn").value.name = "Ryn II";
     });
@@ -209,7 +208,7 @@ for (const mobile of [false, true])
       icon: "🦉",
       badge: "🦉",
       color: "#99ccff",
-      textColor: "#203040",
+      textColor: "#102030",
       extension: { keep: true },
     });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -234,20 +233,38 @@ for (const mobile of [false, true])
       .getByRole("link", { name: /Ryn II/ })
       .click();
     await page.locator("#record-title").waitFor();
-    const badge = page.locator(".party-identity-badge");
-    assert.equal(await badge.textContent().then(required), "🦉 Night Owls");
+    const badge = page.locator(".record-badges .faction-chip");
+    assert.equal(await badge.getAttribute("href"), "#/party");
+    assert.equal(await badge.locator(".faction-chip-mark").textContent(), "🦉");
+    assert.equal(await badge.locator(".faction-chip-name").textContent(), "Night Owls");
     assert.deepEqual(
       await page.locator(".record-badges .attitude-badge").allTextContents(),
       [],
-      "the party badge replaces the party attitude badge",
+      "the party chip replaces the party attitude badge",
     );
-    assert.deepEqual(
-      await badge.evaluate((element) => {
-        const style = getComputedStyle(element);
-        return [style.backgroundColor, style.color];
-      }),
-      ["rgb(153, 204, 255)", "rgb(32, 48, 64)"],
-    );
+    // A light party colour tints the dark chip; its light name stays readable.
+    const contrast = await badge.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const canvas = document.createElement("canvas").getContext("2d")!;
+      const channels = (colour: string) => {
+        canvas.clearRect(0, 0, 1, 1);
+        canvas.fillStyle = colour;
+        canvas.fillRect(0, 0, 1, 1);
+        return Array.from(canvas.getImageData(0, 0, 1, 1).data.slice(0, 3));
+      };
+      const luminance = (colour: string) => {
+        const [r, g, b] = channels(colour).map((value) => {
+          const c = value / 255;
+          return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+      };
+      const [light, dark] = [luminance(style.color), luminance(style.backgroundColor)].sort(
+        (a, b) => b - a,
+      );
+      return (light! + 0.05) / (dark! + 0.05);
+    });
+    assert.ok(contrast >= 4.5, `chip text contrast ${contrast.toFixed(2)}`);
     await page.getByLabel("More actions", { exact: true }).click();
     await page.getByRole("menuitem", { name: "Edit all fields", exact: true }).click();
     await page.getByRole("tab", { name: "Connections", exact: true }).click();

@@ -1,4 +1,5 @@
-import { cssHexColor } from "./campaign-projection.js";
+import { cssHexColor, safeMediaURL } from "./campaign-projection.js";
+import { campaignPages, recordHash } from "./routes.js";
 import { isRecord } from "../core/boundary.js";
 import { uiText } from "./ui-localization.js";
 import {
@@ -13,7 +14,6 @@ export interface CampaignPartyIdentity {
   readonly icon: string;
   readonly badge: string;
   readonly color: string;
-  readonly textColor: string;
 }
 
 export interface CampaignPartySaveDetail {
@@ -21,7 +21,6 @@ export interface CampaignPartySaveDetail {
   readonly name: string;
   readonly icon: string;
   readonly color: string;
-  readonly textColor: string;
 }
 
 export class CampaignPartyEditError extends Error {
@@ -38,7 +37,6 @@ const defaults: CampaignPartyIdentity = Object.freeze({
   icon: "🛡",
   badge: "🛡",
   color: "#f5f0e4",
-  textColor: "#1a1410",
 });
 
 export function campaignPartyRecord(campaign: CampaignDataset): CampaignRecord | undefined {
@@ -54,7 +52,50 @@ export function campaignPartyIdentity(campaign: CampaignDataset): CampaignPartyI
     icon,
     badge: boundedLine(value["badge"], 100) || icon,
     color: hexColor(value["color"]) ?? defaults.color,
-    textColor: hexColor(value["textColor"]) ?? defaults.textColor,
+  });
+}
+
+/** How a character's faction shows on its chip: the party or a faction record. */
+export interface CampaignFactionIdentity {
+  readonly name: string;
+  readonly icon: string;
+  /** A hex colour, or undefined for the theme's default. */
+  readonly color: string | undefined;
+  readonly picture: string | undefined;
+  readonly href: string | undefined;
+}
+
+/** The faction a character's `faction` value names; none for "No faction" or a missing one. */
+export function campaignFactionIdentity(
+  campaign: CampaignDataset,
+  factionId: unknown,
+): CampaignFactionIdentity | undefined {
+  if (factionId === "party") {
+    const party = campaignPartyIdentity(campaign);
+    return Object.freeze({
+      name: party.name,
+      icon: party.badge,
+      color: party.color,
+      picture: undefined,
+      href: "#/party",
+    });
+  }
+  if (typeof factionId !== "string" || factionId === "" || factionId === "neutral")
+    return undefined;
+  const record = campaignCollection(campaign, "factions").records.find(
+    ({ key }) => key === factionId,
+  );
+  if (record === undefined || !isRecord(record.value)) return undefined;
+  const value = record.value;
+  return Object.freeze({
+    name: boundedLine(value["name"], 200) || record.key,
+    icon: boundedLine(value["badge"], 100) || "⚑",
+    color: hexColor(value["color"]),
+    picture: safeMediaURL(value["portrait"]),
+    href: recordHash(
+      campaignPages.find(({ collection }) => collection === "factions")!,
+      record.key,
+    ),
   });
 }
 
@@ -71,8 +112,7 @@ export function prepareCampaignPartySave(
     detail.name.trim().length > 200 ||
     detail.icon.trim().length > 100 ||
     /[\r\n]/u.test(detail.name + detail.icon) ||
-    !hexColor(detail.color) ||
-    !hexColor(detail.textColor)
+    !hexColor(detail.color)
   ) {
     throw new CampaignPartyEditError("invalid");
   }
@@ -92,7 +132,6 @@ export function prepareCampaignPartySave(
       icon,
       badge: icon,
       color: hexColor(detail.color)!,
-      textColor: hexColor(detail.textColor)!,
     }),
   });
 }

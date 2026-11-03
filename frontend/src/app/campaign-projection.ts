@@ -9,7 +9,12 @@ import {
 import { campaignPages, recordHash, type CampaignPageDefinition } from "./routes.js";
 import { campaignEnumDisplayLabel } from "./campaign-settings.js";
 import { attitudeRing, attitudeFilter } from "./campaign-attitude-glow.js";
-import { campaignPartyIdentity, type CampaignPartyIdentity } from "./campaign-party.js";
+import {
+  campaignFactionIdentity,
+  campaignPartyIdentity,
+  type CampaignFactionIdentity,
+  type CampaignPartyIdentity,
+} from "./campaign-party.js";
 import { campaignMarkdownText } from "./campaign-markdown.js";
 
 export interface CampaignIdentity {
@@ -19,6 +24,8 @@ export interface CampaignIdentity {
 
 export interface EntitySummary {
   readonly partyIdentity: CampaignPartyIdentity | undefined;
+  /** A character's faction, the party included, as its chip shows it. */
+  readonly faction: CampaignFactionIdentity | undefined;
   readonly key: string;
   readonly name: string;
   readonly title: string;
@@ -153,6 +160,10 @@ function projectEntityWithContext(
       : undefined;
   return Object.freeze({
     partyIdentity,
+    faction:
+      page.collection === "characters"
+        ? campaignFactionIdentity(dataset, value["faction"])
+        : undefined,
     key: record.key,
     name: nonEmptyText(value["name"]) ?? record.key,
     title: firstText(value, secondaryFields[page.collection] ?? []),

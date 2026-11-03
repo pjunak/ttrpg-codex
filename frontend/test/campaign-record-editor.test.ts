@@ -1,4 +1,4 @@
-import { attachCharacterPortrait } from "../src/app/character-portrait.js";
+import { attachRecordPicture } from "../src/app/record-picture.js";
 import { MediaClient } from "../src/core/media.js";
 import { describe, expect, it } from "vitest";
 import {
@@ -195,8 +195,8 @@ describe("campaign record editing", () => {
     const unused = new MediaClient(async () => {
       throw new Error("unexpected upload");
     });
-    expect(await attachCharacterPortrait(prepared, detail, token, signal, unused)).toBe(prepared);
-    const removed = await attachCharacterPortrait(
+    expect(await attachRecordPicture(prepared, detail, token, signal, unused)).toBe(prepared);
+    const removed = await attachRecordPicture(
       prepareCampaignRecordSave(campaign, { ...detail, portrait: null }, true),
       { ...detail, portrait: null },
       token,
@@ -257,7 +257,7 @@ describe("campaign record editing", () => {
         headers: { "Content-Type": "application/json" },
       });
     });
-    const result = await attachCharacterPortrait(
+    const result = await attachRecordPicture(
       prepared,
       { ...detail, portrait: file },
       token,
@@ -275,8 +275,59 @@ describe("campaign record editing", () => {
         }),
     );
     await expect(
-      attachCharacterPortrait(prepared, { ...detail, portrait: file }, token, signal, wrongTarget),
+      attachRecordPicture(prepared, { ...detail, portrait: file }, token, signal, wrongTarget),
     ).rejects.toThrow("Portrait target differs");
+  });
+  it("uploads a faction's picture as a faction picture and keeps other pictures out", async () => {
+    const campaign = dataset({
+      factions: [{ key: "guild", revision: 2, value: { id: "guild", name: "Guild" } }],
+      events: [{ key: "feast", revision: 1, value: { id: "feast", name: "Feast" } }],
+    });
+    const file = new File(["image"], "crest.png", { type: "image/png" });
+    const detail = {
+      collection: "factions" as const,
+      key: "guild",
+      expectedRevision: 2,
+      creating: false,
+      fields: formFields("factions", { name: "Guild" }),
+      portrait: file,
+    };
+    const url = `/api/media/b_${"3".repeat(32)}`;
+    const media = new MediaClient(async (requested) => {
+      expect(requested).toBe("/api/media/faction-picture/guild");
+      return Response.json({
+        contractVersion: "media-blob.v1",
+        id: `b_${"3".repeat(32)}`,
+        url,
+        kind: "faction-picture",
+        target: "guild",
+        mediaType: "image/png",
+        bytes: 5,
+        revision: 1,
+        createdAt: "2026-11-03T00:00:00Z",
+      });
+    });
+    const result = await attachRecordPicture(
+      prepareCampaignRecordSave(campaign, detail, true),
+      detail,
+      "x".repeat(32),
+      new AbortController().signal,
+      media,
+    );
+    expect(result.mutations[0]).toMatchObject({ value: { name: "Guild", portrait: url } });
+    expect(() =>
+      prepareCampaignRecordSave(
+        campaign,
+        {
+          ...detail,
+          collection: "events",
+          key: "feast",
+          expectedRevision: 1,
+          fields: formFields("events", { name: "Feast" }),
+        },
+        true,
+      ),
+    ).toThrow(CampaignRecordEditError);
   });
   it("edits marker definitions and size without changing coordinates, local images or extensions", () => {
     const value = {
@@ -1032,7 +1083,6 @@ describe("campaign record editing", () => {
       "name",
       "badge",
       "color",
-      "textColor",
       "attitudes",
       "rankChains",
       "description",

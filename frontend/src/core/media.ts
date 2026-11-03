@@ -11,6 +11,7 @@ const maximumResponseBytes = 64 * 1024;
 const blobIDPattern = /^b_[0-9a-f]{32}$/;
 const mediaKinds = new Set<MediaKind>([
   "character-portrait",
+  "faction-picture",
   "companion-portrait",
   "location-map",
   "world-map",
@@ -32,6 +33,7 @@ const deleteKeys = new Set(["contractVersion", "id", "revision", "deleted"]);
 
 export type MediaKind =
   | "character-portrait"
+  | "faction-picture"
   | "companion-portrait"
   | "location-map"
   | "world-map"

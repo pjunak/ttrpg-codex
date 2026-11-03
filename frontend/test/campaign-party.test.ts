@@ -18,7 +18,6 @@ const draft: CampaignPartySaveDetail = {
   name: " Night Owls ",
   icon: " 🦉 ",
   color: "#9CF",
-  textColor: "#102030",
 };
 const saved = {
   name: "Old name",
@@ -37,7 +36,6 @@ describe("shared party identity", () => {
       icon: "🛡",
       badge: "🛡",
       color: "#f5f0e4",
-      textColor: "#1a1410",
     });
     expect(
       campaignPartyIdentity(
@@ -47,7 +45,6 @@ describe("shared party identity", () => {
             icon: "🦉",
             badge: "⚔",
             color: "#9CF",
-            textColor: "red; display:none",
           }),
         ),
       ),
@@ -56,7 +53,6 @@ describe("shared party identity", () => {
       icon: "🦉",
       badge: "⚔",
       color: "#99ccff",
-      textColor: "#1a1410",
     });
     expect(campaignPartyIdentity(dataset(setting([])))).toEqual(campaignPartyIdentity(dataset()));
   });
@@ -77,7 +73,8 @@ describe("shared party identity", () => {
         icon: "🦉",
         badge: "🦉",
         color: "#99ccff",
-        textColor: "#102030",
+        // A text colour saved before the chip chose its own stays in the record.
+        textColor: "#ffffff",
         extension: { keep: [1, 2] },
       },
     });
@@ -110,7 +107,7 @@ describe("shared party identity", () => {
       { icon: "i".repeat(101) },
       { name: "two\nlines" },
       { color: "red" },
-      { textColor: "#fff;background:url(https://example.invalid)" },
+      { color: "#fff;background:url(https://example.invalid)" },
     ]) {
       expect(() => prepareCampaignPartySave(dataset(setting()), { ...draft, ...change })).toThrow(
         new CampaignPartyEditError("invalid"),
@@ -125,7 +122,7 @@ describe("shared party identity", () => {
     expect(model.party.map((member) => member.key)).toEqual(["scout"]);
     expect(model.party[0]).toMatchObject({
       icon: "🦉",
-      partyIdentity: { color: "#123456", textColor: "#ffffff" },
+      partyIdentity: { color: "#123456" },
       attitudes: [{ id: "party", label: "Night Owls", color: "#123456", strength: 1 }],
     });
     const faction = editorFieldsFor("characters").find((field) => field.key === "faction")!;

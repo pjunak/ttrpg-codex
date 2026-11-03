@@ -44,7 +44,7 @@ import {
 } from "./campaign-sidebar.js";
 import { prepareTimelineReorder, TimelineEditError } from "./campaign-timeline.js";
 import type { CampaignWriteKind, CampaignWrites } from "./campaign-writes.js";
-import { attachCharacterPortrait } from "./character-portrait.js";
+import { attachRecordPicture } from "./record-picture.js";
 import { uiRequestError } from "./ui-errors.js";
 import { uiText, type MessageKey } from "./ui-localization.js";
 
@@ -101,7 +101,7 @@ export const campaignWriteHandlers: CampaignWriteHandlers = {
   record: {
     manage: () => false,
     async write(context, detail) {
-      const prepared = await attachCharacterPortrait(
+      const prepared = await attachRecordPicture(
         prepareCampaignRecordSave(context.campaign, detail, context.canManage),
         detail,
         context.csrfToken,
@@ -155,7 +155,7 @@ export const campaignWriteHandlers: CampaignWriteHandlers = {
     manage: () => false,
     async write(context, patch) {
       const collection = patch.collection ?? "characters";
-      const prepared = await attachCharacterPortrait(
+      const prepared = await attachRecordPicture(
         prepareCharacterPatch(context.campaign, patch, context.canManage),
         {
           collection,

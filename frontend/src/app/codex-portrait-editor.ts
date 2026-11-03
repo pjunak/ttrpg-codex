@@ -1,19 +1,50 @@
 import { LitElement, html, nothing } from "lit";
 import { previewResourceURL } from "../core/player-preview.js";
 import { safeMediaURL } from "./campaign-projection.js";
-import { portraitAccept, validPortraitFile } from "./character-portrait.js";
+import { portraitAccept, validPortraitFile } from "./record-picture.js";
 import { UiLocalizationController, uiText } from "./ui-localization.js";
 import { artwork } from "../ui/artwork.js";
 
+/** Wording for a character's portrait or a faction's picture. */
+const wording = Object.freeze({
+  portrait: {
+    section: "Character portrait",
+    preview: "Portrait preview",
+    unavailable: "Portrait preview unavailable",
+    upload: "Upload portrait",
+    replace: "Replace portrait",
+    choose: "Choose portrait",
+    remove: "Remove portrait",
+    undo: "Undo portrait change",
+    saveFirst: "Save the character first, then edit it to add a portrait.",
+    fallback: "👤",
+  },
+  picture: {
+    section: "Faction picture",
+    preview: "Picture preview",
+    unavailable: "Picture preview unavailable",
+    upload: "Upload picture",
+    replace: "Replace picture",
+    choose: "Choose picture",
+    remove: "Remove picture",
+    undo: "Undo picture change",
+    saveFirst: "Save the faction first, then edit it to add a picture.",
+    fallback: "🛡️",
+  },
+} as const);
+
+/** Chooses, replaces or removes a record's uploaded image; the save uploads it. */
 export class CodexPortraitEditor extends LitElement {
   static override properties = {
     portrait: { attribute: false },
+    noun: { attribute: false },
     disabled: { type: Boolean },
     creating: { type: Boolean },
     preview: { state: true },
     error: { state: true },
   };
   declare portrait: unknown;
+  declare noun: keyof typeof wording;
   declare disabled: boolean;
   declare creating: boolean;
   declare private preview: string | undefined;
@@ -23,6 +54,7 @@ export class CodexPortraitEditor extends LitElement {
 
   constructor() {
     super();
+    this.noun = "portrait";
     this.disabled = false;
     this.creating = false;
     this.error = false;
@@ -45,21 +77,22 @@ export class CodexPortraitEditor extends LitElement {
   protected override render() {
     void this.#ui;
     const image = this.#draft === null ? undefined : (this.preview ?? safeMediaURL(this.portrait));
-    return html`<section class="portrait-editor" aria-label=${uiText("Character portrait")}>
+    const words = wording[this.noun];
+    return html`<section class="portrait-editor" aria-label=${uiText(words.section)}>
       ${artwork({
         source: this.preview ?? previewResourceURL(image),
         className: "portrait-editor-preview portrait-editor-empty",
-        fallback: "👤",
-        label: image === undefined ? undefined : uiText("Portrait preview"),
-        unavailableLabel: uiText("Portrait preview unavailable"),
+        fallback: words.fallback,
+        label: image === undefined ? undefined : uiText(words.preview),
+        unavailableLabel: uiText(words.unavailable),
       })}
       <div class="portrait-editor-controls">
         ${
           this.creating
-            ? html`<p>${uiText("Save the character first, then edit it to add a portrait.")}</p>`
+            ? html`<p>${uiText(words.saveFirst)}</p>`
             : html`
-          <label><span>${image === undefined ? uiText("Upload portrait") : uiText("Replace portrait")}</span>
-            <input type="file" accept=${portraitAccept} aria-label=${uiText("Choose portrait")}
+          <label><span>${uiText(image === undefined ? words.upload : words.replace)}</span>
+            <input type="file" accept=${portraitAccept} aria-label=${uiText(words.choose)}
               ?disabled=${this.disabled} @change=${this.#select} /></label>
           ${this.#draft instanceof File ? html`<small class="field-help">${this.#draft.name}</small>` : nothing}
           <small class="field-help">${uiText("PNG, JPEG, WebP, GIF or SVG, up to 20 MiB. Changes apply when you save the entry.")}</small>
@@ -67,13 +100,13 @@ export class CodexPortraitEditor extends LitElement {
             image === undefined
               ? nothing
               : html`<button class="ui-action" type="button" ?disabled=${this.disabled}
-            @click=${this.#remove}>${uiText("Remove portrait")}</button>`
+            @click=${this.#remove}>${uiText(words.remove)}</button>`
           }
           ${
             this.#draft === undefined
               ? nothing
               : html`<button class="ui-action" type="button" ?disabled=${this.disabled}
-            @click=${this.#undo}>${uiText("Undo portrait change")}</button>`
+            @click=${this.#undo}>${uiText(words.undo)}</button>`
           }
           ${this.error ? html`<p role="alert">${uiText("Choose a supported image between 1 byte and 20 MiB.")}</p>` : nothing}
         `

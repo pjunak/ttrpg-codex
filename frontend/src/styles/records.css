@@ -437,6 +437,12 @@ codex-record-twins {
   background: var(--status-color, var(--text-muted));
 }
 
+.record-row-copy > .faction-chip {
+  display: inline-flex;
+  margin-bottom: 0.3rem;
+  color: var(--text-parchment);
+}
+
 .record-row-copy > .record-row-meta {
   display: flex;
   flex-wrap: wrap;
@@ -451,7 +457,7 @@ codex-record-twins {
 }
 
 .dm-badge,
-.record-badges span {
+.record-badges > span:not(.faction-chip) {
   padding: 0.15em 0.55em;
   border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius-pill);
@@ -643,6 +649,61 @@ codex-record-twins {
 .record-editor .boolean-field > span {
   letter-spacing: 0;
   text-transform: none;
+}
+
+/* A colour's picker swatch sits before its hex code. */
+.record-editor .color-field-row {
+  display: flex;
+  gap: var(--space-2);
+}
+.record-editor input.color-field-picker {
+  order: -1;
+  flex: none;
+  width: 3.25rem;
+  padding: 0.25rem;
+  cursor: pointer;
+}
+.record-editor input.color-field-code {
+  font-family: var(--font-mono);
+}
+
+/* An icon field's chooser opens a grid of common symbols below it. */
+.icon-field {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+.record-editor input.icon-field-input {
+  font-size: var(--text-lg);
+}
+.icon-field-choices > summary {
+  width: fit-content;
+  color: var(--accent-gold);
+  cursor: pointer;
+  font: var(--text-sm) / 2 var(--font-ui);
+}
+.icon-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(2.5rem, 1fr));
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--chrome-field-border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+.icon-field-choice {
+  min-height: 2.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+.icon-field-choice:hover,
+.icon-field-choice:focus-visible {
+  border-color: var(--chrome-field-border);
+  background: var(--bg-surface);
 }
 
 .record-editor .field-help {
@@ -883,6 +944,45 @@ campaign-relationship-editor {
   color: var(--attitude-color);
   border-color: var(--attitude-color);
   box-shadow: inset 0 -2px 0 var(--attitude-color);
+}
+
+/* A faction's chip keeps the page's light text on its dark surface, tinted
+   with the faction's colour, so any colour the DM picks stays readable. */
+.faction-chip {
+  --faction-color: var(--accent-gold-dim);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  padding: 0.1em 0.65em 0.1em 0.15em;
+  border: 1px solid color-mix(in srgb, var(--faction-color) 70%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--faction-color) 24%, var(--bg-surface));
+  color: var(--text-parchment);
+  font: var(--text-xs) / 1.5 var(--font-ui);
+  text-decoration: none;
+}
+a.faction-chip:hover {
+  border-color: var(--faction-color);
+  background: color-mix(in srgb, var(--faction-color) 34%, var(--bg-surface));
+}
+.faction-chip-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--faction-color) 45%, var(--bg-deep));
+  color: var(--text-parchment);
+  object-fit: cover;
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+.faction-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .record-reading-layout {

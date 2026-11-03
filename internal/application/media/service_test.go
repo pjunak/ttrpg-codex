@@ -131,6 +131,43 @@ func TestHiddenAndPrivilegedMediaRespectEffectiveRole(t *testing.T) {
 	}
 }
 
+func TestFactionPicturesFollowTheirFaction(t *testing.T) {
+	t.Parallel()
+	records := recordMap{
+		"factions:guild": {
+			Collection: campaign.Factions, Key: "guild",
+			Value: []byte(`{"id":"guild"}`), Visibility: campaign.VisibilityPublic,
+		},
+		"factions:cabal": {
+			Collection: campaign.Factions, Key: "cabal",
+			Value: []byte(`{"id":"cabal","visibility":"dm"}`), Visibility: campaign.VisibilityDM,
+		},
+	}
+	service, database := newTestService(t, records)
+	defer database.Close()
+	ctx := context.Background()
+	request := func(target string) UploadRequest {
+		return UploadRequest{
+			Kind: FactionPicture, TargetKey: target,
+			Content: bytes.NewReader(pngImage), Bytes: uint64(len(pngImage)), MediaType: "image/png",
+		}
+	}
+	public, err := service.Upload(ctx, Authority{Role: RolePlayer}, request("guild"))
+	if err != nil || public.Blob.Visibility != blobstore.VisibilityPublic {
+		t.Fatalf("public faction picture = %+v %v", public.Blob, err)
+	}
+	if _, err := service.Upload(ctx, Authority{Role: RolePlayer}, request("cabal")); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("player picture for a DM faction = %v", err)
+	}
+	hidden, err := service.Upload(ctx, Authority{Role: RoleDM}, request("cabal"))
+	if err != nil || hidden.Blob.Visibility != blobstore.VisibilityDM {
+		t.Fatalf("DM faction picture = %+v %v", hidden.Blob, err)
+	}
+	if _, err := service.Upload(ctx, Authority{Role: RoleDM}, request("missing")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("picture for a missing faction = %v", err)
+	}
+}
+
 func TestMediaRejectsMismatchedImagesAndUnknownTargets(t *testing.T) {
 	t.Parallel()
 	service, database := newTestService(t, map[string]campaign.Record{})

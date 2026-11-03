@@ -430,11 +430,12 @@ on a disposable Go host through the reviewed package
 lifecycle, including local movement, role restrictions, detail navigation,
 replacement, and disable. Real-campaign visual acceptance remains open.
 
-`settings/playerParty` owns the shared party name, icon, badge, color, and text
-color. Membership remains `character.faction === "party"`; settings never store
-a second roster or create a faction record. The DM panel edits the original
-four fields and mirrors the submitted icon into `badge`, preserving unknown
-fields. Saves use the opening record revision, reject malformed record shapes,
+`settings/playerParty` owns the shared party name, icon, badge and color.
+Membership remains `character.faction === "party"`; settings never store
+a second roster or create a faction record. The DM panel edits the name, icon
+and color and mirrors the submitted icon into `badge`, preserving unknown
+fields (including a `textColor` saved by earlier versions, which nothing reads
+now). Saves use the opening record revision, reject malformed record shapes,
 and keep drafts on failed or stale writes. Clean forms follow live refresh;
 cancel reloads the current values. Colors are validated hex values before use
 in CSS. The identity is shared by roster headings, character placeholders and

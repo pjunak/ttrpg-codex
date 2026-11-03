@@ -1,5 +1,5 @@
 import { currentUiLocale, uiText, uiSourceLabel } from "./ui-localization.js";
-import { validPortraitFile } from "./character-portrait.js";
+import { recordPictureKinds, validPortraitFile } from "./record-picture.js";
 import { isRecord } from "../core/boundary.js";
 import {
   campaignCollection,
@@ -45,6 +45,8 @@ export interface CampaignEditorField {
   readonly excludeCurrent?: boolean;
   readonly browse?: boolean;
   readonly dmOnly?: boolean;
+  /** A line shown with a colour picker or an icon chooser instead of a plain text box. */
+  readonly control?: "color" | "icon";
 }
 
 export interface CampaignEditorOption {
@@ -320,7 +322,7 @@ export function prepareCampaignRecordSave(
 
   const current = isRecord(record?.value) ? record.value : {};
   if (detail.portrait !== undefined) {
-    if (page.collection !== "characters" || detail.creating) throw invalidEdit();
+    if (recordPictureKinds[page.collection] === undefined || detail.creating) throw invalidEdit();
     checkPortrait(detail.portrait, detail.visibility, current);
   }
   const value: Record<string, unknown> = { ...current };
@@ -493,6 +495,7 @@ function field(
     ...(options.excludeCurrent === undefined ? {} : { excludeCurrent: options.excludeCurrent }),
     ...(options.browse === undefined ? {} : { browse: options.browse }),
     ...(options.dmOnly === undefined ? {} : { dmOnly: options.dmOnly }),
+    ...(options.control === undefined ? {} : { control: options.control }),
   };
   // Spreading an accessor would freeze its current translation at module load.
   for (const key of ["placeholder", "help"] as const)
@@ -701,9 +704,8 @@ const editorFields: Readonly<
   ]),
   factions: Object.freeze([
     name,
-    field("badge", "Badge or symbol", { maximumLength: 100 }),
-    field("color", "Color", { maximumLength: 20, placeholder: "#555555" }),
-    field("textColor", "Text color", { maximumLength: 20, placeholder: "#ffffff" }),
+    field("badge", "Icon", { maximumLength: 100, control: "icon" }),
+    field("color", "Color", { maximumLength: 20, control: "color" }),
     field("attitudes", "Inherited attitudes", { kind: "attitudes", maximumItems: 32 }),
     field("rankChains", "Rank chains", {
       kind: "rank-chains",

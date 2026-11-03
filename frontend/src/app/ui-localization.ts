@@ -582,7 +582,6 @@ const enCatalog = {
   "settings.partyName": "Name",
   "settings.partyIcon": "Icon / emoji",
   "settings.partyColor": "Color (glow / chip)",
-  "settings.partyTextColor": "Text color",
   "settings.partyMembers": { one: "{n} party member", other: "{n} party members" },
   "settings.partyMembersHint":
     "To add or remove a member, change the faction on their character page.",
@@ -1175,7 +1174,6 @@ const csCatalog = {
   "settings.partyName": "Název",
   "settings.partyIcon": "Ikona / emoji",
   "settings.partyColor": "Barva (záře / štítek)",
-  "settings.partyTextColor": "Barva textu",
   "settings.partyMembers": {
     one: "{n} člen družiny",
     few: "{n} členové družiny",

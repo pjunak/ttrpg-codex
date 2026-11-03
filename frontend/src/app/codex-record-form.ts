@@ -174,6 +174,12 @@ export class CodexRecordForm extends LitElement {
           character
             ? this.#characterFields(fields, value, record)
             : html`<div class="record-editor-fields">
+          ${
+            this.page.collection === "factions"
+              ? html`<codex-portrait-editor class="wide-field" .noun=${"picture"} .portrait=${value["portrait"]}
+            .creating=${creating} .disabled=${this.#locked}></codex-portrait-editor>`
+              : nothing
+          }
           ${fields.map((field) => this.#field(field, value, record?.key ?? ""))}
           ${this.page.collection === "locations" ? this.#locationMapControls(record, value) : nothing}
           ${collectionManagesVisibility(this.page.collection) && this.canManageVisibility ? this.#visibility(value) : nothing}

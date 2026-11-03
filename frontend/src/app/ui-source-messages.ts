@@ -249,7 +249,9 @@ export const sourceCs = {
   "Questions and answers": "Otázky a odpovědi",
   "Keep the question after its answer is discovered so the investigation remains readable.":
     "Po nalezení odpovědi ponechte otázku, aby průběh pátrání zůstal srozumitelný.",
-  "Badge or symbol": "Odznak nebo symbol",
+  "Choose an icon": "Vybrat ikonu",
+  "Pick a colour": "Vybrat barvu",
+  "Use {0}": "Použít {0}",
   Color: "Barva",
   "Text color": "Barva textu",
   "Inherited attitudes": "Zděděné postoje",
@@ -389,6 +391,16 @@ export const sourceCs = {
   "Portrait preview unavailable": "Náhled portrétu není dostupný",
   "Remove portrait": "Odstranit portrét",
   "Undo portrait change": "Vrátit změnu portrétu",
+  "Faction picture": "Obrázek frakce",
+  "Picture preview": "Náhled obrázku",
+  "Picture preview unavailable": "Náhled obrázku není dostupný",
+  "Upload picture": "Nahrát obrázek",
+  "Replace picture": "Nahradit obrázek",
+  "Choose picture": "Vybrat obrázek",
+  "Remove picture": "Odstranit obrázek",
+  "Undo picture change": "Vrátit změnu obrázku",
+  "Save the faction first, then edit it to add a picture.":
+    "Nejprve frakci uložte, potom ji upravte a přidejte obrázek.",
   "PNG, JPEG, WebP, GIF or SVG, up to 20 MiB. Changes apply when you save the entry.":
     "PNG, JPEG, WebP, GIF nebo SVG, nejvýše 20 MiB. Změny se projeví po uložení záznamu.",
   "Choose a supported image between 1 byte and 20 MiB.":

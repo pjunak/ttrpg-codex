@@ -1,5 +1,6 @@
 import { isRecord } from "../core/boundary.js";
-import { MediaClient } from "../core/media.js";
+import type { CampaignCollectionName } from "../core/campaign-data.js";
+import { MediaClient, type MediaKind } from "../core/media.js";
 import type {
   CampaignRecordSaveDetail,
   PreparedCampaignRecordTransaction,
@@ -12,9 +13,13 @@ export function validPortraitFile(file: File): boolean {
   );
 }
 
+/** The collections whose records carry an uploaded picture, and its media kind. */
+export const recordPictureKinds: Readonly<Partial<Record<CampaignCollectionName, MediaKind>>> =
+  Object.freeze({ characters: "character-portrait", factions: "faction-picture" });
+
 // Uploads are immutable. Only the subsequent revision-checked record transaction
 // publishes the selected URL; never delete the previous image or recovery data.
-export async function attachCharacterPortrait(
+export async function attachRecordPicture(
   prepared: PreparedCampaignRecordTransaction,
   detail: CampaignRecordSaveDetail,
   csrfToken: string,
@@ -24,11 +29,12 @@ export async function attachCharacterPortrait(
   signal.throwIfAborted();
   if (detail.portrait === undefined) return prepared;
   const mutation = prepared.mutations[0];
+  const kind = recordPictureKinds[detail.collection];
   if (
     detail.creating ||
-    detail.collection !== "characters" ||
+    kind === undefined ||
     mutation?.operation !== "put" ||
-    mutation.collection !== "characters" ||
+    mutation.collection !== detail.collection ||
     mutation.key !== detail.key ||
     !isRecord(mutation.value)
   ) {
@@ -39,7 +45,7 @@ export async function attachCharacterPortrait(
   else {
     if (!validPortraitFile(detail.portrait)) throw new Error("Invalid portrait file");
     const uploaded = await media.upload(
-      "character-portrait",
+      kind,
       detail.key,
       detail.portrait,
       detail.portrait.name,
@@ -47,7 +53,7 @@ export async function attachCharacterPortrait(
       signal,
     );
     signal.throwIfAborted();
-    if (uploaded.kind !== "character-portrait" || uploaded.target !== detail.key)
+    if (uploaded.kind !== kind || uploaded.target !== detail.key)
       throw new Error("Portrait target differs");
     value["portrait"] = uploaded.url;
   }

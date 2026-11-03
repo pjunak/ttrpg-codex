@@ -8,6 +8,7 @@ import { articleContext, articleOwner, articleReferences } from "./article-conte
 import {
   renderArticleContext,
   renderArticleReferences,
+  renderFactionChip,
   renderRecordBadges,
 } from "./article-context-view.js";
 import { uiPlural, uiText, uiSourceLabel } from "./ui-localization.js";
@@ -409,7 +410,9 @@ export class CodexRecordPage extends LitElement {
     const facts = articleFacts(dataset, route.page.collection, value);
     const editable = this.canEdit
       ? editorFieldsFor(route.page.collection, this.canManageVisibility).filter(
-          (field) => inlineFieldKinds.has(field.kind) && field.key !== "name",
+          // Colours and icons need their pickers, which the full form has.
+          (field) =>
+            inlineFieldKinds.has(field.kind) && field.key !== "name" && field.control === undefined,
         )
       : [];
     const extraFields = editable.filter((field) => !facts.some((fact) => fact[2] === field.key));
@@ -720,7 +723,7 @@ function recordRow(
         ${entity.title === "" ? nothing : html`<span>${entity.title}</span>`}
         ${page.collection === "mysteries" ? html`<span class="record-row-meta">${investigationBadge(entity.raw)}</span>` : nothing}
         ${character && entity.statusLabel ? html`<span class="record-status" style=${statusColor ? `--status-color: ${statusColor}` : nothing}>${entity.statusLabel}</span>` : nothing}
-        ${entity.partyIdentity ? html`<span class="party-identity-badge">${entity.partyIdentity.badge} ${entity.partyIdentity.name}</span>` : nothing}
+        ${entity.faction ? renderFactionChip(entity.faction, false) : nothing}
         ${memberCount === undefined ? nothing : html`<span class="record-row-meta">${uiPlural("browse.memberCount", memberCount)}</span>`}
         ${entity.excerpt === "" || character ? nothing : html`<small>${entity.excerpt}</small>`}
       </span>

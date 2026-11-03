@@ -157,6 +157,7 @@ func (s *server) readMedia(w http.ResponseWriter, r *http.Request) {
 func setMediaCacheHeaders(w http.ResponseWriter, asset applicationmedia.Asset) {
 	if asset.Blob.Visibility == blobstore.VisibilityPublic {
 		if asset.Binding.Kind == string(applicationmedia.CharacterPortrait) ||
+			asset.Binding.Kind == string(applicationmedia.FactionPicture) ||
 			asset.Binding.Kind == string(applicationmedia.LocationMap) {
 			w.Header().Set("Cache-Control", "public, no-cache")
 		} else {

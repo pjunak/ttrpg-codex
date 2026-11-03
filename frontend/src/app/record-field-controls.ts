@@ -1,4 +1,4 @@
-import { html, nothing } from "lit";
+import { html, nothing, type TemplateResult } from "lit";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import { formText, formTextValues } from "../core/forms.js";
 import { editorOptionsFor, type CampaignEditorField } from "./campaign-record-editor.js";
@@ -163,6 +163,8 @@ export function recordFieldControl(
         </label>
       `;
   }
+  if (field.control === "color") return colorControl(field, shownText, help);
+  if (field.control === "icon") return iconControl(field, shownText, help);
   return html`
       <label data-ui-field>
         <span>${field.label}</span>
@@ -180,6 +182,113 @@ export function recordFieldControl(
         ${help}
       </label>
     `;
+}
+
+/** A colour as the picker takes it (#rrggbb), or undefined for anything else. */
+function pickerColor(value: string): string | undefined {
+  const color = value.trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/u.test(color)) return color;
+  if (/^#[0-9a-f]{3}$/u.test(color)) return `#${color.slice(1).replaceAll(/./gu, (c) => c + c)}`;
+  return undefined;
+}
+
+/**
+ * A colour picker beside the colour's hex code. The code is the submitted
+ * value, so an untouched field submits exactly what is stored, even when that
+ * is empty or not a colour the picker can show.
+ */
+function colorControl(
+  field: CampaignEditorField,
+  shown: string,
+  help: TemplateResult | typeof nothing,
+) {
+  const sync = (event: Event, fromPicker: boolean): void => {
+    const row = (event.currentTarget as HTMLElement).closest(".color-field-row")!;
+    const code = row.querySelector<HTMLInputElement>(".color-field-code")!;
+    const picker = row.querySelector<HTMLInputElement>(".color-field-picker")!;
+    if (fromPicker) {
+      code.value = picker.value;
+      code.dispatchEvent(new Event("input", { bubbles: true }));
+    } else picker.value = pickerColor(code.value) ?? picker.value;
+  };
+  return html`<label data-ui-field class="color-field">
+      <span>${field.label}</span>
+      <span class="color-field-row">
+        <input class="color-field-code" name=${field.key} maxlength=${field.maximumLength}
+          .value=${shown} placeholder="#555555" spellcheck="false" autocomplete="off"
+          @input=${(event: Event) => sync(event, false)} />
+        <input class="color-field-picker" type="color" aria-label=${uiText("Pick a colour")}
+          .value=${pickerColor(shown) ?? "#555555"} @input=${(event: Event) => sync(event, true)} />
+      </span>
+      ${help}
+    </label>`;
+}
+
+/** Symbols that read well as a faction's mark; any other emoji or text can be typed. */
+const iconChoices = Object.freeze([
+  "🛡",
+  "⚔",
+  "🗡",
+  "🏹",
+  "👑",
+  "🏰",
+  "⚖",
+  "🗝",
+  "📜",
+  "🕯",
+  "🔥",
+  "🌙",
+  "☀",
+  "⭐",
+  "💀",
+  "🐉",
+  "🦅",
+  "🐺",
+  "🦁",
+  "🐍",
+  "🦉",
+  "🌹",
+  "🌲",
+  "⚓",
+  "💎",
+  "🪙",
+  "🎭",
+  "⚒",
+  "🔮",
+  "⚜",
+  "☠",
+  "⚑",
+]);
+
+/** A short icon typed freely or chosen from a grid of common symbols. */
+function iconControl(
+  field: CampaignEditorField,
+  shown: string,
+  help: TemplateResult | typeof nothing,
+) {
+  const choose = (event: Event, icon: string): void => {
+    const control = (event.currentTarget as HTMLElement).closest(".icon-field")!;
+    const input = control.querySelector<HTMLInputElement>(".icon-field-input")!;
+    input.value = icon;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    control.querySelector("details")?.removeAttribute("open");
+    input.focus();
+  };
+  return html`<div data-ui-field class="icon-field">
+      <label><span>${field.label}</span>
+        <input class="icon-field-input" name=${field.key} maxlength=${field.maximumLength}
+          .value=${shown} autocomplete="off" /></label>
+      <details class="icon-field-choices">
+        <summary>${uiText("Choose an icon")}</summary>
+        <div class="icon-field-grid">${iconChoices.map(
+          (
+            icon,
+          ) => html`<button type="button" class="icon-field-choice" aria-label=${uiText("Use {0}", { "0": icon })}
+            @click=${(event: Event) => choose(event, icon)}>${icon}</button>`,
+        )}</div>
+      </details>
+      ${help}
+    </div>`;
 }
 
 export function editorValue(value: unknown): string {
