@@ -54,6 +54,36 @@ it("continues checking other add-ons when one repository fails, without staging 
   expect(state.pending).toBe(false);
 });
 
+it("says when GitHub accepts requests again after its rate limit", async () => {
+  const sources = ["timed", "untimed"].map((addonId) => ({ addonId, revision: 1, source }));
+  const retryAt = "2026-11-03T16:59:00Z";
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string, options: RequestInit) => {
+      if (path === "/api/admin/addon-github") return Response.json({ ...status, sources });
+      const timed = JSON.parse(requestBodyText(options.body)).addonId === "timed";
+      return Response.json(
+        { error: { kind: "GITHUB_RATE_LIMITED", ...(timed ? { retryAt } : {}) } },
+        { status: 429 },
+      );
+    }),
+  );
+  const state = new AddonGitHubController(
+    Object.assign(new EventTarget(), {
+      addController: vi.fn(),
+      removeController: vi.fn(),
+      requestUpdate: vi.fn(),
+      updateComplete: Promise.resolve(true),
+    }),
+    () => "csrf",
+    (key, parameters) => (parameters ? `${key} ${JSON.stringify(parameters)}` : key),
+  );
+  await state.checkAll();
+  const time = new Intl.DateTimeFormat("en", { timeStyle: "short" }).format(new Date(retryAt));
+  expect(state.results["timed"]).toBe(`github.rateLimitedUntil ${JSON.stringify({ time })}`);
+  expect(state.results["untimed"]).toBe("github.rateLimited");
+});
+
 it("ignores metadata delivered after management authority is reset", async () => {
   let finish!: (response: Response) => void;
   vi.stubGlobal(

@@ -8,9 +8,11 @@ import {
 } from "../core/addon-github.js";
 import { AdminRequestController } from "./admin-request-controller.js";
 import { uiRequestError } from "./ui-errors.js";
-import type { MessageKey } from "./ui-localization.js";
+import { currentUiLocale, type MessageKey } from "./ui-localization.js";
 
-export function githubError(error: unknown, t: (key: MessageKey) => string): string {
+type Translate = (key: MessageKey, parameters?: Readonly<Record<string, string>>) => string;
+
+export function githubError(error: unknown, t: Translate): string {
   if (!(error instanceof GitHubRequestError)) return uiRequestError(error);
   switch (error.code) {
     case "GITHUB_INVALID":
@@ -25,6 +27,14 @@ export function githubError(error: unknown, t: (key: MessageKey) => string): str
       return t("github.tls");
     case "GITHUB_UNAVAILABLE":
       return t("github.unavailable");
+    case "GITHUB_RATE_LIMITED":
+      return error.retryAt
+        ? t("github.rateLimitedUntil", {
+            time: new Intl.DateTimeFormat(currentUiLocale(), { timeStyle: "short" }).format(
+              new Date(error.retryAt),
+            ),
+          })
+        : t("github.rateLimited");
     default:
       return uiRequestError(error);
   }
@@ -39,7 +49,7 @@ export class AddonGitHubController implements ReactiveController {
   constructor(
     readonly host: ReactiveControllerHost & EventTarget,
     readonly csrf: () => string,
-    readonly t: (key: MessageKey) => string,
+    readonly t: Translate,
   ) {
     host.addController(this);
     this.#requests = new AdminRequestController(host, (error) => githubError(error, t));

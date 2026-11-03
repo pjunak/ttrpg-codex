@@ -14,8 +14,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/datacontract"
 	"github.com/pjunak/ttrpg-codex/internal/addons/datalifecycle"
@@ -462,6 +464,52 @@ func TestDownloadsBoundBytesVerifyDigestAndStripRedirectCredentials(t *testing.T
 	})
 	if _, err := s.download(ctx, candidate, "release", ""); !errors.Is(err, ErrPackage) {
 		t.Fatal("oversized download accepted")
+	}
+}
+
+func TestRateLimitsAreToldApartFromDeniedAccess(t *testing.T) {
+	s, _, _ := fixture(t)
+	reset := time.Now().Add(40 * time.Minute).Truncate(time.Second)
+	for _, test := range []struct {
+		name    string
+		status  int
+		headers map[string]string
+		limited bool
+		reset   time.Duration
+	}{
+		{"hourly limit used up", 403, map[string]string{"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": strconv.FormatInt(reset.Unix(), 10)}, true, time.Until(reset)},
+		{"secondary limit", 429, map[string]string{"Retry-After": "90"}, true, 90 * time.Second},
+		{"limit without a usable reset", 403, map[string]string{"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "never"}, true, 0},
+		{"token without access", 403, map[string]string{"X-RateLimit-Remaining": "4999"}, false, 0},
+		{"missing repository", 404, map[string]string{"X-RateLimit-Remaining": "0"}, false, 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s.client.Transport = transportFunc(func(*http.Request) (*http.Response, error) {
+				header := http.Header{}
+				for key, value := range test.headers {
+					header.Set(key, value)
+				}
+				return &http.Response{StatusCode: test.status, Header: header, Body: io.NopCloser(strings.NewReader(""))}, nil
+			})
+			_, err := s.Discover(context.Background(), Source{Repo: "owner/repo", Channel: "release"}, "")
+			if !test.limited {
+				if !errors.Is(err, ErrUnavailable) || errors.Is(err, ErrRateLimited) {
+					t.Fatalf("refusal classified as %v", err)
+				}
+				return
+			}
+			var limited *RateLimitError
+			if !errors.Is(err, ErrRateLimited) || !errors.As(err, &limited) {
+				t.Fatalf("rate limit classified as %v", err)
+			}
+			if test.reset == 0 {
+				if !limited.Reset.IsZero() {
+					t.Fatalf("invented a reset time: %v", limited.Reset)
+				}
+			} else if wait := time.Until(limited.Reset); wait < test.reset-5*time.Second || wait > test.reset+5*time.Second {
+				t.Fatalf("reset in %v, want about %v", wait, test.reset)
+			}
+		})
 	}
 }
 

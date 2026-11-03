@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/githubsource"
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
@@ -94,6 +95,11 @@ func TestGitHubRoutesRequireRealDMAndCSRFBeforeParsing(t *testing.T) {
 	result = serveAuthRequest(handler, "POST", "/api/admin/addon-github/discover", `{"source":{"repo":"owner/repo","channel":"release"}}`, cookie, csrf)
 	if result.Code != 502 || !strings.Contains(result.Body.String(), "GITHUB_TLS") {
 		t.Fatal("server TLS failure was not distinguished from repository access")
+	}
+	github.err = &githubsource.RateLimitError{Reset: time.Date(2026, 11, 3, 16, 59, 49, 0, time.UTC)}
+	result = serveAuthRequest(handler, "POST", "/api/admin/addon-github/discover", `{"source":{"repo":"owner/repo","channel":"release"}}`, cookie, csrf)
+	if result.Code != 429 || !strings.Contains(result.Body.String(), `"kind":"GITHUB_RATE_LIMITED"`) || !strings.Contains(result.Body.String(), `"retryAt":"2026-11-03T16:59:49Z"`) {
+		t.Fatalf("rate limit was not reported with its reset time: %d %s", result.Code, result.Body.String())
 	}
 	switched := serveAuthRequest(handler, "POST", "/api/view-as", `{"role":"player"}`, cookie, csrf)
 	result = serveAuthRequest(handler, "GET", "/api/admin/addon-github", "", switched.Result().Cookies()[0].String(), "")

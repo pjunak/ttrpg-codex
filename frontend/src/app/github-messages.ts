@@ -108,7 +108,11 @@ export const githubEn = {
   "github.noPackage":
     "No package is available. Publish a stable release ZIP or a successful push/manual build with the named artifact. Expired artifacts cannot be downloaded.",
   "github.unavailable":
-    "GitHub could not be reached or access was denied. Check the repository, token permissions, and GitHub rate limits, then try again.",
+    "GitHub could not be reached or access was denied. Check the repository and token permissions, then try again.",
+  "github.rateLimited":
+    "GitHub's request limit for this server is used up. Try again later, or save a default token under GitHub access tokens; without a token GitHub allows 60 requests an hour.",
+  "github.rateLimitedUntil":
+    "GitHub's request limit for this server is used up until {time}. Try again then, or save a default token under GitHub access tokens; without a token GitHub allows 60 requests an hour.",
 } as const;
 
 export const githubCs: Record<keyof typeof githubEn, string> = {
@@ -220,5 +224,9 @@ export const githubCs: Record<keyof typeof githubEn, string> = {
   "github.noPackage":
     "Balíček není dostupný. Zveřejněte ZIP stabilního vydání nebo úspěšné sestavení po odeslání změn či ručním spuštění s požadovaným artefaktem. Artefakty po vypršení platnosti nelze stáhnout.",
   "github.unavailable":
-    "GitHub není dostupný nebo byl přístup zamítnut. Zkontrolujte repozitář, oprávnění tokenu a limity GitHubu a zkuste to znovu.",
+    "GitHub není dostupný nebo byl přístup zamítnut. Zkontrolujte repozitář a oprávnění tokenu a zkuste to znovu.",
+  "github.rateLimited":
+    "Limit požadavků na GitHub je pro tento server vyčerpán. Zkuste to později, nebo uložte výchozí token v části Přístupové tokeny GitHub; bez tokenu GitHub povoluje 60 požadavků za hodinu.",
+  "github.rateLimitedUntil":
+    "Limit požadavků na GitHub je pro tento server vyčerpán do {time}. Zkuste to poté znovu, nebo uložte výchozí token v části Přístupové tokeny GitHub; bez tokenu GitHub povoluje 60 požadavků za hodinu.",
 };

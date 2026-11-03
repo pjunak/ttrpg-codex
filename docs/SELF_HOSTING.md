@@ -183,6 +183,12 @@ precedence over the stored default. Token values stay on the server in `<data-di
 and are excluded from campaign backups and recovery points. Protect that
 folder like other server credentials and configure access again after restoring
 to a new server. The UI shows which access is configured without returning tokens.
+Public releases need no token, but without one GitHub allows a server only 60
+requests an hour. Checking an add-on uses two and updating it three, so a few
+rounds over several add-ons use them up; the add-ons then report the limit and
+when GitHub accepts requests again (`GITHUB_RATE_LIMITED`). A default token,
+for example a fine-grained token limited to public repositories, raises the
+limit to 5,000 an hour.
 If a token-save response is lost, the wizard refreshes configured state and
 clears the input; retrying does not silently repeat the token write.
 
@@ -198,8 +204,8 @@ The runtime image must include the operating system's trusted CA certificates fo
 outbound HTTPS. The official image installs Debian's `ca-certificates` and CI checks
 GitHub HTTPS from that image before publishing it. A `GITHUB_TLS` failure means the
 server cannot verify the connection; replacing a repository token cannot fix it.
-Do not disable certificate verification. Ordinary access/network failures retain
-separate errors, and signed download URLs or token values are never returned.
+Do not disable certificate verification. Ordinary access/network failures and
+rate limits retain separate errors, and signed download URLs or token values are never returned.
 
 The host only installs prebuilt Add-on API v3 packages. For manual uploads,
 build release archives in each add-on repository and validate them with

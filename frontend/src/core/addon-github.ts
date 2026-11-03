@@ -149,10 +149,18 @@ export class GitHubRequestError extends HostRequestError {
   constructor(
     status: number,
     readonly code: string,
+    /** When GitHub accepts requests again, for GITHUB_RATE_LIMITED. */
+    readonly retryAt = "",
   ) {
     super(status, "GitHub add-ons");
   }
 }
+const instant = (value: unknown): string =>
+  typeof value === "string" &&
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u.test(value) &&
+  Number.isFinite(Date.parse(value))
+    ? value
+    : "";
 export class AddonGitHubClient {
   constructor(
     readonly csrfToken: string,
@@ -178,6 +186,7 @@ export class AddonGitHubClient {
         return new GitHubRequestError(
           status,
           typeof error?.["kind"] === "string" ? error["kind"] : "",
+          instant(error?.["retryAt"]),
         );
       },
     });

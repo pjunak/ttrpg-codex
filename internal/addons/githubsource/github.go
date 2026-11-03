@@ -60,9 +60,39 @@ func (s *Service) requestWith(ctx context.Context, client *http.Client, path, to
 	}
 	if res.StatusCode != http.StatusOK {
 		res.Body.Close()
+		if limited := rateLimit(res, time.Now()); limited != nil {
+			return nil, limited
+		}
 		return nil, ErrUnavailable
 	}
 	return res, nil
+}
+
+// RateLimitError is ErrRateLimited with the time GitHub accepts requests again,
+// when GitHub said so.
+type RateLimitError struct{ Reset time.Time }
+
+func (e *RateLimitError) Error() string        { return ErrRateLimited.Error() }
+func (e *RateLimitError) Is(target error) bool { return target == ErrRateLimited }
+
+// rateLimit recognises GitHub's hourly limit (no requests left until
+// X-RateLimit-Reset) and its secondary limit (Retry-After seconds). Other
+// refusals, such as a token without access, stay ErrUnavailable.
+func rateLimit(res *http.Response, now time.Time) *RateLimitError {
+	if res.StatusCode != http.StatusForbidden && res.StatusCode != http.StatusTooManyRequests {
+		return nil
+	}
+	if seconds, err := strconv.Atoi(res.Header.Get("Retry-After")); err == nil && seconds >= 0 && seconds <= 86400 {
+		return &RateLimitError{Reset: now.Add(time.Duration(seconds) * time.Second)}
+	}
+	if res.Header.Get("X-RateLimit-Remaining") != "0" {
+		return nil
+	}
+	reset, err := strconv.ParseInt(res.Header.Get("X-RateLimit-Reset"), 10, 64)
+	if err != nil || reset < now.Unix() || reset > now.Add(24*time.Hour).Unix() {
+		return &RateLimitError{}
+	}
+	return &RateLimitError{Reset: time.Unix(reset, 0)}
 }
 func (s *Service) getJSON(ctx context.Context, path, token string, result any) error {
 	res, err := s.request(ctx, path, token, "application/vnd.github+json")

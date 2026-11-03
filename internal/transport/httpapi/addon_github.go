@@ -127,6 +127,13 @@ func (s *server) writeGitHubError(w http.ResponseWriter, err error) {
 		writeAPIError(w, 422, "GITHUB_NO_PACKAGE", githubsource.ErrNoPackage.Error())
 	case errors.Is(err, githubsource.ErrSourceMissing):
 		writeAPIError(w, 409, "GITHUB_SOURCE_MISSING", githubsource.ErrSourceMissing.Error())
+	case errors.Is(err, githubsource.ErrRateLimited):
+		body := map[string]string{"kind": "GITHUB_RATE_LIMITED", "message": githubsource.ErrRateLimited.Error()}
+		var limited *githubsource.RateLimitError
+		if errors.As(err, &limited) && !limited.Reset.IsZero() {
+			body["retryAt"] = limited.Reset.UTC().Format(time.RFC3339)
+		}
+		writeJSON(w, 429, map[string]any{"error": body})
 	default:
 		writeAPIError(w, 502, "GITHUB_UNAVAILABLE", githubsource.ErrUnavailable.Error())
 	}

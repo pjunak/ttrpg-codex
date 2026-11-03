@@ -98,7 +98,7 @@ export class CodexAddonManager extends LitElement {
   readonly #github = new AddonGitHubController(
     this,
     () => this.csrfToken,
-    (key) => this.#ui.t(key),
+    (key, parameters) => this.#ui.t(key, parameters),
   );
   constructor() {
     super();
