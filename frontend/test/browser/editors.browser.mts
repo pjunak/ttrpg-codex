@@ -19,6 +19,7 @@ import {
   type RealHost,
   type RealHostBuild,
 } from "./real-host.mts";
+import { editWiki } from "./record-actions.mts";
 
 // Every test runs the real app against its own real host and campaign, so a
 // save goes through the app's write path and the stored record is read back.
@@ -271,12 +272,12 @@ async function screenshotForReview(page: Page, name: string) {
 void test("Markdown survives reload, requires review, and is removed after confirmed campaign save", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page, writes } = await open(t, host, "#/characters/ryn");
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   await page.locator(".writer-source").fill("## Durable prose\n\nA **deliberate** edit.");
   await localCopySaved(page);
   await reload(page);
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   assert.equal(await page.locator(".writer-source").inputValue(), "Old notes");
   await reviewLocalDraft(page);
   await page.getByRole("button", { name: "Use this draft", exact: true }).click();
@@ -296,7 +297,7 @@ void test("Markdown survives reload, requires review, and is removed after confi
     "## Durable prose\n\nA **deliberate** edit.",
   );
   await reload(page);
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await page.locator(".writer-recovery-status").waitFor();
   assert.equal(await page.locator(".writer-recovery-review").count(), 0);
 });
@@ -312,13 +313,13 @@ void test("separate tabs retain independent Markdown drafts when one is recovere
     [page, "First tab work"],
     [second, "Second tab work"],
   ] as const) {
-    await tab.getByRole("button", { name: "Edit wiki", exact: true }).click();
+    await editWiki(tab);
     await sourceView(tab);
     await tab.locator(".writer-source").fill(value);
     await localCopySaved(tab);
   }
   await reload(page);
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await page.getByText("Local drafts available (2)", { exact: true }).waitFor();
   await reviewLocalDraft(page);
   assert.equal(
@@ -333,7 +334,7 @@ void test("separate tabs retain independent Markdown drafts when one is recovere
     .waitFor();
   assert.equal((await saved(host, "characters", "ryn")).description, "Second tab work");
   await reload(page);
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await page.getByText("Local drafts available (1)", { exact: true }).waitFor();
   await reviewLocalDraft(page);
   assert.equal(
@@ -345,7 +346,7 @@ void test("separate tabs retain independent Markdown drafts when one is recovere
 void test("recovery compares changed saved text and a subsequent remote change still rejects stale saves", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page, writes } = await open(t, host, "#/characters/ryn");
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   await page.locator(".writer-source").fill("My recovered text");
   await localCopySaved(page);
@@ -354,7 +355,7 @@ void test("recovery compares changed saved text and a subsequent remote change s
     description: "Remote text",
   });
   await reload(page);
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await reviewLocalDraft(page);
   await page
     .getByText(
@@ -382,12 +383,12 @@ void test("recovery compares changed saved text and a subsequent remote change s
 void test("current editor text is retained as another draft before recovering a different copy", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page } = await open(t, host, "#/characters/ryn");
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   await page.locator(".writer-source").fill("Original recovered draft");
   await localCopySaved(page);
   await reload(page);
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   await page.locator(".writer-source").fill("New writing before review");
   await reviewLocalDraft(page);
@@ -395,7 +396,7 @@ void test("current editor text is retained as another draft before recovering a 
   await localCopySaved(page);
   assert.equal(await page.locator(".writer-source").inputValue(), "Original recovered draft");
   await reload(page);
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await reviewLocalDraft(page);
   const options = await page
     .getByRole("combobox", { name: "Draft to review", exact: true })
@@ -538,7 +539,7 @@ void test("blocked browser draft storage reports the limitation and still allows
       },
     });
   });
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   await page.locator(".writer-source").fill("Keep this text");
   await page.getByRole("alert").filter({ hasText: "Local recovery is unavailable" }).waitFor();
@@ -552,7 +553,7 @@ void test("blocked browser draft storage reports the limitation and still allows
 void test("explicit wiki cancellation removes its local copy while failed campaign saves retain it", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page } = await open(t, host, "#/characters/ryn");
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   await page.locator(".writer-source").fill("Retain after failure");
   await localCopySaved(page);
@@ -560,13 +561,13 @@ void test("explicit wiki cancellation removes its local copy while failed campai
   await page.getByRole("button", { name: "Save text", exact: true }).click();
   await page.getByRole("alert").filter({ hasText: unavailable }).waitFor();
   await reload(page);
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await reviewLocalDraft(page);
   await page.getByRole("button", { name: "Use this draft", exact: true }).click();
   await localCopySaved(page);
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await page.locator(".writer-recovery-status").waitFor();
   assert.equal(await page.locator(".writer-recovery-review").count(), 0);
   assert.equal((await saved(host, "characters", "ryn")).description, "Old notes");
@@ -598,7 +599,7 @@ void test("a deleted record's draft remains downloadable from its collection wit
   const host = await campaign(t, { characters: [character()] });
   const editor = await open(t, host, "#/characters/ryn");
   const { page, writes } = editor;
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   await page.locator(".writer-source").fill("Text for an entry removed elsewhere");
   await localCopySaved(page);
@@ -735,7 +736,7 @@ void test("an inline save shows the value read back from the campaign", async (t
 void test("circumstances autosave while wiki text remains an explicit draft, and Undo affects only the quick edit", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page, writes } = await open(t, host, "#/characters/ryn");
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
   await source.fill("## An unsaved wiki draft");
@@ -855,7 +856,7 @@ void test("failed saves retain values for retry, and edits typed during a pendin
 void test("wiki conflicts retain the draft until the user reviews and explicitly retries", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page, writes } = await open(t, host, "#/characters/ryn");
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
   await source.fill("My wiki draft");
@@ -876,7 +877,7 @@ void test("wiki conflicts retain the draft until the user reviews and explicitly
 void test("a remotely removed character retains open inline and wiki drafts", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page, writes } = await open(t, host, "#/characters/ryn");
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   await page
     .getByRole("textbox", { name: "Overview Markdown", exact: true })
@@ -897,7 +898,7 @@ void test("the compact writer applies formatting, preserves source, and retains 
   const { page } = await open(t, host, "#/characters/ryn");
   // Wide enough for the whole toolbar beside the shell's sidebar.
   await page.setViewportSize({ width: 1920, height: 1080 });
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   const rich = page.locator(".ProseMirror");
   await rich.click();
   await rich.press("ControlOrMeta+a");
@@ -959,7 +960,7 @@ void test("the compact writer applies formatting, preserves source, and retains 
 void test("phone writer keeps one toolbar row and reachable formatting menus", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page } = await open(t, host, "#/characters/ryn", { mobile: true });
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   const toolbar = page.locator(".writer-toolbar");
   assert.ok(required(await toolbar.boundingBox()).height < 60);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -983,7 +984,7 @@ void test("pasted formatted content retains campaign references and keeps unsafe
   value.value.description = "Meet [[Scout|character:scout]].";
   const host = await campaign(t, { characters: [value] });
   const { page } = await open(t, host, "#/characters/ryn");
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   const rich = page.locator(".ProseMirror");
   const copied = await rich.locator(".writer-wiki-link").evaluate((element) => element.outerHTML);
   await rich.click();
@@ -1326,7 +1327,7 @@ void test("unrelated live changes allow saving and reopening loads the latest re
 void test("cancelling a conflicted wiki draft resets feedback and allows a fresh save", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page } = await open(t, host, "#/characters/ryn");
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
   await source.fill("Abandoned wiki draft");
@@ -1346,7 +1347,7 @@ void test("cancelling a conflicted wiki draft resets feedback and allows a fresh
     .locator(".character-save-status")
     .getByText("Saved to campaign", { exact: true })
     .waitFor();
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   await source.fill("Fresh wiki draft");
   await page.getByRole("button", { name: "Save text", exact: true }).click();
@@ -1362,7 +1363,7 @@ void test("cancelling a conflicted wiki draft resets feedback and allows a fresh
 void test("a confirmed field save leaves another field's open draft unsaved", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page } = await open(t, host, "#/characters/ryn");
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await sourceView(page);
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
   await source.fill("A wiki draft kept open");

@@ -144,15 +144,17 @@ writes remain unable to edit `linkedTwinId`.
 ### Twin reading and management
 
 DM articles show a two-icon version switch in the page's top-right actions
-(shield for the DM version, eye for the player version): the current version is
-lit, the other opens its counterpart, or, when there is none, opens the reviewed
-create/link panel. **Manage versions** under More actions opens the same panel
-for unlinking, for every supported collection. Creating a public copy explicitly
-explains immediate player visibility; unlinking keeps both records. Management
-uses the existing twin API and session authority. Open core/add-on edits must
-be saved or cancelled first. Review captures opening revisions; stale or
-uncertain responses keep the review and require an explicit refresh/review
-before another operation. No uncertain write is automatically repeated.
+(shield for the DM version, eye for the player version). The version on screen
+is filled in its audience's colour, purple for the DM and green for players.
+The other version opens its counterpart, or, while there is none, is dashed and
+marked with a plus; it then opens a menu that creates the copy (saying whether
+only the DM or the players see it) or links an existing unlinked record of the
+other audience. **Unlink versions** under More actions unlinks a linked pair and
+keeps both records. This works for every supported collection, through the
+existing twin API and session authority. Open core/add-on edits must be saved or
+cancelled first. The menu acts on the revisions it opened with, so stale changes
+are rejected; an uncertain response refreshes the records and is never repeated
+automatically.
 
 Collections, totals, faction member counts and timeline share reciprocal-pair
 grouping: an available DM version represents its public counterpart. A missing,

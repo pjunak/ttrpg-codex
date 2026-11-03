@@ -23,6 +23,7 @@ import {
   installReviewedPackage,
   enableAllRuleSources,
 } from "./installed-graph-fixture.mts";
+import { editWiki } from "./record-actions.mts";
 
 const archivePath = process.env.CODEX_COMPENDIUM_ZIP;
 const root = fileURLToPath(new URL("../../../", import.meta.url));
@@ -410,7 +411,7 @@ for (const mobile of [false, true])
       await details("Fireball").getByRole("link", { name: "Open full rule", exact: true }).click();
       await page.locator(".comp-reading-pane h1").filter({ hasText: "Fireball" }).waitFor();
       await page.goBack();
-      await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+      await editWiki(page);
       await page
         .getByRole("combobox", { name: "Editor view", exact: true })
         .selectOption("preview");

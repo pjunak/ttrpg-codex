@@ -185,40 +185,68 @@
   }
 }
 
-/* DM and player versions: the current one is lit, the other opens or is added. */
-codex-record-twins,
-.record-versions {
+/* DM and player versions. The version on screen is filled in its audience's
+   colour (DM purple, as on DM badges, and player green); the other one opens,
+   or, while it does not exist yet, is dashed and marked with a plus. */
+codex-record-twins {
   display: contents;
 }
 .record-version-switch {
+  --version-dm: var(--color-mystery);
+  --version-public: var(--color-success);
   display: inline-flex;
   gap: 2px;
   padding: 2px;
-  border: 1px solid rgba(var(--accent-gold-rgb), 0.3);
+  border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius-pill);
 }
 .record-version {
+  --version: var(--version-public);
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 2.25rem;
   height: calc(2rem - 6px);
   padding: 0;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--text-muted);
+  color: color-mix(in srgb, var(--version) 85%, var(--text-muted));
   cursor: pointer;
 }
+.record-version[data-version="dm"] {
+  --version: var(--version-dm);
+}
 .record-version.is-current {
-  background: rgba(var(--accent-gold-rgb), 0.18);
-  color: var(--accent-gold);
+  border-color: color-mix(in srgb, var(--version) 60%, transparent);
+  background: color-mix(in srgb, var(--version) 22%, transparent);
+  color: var(--version);
   cursor: default;
 }
 :is(a, button).record-version:hover:not(:disabled) {
-  background: rgba(var(--accent-gold-rgb), 0.08);
-  color: var(--accent-gold);
+  background: color-mix(in srgb, var(--version) 12%, transparent);
+  color: var(--version);
 }
 .record-version.is-missing {
+  border: 1px dashed var(--text-muted);
+  color: var(--text-muted);
+}
+.record-version.is-missing::after {
+  content: "+" / "";
+  position: absolute;
+  inset-block-start: -0.3rem;
+  inset-inline-end: -0.15rem;
+  display: grid;
+  place-items: center;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: var(--accent-gold);
+  color: var(--color-on-accent);
+  font: 700 var(--text-xs) / 1 var(--font-ui);
+}
+.record-version.is-missing:disabled {
+  cursor: not-allowed;
   opacity: 0.6;
 }
 .record-version.is-unavailable {
@@ -235,59 +263,26 @@ codex-record-twins,
     height: calc(var(--ui-target) - 6px);
   }
 }
-.record-versions-panel {
+/* The result of a version change, floating below the actions. */
+.record-versions-note {
   position: absolute;
   inset-block-start: calc(100% + var(--space-2));
   inset-inline-end: 0;
   z-index: var(--z-float);
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
   width: min(24rem, calc(100vw - 2rem));
   margin: 0;
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--chrome-field-border);
   border-radius: var(--radius);
   background: var(--bg-raised);
   box-shadow: var(--shadow-md);
   color: var(--text-light);
   font: var(--text-sm) / 1.5 var(--font-ui);
-}
-.record-versions-panel h2 {
-  margin: 0;
-  color: var(--accent-gold);
-  font: 600 var(--text-sm) / 1.3 var(--font-title);
-  letter-spacing: 0.05em;
-}
-.record-versions-panel p {
-  margin: 0;
-}
-.record-versions-panel label {
-  display: grid;
-  gap: var(--space-1);
-}
-.record-versions-panel select {
-  min-height: 2rem;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--chrome-field-border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-  color: var(--text-parchment);
-  font: inherit;
-}
-.record-versions-panel .ui-action {
-  justify-self: start;
-}
-.record-versions-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-.record-versions-note {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
 }
 
 .record-ledger {

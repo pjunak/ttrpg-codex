@@ -458,7 +458,7 @@ void test("record pages centre their frame and keep the trail and actions on one
     await page.evaluate(() => (location.hash = "#/characters/ryn"));
     await page
       .locator(".record-toolbar")
-      .getByRole("button", { name: "Edit wiki", exact: true })
+      .getByRole("button", { name: "More actions", exact: true })
       .waitFor();
     const box = await page.evaluate(() => {
       const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
@@ -487,6 +487,44 @@ void test("record pages centre their frame and keep the trail and actions on one
     assert.ok(Math.abs(box.tools.top - box.crumbs.top) < 12, "trail and actions share a line");
     assert.ok(box.bar.height < 60, `one line, not ${box.bar.height}px`);
   }
+});
+
+void test("the version switch colours the version on screen and marks a missing one", async (t) => {
+  const page = await fixture(t, { width: 1440, height: 1000 }, "dm");
+  await page.evaluate(() => (location.hash = "#/characters/ryn"));
+  await page.getByTitle("Showing the player version", { exact: true }).waitFor();
+  const missing = page.getByRole("button", { name: "Add a DM version", exact: true });
+  const look = await page.evaluate(() => {
+    const current = document.querySelector(".record-version.is-current")!,
+      absent = document.querySelector(".record-version.is-missing")!,
+      probe = document.createElement("span");
+    probe.style.color = "var(--color-success)";
+    document.body.append(probe);
+    const players = getComputedStyle(probe).color;
+    probe.remove();
+    return {
+      current: getComputedStyle(current).color,
+      players,
+      border: getComputedStyle(absent).borderTopStyle,
+      plus: getComputedStyle(absent, "::after").content,
+    };
+  });
+  assert.equal(look.current, look.players, "the player version on screen is green");
+  assert.equal(look.border, "dashed", "a missing version is dashed");
+  assert.match(look.plus, /\+/u, "a missing version carries a plus");
+  await missing.click();
+  const menu = page.getByRole("menu", { name: "No DM version yet", exact: true });
+  await menu.waitFor();
+  assert.deepEqual(await menu.locator(".ui-menu-label").allTextContents(), [
+    "Create DM version",
+    "Link an existing DM record",
+  ]);
+  await page.keyboard.press("Escape");
+  await page.locator(".record-toolbar").getByRole("button", { name: "More actions" }).click();
+  assert.equal(
+    (await page.getByRole("menu").locator(".ui-menu-label").allTextContents())[0],
+    "Edit wiki",
+  );
 });
 
 void test("skip link moves focus into the campaign without changing its route", async (t) => {

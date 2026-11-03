@@ -19,6 +19,7 @@ import { chromium, request as playwrightRequest } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
 import { holdCoreWrite } from "./core-write-lifetime-fixture.mts";
 import { trackBrowserContext } from "./browser-diagnostics.mts";
+import { editWiki } from "./record-actions.mts";
 
 declare global {
   interface Window {
@@ -271,7 +272,7 @@ void test("direct fields and the wiki commit independently through the authentic
     extension: { keep: true },
   });
   const { page } = await open(t, key);
-  await page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+  await editWiki(page);
   await page.getByRole("combobox", { name: "Editor view", exact: true }).selectOption("markdown");
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
   await source.fill('## Wiki draft\n\n<span data-md-color="info">Blue ink</span>');

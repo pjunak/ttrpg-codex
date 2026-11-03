@@ -18,6 +18,7 @@ import { chromium, request as playwrightRequest } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
 import { holdCoreWrite } from "./core-write-lifetime-fixture.mts";
 import { trackBrowserContext } from "./browser-diagnostics.mts";
+import { addVersion, editWiki, menuEntry, recordAction } from "./record-actions.mts";
 type LifetimeApp = HTMLElement & {
   busy: boolean;
   recordSaved: boolean;
@@ -529,20 +530,14 @@ void test("DM location notes round-trip privately through the real editor and pu
   assert.equal(saved.value.description, "Public overview");
   assert.equal(saved.value.mapNotes, "Public map notes");
 });
-/** Opens the versions panel from the page's ⋯ menu. */
-async function manageVersions(page: Page) {
-  await page.getByRole("button", { name: "More actions", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Manage versions", exact: true }).click();
-}
-
 void test("DM twins create, navigate, unlink and link without losing exact record routes", async (t) => {
   await put(admin, csrf, "twin-town", { name: "Twin town", description: "Public town" }, 0);
   const dm = await open(t, "dm"),
     player = await open(t, "player");
   await dm.page.goto("/#/locations/twin-town");
-  // The player version is lit; the missing DM version offers to add one.
-  await dm.page.getByRole("button", { name: "Add a DM version", exact: true }).click();
-  await dm.page.getByRole("button", { name: "Create DM version", exact: true }).click();
+  // The player version is lit; the missing DM version offers to create one.
+  await dm.page.getByTitle("Showing the player version", { exact: true }).waitFor();
+  await addVersion(dm.page, "DM", "Create DM version");
   const dmLink = dm.page.getByRole("link", { name: "Open DM version", exact: true });
   await dmLink.waitFor();
   const publicRecord = await record("twin-town"),
@@ -567,16 +562,12 @@ void test("DM twins create, navigate, unlink and link without losing exact recor
     ),
   );
   await dm.page.goto("/#/locations/twin-town");
-  await manageVersions(dm.page);
-  await dm.page.getByRole("button", { name: "Unlink versions", exact: true }).click();
+  await recordAction(dm.page, "Unlink versions");
   await dm.page.getByText("Versions updated.", { exact: true }).waitFor();
   assert.equal((await record("twin-town")).value.linkedTwinId, undefined);
   assert.equal((await record(privateKey)).value.description, "Public town");
-  await manageVersions(dm.page);
-  await dm.page
-    .getByLabel("Or link an existing opposite version", { exact: true })
-    .selectOption(privateKey);
-  await dm.page.getByRole("button", { name: "Link versions", exact: true }).click();
+  await addVersion(dm.page, "DM", "Link an existing DM record");
+  await menuEntry(dm.page, "Twin town").click();
   await dmLink.waitFor();
   assert.equal((await record("twin-town")).value.linkedTwinId, privateKey);
 });
@@ -585,7 +576,8 @@ void test("stale twin review rejects without losing a draft or repeating an unce
   await put(admin, csrf, "stale-twin", { name: "Stale twin" }, 0);
   const dm = await open(t, "dm");
   await dm.page.goto("/#/locations/stale-twin");
-  await manageVersions(dm.page);
+  // The menu acts on the record as it was when the menu opened.
+  await dm.page.getByRole("button", { name: "Add a DM version", exact: true }).click();
   const initial = await record("stale-twin");
   await put(
     admin,
@@ -594,15 +586,11 @@ void test("stale twin review rejects without losing a draft or repeating an unce
     { ...initial.value, name: "Changed elsewhere" },
     initial.revision,
   );
-  await dm.page.getByRole("button", { name: "Create DM version", exact: true }).click();
+  await menuEntry(dm.page, "Create DM version").click();
   await dm.page.getByRole("alert").filter({ hasText: "The records changed." }).waitFor();
   assert.equal((await record("stale-twin")).value.linkedTwinId, undefined);
-  assert.equal(
-    await dm.page.getByRole("button", { name: "Create DM version", exact: true }).isDisabled(),
-    true,
-  );
-  await dm.page.getByRole("button", { name: "Review current records", exact: true }).click();
-  await dm.page.getByRole("button", { name: "Create DM version", exact: true }).click();
+  await dm.page.getByRole("heading", { name: "Changed elsewhere", exact: true }).waitFor();
+  await addVersion(dm.page, "DM", "Create DM version");
   await dm.page.getByRole("link", { name: "Open DM version", exact: true }).waitFor();
   assert.equal((await record("stale-twin")).value.name, "Changed elsewhere");
 });
@@ -617,24 +605,18 @@ void test("an uncertain twin response is refreshed without replaying the write",
     await route.fetch();
     await route.abort("failed");
   });
-  await manageVersions(dm.page);
-  await dm.page.getByRole("button", { name: "Create DM version", exact: true }).click();
+  await addVersion(dm.page, "DM", "Create DM version");
   await dm.page.getByRole("alert").filter({ hasText: "Could not confirm the change." }).waitFor();
   assert.equal(writes, 1);
   const current = await record("uncertain-twin");
   assert.ok(current.value.linkedTwinId);
+  // The refreshed records show the version that was made, so it cannot be made twice.
   await dm.page.getByRole("link", { name: "Open DM version", exact: true }).waitFor();
   assert.equal(
-    await dm.page.getByRole("button", { name: "Create DM version", exact: true }).isDisabled(),
-    true,
-  );
-  await dm.page.unroute("**/api/campaign/twins");
-  await dm.page.getByRole("button", { name: "Review current records", exact: true }).click();
-  await dm.page.getByRole("button", { name: "Unlink versions", exact: true }).waitFor();
-  assert.equal(
-    await dm.page.getByRole("button", { name: "Create DM version", exact: true }).count(),
+    await dm.page.getByRole("button", { name: "Add a DM version", exact: true }).count(),
     0,
   );
+  await dm.page.unroute("**/api/campaign/twins");
 });
 
 for (const mobile of [false, true])
@@ -651,14 +633,13 @@ for (const mobile of [false, true])
     const dm = await open(t, "dm", mobile);
     await dm.page.goto("/#/characters/" + key);
     await dm.page.getByRole("heading", { name: "Draft keeper", exact: true }).waitFor();
-    await dm.page.getByRole("button", { name: "Edit wiki", exact: true }).click();
+    await editWiki(dm.page);
     const writer = dm.page.locator(".character-wiki codex-markdown-editor");
     await writer
       .getByRole("combobox", { name: "Editor view", exact: true })
       .selectOption("markdown");
     await writer.locator(".writer-source").fill("Unsubmitted draft");
-    await manageVersions(dm.page);
-    await dm.page.getByRole("button", { name: "Create DM version", exact: true }).click();
+    await addVersion(dm.page, "DM", "Create DM version");
     await dm.page
       .getByRole("alert")
       .filter({ hasText: "Save or cancel your open edits" })
@@ -673,7 +654,7 @@ for (const mobile of [false, true])
     await writer.waitFor({ state: "detached" });
     assert.equal((await record(key, "characters")).value.description, "Saved biography");
     await dm.page
-      .locator(".record-versions-panel")
+      .locator(".record-versions-note")
       .getByRole("button", { name: "Close", exact: true })
       .click();
     assert.equal(

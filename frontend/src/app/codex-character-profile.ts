@@ -39,7 +39,7 @@ import { CodexPortraitEditor } from "./codex-portrait-editor.js";
 import { artwork } from "../ui/artwork.js";
 import { pencilIcon } from "./edit-icon.js";
 import { recordPageBar, type Crumb } from "./record-chrome.js";
-import type { CodexRecordTwins } from "./codex-record-twins.js";
+import { versionMenuItems } from "./codex-record-twins.js";
 import { confirmDiscardUnsavedEdit, reportEditState, type EditState } from "./unsaved-edit.js";
 import type { CodexInlineField, InlineControl, InlineProjection } from "./codex-inline-field.js";
 import { InlineDraftController, type InlineDraft } from "./inline-draft.js";
@@ -149,10 +149,6 @@ export class CodexCharacterProfile extends LitElement {
           ? html`<span class="character-save-status" data-state=${this.#feedback() === uiText("save.saved") ? "saved" : "active"}><span role="status">${this.#feedback()}</span>${this.#undo ? html`<button type="button" class="ui-action" data-ui-variant="quiet" ?disabled=${this.#saves > 0} @click=${this.#undoSave}>${uiText("Undo")}</button>` : nothing}</span>`
           : undefined,
         versions: this.headerExtras as TemplateResult | undefined,
-        edit:
-          this.canEdit && !this.wikiOpen
-            ? { label: uiText("Edit wiki"), run: this.#openWiki }
-            : undefined,
         menu: () => this.#moreActions(),
       })}
       <div class="record-reading-layout">
@@ -647,18 +643,18 @@ export class CodexCharacterProfile extends LitElement {
     );
     return chain ? `${chain.name} — ${text(value["rank"])}` : text(value["rank"]);
   }
-  /** Rarer edits; the DM also manages the record's DM/player versions here. */
+  /** The edits besides the sheet itself; the DM also unlinks the record's versions here. */
   #moreActions() {
     if (!this.canEdit) return [];
-    const versions = this.querySelector<CodexRecordTwins>("codex-record-twins");
     return [
+      ...(this.wikiOpen ? [] : [{ label: uiText("Edit wiki"), run: this.#openWiki }]),
       { label: uiText("Edit all fields"), run: this.#editAll },
       { label: uiText("Portrait"), run: () => this.#openPanel("portrait") },
       ...(this.canManageVisibility
         ? [{ label: uiText("Visibility"), run: () => this.#openPanel("visibility") }]
         : []),
-      ...(versions
-        ? [{ label: uiText("twins.manage"), separator: true, run: () => versions.manage() }]
+      ...(this.canManageVisibility && this.actorRole === "dm"
+        ? versionMenuItems(this, this.record).map((item) => ({ ...item, separator: true }))
         : []),
     ];
   }

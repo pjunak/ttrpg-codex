@@ -12,8 +12,7 @@ import {
 } from "./article-context-view.js";
 import { uiPlural, uiText, uiSourceLabel } from "./ui-localization.js";
 import { artwork } from "../ui/artwork.js";
-import "./codex-record-twins.js";
-import type { CodexRecordTwins } from "./codex-record-twins.js";
+import { versionMenuItems } from "./codex-record-twins.js";
 import { recordPageBar, type Crumb } from "./record-chrome.js";
 import "./codex-record-form.js";
 import { CodexCharacterProfile } from "./codex-character-profile.js";
@@ -449,7 +448,7 @@ export class CodexRecordPage extends LitElement {
           edit: this.canEdit
             ? { label: uiText("Edit"), disabled: this.busy, run: this.#startEdit }
             : undefined,
-          menu: () => this.#moreActions(),
+          menu: () => this.#moreActions(record),
         })}
         <div class="record-reading-layout">
           <aside class="record-side">
@@ -627,14 +626,9 @@ export class CodexRecordPage extends LitElement {
   }
 
   /** The rarer record actions; only the DM manages versions. */
-  #moreActions() {
+  #moreActions(record: CampaignRecord) {
     return this.canManageVisibility && this.actorRole === "dm"
-      ? [
-          {
-            label: uiText("twins.manage"),
-            run: () => this.querySelector<CodexRecordTwins>("codex-record-twins")?.manage(),
-          },
-        ]
+      ? versionMenuItems(this, record)
       : [];
   }
 
