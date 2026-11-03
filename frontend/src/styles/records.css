@@ -207,6 +207,7 @@ codex-record-twins {
   place-items: center;
   width: 2.25rem;
   height: calc(2rem - 6px);
+  min-height: 0;
   padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-pill);
@@ -482,9 +483,12 @@ codex-record-twins {
   margin-inline-start: auto;
 }
 
+/* A record's name comes first, then its artwork, its badges and actions. A
+   record without artwork keeps its small emblem beside the name instead. */
 .record-masthead {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "copy" "art" "badges" "actions";
   gap: var(--space-3);
   padding: var(--space-4);
   border: 1px solid var(--chrome-divider);
@@ -492,8 +496,24 @@ codex-record-twins {
   background: var(--bg-raised);
 }
 
-.record-masthead > div {
+.record-masthead-copy {
+  grid-area: copy;
   min-width: 0;
+}
+.record-masthead-art {
+  position: relative;
+  grid-area: art;
+  min-width: 0;
+}
+.record-masthead > .record-badges {
+  grid-area: badges;
+  margin: 0;
+}
+.record-masthead > .record-badges:not(:has(> *)) {
+  display: none;
+}
+.record-masthead > .record-masthead-actions {
+  grid-area: actions;
 }
 
 .record-masthead h1 {
@@ -1456,9 +1476,11 @@ a.faction-chip:hover {
     position: static;
     max-height: none;
   }
-  .record-portrait {
+  /* The artwork box narrows with the portrait, so its pencil stays on its corner. */
+  .record-masthead-art {
+    justify-self: center;
+    width: 100%;
     max-width: 300px;
-    align-self: center;
   }
   .relationship-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1491,8 +1513,6 @@ a.faction-chip:hover {
   }
   .record-portrait {
     width: 100%;
-    max-width: 300px;
-    align-self: center;
   }
   .record-editor .wide-field {
     grid-column: 1;
@@ -1774,6 +1794,8 @@ a.faction-chip:hover {
 }
 /* The pencil button beside a value edited in place, wherever that value appears. */
 .inline-edit-button {
+  /* Round at its own size, not stretched to the shared button's minimum height. */
+  min-height: 0;
   display: inline-grid;
   place-items: center;
   flex: none;
@@ -1799,8 +1821,8 @@ a.faction-chip:hover {
 }
 @media (pointer: coarse) {
   .inline-edit-button {
-    width: 2.5rem;
-    height: 2.5rem;
+    width: var(--ui-target);
+    height: var(--ui-target);
   }
 }
 .investigation-history > summary {
@@ -1839,8 +1861,8 @@ a.faction-chip:hover {
 }
 
 .record-article.no-artwork .record-masthead {
-  display: grid;
   grid-template-columns: 3rem minmax(0, 1fr);
+  grid-template-areas: "art copy" "art badges" "actions actions";
   align-items: start;
 }
 .record-article.no-artwork .record-portrait-placeholder {
@@ -1849,10 +1871,6 @@ a.faction-chip:hover {
   aspect-ratio: 1;
   font-size: var(--text-3xl);
   align-self: start;
-}
-.record-article.no-artwork .record-masthead > .ui-action {
-  grid-column: 1 / -1;
-  justify-self: start;
 }
 .record-facts:empty {
   display: none;
@@ -1916,9 +1934,6 @@ a.faction-chip:hover {
   min-height: 1.8rem;
   padding: 0.2rem 0.65rem;
   font-size: var(--text-xs);
-}
-.record-article.no-artwork .record-masthead > .record-masthead-actions {
-  grid-column: 1 / -1;
 }
 
 /* Related records read as compact chips, events as one-line summaries. */

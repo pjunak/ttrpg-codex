@@ -456,8 +456,7 @@ export class CodexRecordPage extends LitElement {
         <div class="record-reading-layout">
           <aside class="record-side">
             <header class="record-masthead">
-              ${recordArtwork(entity, route.page.icon, `record-portrait${entity.portrait ? "" : " record-portrait-placeholder"}`, "eager", route.page.collection === "locations" ? dataset : undefined)}
-              <div>
+              <div class="record-masthead-copy">
                 <span class="record-kind">${route.page.singular}</span>
                 <h1 id="record-title" aria-label=${entity.name}>${
                   this.canEdit
@@ -471,8 +470,9 @@ export class CodexRecordPage extends LitElement {
                     : entity.name
                 }</h1>
                 ${entity.title === "" ? nothing : html`<p>${entity.title}</p>`}
-                ${renderRecordBadges(entity, { status: true, tags: true })}
               </div>
+              <div class="record-masthead-art">${recordArtwork(entity, route.page.icon, `record-portrait${entity.portrait ? "" : " record-portrait-placeholder"}`, "eager", route.page.collection === "locations" ? dataset : undefined)}</div>
+              ${renderRecordBadges(entity, { status: true, tags: true })}
               ${this.#mastheadActions(route, record, value)}
             </header>
             ${

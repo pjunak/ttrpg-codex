@@ -156,22 +156,21 @@ export class CodexCharacterProfile extends LitElement {
       })}
       <div class="record-reading-layout">
         <aside class="record-side"><header class="record-masthead">
-          ${artwork({
+          <div class="record-masthead-copy"><span class="record-kind">${uiText("Character")}</span><h1 id="record-title" aria-label=${text(value["name"])}>${this.#inline("name")}</h1>
+            ${this.#hasValue("title") ? html`<div class="character-subtitle">${this.#inline("title")}</div>` : nothing}
+          </div>
+          <div class="record-masthead-art">${artwork({
             source: previewResourceURL(entity.portrait),
             className: `record-portrait${entity.portrait ? "" : " record-portrait-placeholder"}`,
             style: entity.attitudeRing ? `--attitude-ring: ${entity.attitudeRing}` : undefined,
             fallback: html`<span class="record-visual-glyph">${entity.icon || "♟"}</span>`,
-          })}
-          ${
+          })}${
             this.canEdit
               ? html`<button type="button" class="inline-edit-button record-portrait-edit" aria-label=${uiText("Change portrait")}
             title=${uiText("Change portrait")} @click=${() => this.#openPanel("portrait")}>${pencilIcon()}</button>`
               : nothing
-          }
-          <div><span class="record-kind">${uiText("Character")}</span><h1 id="record-title" aria-label=${text(value["name"])}>${this.#inline("name")}</h1>
-            ${this.#hasValue("title") ? html`<div class="character-subtitle">${this.#inline("title")}</div>` : nothing}
-            ${renderRecordBadges(entity)}
-          </div></header>
+          }</div>
+          ${renderRecordBadges(entity)}</header>
           ${this.#panelHere("portrait", "visibility")}
           <dl class="record-facts">${this.#facts(["species", "gender", "age", "status", "tags"].filter((key) => this.#hasValue(key)))}</dl>
           ${

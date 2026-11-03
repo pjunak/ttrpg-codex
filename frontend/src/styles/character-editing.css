@@ -108,18 +108,39 @@ codex-character-profile {
   padding: var(--space-4);
   margin-top: var(--space-6);
 }
-/* The portrait's own pencil sits on its top corner. */
-.character-profile .record-masthead {
-  position: relative;
-}
+/* The portrait's own pencil sits on its top corner. A small emblem is too
+   small to carry it, so the whole emblem becomes the button and shows the
+   pencil as a badge on its corner. */
 .record-portrait-edit.inline-edit-button {
   position: absolute;
-  inset-block-start: calc(var(--space-4) + var(--space-2));
-  inset-inline-end: calc(var(--space-4) + var(--space-2));
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-2);
   margin: 0;
   border-color: var(--chrome-field-border);
   background: var(--surface-overlay);
   color: var(--text-light);
+}
+.record-article.no-artwork .record-portrait-edit.inline-edit-button {
+  inset: 0;
+  width: auto;
+  height: auto;
+  place-items: end;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+}
+.record-article.no-artwork .record-portrait-edit > .edit-icon {
+  box-sizing: content-box;
+  margin: -0.35rem;
+  padding: 0.25rem;
+  border: 1px solid var(--chrome-field-border);
+  border-radius: 50%;
+  background: var(--surface-overlay);
+}
+.record-article.no-artwork .record-portrait-edit:is(:hover, :focus-visible) > .edit-icon {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 /* A panel opened in the narrow side column stacks its controls. */
 .record-side .character-section-editor {

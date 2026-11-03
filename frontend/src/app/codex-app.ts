@@ -525,7 +525,7 @@ export class CodexApp extends LitElement {
     if (
       route?.kind !== "record" &&
       this.route.kind === "record" &&
-      target.closest(".record-masthead, .character-page-heading")
+      target.closest(".record-masthead")
     )
       route = this.route;
     if (route?.kind !== "record") return false;
