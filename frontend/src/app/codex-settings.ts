@@ -130,6 +130,7 @@ export class CodexSettings extends LitElement {
   /** The theme being saved, shown until that save finishes or fails. */
   #pendingTheme: CampaignThemeID | undefined;
   #editCampaign: CampaignDataset | undefined;
+  #addonSettingsShown = false;
 
   constructor() {
     super();
@@ -151,11 +152,19 @@ export class CodexSettings extends LitElement {
   }
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    // The view opens once the campaign is loaded, usually before the add-ons
+    // register their settings, so a player's add-on route is resolved again
+    // when they arrive. Settings that disappear later keep the add-on page,
+    // which then says they are unavailable.
+    const addonSettingsShown = this.#contributions.list("settings").length > 0;
+    const addonSettingsArrived = addonSettingsShown && !this.#addonSettingsShown;
+    this.#addonSettingsShown = addonSettingsShown;
     if (
       changed.has("category") ||
       changed.has("mapTarget") ||
       changed.has("addonTarget") ||
-      changed.has("canManageCampaign")
+      changed.has("canManageCampaign") ||
+      addonSettingsArrived
     ) {
       const requested: SettingsCategory =
         this.mapTarget !== undefined && this.canManageCampaign

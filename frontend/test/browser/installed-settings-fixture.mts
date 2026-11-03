@@ -303,6 +303,8 @@ export async function exerciseSettings({
     if (request.url().includes("/api/admin/")) adminRequests.push(request.url());
   });
   await player.goto(`/#/settings/addons/${id}`);
+  // Opened directly, the page renders before the add-on has registered its settings.
+  await player.reload();
   const playerSettings = player.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
   const playerPanel = playerSettings.locator('[data-contribution-id="preferences"]');
   const playerView = playerPanel;
