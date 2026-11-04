@@ -17,7 +17,8 @@ add-on is installed as a built package after permission and compatibility review
 - Give players access to public records while keeping DM material private.
 - Install and update add-ons from GitHub builds or releases, including private
   repositories with server-side credentials.
-- Review changes and restore campaign recovery points or a verified backup.
+- Restore the campaign or one add-on from its recovery points or from a
+  downloaded backup.
 - Use the interface in English or Czech without translating authored content.
 
 Local drafts protect work in the same browser. Save commits it to the campaign;

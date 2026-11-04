@@ -1,11 +1,10 @@
 import { LitElement, html, nothing } from "lit";
 import { UIControlsController } from "../ui/controller.js";
 import {
-  BackupRestoreError,
+  BackupImportError,
+  importBackup,
   recoveryRequest,
   RecoveryRequestError,
-  restoreFullBackup,
-  waitForHostRestart,
   type RecoveryAction,
   type RecoveryListing,
   type RecoveryPart,
@@ -23,13 +22,14 @@ export class CodexRecoverySettings extends LitElement {
     message: { state: true },
     review: { state: true },
     selection: { state: true },
-    restoring: { state: true },
-    fullMessage: { state: true },
+    importing: { state: true },
+    importMessage: { state: true },
   };
   declare private selection: string;
-  declare private restoring: "uploading" | "restarting" | "timeout" | undefined;
-  declare private fullMessage:
-    { key: MessageKey; values?: Record<string, string>; alert: boolean } | undefined;
+  declare private importing: boolean;
+  declare private importMessage:
+    | { key: MessageKey; values?: Record<string, string>; count?: number; alert: boolean }
+    | undefined;
   declare csrfToken: string;
   declare listing: RecoveryListing | undefined;
   declare message: MessageKey | undefined;
@@ -43,6 +43,7 @@ export class CodexRecoverySettings extends LitElement {
     new UIControlsController(this);
     this.csrfToken = "";
     this.selection = "campaign";
+    this.importing = false;
   }
   /** A listing or recovery request is running. */
   get busy(): boolean {
@@ -101,65 +102,63 @@ export class CodexRecoverySettings extends LitElement {
         }
       `
       }
-      ${this.#fullRestore()}
+      ${this.#importForm()}
     </section>`;
   }
-  #fullRestore() {
-    const locked = this.busy || this.restoring !== undefined;
-    return html`<form class="settings-full-restore" aria-labelledby="full-restore-title" @submit=${(event: SubmitEvent) => void this.#restoreFull(event)}>
-      <h3 id="full-restore-title">${this.#ui.t("recovery.fullTitle")}</h3>
-      <p class="settings-hint">${this.#ui.t("recovery.fullIntro")} <a href="https://github.com/pjunak/ttrpg-codex/blob/main/docs/SELF_HOSTING.md#verify-and-restore-a-full-backup" target="_blank" rel="noreferrer">${this.#ui.t("recovery.guide")}</a></p>
-      <label data-ui-field><span>${this.#ui.t("recovery.fullFile")}</span><input type="file" name="archive" accept=".zip,application/zip" required ?disabled=${locked} /></label>
-      <label class="settings-full-restore-confirm"><input type="checkbox" name="confirm" required ?disabled=${locked} /> ${this.#ui.t("recovery.fullConfirm")}</label>
-      <div class="settings-recovery-actions"><button type="submit" ?disabled=${locked}>⚠ ${this.#ui.t("recovery.fullRestore")}</button></div>
-      ${this.fullMessage ? html`<p role=${this.fullMessage.alert ? "alert" : "status"}>${this.#ui.t(this.fullMessage.key, this.fullMessage.values)}</p>` : nothing}
+  #importForm() {
+    const locked = this.busy || this.importing;
+    return html`<form class="settings-backup-import" aria-labelledby="backup-import-title" @submit=${(event: SubmitEvent) => void this.#import(event)}>
+      <h3 id="backup-import-title">${this.#ui.t("recovery.importTitle")}</h3>
+      <p class="settings-hint">${this.#ui.t("recovery.importIntro")} <a href="https://github.com/pjunak/ttrpg-codex/blob/main/docs/SELF_HOSTING.md#verify-and-restore-a-full-backup" target="_blank" rel="noreferrer">${this.#ui.t("recovery.guide")}</a></p>
+      <label data-ui-field><span>${this.#ui.t("recovery.importFile")}</span><input type="file" name="archive" accept=".zip,application/zip" required ?disabled=${locked} /></label>
+      <div class="settings-recovery-actions"><button type="submit" ?disabled=${locked}>⇪ ${this.#ui.t("recovery.import")}</button></div>
+      ${this.importMessage ? html`<p role=${this.importMessage.alert ? "alert" : "status"}>${this.#importText(this.importMessage)}</p>` : nothing}
     </form>`;
   }
-  async #restoreFull(event: SubmitEvent): Promise<void> {
+  #importText(message: NonNullable<CodexRecoverySettings["importMessage"]>): string {
+    return message.count === undefined
+      ? this.#ui.t(message.key, message.values)
+      : this.#ui.plural(message.key, message.count, message.values);
+  }
+  async #import(event: SubmitEvent): Promise<void> {
     event.preventDefault();
-    const archive = new FormData(event.currentTarget as HTMLFormElement).get("archive");
-    if (this.busy || this.restoring !== undefined || !(archive instanceof File) || !archive.size)
-      return;
+    const form = event.currentTarget as HTMLFormElement;
+    const archive = new FormData(form).get("archive");
+    if (this.busy || this.importing || !(archive instanceof File) || !archive.size) return;
     const signal = this.#requests.signal;
-    this.restoring = "uploading";
-    this.fullMessage = { key: "recovery.fullUploading", alert: false };
-    this.#saving(true);
+    this.importing = true;
+    this.importMessage = { key: "recovery.importing", alert: false };
+    reportEditState(this, { dirty: false, saving: true });
     try {
-      const staged = await restoreFullBackup(signal, this.csrfToken, archive);
-      this.restoring = "restarting";
-      this.fullMessage = {
-        key: "recovery.fullRestarting",
-        values: { date: this.#date(staged.createdAt) },
+      const imported = await importBackup(signal, this.csrfToken, archive);
+      form.reset();
+      this.selection = "campaign";
+      this.importMessage = {
+        key: "recovery.importDone",
+        values: { date: this.#date(imported.createdAt) },
+        count: imported.parts,
         alert: false,
       };
-      this.#saving(false);
-      if (await waitForHostRestart(signal)) {
-        location.reload();
-        return;
-      }
-      this.restoring = "timeout";
-      this.fullMessage = { key: "recovery.fullTimeout", alert: true };
     } catch (error: unknown) {
       if (signal.aborted) return;
-      this.#saving(false);
-      this.restoring = undefined;
-      const code = error instanceof BackupRestoreError ? error.code : "failed";
+      const code = error instanceof BackupImportError ? error.code : "failed";
       const keys: Readonly<Record<string, MessageKey>> = {
-        invalid: "recovery.fullInvalid",
-        pending: "recovery.fullPending",
-        busy: "recovery.fullBusy",
-        "too-large": "recovery.fullTooLarge",
+        invalid: "recovery.importInvalid",
+        "too-large": "recovery.importTooLarge",
         forbidden: "recovery.forbidden",
       };
-      this.fullMessage = {
-        key: keys[code] ?? "recovery.fullFailed",
-        values: { detail: error instanceof BackupRestoreError ? error.detail : "" },
+      this.importMessage = {
+        key: keys[code] ?? "recovery.importFailed",
+        values: { detail: error instanceof BackupImportError ? error.detail : "" },
         alert: true,
       };
+    } finally {
+      if (!signal.aborted) {
+        this.importing = false;
+        reportEditState(this, { dirty: false, saving: false });
+      }
     }
-  }
-  #saving(saving: boolean): void {
-    reportEditState(this, { dirty: false, saving });
+    if (!signal.aborted) await this.#request();
   }
   #date(createdAt: string): string {
     return new Intl.DateTimeFormat(this.#ui.locale, {

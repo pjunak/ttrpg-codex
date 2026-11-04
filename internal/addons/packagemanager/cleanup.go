@@ -484,21 +484,6 @@ func (manager *Manager) retryCleanupsLocked(ctx context.Context) (CleanupResult,
 	return result, nil
 }
 
-// WithPackageSnapshot keeps a live backup's database image and immutable files
-// coherent with staging, cleanup and other lifecycle transitions. Offline tools
-// instead hold the exclusive host process lock for their entire operation.
-func (manager *Manager) WithPackageSnapshot(ctx context.Context, snapshot func() error) error {
-	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	if err := manager.requireSettledUpdate(ctx); err != nil {
-		return err
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return snapshot()
-}
-
 func (manager *Manager) cleanupRoot(addonID, generationID string) (*os.Root, string, error) {
 	if !addonv3.ValidAddonID(addonID) || !validGenerationID(generationID) {
 		return nil, "", ErrInvalidPackage

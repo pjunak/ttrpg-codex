@@ -67,11 +67,10 @@ func Verify(ctx context.Context, config VerifyConfig) (RestoreResult, error) {
 	return RestoreResult{Manifest: manifest, AppliedMigrations: applied}, nil
 }
 
-// Restore installs an archive while the host is stopped, the same way the next
-// host start installs one staged from the web: it verifies and stages the
-// archive inside the data directory, then moves its entries into place. This
-// keeps the server's credentials and works when the data directory is a
-// mount point.
+// Restore installs an archive while the host is stopped: it verifies and
+// stages the archive inside the data directory, then moves its entries into
+// place. This keeps the server's credentials and works when the data directory
+// is a mount point.
 func Restore(ctx context.Context, config RestoreConfig) (RestoreResult, error) {
 	if config.ArchivePath == "" || config.DataDirectory == "" || config.Migrations == nil {
 		return RestoreResult{}, fmt.Errorf("restore archive, data directory, and migrations are required")
@@ -90,7 +89,7 @@ func Restore(ctx context.Context, config RestoreConfig) (RestoreResult, error) {
 	if insideDirectory(archivePath, dataDirectory) {
 		return RestoreResult{}, fmt.Errorf("restore archive must be outside the data directory")
 	}
-	// First finish a restore that the web or an interrupted run left staged.
+	// First finish a restore that an interrupted run left staged.
 	if err := Recover(ctx, dataDirectory, config.Migrations); err != nil {
 		return RestoreResult{}, err
 	}
@@ -117,8 +116,8 @@ func Restore(ctx context.Context, config RestoreConfig) (RestoreResult, error) {
 	return result, nil
 }
 
-// Recover runs before SQLite opens. It finishes a restore staged from the web
-// or left behind by an interrupted restore command.
+// Recover runs before SQLite opens. It finishes a restore left behind by an
+// interrupted restore command.
 func Recover(ctx context.Context, dataDirectory string, migrations fs.FS) error {
 	if err := ctx.Err(); err != nil {
 		return err

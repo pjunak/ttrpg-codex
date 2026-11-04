@@ -226,53 +226,70 @@ enforces the actual dependency graph.
 ## Backups
 
 Settings → Backup & recovery provides manual points, automatic edit groups,
-restore/delete review, revert-last-N, and full ZIP download. Points cover
-campaign records, add-on documents and uploaded media; they preserve current
-passwords and installed add-ons. Each restore keeps a safety copy. The campaign
-and each add-on have their own points: an edit saves only the part it changes,
-and each part keeps its newest 50. Points live in the same database, so keep an
-independent ZIP for recovery from disk loss. Choose Campaign or one add-on in
-the recovery panel.
-Campaign restore works without matching add-ons and leaves their current saves
+restore/delete review and revert-last-N. Points cover campaign records, add-on
+documents and uploaded media; they preserve current passwords and installed
+add-ons. Each restore keeps a safety copy. The campaign and each add-on have
+their own points: an edit saves only the part it changes, and each part keeps
+its newest 50. Choose Campaign or one add-on in the recovery panel. Campaign
+restore works without matching add-ons and leaves their current saves
 untouched. Add-on restore requires its own matching build, schema and linked
 record identities. Deleting an add-on's point leaves the campaign's points
-available. Use full offline restore when recovering packages or the entire host.
-See the [recovery contract](reference/BACKUP_RESTORE.md#campaign-recovery-points).
+available. See the [recovery contract](reference/BACKUP_RESTORE.md#campaign-recovery-points).
+
+Points live in the same database, so download backups for recovery from disk
+loss. **Download backup** saves a fresh point of every part that changed since
+its newest point, then downloads the newest point of the campaign and of each
+add-on with their files as one ZIP. **Import a backup** adds each part of such
+a ZIP as an imported point on this or another site without changing current
+data; restore the campaign first, then each add-on, which needs the same
+version installed. Passwords, installed add-on packages and GitHub tokens are
+not in this ZIP; moving a whole server uses the full archive below. See the
+[bundle contract](reference/BACKUP_RESTORE.md#backup-bundle).
 
 ### Verify and restore a full backup
 
-The guide linked from Settings → Backup & recovery covers the whole installation.
-A full restore includes saved passwords and installed add-on packages. GitHub
-access tokens are excluded; configure them again on a new server. Use the
-maintenance binary from the same image or source revision as the host, and the
-actual data directory used by that installation.
+A full archive covers the whole installation: campaign, files, recovery
+points, saved passwords and installed add-on packages. GitHub access tokens are
+excluded; configure them again on a new server. Only the maintenance command
+makes, verifies and restores it. Use the maintenance binary from the same image
+or source revision as the host, and the actual data directory used by that
+installation.
 
-The DM endpoint `GET /api/backup` downloads the same verified archive contract
-as the maintenance CLI. Download a full ZIP from Settings → Backup & recovery,
-then verify it independently.
+#### Back up and restore with Docker
 
-#### Restore from Settings
+The image includes `/app/codex-maintenance`. These commands use the supplied
+Compose service `ttrpg-codex` with its data at `./data`; adjust the service
+name and paths for your installation. Create an archive while the host runs,
+copy it out of the container and remove the temporary copy:
 
-Settings → Backup & recovery → **Restore a full backup** replaces the whole
-site: campaign, files, add-ons, passwords and recovery points. Download a ZIP
-of the current state first. Choose the backup, confirm, and the host verifies
-it while the site keeps running. A rejected file changes nothing and the page
-says why. An accepted one makes the host restart; the page reloads when it is
-back and everyone signs in again with the passwords saved in that backup. Saved
-GitHub tokens stay with the server.
+```bash
+docker compose exec ttrpg-codex /app/codex-maintenance backup \
+  -data-dir /app/data -out /tmp/codex-full.zip || exit 1
+docker compose cp ttrpg-codex:/tmp/codex-full.zip ./codex-full-2026-11-04.zip
+docker compose exec ttrpg-codex rm /tmp/codex-full.zip
+```
 
-The restart relies on the process supervisor: the supplied Compose file's
-`restart: unless-stopped` starts the container again. A native installation
-without one stops instead; start it again and it finishes installing the
-backup before serving. Each host accepts only archives whose recovery packages
-it can still inspect, so restore an archive with the host version it came
-from, or a later one that still accepts its add-on builds.
+Restore only while the host is stopped. `docker compose run` uses the
+service's image, user and data mount; the archive must be readable by that
+user (UID 1000 in the supplied image):
+
+```bash
+docker compose stop ttrpg-codex
+docker compose run --rm --no-deps --entrypoint /app/codex-maintenance \
+  --volume "$PWD/codex-full-2026-11-04.zip:/backups/restore.zip:ro" \
+  ttrpg-codex restore -data-dir /app/data -in /backups/restore.zip
+docker compose start ttrpg-codex
+```
+
+Each host accepts only archives whose recovery packages it can still inspect,
+so restore an archive with the host version it came from, or a later one that
+still accepts its add-on builds. Everyone signs in again with the passwords
+saved in the archive; this server's GitHub tokens stay.
 
 #### Verify with the running host image
 
-The image includes `/app/codex-maintenance`. Run these commands on the Docker
-host that owns the installation, with the downloaded ZIP in its backup
-directory. This Linux example uses the supplied Compose service name;
+Run these commands on the Docker host that owns the installation, with the
+archive in its backup directory. This Linux example uses the supplied Compose service name;
 adjust the service name and archive path for your installation:
 
 ```bash
@@ -332,8 +349,9 @@ go run ./cmd/codex-maintenance restore `
 ```
 
 Restore verifies the archive and a migrated copy of its database, then installs
-it the same way as a restore from Settings. It keeps this server's GitHub
-tokens, and the next restore or host start finishes an interrupted one. Never
+it with a journaled move of the data directory's entries. It keeps this
+server's GitHub tokens, and the next restore or host start finishes an
+interrupted one. Never
 unpack or merge backup contents by hand. Keep the verified
 archive and an independent copy of the current data before replacement. After
 restoring, start the host and check login, campaign records, media and active

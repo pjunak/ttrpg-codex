@@ -309,9 +309,6 @@ func TestUpdateRollbackFailureRemainsExclusiveUntilMaintenanceRecovers(t *testin
 	if _, err = f.manager.ActivateReviewed(ctx, f.review.ReviewID); !errors.Is(err, ErrRecoveryRequired) {
 		t.Fatal("ordinary activation bypassed pending receipt", err)
 	}
-	if err = f.manager.WithPackageSnapshot(ctx, func() error { t.Fatal("recovery bypassed pending update"); return nil }); !errors.Is(err, ErrRecoveryRequired) {
-		t.Fatal(err)
-	}
 	if _, err = f.manager.store.db.Exec("DROP TRIGGER reject_snapshot_restore"); err != nil {
 		t.Fatal(err)
 	}

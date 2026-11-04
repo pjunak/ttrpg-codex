@@ -14,9 +14,10 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/recoverystore"
 )
 
-var blobIDPattern = regexp.MustCompile(`b_[0-9a-f]{32}`)
 var hashPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 type BlobCandidate struct {
@@ -56,7 +57,7 @@ func inspectBlobs(ctx context.Context, tx *sql.Tx, directory string) (BlobReport
 			rows.Close()
 			return report, err
 		}
-		if err = protectJSON([]byte(body), protected); err != nil {
+		if err = recoverystore.BlobReferences([]byte(body), protected); err != nil {
 			rows.Close()
 			return report, err
 		}
@@ -76,29 +77,9 @@ func inspectBlobs(ctx context.Context, tx *sql.Tx, directory string) (BlobReport
 			rows.Close()
 			return report, err
 		}
-		var image map[string]json.RawMessage
-		if err = json.Unmarshal([]byte(body), &image); err != nil {
+		if err = recoverystore.ImageBlobs([]byte(body), protected); err != nil {
 			rows.Close()
 			return report, err
-		}
-		var handles []struct {
-			ID      string `json:"blob_id"`
-			Deleted int    `json:"deleted"`
-		}
-		if err = json.Unmarshal(image["blobs"], &handles); err != nil {
-			rows.Close()
-			return report, err
-		}
-		for _, handle := range handles {
-			if handle.Deleted == 0 {
-				protected[handle.ID] = true
-			}
-		}
-		for _, field := range []string{"records", "documents", "assets"} {
-			if err = protectJSON(image[field], protected); err != nil {
-				rows.Close()
-				return report, err
-			}
 		}
 	}
 	err = rows.Err()
@@ -213,43 +194,6 @@ func inspectBlobs(ctx context.Context, tx *sql.Tx, directory string) (BlobReport
 		return report, err
 	}
 	return finishBlobReport(report)
-}
-
-func protectJSON(body []byte, protected map[string]bool) error {
-	var value any
-	if err := json.Unmarshal(body, &value); err != nil {
-		return err
-	}
-	var walk func(any)
-	walk = func(v any) {
-		switch item := v.(type) {
-		case string:
-			for _, id := range blobIDPattern.FindAllString(item, -1) {
-				protected[id] = true
-			}
-			// Recovery stores document bodies as JSON strings, which may themselves
-			// contain escaped identifiers. Decode that extra layer before scanning.
-			if json.Valid([]byte(item)) {
-				var nested any
-				if json.Unmarshal([]byte(item), &nested) == nil {
-					switch nested.(type) {
-					case map[string]any, []any:
-						walk(nested)
-					}
-				}
-			}
-		case map[string]any:
-			for _, child := range item {
-				walk(child)
-			}
-		case []any:
-			for _, child := range item {
-				walk(child)
-			}
-		}
-	}
-	walk(value)
-	return nil
 }
 
 func finishBlobReport(report BlobReport) (BlobReport, error) {

@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/recoverystore"
 )
 
@@ -289,54 +287,6 @@ func TestCleanupResumesAfterInterruptionAndRejectsResurrectedMetadata(t *testing
 	corrupt.Generations[1].GenerationID = strings.Repeat("b", 64)
 	if e = validateCleanupReceipt(corrupt, r.ReviewSHA256); !errors.Is(e, ErrInvalidPackage) {
 		t.Fatal("tampered receipt accepted", e)
-	}
-}
-
-func TestCleanupBackupSnapshotIsSerializedAndSelfContained(t *testing.T) {
-	ctx := context.Background()
-	db := testDatabase(t)
-	data := t.TempDir()
-	m, _ := testManager(t, db, filepath.Join(data, "addons"), &fakeRuntimeFactory{})
-	m.store.now = time.Now
-	old := installUninstallFixture(t, m, packageSpec{ID: "example", Version: "1.0.0"})
-	installUninstallFixture(t, m, packageSpec{ID: "example", Version: "2.0.0"})
-	r := mustCleanupReview(t, m, cleanupScope(0))
-	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
-	creator := &backuparchive.Creator{Database: db, DataDirectory: data, HostVersion: "test", PackageSnapshot: func(ctx context.Context, f func() error) error {
-		return m.WithPackageSnapshot(ctx, func() error { close(entered); <-release; return f() })
-	}}
-	archive := filepath.Join(t.TempDir(), "backup.zip")
-	go func() { _, e := creator.Create(ctx, archive); done <- e }()
-	<-entered
-	if m.mu.TryLock() {
-		m.mu.Unlock()
-		t.Fatal("backup did not hold lifecycle lock")
-	}
-	close(release)
-	if e := <-done; e != nil {
-		t.Fatal(e)
-	}
-	if _, e := m.Cleanup(ctx, r.Scope, r.ReviewSHA256); e != nil {
-		t.Fatal(e)
-	}
-	verified, e := backuparchive.Verify(ctx, backuparchive.VerifyConfig{ArchivePath: archive, Migrations: migrations.FS})
-	if e != nil {
-		t.Fatal(e)
-	}
-	found := false
-	for _, file := range verified.Manifest.Entries {
-		if file.Path == "addons/example/generations/"+old.GenerationID+"/package.zip" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("backup lost old package")
-	}
-	canceled, cancel := context.WithCancel(ctx)
-	cancel()
-	ran := false
-	if e = m.WithPackageSnapshot(canceled, func() error { ran = true; return nil }); !errors.Is(e, context.Canceled) || ran {
-		t.Fatal("canceled backup ran", e)
 	}
 }
 

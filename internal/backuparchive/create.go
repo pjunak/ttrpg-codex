@@ -27,32 +27,6 @@ type CreateConfig struct {
 	Limits        Limits
 }
 
-type Creator struct {
-	PackageSnapshot func(context.Context, func() error) error
-	Database        *sql.DB
-	DataDirectory   string
-	HostVersion     string
-	Limits          Limits
-	Now             func() time.Time
-}
-
-func (creator *Creator) Create(ctx context.Context, outputPath string) (Manifest, error) {
-	if creator == nil {
-		return Manifest{}, fmt.Errorf("backup creator is required")
-	}
-	config := CreateConfig{Database: creator.Database, DataDirectory: creator.DataDirectory, OutputPath: outputPath, HostVersion: creator.HostVersion, Limits: creator.Limits, Now: creator.Now}
-	if creator.PackageSnapshot == nil {
-		return Create(ctx, config)
-	}
-	var manifest Manifest
-	err := creator.PackageSnapshot(ctx, func() error {
-		var err error
-		manifest, err = Create(ctx, config)
-		return err
-	})
-	return manifest, err
-}
-
 type sourceFile struct {
 	archivePath string
 	path        string

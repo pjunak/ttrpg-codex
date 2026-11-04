@@ -109,9 +109,10 @@ uses the same stricter authority because its atomic usage rewrite spans public
 and DM-only records.
 
 `GET /api/backup` also requires both real and effective DM authority because
-the native archive contains the complete unprojected database and installed
-add-on packages. It is a read/download operation and therefore does not use a
-CSRF header; same-origin cookie policy and the strict DM check remain required.
+the bundle contains every DM-only record and add-on document. It is a download
+that at most saves an unchanged-data recovery point, so it does not use a CSRF
+header; same-origin cookie policy and the strict DM check remain required.
+`POST /api/backup/import` requires the same authority and the CSRF header.
 
 ## Separate-tab player preview
 

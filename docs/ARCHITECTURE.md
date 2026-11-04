@@ -147,12 +147,14 @@ preferences live in localStorage and the route. Neither is campaign authority.
 
 ## Backups
 
-`codex-backup.v2` contains an online SQLite backup plus every referenced blob
-and immutable add-on generation, all inventoried by hash. Verification uses an
-isolated database copy. A restore, from the command line with the host stopped
-or uploaded in Settings, is staged inside the data directory and installed by a
-journaled move of its entries that keeps `credentials/`; startup resumes an
-interrupted one.
+Settings downloads a `codex-backup-bundle.v1` ZIP: the newest recovery point of
+the campaign and of each add-on with the files they use. Importing one adds its
+parts as recovery points, which restore without a restart. The maintenance
+command's `codex-backup.v2` full archive contains an online SQLite backup plus
+every referenced blob and immutable add-on generation, all inventoried by hash.
+Verification uses an isolated database copy. A full restore, with the host
+stopped, is staged inside the data directory and installed by a journaled move
+of its entries that keeps `credentials/`; startup resumes an interrupted one.
 
 ## Failure model
 

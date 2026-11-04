@@ -22,8 +22,8 @@ var (
 	ErrTooLarge      = errors.New("campaign part is larger than the 64 MiB recovery point limit")
 )
 
-// maxImageBytes is the CHECK limit on recovery_points.image_json (migration 0029).
-const maxImageBytes = 64 << 20
+// MaxImageBytes is the CHECK limit on recovery_points.image_json (migration 0029).
+const MaxImageBytes = 64 << 20
 
 // MaxPointsPerPart is the retention of the recovery_point_inserted trigger.
 const MaxPointsPerPart = 50
@@ -113,7 +113,7 @@ func capture(ctx context.Context, db execer, part Scope, reason string) (sql.Res
 	result, err := db.ExecContext(ctx, `WITH image AS MATERIALIZED (`+imageSQL(part)+`)
 		INSERT INTO recovery_points(scope, addon_id, created_at, reason, image_json)
 		SELECT @scope, @addon, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), @reason, image_json FROM image
-		WHERE length(CAST(image_json AS BLOB)) <= @limit`, part.args(sql.Named("reason", reason), sql.Named("limit", maxImageBytes))...)
+		WHERE length(CAST(image_json AS BLOB)) <= @limit`, part.args(sql.Named("reason", reason), sql.Named("limit", MaxImageBytes))...)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +232,7 @@ func (s *Store) Latest(ctx context.Context) ([]Snapshot, error) {
 		if err := tx.QueryRowContext(ctx, imageSQL(part), part.args()...).Scan(&snapshot.Image); err != nil {
 			return nil, fmt.Errorf("read %s image: %w", part.Scope, err)
 		}
-		if len(snapshot.Image) > maxImageBytes {
+		if len(snapshot.Image) > MaxImageBytes {
 			return nil, ErrTooLarge
 		}
 		var newest string
@@ -267,7 +267,7 @@ func InsertImported(ctx context.Context, tx *sql.Tx, part Scope, createdAt, imag
 	if !part.valid() {
 		return ErrInvalid
 	}
-	if len(image) > maxImageBytes {
+	if len(image) > MaxImageBytes {
 		return ErrTooLarge
 	}
 	_, err := tx.ExecContext(ctx, `INSERT INTO recovery_points(scope, addon_id, created_at, reason, image_json)

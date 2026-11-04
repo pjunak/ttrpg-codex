@@ -30,6 +30,7 @@ import (
 	applicationmedia "github.com/pjunak/ttrpg-codex/internal/application/media"
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
 	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
+	"github.com/pjunak/ttrpg-codex/internal/backupbundle"
 	"github.com/pjunak/ttrpg-codex/internal/events"
 	"github.com/pjunak/ttrpg-codex/internal/maintenance/processlock"
 	"github.com/pjunak/ttrpg-codex/internal/storage/blobstore"
@@ -54,22 +55,12 @@ type hostRuntime struct {
 	handler  http.Handler
 	addons   *packagemanager.Manager
 	campaign *campaigndata.Service
-	restarts <-chan struct{}
 	stopping func()
 }
-
-// errRestartForRestore makes the process exit so its supervisor (Docker's
-// restart policy) starts it again; startup then installs the staged backup.
-var errRestartForRestore = errors.New("restarting to install the restored backup")
-
-const restartExitCode = 75
 
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		if errors.Is(err, errRestartForRestore) {
-			os.Exit(restartExitCode)
-		}
 		os.Exit(1)
 	}
 }
@@ -147,7 +138,6 @@ func run() error {
 		serveErrors <- server.ListenAndServe()
 	}()
 
-	restart := false
 	select {
 	case err := <-serveErrors:
 		if !errors.Is(err, http.ErrServerClosed) {
@@ -155,44 +145,15 @@ func run() error {
 		}
 		return nil
 	case <-ctx.Done():
-	case <-runtime.restarts:
-		restart = true
-		logger.Info("backup restore staged; restarting")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		_ = server.Close()
-		if !restart {
-			return fmt.Errorf("shutdown HTTP server: %w", err)
-		}
-		logger.Warn("forced HTTP shutdown before restarting", "error", err)
-	}
-	if restart {
-		return errRestartForRestore
+		return fmt.Errorf("shutdown HTTP server: %w", err)
 	}
 	return nil
-}
-
-// stagedRestores verifies an uploaded backup into the data directory; the next
-// start installs it before SQLite opens.
-type stagedRestores struct {
-	dataDirectory string
-	restarts      chan struct{}
-}
-
-func (r stagedRestores) Stage(ctx context.Context, archivePath string) (backuparchive.RestoreResult, error) {
-	return backuparchive.Stage(ctx, backuparchive.StageConfig{
-		ArchivePath: archivePath, DataDirectory: r.dataDirectory, Migrations: migrations.FS,
-	})
-}
-
-func (r stagedRestores) Restart() {
-	select {
-	case r.restarts <- struct{}{}:
-	default:
-	}
 }
 
 func composeHost(
@@ -258,10 +219,7 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure media service: %w", err)
 	}
-	backupArchives := &backuparchive.Creator{
-		Database: db, DataDirectory: dataDirectory, HostVersion: version.Host,
-	}
-	restores := stagedRestores{dataDirectory: dataDirectory, restarts: make(chan struct{}, 1)}
+	backupBundles := backupbundle.Bundles{DB: db, Points: recoveryPoints, Blobs: blobStorage, HostVersion: version.Host}
 	stopping := make(chan struct{})
 	inspector, err := packageinspect.New(packageinspect.DefaultLimits)
 	if err != nil {
@@ -320,7 +278,6 @@ func composeHost(
 	if err != nil {
 		return nil, fmt.Errorf("configure package manager: %w", err)
 	}
-	backupArchives.PackageSnapshot = addons.WithPackageSnapshot
 	recovery, err := addons.Recover(ctx)
 	if err != nil {
 		_ = addons.Shutdown(context.Background())
@@ -370,8 +327,7 @@ func composeHost(
 		CampaignTwinWriter:       httpapi.SessionCampaignDMAuthorizer(authentication),
 		CampaignEnums:            campaignData,
 		CampaignEnumWriter:       httpapi.SessionCampaignDMAuthorizer(authentication),
-		BackupArchives:           backupArchives,
-		BackupRestores:           restores,
+		BackupBundles:            backupBundles,
 		RecoveryPoints:           recoveryPoints,
 		BackupAuthorizer:         httpapi.SessionAdminAuthorizer(authentication),
 		Media:                    mediaService,
@@ -394,6 +350,6 @@ func composeHost(
 	addons.StartMonitoring(ctx)
 	return &hostRuntime{
 		handler: handler, addons: addons, campaign: campaignData,
-		restarts: restores.restarts, stopping: sync.OnceFunc(func() { close(stopping) }),
+		stopping: sync.OnceFunc(func() { close(stopping) }),
 	}, nil
 }

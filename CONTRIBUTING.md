@@ -44,8 +44,11 @@ npm --workspace @ttrpg-codex/frontend run dev
 ```
 
 Never point development tools at a live site's data. To try a change against
-real content, restore a downloaded backup into a new directory with
-`go run ./cmd/codex-maintenance restore -data-dir <new-dir> -in <backup.zip>`
+real content, import a backup downloaded from the site's Settings into a local
+host's Settings → Backup & recovery and restore its parts. For a copy of the
+whole server, restore a [full archive](docs/SELF_HOSTING.md#verify-and-restore-a-full-backup)
+into a new directory with
+`go run ./cmd/codex-maintenance restore -data-dir <new-dir> -in <archive.zip>`
 and, if needed, set a local password there with `-reset-passwords` (see
 [password recovery](docs/SELF_HOSTING.md#password-changes-and-access-recovery)).
 

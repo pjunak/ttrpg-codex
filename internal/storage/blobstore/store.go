@@ -135,47 +135,10 @@ func (store *Store) Create(ctx context.Context, request CreateRequest) (Blob, er
 	if err != nil {
 		return Blob{}, err
 	}
-	stagingDirectory := filepath.Join(store.root, ".staging")
-	if err := ensureRealDirectory(stagingDirectory); err != nil {
-		return Blob{}, err
-	}
-	stage, err := os.CreateTemp(stagingDirectory, "blob-*.partial")
+	digest, err := store.publish(ctx, request.Content, request.Bytes, "")
 	if err != nil {
-		return Blob{}, fmt.Errorf("create blob stage: %w", err)
-	}
-	stagePath := stage.Name()
-	stageKept := false
-	defer func() {
-		_ = stage.Close()
-		if !stageKept {
-			_ = os.Remove(stagePath)
-		}
-	}()
-
-	hash := sha256.New()
-	written, copyErr := io.Copy(io.MultiWriter(stage, hash), ctxio.Reader(ctx, io.LimitReader(request.Content, int64(request.Bytes)+1)))
-	if copyErr == nil && uint64(written) != request.Bytes {
-		copyErr = fmt.Errorf("declared %d bytes but received %d", request.Bytes, written)
-	}
-	if copyErr == nil {
-		copyErr = stage.Sync()
-	}
-	closeErr := stage.Close()
-	if copyErr != nil || closeErr != nil {
-		return Blob{}, fmt.Errorf("write blob stage: %w", errors.Join(copyErr, closeErr))
-	}
-	digest := hex.EncodeToString(hash.Sum(nil))
-	objectPath := store.objectPath(digest)
-	if err := ensureRealDirectory(filepath.Join(store.root, "sha256")); err != nil {
 		return Blob{}, err
 	}
-	if err := ensureRealDirectory(filepath.Dir(objectPath)); err != nil {
-		return Blob{}, err
-	}
-	if err := publishObject(stagePath, objectPath, request.Bytes, digest); err != nil {
-		return Blob{}, err
-	}
-	stageKept = true
 
 	now := store.now().UTC()
 	for attempt := 0; attempt < 4; attempt++ {
@@ -316,6 +279,141 @@ func (store *Store) Delete(ctx context.Context, id string, expectedRevision int6
 
 var errIDCollision = errors.New("blob id collision")
 
+// publish stages content, checks its size (and digest, when expected is not
+// empty) and publishes it as an immutable object. It returns the digest.
+func (store *Store) publish(ctx context.Context, content io.Reader, bytes uint64, expected string) (string, error) {
+	stagingDirectory := filepath.Join(store.root, ".staging")
+	if err := ensureRealDirectory(stagingDirectory); err != nil {
+		return "", err
+	}
+	stage, err := os.CreateTemp(stagingDirectory, "blob-*.partial")
+	if err != nil {
+		return "", fmt.Errorf("create blob stage: %w", err)
+	}
+	stagePath := stage.Name()
+	stageKept := false
+	defer func() {
+		_ = stage.Close()
+		if !stageKept {
+			_ = os.Remove(stagePath)
+		}
+	}()
+
+	hash := sha256.New()
+	written, copyErr := io.Copy(io.MultiWriter(stage, hash), ctxio.Reader(ctx, io.LimitReader(content, int64(bytes)+1)))
+	if copyErr == nil && uint64(written) != bytes {
+		copyErr = fmt.Errorf("declared %d bytes but received %d", bytes, written)
+	}
+	if copyErr == nil {
+		copyErr = stage.Sync()
+	}
+	closeErr := stage.Close()
+	if copyErr != nil || closeErr != nil {
+		return "", fmt.Errorf("write blob stage: %w", errors.Join(copyErr, closeErr))
+	}
+	digest := hex.EncodeToString(hash.Sum(nil))
+	if expected != "" && digest != expected {
+		return "", fmt.Errorf("%w: content does not match its digest %s", ErrInvalid, expected)
+	}
+	objectPath := store.objectPath(digest)
+	if err := ensureRealDirectory(filepath.Join(store.root, "sha256")); err != nil {
+		return "", err
+	}
+	if err := ensureRealDirectory(filepath.Dir(objectPath)); err != nil {
+		return "", err
+	}
+	if err := publishObject(stagePath, objectPath, bytes, digest); err != nil {
+		return "", err
+	}
+	stageKept = true
+	return digest, nil
+}
+
+// ImportObject publishes content that must have the given digest and size,
+// such as a file from a backup bundle. Publishing an existing object only
+// validates it.
+func (store *Store) ImportObject(ctx context.Context, digest string, bytes uint64, content io.Reader) error {
+	if !validDigest(digest) || bytes > store.maximumBytes {
+		return ErrInvalid
+	}
+	_, err := store.publish(ctx, content, bytes, digest)
+	return err
+}
+
+// ObjectFile opens the immutable object with this digest, whether or not any
+// handle to it is currently deleted.
+func (store *Store) ObjectFile(digest string, bytes uint64) (*os.File, error) {
+	if !validDigest(digest) {
+		return nil, ErrInvalid
+	}
+	file, err := os.Open(store.objectPath(digest))
+	if err != nil {
+		return nil, fmt.Errorf("%w: open object %s: %v", ErrCorrupt, digest, err)
+	}
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() < 0 || uint64(info.Size()) != bytes {
+		_ = file.Close()
+		return nil, fmt.Errorf("%w: object %s has invalid size or type", ErrCorrupt, digest)
+	}
+	return file, nil
+}
+
+// ImportHandle records a handle from a backup bundle under its original ID,
+// logically deleted until a restore revives it, inside the caller's
+// transaction. Its object must already be published. An existing handle with
+// the same ID must name the same object and owner.
+func (store *Store) ImportHandle(ctx context.Context, tx *sql.Tx, blob Blob) error {
+	mediaType, err := validateCreateRequest(CreateRequest{
+		Content: strings.NewReader(""), Bytes: blob.Bytes, OwnerKind: blob.OwnerKind, OwnerID: blob.OwnerID,
+		Purpose: blob.Purpose, MediaType: blob.MediaType, OriginalName: blob.OriginalName, Visibility: blob.Visibility,
+	}, store.maximumBytes)
+	if err != nil || !validID(blob.ID) || !validDigest(blob.SHA256) {
+		return ErrInvalid
+	}
+	var existingDigest, existingOwner string
+	var existingKind OwnerKind
+	err = tx.QueryRowContext(ctx, `SELECT object_sha256, owner_kind, owner_id FROM blobs WHERE blob_id = ?`, blob.ID).Scan(&existingDigest, &existingKind, &existingOwner)
+	if err == nil {
+		if existingDigest != blob.SHA256 || existingKind != blob.OwnerKind || existingOwner != blob.OwnerID {
+			return fmt.Errorf("%w: blob %s already exists with other content or owner", ErrConflict, blob.ID)
+		}
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	object, err := store.ObjectFile(blob.SHA256, blob.Bytes)
+	if err != nil {
+		return err
+	}
+	if err := object.Close(); err != nil {
+		return err
+	}
+	now := store.now().UTC().Format(time.RFC3339Nano)
+	if _, err := tx.ExecContext(ctx, `INSERT INTO blob_objects(sha256, bytes, created_at) VALUES (?, ?, ?) ON CONFLICT(sha256) DO NOTHING`,
+		blob.SHA256, blob.Bytes, now); err != nil {
+		return fmt.Errorf("record blob object: %w", err)
+	}
+	var recorded uint64
+	if err := tx.QueryRowContext(ctx, `SELECT bytes FROM blob_objects WHERE sha256 = ?`, blob.SHA256).Scan(&recorded); err != nil {
+		return err
+	}
+	if recorded != blob.Bytes {
+		return fmt.Errorf("%w: object metadata differs for %s", ErrCorrupt, blob.SHA256)
+	}
+	createdAt := blob.CreatedAt.UTC().Format(time.RFC3339Nano)
+	_, err = tx.ExecContext(ctx, `INSERT INTO blobs(
+			blob_id, object_sha256, owner_kind, owner_id, purpose, media_type,
+			original_name, visibility, revision, deleted, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?)`,
+		blob.ID, blob.SHA256, blob.OwnerKind, blob.OwnerID, blob.Purpose, mediaType,
+		blob.OriginalName, blob.Visibility, createdAt, now)
+	if err != nil {
+		return fmt.Errorf("record blob handle: %w", err)
+	}
+	return nil
+}
+
 // ownerPart names the recovery part a blob belongs to: its add-on, or "" for
 // the campaign.
 func ownerPart(kind OwnerKind, owner string) string {
@@ -407,6 +505,14 @@ func validID(value string) bool {
 		return false
 	}
 	_, err := hex.DecodeString(value[2:])
+	return err == nil
+}
+
+func validDigest(value string) bool {
+	if len(value) != 64 || strings.ToLower(value) != value {
+		return false
+	}
+	_, err := hex.DecodeString(value)
 	return err == nil
 }
 

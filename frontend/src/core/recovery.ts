@@ -194,50 +194,44 @@ export async function recoveryRequest(
   return parseRecoveryListing(value);
 }
 
-export interface StagedBackupRestore {
+export interface ImportedBackup {
   readonly createdAt: string;
-  readonly hostVersion: string;
+  readonly parts: number;
 }
-export type BackupRestoreErrorCode =
-  "invalid" | "pending" | "busy" | "too-large" | "forbidden" | "failed";
-export class BackupRestoreError extends Error {
+export type BackupImportErrorCode = "invalid" | "too-large" | "forbidden" | "failed";
+export class BackupImportError extends Error {
   constructor(
-    readonly code: BackupRestoreErrorCode,
+    readonly code: BackupImportErrorCode,
     readonly detail = "",
   ) {
     super(code);
   }
 }
 
-const stagedRestoreKeys: ReadonlySet<string> = new Set([
-  "contractVersion",
-  "createdAt",
-  "hostVersion",
-  "appliedMigrations",
-]);
-export function parseStagedBackupRestore(value: unknown): StagedBackupRestore {
-  const where = "POST /api/backup/restore";
+export function parseImportedBackup(value: unknown): ImportedBackup {
   if (
     !isRecord(value) ||
-    !hasOnlyKeys(value, stagedRestoreKeys) ||
-    value["contractVersion"] !== "backup-restore.v1" ||
+    !hasOnlyKeys(value, new Set(["contractVersion", "createdAt", "parts"])) ||
+    value["contractVersion"] !== "backup-import.v1" ||
     typeof value["createdAt"] !== "string" ||
     Number.isNaN(Date.parse(value["createdAt"])) ||
-    typeof value["hostVersion"] !== "string" ||
-    !natural(value["appliedMigrations"])
+    !natural(value["parts"]) ||
+    value["parts"] < 1
   )
-    throw new BoundaryValidationError(where, "response must be a staged restore");
-  return { createdAt: value["createdAt"], hostVersion: value["hostVersion"] };
+    throw new BoundaryValidationError("POST /api/backup/import", "response must be an import");
+  return { createdAt: value["createdAt"], parts: value["parts"] };
 }
 
-// Uploads a full backup. The host verifies and stages it, then restarts to
-// install it; the current data is unchanged until then.
-export async function restoreFullBackup(
+/**
+ * Uploads a downloaded backup. The host checks it and adds each part as an
+ * imported recovery point; current data stays as it is until one is restored.
+ */
+export async function importBackup(
   signal: AbortSignal,
   csrfToken: string,
   archive: Blob,
-): Promise<StagedBackupRestore> {
-  const response = await sessionFetch("/api/backup/restore", {
+): Promise<ImportedBackup> {
+  const response = await sessionFetch("/api/backup/import", {
     signal,
     method: "POST",
     credentials: "same-origin",
@@ -255,53 +249,18 @@ export async function restoreFullBackup(
     signal,
   );
   signal.throwIfAborted();
-  if (response.ok) return parseStagedBackupRestore(value);
+  if (response.ok) return parseImportedBackup(value);
   const error = isRecord(value) && isRecord(value["error"]) ? value["error"] : {};
   const kind = error["kind"];
-  const codes: Readonly<Record<string, BackupRestoreErrorCode>> = {
+  const codes: Readonly<Record<string, BackupImportErrorCode>> = {
     INVALID_BACKUP: "invalid",
-    RESTORE_PENDING: "pending",
-    RESTORE_IN_PROGRESS: "busy",
     PAYLOAD_TOO_LARGE: "too-large",
     FORBIDDEN: "forbidden",
   };
-  throw new BackupRestoreError(
+  throw new BackupImportError(
     (typeof kind === "string" ? codes[kind] : undefined) ?? "failed",
     kind === "INVALID_BACKUP" && typeof error["message"] === "string"
       ? error["message"].slice(0, 500)
       : "",
   );
-}
-
-// Resolves once the restarted host answers health checks, or false after the
-// deadline. The first checks wait for the old process to stop serving.
-export async function waitForHostRestart(
-  signal: AbortSignal,
-  { delay = 3000, interval = 2000, deadline = 5 * 60_000 } = {},
-): Promise<boolean> {
-  const sleep = async (ms: number) => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      await waitForSignal(
-        new Promise<void>((resolve) => {
-          timer = setTimeout(resolve, ms);
-        }),
-        signal,
-      );
-    } finally {
-      clearTimeout(timer);
-    }
-  };
-  const started = Date.now();
-  await sleep(delay);
-  while (Date.now() - started < deadline) {
-    signal.throwIfAborted();
-    const response = await sessionFetch("/api/health", { signal, cache: "no-store" }).catch(
-      () => undefined,
-    );
-    signal.throwIfAborted();
-    if (response?.ok) return true;
-    await sleep(interval);
-  }
-  return false;
 }

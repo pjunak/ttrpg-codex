@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"sync"
 	"time"
 
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
@@ -33,8 +32,7 @@ type Config struct {
 	CampaignTwinWriter       CampaignMutationAuthorizer
 	CampaignEnums            CampaignEnums
 	CampaignEnumWriter       CampaignMutationAuthorizer
-	BackupArchives           BackupArchives
-	BackupRestores           BackupRestores
+	BackupBundles            BackupBundles
 	RecoveryPoints           RecoveryPoints
 	BackupAuthorizer         AdminAuthorizer
 	Media                    MediaAssets
@@ -72,9 +70,7 @@ type server struct {
 	campaignTwinWriter       CampaignMutationAuthorizer
 	campaignEnums            CampaignEnums
 	campaignEnumWriter       CampaignMutationAuthorizer
-	backupArchives           BackupArchives
-	backupRestores           BackupRestores
-	restoreBusy              sync.Mutex
+	backupBundles            BackupBundles
 	recoveryPoints           RecoveryPoints
 	backupAuthorizer         AdminAuthorizer
 	media                    MediaAssets
@@ -100,8 +96,7 @@ func New(config Config) (http.Handler, error) {
 		(config.CampaignMutations == nil) != (config.CampaignWriter == nil) ||
 		(config.CampaignTwins == nil) != (config.CampaignTwinWriter == nil) ||
 		(config.CampaignEnums == nil) != (config.CampaignEnumWriter == nil) ||
-		(config.BackupArchives == nil) != (config.BackupAuthorizer == nil) ||
-		config.BackupRestores != nil && config.BackupArchives == nil ||
+		(config.BackupBundles == nil) != (config.BackupAuthorizer == nil) ||
 		config.RecoveryPoints != nil && config.Authentication == nil ||
 		(config.Media == nil) != (config.MediaAuthorizer == nil) ||
 		(config.AddonData == nil) != (config.AddonDataAuthorizer == nil) ||
@@ -129,8 +124,7 @@ func New(config Config) (http.Handler, error) {
 		campaignMutations: config.CampaignMutations, campaignWriter: config.CampaignWriter,
 		campaignTwins: config.CampaignTwins, campaignTwinWriter: config.CampaignTwinWriter,
 		campaignEnums: config.CampaignEnums, campaignEnumWriter: config.CampaignEnumWriter,
-		backupArchives: config.BackupArchives, backupAuthorizer: config.BackupAuthorizer,
-		backupRestores: config.BackupRestores,
+		backupBundles: config.BackupBundles, backupAuthorizer: config.BackupAuthorizer,
 		recoveryPoints: config.RecoveryPoints,
 		media:          config.Media, mediaAuthorizer: config.MediaAuthorizer,
 		addonData: config.AddonData, addonDataAuthorizer: config.AddonDataAuthorizer,
@@ -162,7 +156,7 @@ func New(config Config) (http.Handler, error) {
 	if s.campaignData != nil || s.campaignMutations != nil || s.campaignTwins != nil || s.campaignEnums != nil {
 		s.registerCampaignRoutes(mux)
 	}
-	if s.backupArchives != nil {
+	if s.backupBundles != nil {
 		s.registerBackupRoutes(mux)
 	}
 	if s.recoveryPoints != nil {

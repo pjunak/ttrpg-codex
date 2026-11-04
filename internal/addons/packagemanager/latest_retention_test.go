@@ -196,51 +196,6 @@ func TestAutomaticRetentionLeavesFailedAndCancelledUpdatesUntouched(t *testing.T
 	}
 }
 
-func TestAutomaticCleanupWaitsForPackageSnapshot(t *testing.T) {
-	ctx := context.Background()
-	db := testDatabase(t)
-	dir := filepath.Join(t.TempDir(), "addons")
-	manager, _ := testManager(t, db, dir, &fakeRuntimeFactory{})
-	if err := manager.ConfigurePackageRetention(ctx, true); err != nil {
-		t.Fatal(err)
-	}
-	old := installUninstallFixture(t, manager, packageSpec{ID: "example", Version: "1.0.0"})
-	next, err := manager.Stage(ctx, writeAddonPackage(t, packageSpec{ID: "example", Version: "2.0.0"}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	entered, release, snapshotDone := make(chan struct{}), make(chan struct{}), make(chan error, 1)
-	go func() {
-		snapshotDone <- manager.WithPackageSnapshot(ctx, func() error {
-			close(entered)
-			<-release
-			_, err := manager.loadPackage(ctx, "example", old.GenerationID)
-			return err
-		})
-	}()
-	<-entered
-	if manager.mu.TryLock() {
-		manager.mu.Unlock()
-		close(release)
-		t.Fatal("snapshot does not hold lifecycle lock")
-	}
-	activationDone := make(chan error, 1)
-	go func() {
-		_, err := manager.Activate(ctx, ActivationPlan{AddonID: "example", GenerationID: next.GenerationID, ExpectedStateRevision: 1})
-		activationDone <- err
-	}()
-	close(release)
-	if err := <-snapshotDone; err != nil {
-		t.Fatal("snapshot lost old files", err)
-	}
-	if err := <-activationDone; err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "example", "generations", old.GenerationID)); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("post-snapshot cleanup did not finish", err)
-	}
-}
-
 func TestBackupRequiresTheSelectedPackageFiles(t *testing.T) {
 	ctx := context.Background()
 	db := testDatabase(t)
@@ -249,8 +204,11 @@ func TestBackupRequiresTheSelectedPackageFiles(t *testing.T) {
 	m, _ := testManager(t, db, directory, &fakeRuntimeFactory{})
 	installed := installUninstallFixture(t, m, packageSpec{ID: "example", Version: "1.0.0"})
 	out := filepath.Join(t.TempDir(), "backup.zip")
-	creator := &backuparchive.Creator{Database: db, DataDirectory: root, HostVersion: "test", PackageSnapshot: m.WithPackageSnapshot}
-	if _, err := creator.Create(ctx, out); err != nil {
+	create := func(output string) error {
+		_, err := backuparchive.Create(ctx, backuparchive.CreateConfig{Database: db, DataDirectory: root, OutputPath: output, HostVersion: "test"})
+		return err
+	}
+	if err := create(out); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := backuparchive.Verify(ctx, backuparchive.VerifyConfig{ArchivePath: out, Migrations: migrations.FS}); err != nil {
@@ -261,7 +219,7 @@ func TestBackupRequiresTheSelectedPackageFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	missing := filepath.Join(t.TempDir(), "missing.zip")
-	if _, err := creator.Create(ctx, missing); !errors.Is(err, backuparchive.ErrInvalidArchive) {
+	if err := create(missing); !errors.Is(err, backuparchive.ErrInvalidArchive) {
 		t.Fatal("published a backup without required package files", err)
 	}
 	if _, err := os.Stat(missing); !errors.Is(err, os.ErrNotExist) {

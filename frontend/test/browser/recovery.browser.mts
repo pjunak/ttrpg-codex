@@ -177,8 +177,8 @@ for (const mobile of [false, true])
     const { page, context } = await open(t, mobile);
     const guide = panel(page).getByRole("link", {
       name: mobile
-        ? "Ověření a obnova úplné zálohy (anglicky, otevře novou kartu)"
-        : "Verify and restore a full backup (opens in a new tab)",
+        ? "Úplná záloha a obnova serveru (anglicky, otevře novou kartu)"
+        : "Full server backup and restore (opens in a new tab)",
     });
     assert.equal(
       await guide.getAttribute("href"),
@@ -268,6 +268,73 @@ for (const mobile of [false, true])
       ),
     );
     await page.locator(`[data-point-id="${id}"]`).waitFor({ state: "detached" });
+  });
+
+for (const mobile of [false, true])
+  void test(`a downloaded backup imports as points and restores the campaign (${mobile ? "Czech phone" : "English desktop"})`, async (t) => {
+    const key = `bundle-${mobile ? "phone" : "desktop"}`;
+    await put(key, "Saved in the backup");
+    const download = await admin.get("/api/backup");
+    assert.equal(download.status(), 200);
+    assert.match(download.headers()["content-disposition"] ?? "", /codex-backup-\d{8}-\d{6}\.zip/);
+    const bundle = await download.body();
+    await put(key, "Changed after download", 1);
+    const { page } = await open(t, mobile);
+    const form = page.locator(".settings-backup-import");
+    const submit = form.getByRole("button", {
+      name: mobile ? "⇪ Importovat" : "⇪ Import",
+      exact: true,
+    });
+    await form
+      .locator("input[name=archive]")
+      .setInputFiles({ name: "backup.zip", mimeType: "application/zip", buffer: bundle });
+    const imported = await mutation(page, () => submit.click(), "/api/backup/import");
+    assert.equal(imported.status(), 200);
+    await form
+      .getByRole("status")
+      // Only the campaign has data here, so the bundle has one part.
+      .filter({
+        hasText: mobile ? "importována jako 1 bod obnovy." : "imported as 1 recovery point.",
+      })
+      .waitFor();
+    await page.waitForFunction(() => !document.querySelector("codex-recovery-settings")!.busy);
+    const listing = await jsonResponse(await admin.get("/api/recovery"));
+    const point = listing.parts[0].points[0];
+    assert.equal(point.reason, "imported");
+    const row = page.locator(`[data-point-id="${point.id}"]`);
+    await row.getByText(mobile ? "Importováno" : "Imported", { exact: false }).waitFor();
+    await row.locator(".settings-btn-edit").click();
+    await jsonResponse(
+      await mutation(
+        page,
+        () =>
+          page
+            .locator(".settings-recovery-review")
+            .getByRole("button", { name: mobile ? "Obnovit" : "Restore", exact: true })
+            .click(),
+        "/api/recovery/restore",
+      ),
+    );
+    const campaign = await jsonResponse(await admin.get("/api/campaign"));
+    const record = campaign.collections
+      .find((collection: FixtureCollection) => collection.name === "characters")
+      .records.find((record: FixtureRecord) => record.key === key);
+    assert.equal(record.value.name, "Saved in the backup");
+    await form.locator("input[name=archive]").setInputFiles({
+      name: "notes.zip",
+      mimeType: "application/zip",
+      buffer: Buffer.from("not a backup"),
+    });
+    const refused = await mutation(page, () => submit.click(), "/api/backup/import");
+    assert.equal(refused.status(), 400);
+    await form.getByRole("alert").waitFor();
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      true,
+    );
+    await form.screenshot({
+      path: resolve(output, `backup-import-${mobile ? "phone-cs" : "desktop-en"}.png`),
+    });
   });
 
 void test("recovery retains uncertain results, guards pending writes and keeps backup private", async (t) => {

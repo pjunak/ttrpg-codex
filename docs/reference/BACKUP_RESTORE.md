@@ -1,6 +1,68 @@
-# Native backup and restore
+# Backup and restore
 
-A backup is a versioned recovery archive, not a directory copy.
+There are three layers of recovery, from the finest to the whole server:
+
+- **Recovery points** keep the campaign and each add-on's data in the database
+  and restore one part at a time ([below](#campaign-recovery-points)).
+- **Backup bundles** are what Settings → Backup & recovery downloads and
+  imports: the newest point of every part with the files those points use.
+- **Full archives** copy the whole data directory, including passwords and
+  installed add-on packages. Only the maintenance command makes and restores
+  them.
+
+## Backup bundle
+
+`GET /api/backup` (real and effective DM) first makes every current part's
+newest recovery point equal its current state: a part whose state differs
+from its newest point gets a `download` point; an unchanged part reuses its
+newest point, so repeated downloads add nothing. It then writes
+`codex-backup-bundle.v1` to operating-system temporary storage and streams it
+with no-store download headers as `codex-backup-YYYYMMDD-HHMMSS.zip`:
+
+```text
+manifest.json             format, createdAt, hostVersion, migration, parts, blobs
+parts/campaign.json       the campaign point's image
+parts/addons/<id>.json    one image per add-on with data, files or an active build
+blobs/sha256/<digest>     each file object a part needs, once per content
+```
+
+Each manifest part records its scope (and add-on ID), the point ID, date and
+reason, the add-on's active generation and release version, and the image's
+size and SHA-256. Each blob entry records the handle ID, content digest and
+size, owner, purpose, media type, original name, visibility and creation date.
+A part's files are exactly those the offline collector keeps for its image
+(`recoverystore.ImageBlobs`): live handles plus any blob ID its records,
+documents or media bindings mention. `migration` is the newest database
+migration of the writing host. Add-on packages, passwords, sessions, GitHub
+links and tokens, and older recovery points are not included.
+
+`POST /api/backup/import` (DM session plus CSRF, `Content-Type:
+application/zip`, at most 1 GiB) saves the upload to temporary storage and
+refuses, with `INVALID_BACKUP` and the reason, a bundle that:
+
+- has entries other than those the manifest declares, or a directory, link or
+  duplicate entry, or declared sizes or digests that do not match;
+- is another format, or comes from a host with a migration this one has not
+  applied;
+- has an image that is not a recovery point (all eight keys, `version: 1`), or
+  holds another part's data, lists another part's file, or needs a live file
+  or media binding whose file is not in the bundle;
+- reuses a file ID that this host has with other content or owner.
+
+An accepted bundle changes no current data. Missing file objects are published
+through the blob store's digest-checked path; missing handles are recorded
+under their original IDs as logically deleted; and each part becomes an
+`imported` recovery point dated when the bundle captured it, all in one
+transaction. The response is `backup-import.v1` (`createdAt`, `parts`). The DM
+then restores parts from their lists with the normal review: the campaign
+first, then add-ons, each of which needs the same build installed (the
+manifest names its release version). A restore revives exactly the files its
+image lists. Other refusals are `PAYLOAD_TOO_LARGE` (413) and
+`BACKUP_UNAVAILABLE` (503); both leave everything unchanged.
+
+## Full archive
+
+A full archive is a versioned recovery archive, not a directory copy.
 `codex-backup.v2` contains:
 
 - one online SQLite image at `codex.db`, including committed WAL state;
@@ -29,7 +91,7 @@ default, alongside the 100,000-file, 1 GiB archive and 4 GiB expanded-data
 limits. Creation refuses to publish an archive whose manifest exceeds that
 limit.
 
-## Commands
+### Commands
 
 Create a new archive. The destination must not already exist and must be
 outside the live data directory:
@@ -43,35 +105,28 @@ go run ./cmd/codex-maintenance backup `
 The SQLite online-backup API gives one committed database image while the host
 is running. Add-on generations and blob objects are safe to collect afterward
 because both publish complete immutable files before recording their database
-references. The download from `GET /api/backup` holds the add-on lifecycle lock
-from the SQLite snapshot through archive publication, so package cleanup,
-staging and activation wait for it. This command cannot take that lock in a
-running host, so package cleanup may remove a build the copied database still
-needs. It therefore verifies its finished archive as `verify` does and removes
-one that fails; create it again. Offline maintenance instead holds the
-host-process lock.
+references. The command cannot take the running host's add-on lifecycle lock,
+so package cleanup may remove a build the copied database still needs. It
+therefore verifies its finished archive as `verify` does and removes one that
+fails; create it again. Offline maintenance instead holds the host-process
+lock.
 The running host never physically collects blob objects; only the offline
 `codex-maintenance collect-blobs` command does, under the host-process lock
 ([how](../SELF_HOSTING.md#reviewed-offline-storage-maintenance)). Existing backup ZIPs own their copies
 of package files and do not prevent cleanup of an inactive live generation.
-Add-on recovery contexts retain exact package identities. Default
+Add-on recovery points retain exact package identities. Default
 [latest-only retention](PACKAGE_LIFECYCLE.md#automatic-package-file-retention)
-retires only obsolete add-on contexts, preserving their campaign snapshots.
+removes only the add-on points that need an obsolete build.
 
 A needed package whose files are missing or changed fails the backup before an
 output archive is published; upload the matching ZIP first. Verification and restore also require every active and
 recovery-referenced package ZIP and its extracted files to be complete and
 correct. A restored full backup can therefore start offline. Default latest-only
 retention also runs after healthy startup of a restored directory; to retain
-the archive's older add-on contexts, set `CODEX_ADDON_AUTO_CLEANUP=false`
+the archive's older add-on builds, set `CODEX_ADDON_AUTO_CLEANUP=false`
 before starting it. The input backup ZIP itself is never modified.
 An archive may include an approved pending cleanup receipt and remaining files;
 the restored host resumes that approved cleanup at startup.
-
-An authenticated real-and-effective-DM can download the same format from
-`GET /api/backup`. The handler creates the bounded archive in operating-system
-temporary storage, streams it with no-store download headers, and removes the
-stage after success, failure, or cancellation.
 
 Verify an archive without touching live data:
 
@@ -100,47 +155,23 @@ go run ./cmd/codex-maintenance restore `
 ```
 
 The host and restore command contend for the same operating-system file lock,
-so a live restore fails closed. The command installs the archive the same way
-as a restore from the web (below): it verifies and migrates a staging copy
-inside the data directory, moves every current entry except this server's
-`credentials/` aside, publishes the staged entries and removes the old copy
-only after validating the result. The data directory itself is never renamed,
-so it may be a mount point; a missing one is created. The journal records each
-phase, and the next restore or host start resumes an interrupted one.
-
-## Restore from the web
-
-A DM can restore a full archive from Settings → Backup & recovery without
-shell access. `POST /api/backup/restore` (DM session plus CSRF,
-`Content-Type: application/zip`, at most 1 GiB) saves the upload to temporary
-storage and runs the same verification as the offline command. The verified
-copy is extracted and migrated into `.restore-stage-*` inside the data
-directory, so it also works when that directory is a mount point. The running
-site is unchanged until `.restore-pending.json` is written; only then does the
-endpoint answer `202` with `backup-restore.v1` (`createdAt`, `hostVersion`,
-`appliedMigrations`) and the host shuts down with exit code 75.
-
-The supervisor (Docker's `restart: unless-stopped`) starts the host again.
-Before SQLite opens, startup moves every current entry except `credentials/`
-(this server's GitHub tokens) into `.restore-previous-*`, publishes the staged
-entries, validates the installed
+so a live restore fails closed. The command verifies the archive, then extracts
+and migrates a staging copy into `.restore-stage-*` inside the data directory,
+so it also works when that directory is a mount point; a missing one is
+created. It writes the `.restore-pending.json` journal, moves every current
+entry except this server's `credentials/` (its GitHub tokens) into
+`.restore-previous-*`, publishes the staged entries, validates the installed
 database and only then deletes the previous copy and the journal. The journal
-records each phase, so an interruption resumes where it stopped. If the staged
-files are missing or the installed database fails validation, startup refuses
-to continue and leaves the previous data in place for the operator.
+records each phase, so the next restore or host start resumes an interrupted
+one before SQLite opens. If the staged files are missing or the installed
+database fails validation, startup refuses to continue and leaves the previous
+data in place for the operator. Archives contain no sessions, so everyone signs
+in again, with the passwords saved in the archive.
 
-Refusals leave the site running: `INVALID_BACKUP` (400, with the reason, for
-example a recovery package this host no longer accepts), `RESTORE_PENDING` or
-`RESTORE_IN_PROGRESS` (409), `PAYLOAD_TOO_LARGE` (413) and
-`RESTORE_UNAVAILABLE` (503). Backups contain no sessions, so everyone signs in
-again, with the passwords saved in the archive.
-
-## Deliberate boundary
-
-Only `codex-backup.v2` archives are accepted. Settings → Backup & recovery downloads this same full archive, restores one
-(above) and links the [operator procedure](../SELF_HOSTING.md#verify-and-restore-a-full-backup)
-in both English and Czech. Campaign recovery points below work without a
-restart.
+Only `codex-backup.v2` archives are accepted. Settings links the
+[operator procedure](../SELF_HOSTING.md#verify-and-restore-a-full-backup) in
+both English and Czech; campaign recovery points and imported bundles work
+without a restart.
 
 ## Campaign recovery points
 
@@ -233,6 +264,8 @@ deletion and retirement rollback; `migration_test.go` covers the split of
 combined points. `latest_retention_test.go` proves
 campaign recovery and backup references survive obsolete package removal.
 `recovery.browser.mts` covers desktop/phone Settings, English/Czech copy, stale
-reviews, uncertain responses, pending navigation, undo and private ZIP download.
+reviews, uncertain responses, pending navigation, undo, private download, and
+importing a downloaded bundle and restoring from it. `internal/backupbundle`
+tests a round trip into a fresh host and every refusal above.
 `installed-sheets.browser.mts` verifies recovery in a real installed package and
 retention of an unsaved add-on draft in another tab.

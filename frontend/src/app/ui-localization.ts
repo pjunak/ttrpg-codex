@@ -46,7 +46,7 @@ const enCatalog = {
     other: "{n} relationships use this type. Deleting the type also deletes those relationships.",
   },
   "recovery.title": "Backup & recovery",
-  "recovery.download": "Download ZIP",
+  "recovery.download": "Download backup",
   "recovery.create": "Create recovery point",
   "recovery.refresh": "Refresh",
   "recovery.intro":
@@ -56,25 +56,23 @@ const enCatalog = {
   "recovery.addon": "Add-on: {addon}",
   "recovery.addonEffect":
     "This restores only the selected add-on's documents and files. Campaign records and other add-ons stay as they are. The current state is saved first. Linked records must still match; restore the campaign first if needed.",
-  "recovery.guide": "Verify and restore a full backup (opens in a new tab)",
+  "recovery.guide": "Full server backup and restore (opens in a new tab)",
   "recovery.offline":
-    "Download a full ZIP for an independent backup of the whole site, including add-ons and passwords.",
-  "recovery.fullTitle": "Restore a full backup",
-  "recovery.fullIntro":
-    "Replaces everything on this site with the uploaded backup: campaign, files, add-ons, passwords and recovery points. Download a ZIP of the current state first. The server restarts to finish and everyone has to sign in again.",
-  "recovery.fullFile": "Backup ZIP",
-  "recovery.fullConfirm": "Replace all current data with this backup",
-  "recovery.fullRestore": "Restore and restart",
-  "recovery.fullUploading": "Uploading and checking the backup…",
-  "recovery.fullRestarting":
-    "Backup from {date} accepted. The server is restarting to install it; this page reloads when it is back.",
-  "recovery.fullTimeout":
-    "The server is not back yet. If it does not restart on its own, start it again; it finishes installing the backup as it starts.",
-  "recovery.fullInvalid": "This file is not a valid backup: {detail}",
-  "recovery.fullPending": "A restored backup is already waiting for the server to restart.",
-  "recovery.fullBusy": "Another backup is being restored. Try again shortly.",
-  "recovery.fullTooLarge": "The backup is larger than the 1 GiB upload limit.",
-  "recovery.fullFailed": "The backup could not be restored. The current data is unchanged.",
+    "Download backup saves the newest point of the campaign and of each add-on, with their files, in one ZIP. Keep it somewhere other than this server.",
+  "recovery.importTitle": "Import a backup",
+  "recovery.importIntro":
+    "Adds each part of a downloaded backup as an imported recovery point; nothing changes until you restore one. Restore the campaign first, then each add-on, which needs the same version installed. Moving a whole server, with passwords and installed add-ons, uses the maintenance command's full archive.",
+  "recovery.importFile": "Backup ZIP",
+  "recovery.import": "Import",
+  "recovery.importing": "Uploading and checking the backup…",
+  "recovery.importDone": {
+    one: "Backup from {date} imported as {n} recovery point. Restore it from its part's list.",
+    other:
+      "Backup from {date} imported as {n} recovery points. Restore each from its part's list, the campaign first.",
+  },
+  "recovery.importInvalid": "This file is not a valid backup: {detail}",
+  "recovery.importTooLarge": "The backup is larger than the 1 GiB upload limit.",
+  "recovery.importFailed": "The backup could not be imported. Current data is unchanged.",
   "recovery.busy": "Working…",
   "recovery.revertCount": "Recent saves to undo",
   "recovery.revert": "Undo",
@@ -628,7 +626,7 @@ const csCatalog = {
     other: "Tento typ používá {n} vztahů. Odstraněním typu se odstraní i tyto vztahy.",
   },
   "recovery.title": "Zálohy a obnova",
-  "recovery.download": "Stáhnout ZIP",
+  "recovery.download": "Stáhnout zálohu",
   "recovery.create": "Vytvořit bod obnovy",
   "recovery.refresh": "Obnovit seznam",
   "recovery.intro":
@@ -638,25 +636,24 @@ const csCatalog = {
   "recovery.addon": "Doplněk: {addon}",
   "recovery.addonEffect":
     "Obnoví se pouze dokumenty a soubory vybraného doplňku. Záznamy kampaně a ostatní doplňky zůstanou beze změny. Současný stav se nejprve uloží. Propojené záznamy musí odpovídat; podle potřeby nejprve obnovte kampaň.",
-  "recovery.guide": "Ověření a obnova úplné zálohy (anglicky, otevře novou kartu)",
+  "recovery.guide": "Úplná záloha a obnova serveru (anglicky, otevře novou kartu)",
   "recovery.offline":
-    "Pro nezávislou zálohu celého webu včetně doplňků a hesel stáhněte úplný ZIP.",
-  "recovery.fullTitle": "Obnovit úplnou zálohu",
-  "recovery.fullIntro":
-    "Nahradí vše na tomto webu nahranou zálohou: kampaň, soubory, doplňky, hesla i body obnovy. Nejprve si stáhněte ZIP současného stavu. Server se pro dokončení restartuje a všichni se musí znovu přihlásit.",
-  "recovery.fullFile": "ZIP se zálohou",
-  "recovery.fullConfirm": "Nahradit všechna současná data touto zálohou",
-  "recovery.fullRestore": "Obnovit a restartovat",
-  "recovery.fullUploading": "Nahrávám a kontroluji zálohu…",
-  "recovery.fullRestarting":
-    "Záloha z {date} byla přijata. Server se restartuje, aby ji nainstaloval; stránka se po návratu znovu načte.",
-  "recovery.fullTimeout":
-    "Server zatím neodpovídá. Pokud se nerestartuje sám, spusťte jej znovu; instalaci zálohy dokončí při startu.",
-  "recovery.fullInvalid": "Tento soubor není platná záloha: {detail}",
-  "recovery.fullPending": "Obnovená záloha už čeká na restart serveru.",
-  "recovery.fullBusy": "Právě se obnovuje jiná záloha. Zkuste to za chvíli.",
-  "recovery.fullTooLarge": "Záloha je větší než limit 1 GiB pro nahrání.",
-  "recovery.fullFailed": "Zálohu se nepodařilo obnovit. Současná data zůstala beze změny.",
+    "Stažená záloha obsahuje v jednom ZIPu nejnovější bod kampaně i každého doplňku spolu s jejich soubory. Uložte ji mimo tento server.",
+  "recovery.importTitle": "Importovat zálohu",
+  "recovery.importIntro":
+    "Každá část stažené zálohy se přidá jako importovaný bod obnovy; nic se nezmění, dokud některý neobnovíte. Nejprve obnovte kampaň, potom jednotlivé doplňky, které musí mít nainstalovanou stejnou verzi. Přesun celého serveru včetně hesel a nainstalovaných doplňků se provádí úplným archivem údržbového příkazu.",
+  "recovery.importFile": "ZIP se zálohou",
+  "recovery.import": "Importovat",
+  "recovery.importing": "Nahrávám a kontroluji zálohu…",
+  "recovery.importDone": {
+    one: "Záloha z {date} byla importována jako {n} bod obnovy. Obnovte jej ze seznamu jeho části.",
+    few: "Záloha z {date} byla importována jako {n} body obnovy. Obnovte je ze seznamů jejich částí, nejprve kampaň.",
+    other:
+      "Záloha z {date} byla importována jako {n} bodů obnovy. Obnovte je ze seznamů jejich částí, nejprve kampaň.",
+  },
+  "recovery.importInvalid": "Tento soubor není platná záloha: {detail}",
+  "recovery.importTooLarge": "Záloha je větší než limit 1 GiB pro nahrání.",
+  "recovery.importFailed": "Zálohu se nepodařilo importovat. Současná data zůstala beze změny.",
   "recovery.busy": "Pracuji…",
   "recovery.revertCount": "Počet posledních uložení k vrácení",
   "recovery.revert": "Vrátit",

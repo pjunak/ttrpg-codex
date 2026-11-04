@@ -361,7 +361,7 @@ func TestOversizedCampaignSkipsAutomaticPointsWithoutFailingWrites(t *testing.T)
 	small := points(t, store, campaignPart)
 	// Grow the campaign past the point limit without going through the store.
 	execute(t, store.DB, `INSERT INTO campaign_records(collection_name, record_key, position, body_json, visibility, revision, created_at, updated_at)
-		VALUES ('characters', 'giant', 1, json_object('id', 'giant', 'notes', hex(zeroblob(?))), 'public', 1, 'now', 'now')`, maxImageBytes/2)
+		VALUES ('characters', 'giant', 1, json_object('id', 'giant', 'notes', hex(zeroblob(?))), 'public', 1, 'now', 'now')`, MaxImageBytes/2)
 	execute(t, store.DB, `DELETE FROM recovery_capture`)
 	put(t, records, "keeper", "After", 1)
 	put(t, records, "keeper", "Again", 2)

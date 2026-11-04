@@ -97,7 +97,7 @@ codex-recovery-settings {
 .settings-recovery-review p {
   font: var(--text-sm)/1.6 var(--font-ui);
 }
-.settings-full-restore {
+.settings-backup-import {
   display: grid;
   gap: var(--space-3);
   justify-items: start;
@@ -106,19 +106,14 @@ codex-recovery-settings {
   border-top: 1px solid var(--chrome-field-border);
   font: var(--text-sm) var(--font-ui);
 }
-.settings-full-restore h3 {
+.settings-backup-import h3 {
   font-family: var(--font-title);
   color: var(--accent-gold);
 }
-.settings-full-restore > label[data-ui-field] {
+.settings-backup-import > label[data-ui-field] {
   display: grid;
   gap: var(--space-2);
   max-width: 100%;
-}
-.settings-full-restore-confirm {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
 }
 @media (max-width: 48rem) {
   .settings-snapshot-row {
