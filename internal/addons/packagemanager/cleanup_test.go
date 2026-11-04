@@ -110,7 +110,11 @@ func TestCleanupProtectsRecoveryAndLastInstalledPackage(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if e = recovery.DeleteContext(ctx, recoverystore.DeleteRequest{Scope: recoverystore.Scope{Scope: "addon", AddonID: "example"}, ID: list.Points[0].ID, ExpectedRevision: list.Revision}); e != nil {
+	example := list.Parts[len(list.Parts)-1]
+	if example.AddonID != "example" {
+		t.Fatalf("recovery parts %+v", list.Parts)
+	}
+	if e = recovery.Delete(ctx, recoverystore.DeleteRequest{Scope: example.Scope, ID: example.Points[0].ID, ExpectedRevision: list.Revision}); e != nil {
 		t.Fatal(e)
 	}
 	if _, e = m.Cleanup(ctx, r.Scope, r.ReviewSHA256); !errors.Is(e, ErrReviewStale) {

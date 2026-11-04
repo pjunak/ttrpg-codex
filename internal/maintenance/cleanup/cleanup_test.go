@@ -14,6 +14,7 @@ import (
 	"github.com/pjunak/ttrpg-codex/internal/events"
 	storage "github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/recoverystore"
 )
 
 func database(t *testing.T) (*sql.DB, string) {
@@ -32,6 +33,14 @@ func database(t *testing.T) (*sql.DB, string) {
 func execute(t *testing.T, db *sql.DB, query string, args ...any) {
 	t.Helper()
 	if _, err := db.Exec(query, args...); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// snapshot saves a manual recovery point of every part.
+func snapshot(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if err := (&recoverystore.Store{DB: db}).Create(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -58,7 +67,7 @@ func TestNamespaceDeletionIsReviewedAtomicAndCannotBeUndoneByLocalRecovery(t *te
 		execute(t, db, "INSERT INTO addon_schema_reviews(review_id,addon_id,status,plan_json,snapshot_json) VALUES(?,?,'applied','{}','{}')", id, id)
 		execute(t, db, `INSERT INTO addon_update_attempts(review_id,addon_id,schema_review_id,request_sha256,previous_state_json,previous_ruleset_json,configuration_revision,configuration_changed,status) VALUES(?,?,?,?, '{}','null',0,0,'applied')`, id, id, id, strings.Repeat("a", 64))
 	}
-	execute(t, db, "INSERT INTO recovery_points(created_at,reason,image_json) SELECT 'now','manual',image_json FROM recovery_image")
+	snapshot(t, db)
 	options := Options{Kind: "delete-addon-data", AddonID: "retired-addon"}
 	report, err := Inspect(ctx, db, options)
 	if err != nil {
@@ -124,7 +133,7 @@ func TestReviewedLogRetentionPreservesRoleScopedReplayAndAuthoredHistory(t *test
 		}
 	}
 	document(t, db, "kept-addon")
-	execute(t, db, "INSERT INTO recovery_points(created_at,reason,image_json) SELECT 'now','manual',image_json FROM recovery_image")
+	snapshot(t, db)
 	for i := 0; i < 3; i++ {
 		execute(t, db, "INSERT INTO campaign_commits(actor_id,occurred_at,mutation_count) VALUES('dm','now',1)")
 		execute(t, db, "INSERT INTO campaign_commit_records VALUES(?,0,'characters','hero','put',0,1,'dm')", i+1)
@@ -146,7 +155,7 @@ func TestReviewedLogRetentionPreservesRoleScopedReplayAndAuthoredHistory(t *test
 	if count(t, db, "SELECT count(*) FROM campaign_commits") != 1 || count(t, db, "SELECT count(*) FROM campaign_commit_records") != 1 {
 		t.Fatal("audit children not bounded")
 	}
-	if count(t, db, "SELECT count(*) FROM addon_documents") != 1 || count(t, db, "SELECT count(*) FROM recovery_points") != 1 {
+	if count(t, db, "SELECT count(*) FROM addon_documents") != 1 || count(t, db, "SELECT count(*) FROM recovery_points") != 2 {
 		t.Fatal("authored data expired")
 	}
 	options.Events = 0
@@ -205,7 +214,7 @@ func TestBlobCollectionProtectsSharedRecoveryAndAuthoredReferencesAndResumes(t *
 	execute(t, db, "UPDATE blobs SET deleted=0 WHERE blob_id=?", ids[0])
 	recovery := object(t, db, directory, "recovery", ids[2])
 	execute(t, db, "UPDATE blobs SET deleted=0 WHERE blob_id=?", ids[2])
-	execute(t, db, "INSERT INTO recovery_points(created_at,reason,image_json) SELECT 'now','manual',image_json FROM recovery_image")
+	snapshot(t, db)
 	execute(t, db, "UPDATE blobs SET deleted=1 WHERE blob_id=?", ids[2])
 	removed := object(t, db, directory, "unused", ids[4])
 	orphan := object(t, db, directory, "orphan")

@@ -228,12 +228,14 @@ enforces the actual dependency graph.
 Settings → Backup & recovery provides manual points, automatic edit groups,
 restore/delete review, revert-last-N, and full ZIP download. Points cover
 campaign records, add-on documents and uploaded media; they preserve current
-passwords and installed add-ons. Each restore keeps a safety copy. Points live
-in the same database and retain only the newest 50, so keep an independent ZIP
-for recovery from disk loss. Choose Campaign or one add-on in the recovery panel.
+passwords and installed add-ons. Each restore keeps a safety copy. The campaign
+and each add-on have their own points: an edit saves only the part it changes,
+and each part keeps its newest 50. Points live in the same database, so keep an
+independent ZIP for recovery from disk loss. Choose Campaign or one add-on in
+the recovery panel.
 Campaign restore works without matching add-ons and leaves their current saves
 untouched. Add-on restore requires its own matching build, schema and linked
-record identities. Deleting its recovery context leaves the campaign snapshot
+record identities. Deleting an add-on's point leaves the campaign's points
 available. Use full offline restore when recovering packages or the entire host.
 See the [recovery contract](reference/BACKUP_RESTORE.md#campaign-recovery-points).
 

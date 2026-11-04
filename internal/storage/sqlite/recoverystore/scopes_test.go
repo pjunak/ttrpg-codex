@@ -61,14 +61,17 @@ func TestCampaignAndAddonRecoveryAreIndependent(t *testing.T) {
 	if err := s.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
-	id := listing(t, s).Points[0].ID
+	campaignPoint, sheets := points(t, s, campaignPart)[0], points(t, s, addonPart("sheets"))[0]
+	if campaignPoint.Media != 1 || sheets.Media != 1 || sheets.Documents != 1 || campaignPoint.Documents != 0 {
+		t.Fatalf("parts share media or documents: %+v %+v", campaignPoint, sheets)
+	}
 	put(t, records, "hero", "After", 1)
 	execute(t, s.DB, `UPDATE addon_documents SET body_json='{"text":"after"}',revision=2`)
 	execute(t, s.DB, `UPDATE addon_document_versions SET revision=2`)
 	execute(t, s.DB, `UPDATE blobs SET deleted=1,revision=2`)
 	// An unrelated missing provider cannot block restoring this add-on.
 	execute(t, s.DB, `UPDATE addon_package_states SET active_generation_id=NULL WHERE addon_id='planner'`)
-	restoreScope(t, s, id, Scope{Scope: "addon", AddonID: "sheets"})
+	restoreScope(t, s, sheets.ID, addonPart("sheets"))
 	assertOwnedRecovery(t, s, "sheets", "future", 3, 0)
 	assertOwnedRecovery(t, s, "planner", "after", 2, 1)
 	core, err := records.Get(ctx, campaign.Characters, "hero")
@@ -77,7 +80,7 @@ func TestCampaignAndAddonRecoveryAreIndependent(t *testing.T) {
 	}
 	// No add-on package is now compatible. Campaign recovery must still work.
 	execute(t, s.DB, `UPDATE addon_package_states SET active_generation_id=NULL`)
-	restoreScope(t, s, id, Scope{Scope: "campaign"})
+	restoreScope(t, s, campaignPoint.ID, campaignPart)
 	core, err = records.Get(ctx, campaign.Characters, "hero")
 	if err != nil || core.Revision != 3 || !strings.Contains(string(core.Value), "Before") {
 		t.Fatal("campaign restore failed", core, err)
@@ -94,7 +97,7 @@ func TestCampaignAndAddonRecoveryAreIndependent(t *testing.T) {
 	}
 }
 
-func TestRetiringAndDeletingContextsPreservesOtherRecovery(t *testing.T) {
+func TestRetiringAndDeletingPointsPreservesOtherParts(t *testing.T) {
 	s, records := fixture(t)
 	ctx := context.Background()
 	put(t, records, "hero", "Before", 0)
@@ -103,43 +106,38 @@ func TestRetiringAndDeletingContextsPreservesOtherRecovery(t *testing.T) {
 	if err := s.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
-	id := listing(t, s).Points[0].ID
+	campaignPoint := points(t, s, campaignPart)[0]
+	planner := points(t, s, addonPart("planner"))[0]
+	before := listing(t, s)
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := RetireAddonContext(ctx, tx, "sheets", hash); err != nil {
+	if err := RetireAddonGeneration(ctx, tx, "sheets", hash); err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	point := listing(t, s).Points[0]
-	if point.ID != id || !point.CampaignAvailable || point.Records != 1 || len(point.Addons) != 1 || point.Addons[0].AddonID != "planner" {
-		t.Fatalf("wrong context retirement: %+v", point)
+	after := listing(t, s)
+	if after.Revision == before.Revision || points(t, s, addonPart("sheets")) != nil ||
+		len(points(t, s, campaignPart)) != len(before.Parts[0].Points) || len(points(t, s, addonPart("planner"))) != 1 {
+		t.Fatalf("wrong generation retirement: %+v", after.Parts)
 	}
 	assertOwnedRecovery(t, s, "sheets", "future", 1, 0)
-	restoreScope(t, s, id, Scope{Scope: "campaign"})
-	if err := s.DeleteContext(ctx, DeleteRequest{Scope: Scope{Scope: "campaign"}, ID: id, ExpectedRevision: listing(t, s).Revision}); err != nil {
+	restoreScope(t, s, campaignPoint.ID, campaignPart)
+	if err := s.Delete(ctx, DeleteRequest{Scope: campaignPart, ID: campaignPoint.ID, ExpectedRevision: listing(t, s).Revision}); err != nil {
 		t.Fatal(err)
 	}
-	var remaining Point
-	for _, p := range listing(t, s).Points {
-		if p.ID == id {
-			remaining = p
-		}
+	if got := points(t, s, campaignPart); len(got) != len(before.Parts[0].Points) || got[0].Reason != "pre-restore" || got[1].ID == campaignPoint.ID {
+		t.Fatalf("campaign deletion removed the wrong point: %+v", got)
 	}
-	if remaining.CampaignAvailable || len(remaining.Addons) != 1 {
-		t.Fatal("campaign deletion lost add-on context", remaining)
-	}
-	restoreScope(t, s, id, Scope{Scope: "addon", AddonID: "planner"})
-	if err := s.DeleteContext(ctx, DeleteRequest{Scope: Scope{Scope: "addon", AddonID: "planner"}, ID: id, ExpectedRevision: listing(t, s).Revision}); err != nil {
+	restoreScope(t, s, planner.ID, addonPart("planner"))
+	if err := s.Delete(ctx, DeleteRequest{Scope: addonPart("planner"), ID: planner.ID, ExpectedRevision: listing(t, s).Revision}); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range listing(t, s).Points {
-		if p.ID == id {
-			t.Fatal("empty recovery envelope retained")
-		}
+	if got := points(t, s, addonPart("planner")); len(got) != 1 || got[0].Reason != "pre-restore" {
+		t.Fatalf("add-on deletion removed the wrong point: %+v", got)
 	}
 }
 
@@ -153,18 +151,18 @@ func TestAddonRecoveryRejectsReusedLinkedRecordUntilCampaignIsRestored(t *testin
 	if err := s.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
-	id := listing(t, s).Points[0].ID
+	campaignPoint, sheets := points(t, s, campaignPart)[0], points(t, s, addonPart("sheets"))[0]
 	execute(t, s.DB, `UPDATE campaign_records SET created_at='different-incarnation' WHERE record_key='hero'`)
 	before := listing(t, s)
-	err := s.Restore(ctx, RestoreRequest{Scope: Scope{Scope: "addon", AddonID: "sheets"}, ID: id, ExpectedRevision: before.Revision}, "dm")
+	err := s.Restore(ctx, RestoreRequest{Scope: addonPart("sheets"), ID: sheets.ID, ExpectedRevision: before.Revision}, "dm")
 	if !errors.Is(err, ErrCompatibility) {
 		t.Fatal("attached old extension to reused ID", err)
 	}
-	if after := listing(t, s); after.Revision != before.Revision || len(after.Points) != len(before.Points) {
+	if after := listing(t, s); after.Revision != before.Revision || len(after.Parts) != len(before.Parts) {
 		t.Fatal("failed recovery left changes")
 	}
-	restoreScope(t, s, id, Scope{Scope: "campaign"})
-	restoreScope(t, s, id, Scope{Scope: "addon", AddonID: "sheets"})
+	restoreScope(t, s, campaignPoint.ID, campaignPart)
+	restoreScope(t, s, sheets.ID, addonPart("sheets"))
 }
 
 func TestRecoveryRejectsInvalidOrMissingScopeAndRetirementRollsBack(t *testing.T) {
@@ -175,11 +173,12 @@ func TestRecoveryRejectsInvalidOrMissingScopeAndRetirementRollsBack(t *testing.T
 		t.Fatal(err)
 	}
 	before := listing(t, s)
+	sheets := points(t, s, addonPart("sheets"))[0]
 	for _, scope := range []Scope{{Scope: "unknown"}, {Scope: "campaign", AddonID: "sheets"}, {Scope: "addon"}, {Scope: "addon", AddonID: "../sheets"}} {
-		if err := s.Restore(ctx, RestoreRequest{Scope: scope, ID: before.Points[0].ID, ExpectedRevision: before.Revision}, "dm"); !errors.Is(err, ErrInvalid) {
+		if err := s.Restore(ctx, RestoreRequest{Scope: scope, ID: sheets.ID, ExpectedRevision: before.Revision}, "dm"); !errors.Is(err, ErrInvalid) {
 			t.Fatal("invalid restore scope", scope, err)
 		}
-		if err := s.DeleteContext(ctx, DeleteRequest{Scope: scope, ID: before.Points[0].ID, ExpectedRevision: before.Revision}); !errors.Is(err, ErrInvalid) {
+		if err := s.Delete(ctx, DeleteRequest{Scope: scope, ID: sheets.ID, ExpectedRevision: before.Revision}); !errors.Is(err, ErrInvalid) {
 			t.Fatal("invalid delete scope", scope, err)
 		}
 	}
@@ -187,17 +186,18 @@ func TestRecoveryRejectsInvalidOrMissingScopeAndRetirementRollsBack(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := RetireAddonContext(ctx, tx, "sheets", hash); err != nil {
+	if err := RetireAddonGeneration(ctx, tx, "sheets", hash); err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.Rollback(); err != nil {
 		t.Fatal(err)
 	}
-	after := listing(t, s)
-	if after.Revision != before.Revision || len(after.Points[0].Addons) != 1 {
+	if after := listing(t, s); after.Revision != before.Revision || len(points(t, s, addonPart("sheets"))) != 1 {
 		t.Fatal("rolled back retirement escaped", after)
 	}
-	if err := s.DeleteContext(ctx, DeleteRequest{Scope: Scope{Scope: "addon", AddonID: "missing"}, ID: before.Points[0].ID, ExpectedRevision: before.Revision}); !errors.Is(err, ErrNotFound) {
-		t.Fatal(err)
+	for _, scope := range []Scope{addonPart("missing"), campaignPart} {
+		if err := s.Delete(ctx, DeleteRequest{Scope: scope, ID: sheets.ID, ExpectedRevision: before.Revision}); !errors.Is(err, ErrNotFound) {
+			t.Fatal("deleted a point through another part", scope, err)
+		}
 	}
 }

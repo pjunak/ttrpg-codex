@@ -21,20 +21,24 @@ func TestFactionPictureMigrationKeepsMediaAndRecovery(t *testing.T) {
 	}
 	t.Cleanup(func() { db.Close() })
 
-	before := fstest.MapFS{}
+	// Stop at 0028: migration 0029 retires the combined recovery view checked here.
+	before, through := fstest.MapFS{}, fstest.MapFS{}
 	entries, err := fs.ReadDir(migrations.FS, ".")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, entry := range entries {
-		if entry.Name() >= "0028" {
+		if entry.Name() >= "0029" {
 			continue
 		}
 		body, err := fs.ReadFile(migrations.FS, entry.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
-		before[entry.Name()] = &fstest.MapFile{Data: body}
+		through[entry.Name()] = &fstest.MapFile{Data: body}
+		if entry.Name() < "0028" {
+			before[entry.Name()] = &fstest.MapFile{Data: body}
+		}
 	}
 	if _, err := Migrate(ctx, db, before); err != nil {
 		t.Fatal(err)
@@ -49,7 +53,7 @@ func TestFactionPictureMigrationKeepsMediaAndRecovery(t *testing.T) {
 	execute(t, db, `INSERT INTO core_media_assets(sequence, blob_id, kind, target_key, created_at) VALUES (7, ?, 'character-portrait', 'hero', 'then')`,
 		"b_"+strings.Repeat("1", 32))
 
-	if _, err := Migrate(ctx, db, migrations.FS); err != nil {
+	if _, err := Migrate(ctx, db, through); err != nil {
 		t.Fatal(err)
 	}
 

@@ -54,6 +54,21 @@ func listing(t *testing.T, store *Store) Listing {
 	}
 	return result
 }
+
+var campaignPart = Scope{Scope: "campaign"}
+
+func addonPart(id string) Scope { return Scope{Scope: "addon", AddonID: id} }
+
+// points returns one part's points, newest first.
+func points(t *testing.T, store *Store, part Scope) []Point {
+	t.Helper()
+	for _, listed := range listing(t, store).Parts {
+		if listed.Scope == part {
+			return listed.Points
+		}
+	}
+	return nil
+}
 func put(t *testing.T, records *campaignstore.Store, key, name string, revision int64) {
 	t.Helper()
 	_, err := records.Transact(context.Background(), campaign.Transaction{ActorID: "dm", Mutations: []campaign.Mutation{{Kind: campaign.Put, Collection: campaign.Characters, Key: key, ExpectedRevision: revision, Value: []byte(`{"id":"` + key + `","name":"` + name + `","future":{"kept":true}}`)}}})
@@ -69,7 +84,27 @@ func registerPackage(t *testing.T, store *Store, addonID, generation string) {
 
 func restore(t *testing.T, store *Store, id int64) {
 	t.Helper()
-	if err := store.Restore(context.Background(), RestoreRequest{Scope: Scope{Scope: "campaign"}, ID: id, ExpectedRevision: listing(t, store).Revision}, "dm"); err != nil {
+	if err := store.Restore(context.Background(), RestoreRequest{Scope: campaignPart, ID: id, ExpectedRevision: listing(t, store).Revision}, "dm"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeAddon runs the add-on data store's write hook in its own transaction,
+// as an add-on document write does.
+func writeAddon(t *testing.T, store *Store, addonID, text string) {
+	t.Helper()
+	tx, err := store.DB.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if err := store.BeforeWrite(context.Background(), tx, addonID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(`UPDATE addon_documents SET body_json = json_object('text', ?), revision = revision + 1 WHERE addon_id = ?`, text, addonID); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -89,15 +124,22 @@ func TestRestorePreservesDataAndAdvancesRevisions(t *testing.T) {
 	if err := store.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
-	point := listing(t, store).Points[0]
+	point := points(t, store, campaignPart)[0]
+	sheets := points(t, store, addonPart("sheets"))[0]
+	if planner := points(t, store, addonPart("planner")); len(planner) != 1 || planner[0].Documents != 0 {
+		t.Fatalf("manual point skipped an add-on part: %+v", planner)
+	}
+	if point.Documents != 0 || sheets.Records != 0 || sheets.Documents != 1 || sheets.GenerationID != digest {
+		t.Fatalf("parts share data: campaign %+v sheets %+v", point, sheets)
+	}
 	put(t, records, "keeper", "After", 1)
 	put(t, records, "newcomer", "New", 0)
 	execute(t, store.DB, `UPDATE addon_documents SET body_json='{"notes":"after"}',revision=2`)
 	execute(t, store.DB, `UPDATE addon_document_versions SET revision=2`)
 	stale := listing(t, store).Revision
 	restore(t, store, point.ID)
-	safety := listing(t, store).Points[0]
-	restoreScope(t, store, point.ID, Scope{Scope: "addon", AddonID: "sheets"})
+	safety := points(t, store, campaignPart)[0]
+	restoreScope(t, store, sheets.ID, addonPart("sheets"))
 	got, err := records.Get(ctx, campaign.Characters, "keeper")
 	if err != nil {
 		t.Fatal(err)
@@ -123,11 +165,11 @@ func TestRestorePreservesDataAndAdvancesRevisions(t *testing.T) {
 	if err := store.DB.QueryRow(`SELECT revision FROM host_credentials`).Scan(&revision); err != nil || revision != 7 {
 		t.Fatal("credentials changed")
 	}
-	if err := store.Restore(ctx, RestoreRequest{Scope: Scope{Scope: "campaign"}, ID: point.ID, ExpectedRevision: stale}, "dm"); !errors.Is(err, ErrConflict) {
+	if err := store.Restore(ctx, RestoreRequest{Scope: campaignPart, ID: point.ID, ExpectedRevision: stale}, "dm"); !errors.Is(err, ErrConflict) {
 		t.Fatalf("accepted stale review: %v", err)
 	}
-	if safety.Reason != "pre-restore" {
-		t.Fatal("missing safety point")
+	if safety.Reason != "pre-restore" || safety.Documents != 0 {
+		t.Fatalf("wrong safety point: %+v", safety)
 	}
 	restore(t, store, safety.ID)
 	got, err = records.Get(ctx, campaign.Characters, "newcomer")
@@ -155,13 +197,145 @@ func TestRestorePreservesDataAndAdvancesRevisions(t *testing.T) {
 	}
 }
 
+func TestWritesCaptureOnlyTheirOwnPart(t *testing.T) {
+	store, records := fixture(t)
+	ctx := context.Background()
+	hash := seedOwnedRecovery(t, store, "sheets")
+	execute(t, store.DB, `DELETE FROM recovery_points`)
+	put(t, records, "hero", "First", 0)
+	if got := listing(t, store).Parts; len(got) != 1 || len(got[0].Points) != 1 {
+		t.Fatalf("campaign edit captured other parts: %+v", got)
+	}
+	// The campaign's throttle does not delay the add-on's first point.
+	writeAddon(t, store, "sheets", "second")
+	sheets := points(t, store, addonPart("sheets"))
+	if len(sheets) != 1 || sheets[0].Reason != "save" || sheets[0].Records != 0 || sheets[0].Documents != 1 || sheets[0].GenerationID != hash {
+		t.Fatalf("add-on edit not captured on its own: %+v", sheets)
+	}
+	if len(points(t, store, campaignPart)) != 1 {
+		t.Fatal("add-on edit captured the campaign")
+	}
+	writeAddon(t, store, "sheets", "third")
+	if len(points(t, store, addonPart("sheets"))) != 1 {
+		t.Fatal("add-on edits within a minute were not coalesced")
+	}
+	// One transaction that changes both parts captures each once.
+	execute(t, store.DB, `DELETE FROM recovery_capture`)
+	tx, err := store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	for _, addonID := range []string{"", "sheets", "", "sheets"} {
+		if err := store.BeforeWrite(ctx, tx, addonID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if campaignPoints, sheetsPoints := points(t, store, campaignPart), points(t, store, addonPart("sheets")); len(campaignPoints) != 2 || len(sheetsPoints) != 2 {
+		t.Fatalf("composed write captured %d campaign and %d add-on points", len(campaignPoints), len(sheetsPoints))
+	}
+	// Reverting the add-on's last edit group leaves the campaign untouched.
+	saved := listing(t, store)
+	if err := store.Restore(ctx, RestoreRequest{Scope: addonPart("sheets"), Count: 2, ExpectedRevision: saved.Revision}, "dm"); err != nil {
+		t.Fatal(err)
+	}
+	assertOwnedRecovery(t, store, "sheets", "before", 2, 0)
+	hero, err := records.Get(ctx, campaign.Characters, "hero")
+	if err != nil || hero.Revision != 1 {
+		t.Fatalf("add-on revert changed the campaign: %+v %v", hero, err)
+	}
+	if got := points(t, store, campaignPart); len(got) != 2 {
+		t.Fatalf("add-on revert saved a campaign safety point: %+v", got)
+	}
+}
+
+func TestLatestReusesCurrentPointsAndSavesChangedParts(t *testing.T) {
+	store, records := fixture(t)
+	ctx := context.Background()
+	put(t, records, "hero", "First", 0)
+	hash := seedOwnedRecovery(t, store, "sheets")
+	execute(t, store.DB, `UPDATE addon_package_generations SET addon_version = '2.1.0'`)
+	first, err := store.Latest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 2 || first[0].Scope != campaignPart || first[0].Reason != "download" || first[1].Scope != addonPart("sheets") ||
+		first[1].GenerationID != hash || first[1].AddonVersion != "2.1.0" || !strings.Contains(first[1].Image, "before") {
+		t.Fatalf("wrong snapshots: %+v", first)
+	}
+	again, err := store.Latest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again[0].PointID != first[0].PointID || again[1].PointID != first[1].PointID {
+		t.Fatal("unchanged parts saved new points")
+	}
+	writeAddon(t, store, "sheets", "changed")
+	changed, err := store.Latest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed[0].PointID != first[0].PointID || changed[1].PointID == first[1].PointID || changed[1].Reason != "download" || !strings.Contains(changed[1].Image, "changed") {
+		t.Fatalf("changed add-on not saved: %+v", changed)
+	}
+	// The automatic point before that edit is reused when nothing changed since.
+	execute(t, store.DB, `DELETE FROM recovery_capture`)
+	put(t, records, "hero", "Second", 1)
+	newest := points(t, store, campaignPart)[0]
+	execute(t, store.DB, `UPDATE campaign_records SET body_json = (SELECT value ->> 'body_json' FROM recovery_points, json_each(image_json, '$.records') WHERE point_id = ?)`, newest.ID)
+	reused, err := store.Latest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reused[0].PointID != newest.ID || reused[0].Reason != "save" {
+		t.Fatalf("identical newest point not reused: %+v", reused[0])
+	}
+}
+
+func TestImportedPointsJoinTheirPartAndRestore(t *testing.T) {
+	store, records := fixture(t)
+	ctx := context.Background()
+	put(t, records, "hero", "Before", 0)
+	snapshots, err := store.Latest(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	put(t, records, "hero", "After", 1)
+	tx, err := store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if err := InsertImported(ctx, tx, addonPart("../escape"), "2026-01-01T00:00:00Z", snapshots[0].Image); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("imported an invalid part: %v", err)
+	}
+	if err := InsertImported(ctx, tx, campaignPart, "2026-01-01T00:00:00Z", snapshots[0].Image); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	imported := points(t, store, campaignPart)[0]
+	if imported.Reason != "imported" || imported.CreatedAt != "2026-01-01T00:00:00Z" {
+		t.Fatalf("wrong imported point: %+v", imported)
+	}
+	restore(t, store, imported.ID)
+	hero, err := records.Get(ctx, campaign.Characters, "hero")
+	if err != nil || !strings.Contains(string(hero.Value), "Before") {
+		t.Fatalf("imported point not restored: %+v %v", hero, err)
+	}
+}
+
 func TestCampaignRestoreOfAPointWithoutACollectionLeavesItUnmaterialized(t *testing.T) {
 	store, records := fixture(t)
 	put(t, records, "keeper", "Before", 0)
 	if err := store.Create(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	point := listing(t, store).Points[0]
+	point := points(t, store, campaignPart)[0]
 	// A point captured before a core collection existed does not list it.
 	execute(t, store.DB, `UPDATE recovery_points SET image_json = json_set(image_json, '$.collections', json((
 		SELECT json_group_array(item.value) FROM json_each(image_json, '$.collections') AS item WHERE item.value ->> 'name' <> 'companions'))) WHERE point_id = ?`, point.ID)
@@ -184,19 +358,19 @@ func TestOversizedCampaignSkipsAutomaticPointsWithoutFailingWrites(t *testing.T)
 	var logged bytes.Buffer
 	store.Logger = slog.New(slog.NewTextHandler(&logged, nil))
 	put(t, records, "keeper", "Before", 0)
-	small := listing(t, store)
+	small := points(t, store, campaignPart)
 	// Grow the campaign past the point limit without going through the store.
 	execute(t, store.DB, `INSERT INTO campaign_records(collection_name, record_key, position, body_json, visibility, revision, created_at, updated_at)
 		VALUES ('characters', 'giant', 1, json_object('id', 'giant', 'notes', hex(zeroblob(?))), 'public', 1, 'now', 'now')`, maxImageBytes/2)
-	execute(t, store.DB, `UPDATE recovery_control SET last_capture = 0`)
+	execute(t, store.DB, `DELETE FROM recovery_capture`)
 	put(t, records, "keeper", "After", 1)
 	put(t, records, "keeper", "Again", 2)
 	record, err := records.Get(ctx, campaign.Characters, "keeper")
 	if err != nil || !strings.Contains(string(record.Value), "Again") {
 		t.Fatalf("write failed: %+v %v", record, err)
 	}
-	if got := listing(t, store); len(got.Points) != len(small.Points) {
-		t.Fatalf("captured an oversized point: %+v", got.Points)
+	if got := points(t, store, campaignPart); len(got) != len(small) {
+		t.Fatalf("captured an oversized point: %+v", got)
 	}
 	if count := strings.Count(logged.String(), "automatic recovery point skipped"); count != 1 {
 		t.Fatalf("logged %d skips within a minute:\n%s", count, logged.String())
@@ -204,12 +378,15 @@ func TestOversizedCampaignSkipsAutomaticPointsWithoutFailingWrites(t *testing.T)
 	if err := store.Create(ctx); !errors.Is(err, ErrTooLarge) {
 		t.Fatalf("manual point error = %v", err)
 	}
+	if _, err := store.Latest(ctx); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("download point error = %v", err)
+	}
 	before := listing(t, store)
-	err = store.Restore(ctx, RestoreRequest{Scope: Scope{Scope: "campaign"}, ID: small.Points[0].ID, ExpectedRevision: before.Revision}, "dm")
+	err = store.Restore(ctx, RestoreRequest{Scope: campaignPart, ID: small[0].ID, ExpectedRevision: before.Revision}, "dm")
 	if !errors.Is(err, ErrTooLarge) {
 		t.Fatalf("restore without a safety point error = %v", err)
 	}
-	if after := listing(t, store); after.Revision != before.Revision || len(after.Points) != len(before.Points) {
+	if after := listing(t, store); after.Revision != before.Revision || len(after.Parts[0].Points) != len(before.Parts[0].Points) {
 		t.Fatal("refused restore changed the recovery list")
 	}
 }
@@ -218,11 +395,11 @@ func TestAutomaticPointsCoalesceAndRollbackWithWrites(t *testing.T) {
 	store, records := fixture(t)
 	put(t, records, "keeper", "First", 0)
 	put(t, records, "keeper", "Second", 1)
-	points := listing(t, store)
-	if len(points.Points) != 1 || points.Points[0].Records != 0 {
-		t.Fatalf("not captured before write: %+v", points)
+	saved := listing(t, store)
+	if len(saved.Parts) != 1 || len(saved.Parts[0].Points) != 1 || saved.Parts[0].Points[0].Records != 0 {
+		t.Fatalf("not captured before write: %+v", saved)
 	}
-	execute(t, store.DB, `UPDATE recovery_control SET last_capture=0`)
+	execute(t, store.DB, `DELETE FROM recovery_capture`)
 	_, err := records.Transact(context.Background(), campaign.Transaction{ActorID: "dm", Mutations: []campaign.Mutation{
 		{Kind: campaign.Put, Collection: campaign.Characters, Key: "temporary", ExpectedRevision: 0, Value: []byte(`{"id":"temporary"}`)},
 		{Kind: campaign.Put, Collection: campaign.Characters, Key: "keeper", ExpectedRevision: 99, Value: []byte(`{"id":"keeper"}`)},
@@ -230,15 +407,15 @@ func TestAutomaticPointsCoalesceAndRollbackWithWrites(t *testing.T) {
 	if err == nil {
 		t.Fatal("invalid write accepted")
 	}
-	if got := listing(t, store); len(got.Points) != 1 || got.Revision != points.Revision {
+	if got := listing(t, store); len(got.Parts[0].Points) != 1 || got.Revision != saved.Revision {
 		t.Fatalf("failed write left a snapshot: %+v", got)
 	}
 	put(t, records, "keeper", "Third", 2)
-	points = listing(t, store)
-	if len(points.Points) != 2 || points.Points[0].Records != 1 {
+	saved = listing(t, store)
+	if len(saved.Parts[0].Points) != 2 || saved.Parts[0].Points[0].Records != 1 {
 		t.Fatal("second edit group missing")
 	}
-	if err := store.Restore(context.Background(), RestoreRequest{Scope: Scope{Scope: "campaign"}, Count: 1, ExpectedRevision: points.Revision}, "dm"); err != nil {
+	if err := store.Restore(context.Background(), RestoreRequest{Scope: campaignPart, Count: 1, ExpectedRevision: saved.Revision}, "dm"); err != nil {
 		t.Fatal(err)
 	}
 	record, err := records.Get(context.Background(), campaign.Characters, "keeper")
@@ -262,7 +439,10 @@ func TestRestoreMediaAndDeletedRecord(t *testing.T) {
 	if err := store.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
-	point := listing(t, store).Points[0]
+	point := points(t, store, campaignPart)[0]
+	if point.Media != 1 {
+		t.Fatalf("media not counted: %+v", point)
+	}
 	addMedia(second)
 	execute(t, store.DB, `UPDATE blobs SET deleted=1,revision=2 WHERE blob_id=?`, first)
 	_, err := records.Transact(ctx, campaign.Transaction{ActorID: "dm", Mutations: []campaign.Mutation{{Kind: campaign.Delete, Collection: campaign.Characters, Key: "keeper", ExpectedRevision: 1}}})
@@ -281,36 +461,47 @@ func TestRestoreMediaAndDeletedRecord(t *testing.T) {
 	if err := store.DB.QueryRow(`SELECT deleted FROM blobs WHERE blob_id=?`, second).Scan(&deleted); err != nil || deleted != 1 {
 		t.Fatal("newer image remains latest")
 	}
-	restore(t, store, listing(t, store).Points[0].ID)
+	restore(t, store, points(t, store, campaignPart)[0].ID)
 	if err := store.DB.QueryRow(`SELECT deleted FROM blobs WHERE blob_id=?`, second).Scan(&deleted); err != nil || deleted != 0 {
 		t.Fatal("safety image lost")
 	}
 }
 
-func TestRetentionAndCompatibilityFailureAreAtomic(t *testing.T) {
+func TestRetentionPerPartAndCompatibilityFailureAreAtomic(t *testing.T) {
 	store, _ := fixture(t)
 	ctx := context.Background()
-	for i := 0; i < 55; i++ {
+	registerPackage(t, store, "sheets", strings.Repeat("a", 64))
+	for i := 0; i < MaxPointsPerPart+5; i++ {
 		if err := store.Create(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
-	points := listing(t, store)
-	if len(points.Points) != 50 {
-		t.Fatal("retention not bounded")
+	before := listing(t, store)
+	if len(before.Parts) != 2 || len(before.Parts[0].Points) != MaxPointsPerPart || len(before.Parts[1].Points) != MaxPointsPerPart {
+		t.Fatalf("retention not bounded per part: %+v", before.Parts)
 	}
-	execute(t, store.DB, `UPDATE recovery_points SET image_json=json_set(image_json,'$.packages',json('[{"addon_id":"different","active_generation_id":"generation"}]')) WHERE point_id=?`, points.Points[0].ID)
-	err := store.Restore(ctx, RestoreRequest{Scope: Scope{Scope: "addon", AddonID: "different"}, ID: points.Points[0].ID, ExpectedRevision: points.Revision}, "dm")
+	addon := before.Parts[1].Points[0]
+	execute(t, store.DB, `UPDATE recovery_points SET image_json=json_set(image_json,'$.packages',json('[{"addon_id":"sheets","active_generation_id":"different"}]')) WHERE point_id=?`, addon.ID)
+	saved := listing(t, store)
+	if saved.Parts[1].Points[0].Compatible {
+		t.Fatal("changed package listed as compatible")
+	}
+	err := store.Restore(ctx, RestoreRequest{Scope: addonPart("sheets"), ID: addon.ID, ExpectedRevision: saved.Revision}, "dm")
 	if !errors.Is(err, ErrCompatibility) {
 		t.Fatalf("accepted changed packages: %v", err)
 	}
-	if got := listing(t, store); got.Revision != points.Revision || len(got.Points) != 50 {
+	// A point is found only in its own part.
+	err = store.Restore(ctx, RestoreRequest{Scope: campaignPart, ID: addon.ID, ExpectedRevision: saved.Revision}, "dm")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("restored an add-on point as the campaign: %v", err)
+	}
+	if got := listing(t, store); got.Revision != saved.Revision || len(got.Parts[1].Points) != MaxPointsPerPart {
 		t.Fatal("failed restore changed state")
 	}
-	if err := store.DeleteContext(ctx, DeleteRequest{Scope: Scope{Scope: "campaign"}, ID: points.Points[1].ID, ExpectedRevision: points.Revision}); err != nil {
+	if err := store.Delete(ctx, DeleteRequest{Scope: campaignPart, ID: saved.Parts[0].Points[1].ID, ExpectedRevision: saved.Revision}); err != nil {
 		t.Fatal(err)
 	}
-	if len(listing(t, store).Points) != 49 {
+	if got := listing(t, store); len(got.Parts[0].Points) != MaxPointsPerPart-1 || len(got.Parts[1].Points) != MaxPointsPerPart || got.Revision == saved.Revision {
 		t.Fatal("delete failed")
 	}
 }
@@ -327,15 +518,15 @@ func TestFailedRestoreRollsBackDataRevisionsAndSafetyPoint(t *testing.T) {
 	if err := store.Create(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	point := listing(t, store).Points[0]
+	point := points(t, store, campaignPart)[0]
 	put(t, records, "keeper", "After", 1)
 	before := listing(t, store)
 	store.Events = failingJournal{store.Events}
-	if err := store.Restore(context.Background(), RestoreRequest{Scope: Scope{Scope: "campaign"}, ID: point.ID, ExpectedRevision: before.Revision}, "dm"); err == nil {
+	if err := store.Restore(context.Background(), RestoreRequest{Scope: campaignPart, ID: point.ID, ExpectedRevision: before.Revision}, "dm"); err == nil {
 		t.Fatal("failed event was ignored")
 	}
 	after := listing(t, store)
-	if after.Revision != before.Revision || len(after.Points) != len(before.Points) {
+	if after.Revision != before.Revision || len(after.Parts[0].Points) != len(before.Parts[0].Points) {
 		t.Fatal("failed restore left a safety point or advanced revisions")
 	}
 	record, err := records.Get(context.Background(), campaign.Characters, "keeper")
@@ -354,9 +545,9 @@ func TestConcurrentRestoreHasOneWinner(t *testing.T) {
 	if err := store.Create(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	point := listing(t, store).Points[0]
+	point := points(t, store, campaignPart)[0]
 	put(t, records, "keeper", "After", 1)
-	request := RestoreRequest{Scope: Scope{Scope: "campaign"}, ID: point.ID, ExpectedRevision: listing(t, store).Revision}
+	request := RestoreRequest{Scope: campaignPart, ID: point.ID, ExpectedRevision: listing(t, store).Revision}
 	var wait sync.WaitGroup
 	results := make(chan error, 2)
 	for i := 0; i < 2; i++ {
@@ -383,18 +574,18 @@ func TestManualPointsAndRestoresDoNotHideTheNextEditGroup(t *testing.T) {
 	store, records := fixture(t)
 	ctx := context.Background()
 	put(t, records, "keeper", "First", 0)
-	execute(t, store.DB, `UPDATE recovery_control SET last_capture=0`)
+	execute(t, store.DB, `DELETE FROM recovery_capture`)
 	if err := store.Create(ctx); err != nil {
 		t.Fatal(err)
 	}
-	manual := listing(t, store).Points[0]
+	manual := points(t, store, campaignPart)[0]
 	put(t, records, "keeper", "Second", 1)
-	if point := listing(t, store).Points[0]; point.Reason != "save" || point.ID <= manual.ID {
+	if point := points(t, store, campaignPart)[0]; point.Reason != "save" || point.ID <= manual.ID {
 		t.Fatal("manual point suppressed the next edit group")
 	}
 	restore(t, store, manual.ID)
 	put(t, records, "keeper", "Third", 3)
-	if point := listing(t, store).Points[0]; point.Reason != "save" {
+	if point := points(t, store, campaignPart)[0]; point.Reason != "save" {
 		t.Fatal("restore merged a new edit into the old group")
 	}
 }

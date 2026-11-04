@@ -223,3 +223,36 @@ func newTestStoreWithOptions(t *testing.T, options Options) (*Store, *sql.DB, st
 	}
 	return store, database, root
 }
+
+func TestWriteHookNamesTheOwningPart(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	var parts []string
+	store, database, _ := newTestStoreWithOptions(t, Options{BeforeWrite: func(_ context.Context, _ *sql.Tx, part string) error {
+		parts = append(parts, part)
+		return nil
+	}})
+	defer database.Close()
+	create := func(kind OwnerKind, owner string) Blob {
+		t.Helper()
+		blob, err := store.Create(ctx, CreateRequest{
+			Content: strings.NewReader("bytes"), Bytes: 5, OwnerKind: kind, OwnerID: owner,
+			Purpose: "media", MediaType: "image/png", OriginalName: "a.png", Visibility: VisibilityPublic,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return blob
+	}
+	core := create(OwnerCore, "campaign")
+	addon := create(OwnerAddon, "example.addon")
+	if _, err := store.Delete(ctx, addon.ID, addon.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Delete(ctx, core.ID, core.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(parts, ","); got != ",example.addon,example.addon," {
+		t.Fatalf("hook parts = %q", got)
+	}
+}

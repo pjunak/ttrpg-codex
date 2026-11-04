@@ -201,8 +201,8 @@ for (const mobile of [false, true])
         "/api/recovery",
       ),
     );
-    const id = result.points[0].id;
-    assert.equal(result.points[0].reason, "manual");
+    const id = result.parts[0].points[0].id;
+    assert.equal(result.parts[0].points[0].reason, "manual");
     await put(key, "Changed campaign", 1);
     await page.locator(`[data-point-id="${id}"] .settings-btn-edit`).click();
     assert.equal(
@@ -229,7 +229,7 @@ for (const mobile of [false, true])
     await observer.getByRole("heading", { name: "Changed campaign", exact: true }).waitFor();
     await page.locator(`[data-point-id="${id}"] .settings-btn-edit`).click();
     const restored = await jsonResponse(await mutation(page, confirm, "/api/recovery/restore"));
-    assert.equal(restored.points[0].reason, "pre-restore");
+    assert.equal(restored.parts[0].points[0].reason, "pre-restore");
     await observer.getByRole("heading", { name: "Before recovery", exact: true }).waitFor();
     await panel(page)
       .getByRole("status")
@@ -276,7 +276,7 @@ void test("recovery retains uncertain results, guards pending writes and keeps b
     await admin.post("/api/recovery", { headers: { "X-Codex-CSRF": csrf }, data: {} }),
   );
   await refresh(page);
-  const id = created.points[0].id;
+  const id = created.parts[0].points[0].id;
   await page.route("**/api/recovery/restore", async (route) => {
     await route.fetch();
     await route.abort("failed");
@@ -324,7 +324,9 @@ void test("recovery retains uncertain results, guards pending writes and keeps b
 void test("revert selects a reviewed automatic edit group", async (t) => {
   const { page } = await open(t);
   const before = await jsonResponse(await admin.get("/api/recovery"));
-  const target = before.points.find((point: { reason: string }) => point.reason === "save");
+  const target = before.parts[0].points.find(
+    (point: { reason: string }) => point.reason === "save",
+  );
   assert.ok(target);
   await panel(page).locator("input[name=count]").fill("1");
   await panel(page).getByRole("button", { name: "↶ Undo", exact: true }).click();
@@ -423,7 +425,11 @@ for (const mobile of [false, true])
       "automatic cleanup needs no standing note",
     );
     const saved = await jsonResponse(await admin.post("/api/recovery", { headers, data: {} }));
-    const pointId = saved.points[0].id;
+    type Part = { scope: string; addonId?: string; points: { id: number }[] };
+    const addonPoint = (listing: { parts: Part[] }) =>
+      listing.parts.find((part) => part.addonId === id)!.points[0]!.id;
+    const pointId = saved.parts[0].points[0].id;
+    const retiredId = addonPoint(saved);
     await installReviewedPackage(admin, csrf, id, third, perms);
     await page.reload();
     await assert.rejects(stat(generationPath(second.state.activeGenerationId)), { code: "ENOENT" });
@@ -443,18 +449,19 @@ for (const mobile of [false, true])
     assert.equal(restored.request().postDataJSON().scope, "campaign");
     await jsonResponse(restored);
     const fresh = await jsonResponse(await admin.post("/api/recovery", { headers, data: {} }));
-    const freshId = fresh.points[0].id;
+    const freshId = fresh.parts[0].points[0].id;
+    const freshAddonId = addonPoint(fresh);
     await refresh(page, mobile);
     const selector = panel(page).getByRole("combobox", {
       name: mobile ? "Obnovovaná data" : "Recovery data",
     });
     await selector.selectOption(`addon:${id}`);
     assert.equal(
-      await page.locator(`[data-point-id="${pointId}"]`).count(),
+      await page.locator(`[data-point-id="${retiredId}"]`).count(),
       0,
-      "retired add-on context is not offered",
+      "retired add-on point is not offered",
     );
-    await page.locator(`[data-point-id="${freshId}"] .settings-btn-edit`).click();
+    await page.locator(`[data-point-id="${freshAddonId}"] .settings-btn-edit`).click();
     await page
       .locator(".settings-recovery-review")
       .getByText(`${mobile ? "Doplněk" : "Add-on"}: ${id}`, { exact: true })
@@ -463,7 +470,7 @@ for (const mobile of [false, true])
     assert.equal(addonRestored.request().postDataJSON().scope, "addon");
     assert.equal(addonRestored.request().postDataJSON().addonId, id);
     await jsonResponse(addonRestored);
-    await page.locator(`[data-point-id="${freshId}"] .settings-btn-del`).click();
+    await page.locator(`[data-point-id="${freshAddonId}"] .settings-btn-del`).click();
     const deleted = await mutation(
       page,
       () =>

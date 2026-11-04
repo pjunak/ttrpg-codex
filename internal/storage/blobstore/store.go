@@ -74,14 +74,16 @@ type CreateRequest struct {
 }
 
 type Options struct {
-	BeforeWrite  func(context.Context, *sql.Tx) error
+	// BeforeWrite runs before a blob change with the owning add-on's ID, or ""
+	// for a campaign (core or system) blob.
+	BeforeWrite  func(context.Context, *sql.Tx, string) error
 	MaximumBytes uint64
 	Now          func() time.Time
 	Random       io.Reader
 }
 
 type Store struct {
-	beforeWrite  func(context.Context, *sql.Tx) error
+	beforeWrite  func(context.Context, *sql.Tx, string) error
 	database     *sql.DB
 	root         string
 	maximumBytes uint64
@@ -273,8 +275,17 @@ func (store *Store) Delete(ctx context.Context, id string, expectedRevision int6
 	}
 	defer transaction.Rollback()
 	if store.beforeWrite != nil {
-		if err := store.beforeWrite(ctx, transaction); err != nil {
+		var kind OwnerKind
+		var owner string
+		err := transaction.QueryRowContext(ctx, `SELECT owner_kind, owner_id FROM blobs WHERE blob_id = ?`, id).Scan(&kind, &owner)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return Blob{}, err
+		}
+		// A missing blob is reported below; there is nothing to capture.
+		if err == nil {
+			if err := store.beforeWrite(ctx, transaction, ownerPart(kind, owner)); err != nil {
+				return Blob{}, err
+			}
 		}
 	}
 	result, err := transaction.ExecContext(ctx, `
@@ -305,6 +316,15 @@ func (store *Store) Delete(ctx context.Context, id string, expectedRevision int6
 
 var errIDCollision = errors.New("blob id collision")
 
+// ownerPart names the recovery part a blob belongs to: its add-on, or "" for
+// the campaign.
+func ownerPart(kind OwnerKind, owner string) string {
+	if kind == OwnerAddon {
+		return owner
+	}
+	return ""
+}
+
 func (store *Store) insertMetadata(ctx context.Context, blob Blob) (Blob, error) {
 	transaction, err := store.database.BeginTx(ctx, nil)
 	if err != nil {
@@ -312,7 +332,7 @@ func (store *Store) insertMetadata(ctx context.Context, blob Blob) (Blob, error)
 	}
 	defer transaction.Rollback()
 	if store.beforeWrite != nil {
-		if err := store.beforeWrite(ctx, transaction); err != nil {
+		if err := store.beforeWrite(ctx, transaction, ownerPart(blob.OwnerKind, blob.OwnerID)); err != nil {
 			return Blob{}, err
 		}
 	}

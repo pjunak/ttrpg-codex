@@ -144,69 +144,77 @@ restart.
 
 ## Campaign recovery points
 
-The original Settings history workflow is available in English and Czech:
-manual points, coalesced automatic points, reviewed restore/delete, and revert
-of the last N retained automatic edit groups in the selected scope. The newest 50 snapshots are retained
-across all three kinds (`manual`, `save`, `pre-restore`). A point contains at
-most 64 MiB of campaign metadata, not copies of the immutable file bytes. A
-larger campaign gets no automatic point: the edit is still saved, and the host
-logs a warning and tries again a minute later. Manual points and restores are
+A recovery point holds one **part**: the campaign or one add-on. Settings lists
+each part's points separately in English and Czech: manual points, coalesced
+automatic points, reviewed restore/delete, and revert of the last N automatic
+edit groups of the selected part. Each part keeps its newest 50 points of every
+kind (`save`, `manual`, `pre-restore`, `download`, `imported`), so a busy
+add-on never pushes campaign history out. A point contains at most 64 MiB of
+one part's metadata, not copies of the immutable file bytes. A larger part gets
+no automatic point: the edit is still saved, and the host logs a warning and
+tries again a minute later. Manual points, downloads and restores of it are
 refused instead, because a restore must first save a safety point; use full
-backups for such a campaign. Manual points do not delay the next automatic
-group. After a restore, the next edit starts a new group. Revert counts automatic groups, not individual field
-changes, manual points or safety points; its review shows the selected date.
-Each snapshot holds independently selectable campaign and per-add-on contexts.
-Deleting one context preserves all others; only an empty envelope is removed.
-Campaign recovery remains available when add-on context or packages are absent.
+backups for such a campaign. Manual points cover every part and do not delay
+the next automatic group. After a restore, that part's next edit starts a new
+group. Revert counts the part's automatic groups, not individual field changes
+or other kinds of point; its review shows the selected date. Campaign recovery
+remains available when add-ons or their packages are absent.
 
-Migration 0012 stores core collection materialization, ordered records with
-unknown fields and creation identities, add-on datasets/documents and their
-ownership metadata, logical blob deletion state, and core media bindings.
-Media files and opaque handles remain in immutable storage, allowing recovery
-of a deleted portrait or an older world-map slot. Passwords, sessions, package
-installations, permissions, service bindings, and audit history are excluded.
-The existing native full backup includes these recovery points in its SQLite
-image and retains their immutable objects.
+A campaign point stores core collection materialization, ordered records with
+unknown fields and creation identities, core media bindings and the logical
+deletion state of campaign-owned files. An add-on point stores that add-on's
+active generation, datasets and documents with their ownership metadata, and
+the deletion state of its own files. Every image keeps the same keys, empty
+where the part has none. Media files and opaque handles remain in immutable
+storage, allowing recovery of a deleted portrait or an older world-map slot.
+Passwords, sessions, package installations, permissions, service bindings, and
+audit history are excluded. Migration 0029 split the earlier combined points
+into parts and dropped repeated automatic points that the combined capture had
+saved for unchanged parts.
 
-The host wires `recoverystore.BeforeWrite` into core/add-on transactions and
-blob creation/deletion. It captures once before the first mutation, at most
-once per minute, in the same transaction. A failed edit rolls back its point.
-Per-row triggers advance the review revision without taking intermediate
-snapshots. Package lifecycle transitions use the full backup/rollback boundary.
+The host wires `recoverystore.BeforeWrite` into campaign and add-on data
+transactions and blob creation/deletion; each store names the part it changes
+(a blob's part is its owner). The hook captures that part once before its first
+mutation, at most once per minute per part, in the same transaction. A
+transaction that changes the campaign and an add-on captures each. A failed
+edit rolls back its points. Per-row triggers advance the review revision
+without taking intermediate snapshots. Package lifecycle transitions use the
+full backup/rollback boundary.
 
 Restore acquires the SQLite write transaction with the exact reviewed revision,
-checks the point's format and selected scope, and captures a `pre-restore`
-safety point. Campaign restore changes only core records and core-owned media;
-it never checks add-on package compatibility or rewinds current add-on saves.
-An add-on restore changes only that owner's datasets, documents and logical
-file handles. It requires that owner's exact active generation and compatible
-dataset definitions, regardless of other active or missing add-ons. Saved
-record extensions must match the current target record's creation identity;
-restore the campaign first if necessary. A reused record key is insufficient.
+checks that the point belongs to the requested part and its format, and
+captures a `pre-restore` safety point of that part only. Campaign restore
+changes only core records and core-owned media; it never checks add-on package
+compatibility or rewinds current add-on saves. An add-on restore changes only
+that owner's datasets, documents and logical file handles. It requires that
+owner's exact active generation and compatible dataset definitions, regardless
+of other active or missing add-ons. Saved record extensions must match the
+current target record's creation identity; restore the campaign first if
+necessary. A reused record key is insufficient.
 
 All selected data changes, the payload-free restore audit (including scope
 and add-on ID from migration 0022), and the durable
 `campaign-restored` publication commit together. A failure rolls back all of
 them. Restored live records get fresh revisions; removed keys keep deletion
 tombstones, so stale editors and reviewed import plans cannot overwrite the
-recovered data. Only the selected scope's collection/dataset revisions advance,
+recovered data. Only the selected part's collection/dataset revisions advance,
 including empty collections. Campaign restore preserves saved extensions even
 if their targets are temporarily absent; normal ownership checks prevent them
 from attaching to a different record. Add-on recovery across different package
-or schema identities is refused; campaign recovery is independent.
+or schema identities is refused; campaign recovery is independent. Retiring an
+obsolete add-on build deletes that add-on's points which need it.
 
 The HTTP surface requires a real and effective DM, plus CSRF for writes:
 
 | Route | Request / response |
 | --- | --- |
-| `GET /api/recovery` | `recovery-points.v2`: review revision, newest-first metadata, `campaignAvailable`, `campaignMedia`, and per-owner `addons` summaries with exact generation and compatibility; no saved bodies |
-| `POST /api/recovery` | Exact `{}` creates a manual point and returns the list |
+| `GET /api/recovery` | `recovery-points.v3`: review revision and `parts` (the campaign first, then add-ons with points by ID), each with newest-first point metadata: reason, size, record/document/file counts, the add-on generation and compatibility; no saved bodies |
+| `POST /api/recovery` | Exact `{}` creates a manual point of every part and returns the list |
 | `POST /api/recovery/restore` | `scope: "campaign"` or `scope: "addon"` with `addonId`; `expectedRevision` plus either positive `id` or `count` (1–50) |
 | `POST /api/recovery/delete` | Same explicit scope, positive `id` and `expectedRevision` |
 
-Every request names exactly one scope; a point's campaign and add-on contexts
-are restored and deleted independently. Deleting the last context removes the
-point.
+Every request names exactly one part, and a point is found only in its own
+part.
 
 All responses are no-store. A changed campaign/list returns `RECOVERY_CONFLICT`;
 incompatible add-on packages, definitions or linked records return `RECOVERY_COMPATIBILITY`. Missing
@@ -221,7 +229,8 @@ does not undo an accepted create/restore/delete or automatically retry it.
 Storage regression tests cover failed writes/restores, concurrent reviews,
 retention, tombstones, unknown fields, empty datasets, extensions and media.
 `scopes_test.go` adds independent values/revisions/media, reused record IDs,
-partial deletion and retirement rollback. `latest_retention_test.go` proves
+deletion and retirement rollback; `migration_test.go` covers the split of
+combined points. `latest_retention_test.go` proves
 campaign recovery and backup references survive obsolete package removal.
 `recovery.browser.mts` covers desktop/phone Settings, English/Czech copy, stale
 reviews, uncertain responses, pending navigation, undo and private ZIP download.

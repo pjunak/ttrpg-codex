@@ -162,7 +162,7 @@ func (store *Store) applySchemaReview(ctx context.Context, id, digest, action st
 		return review, datalifecycle.ErrUpgradeStale
 	}
 	if store.beforeWrite != nil {
-		if err = store.beforeWrite(ctx, tx); err != nil {
+		if err = store.beforeWrite(ctx, tx, review.AddonID); err != nil {
 			return review, err
 		}
 	}

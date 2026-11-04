@@ -160,8 +160,8 @@ disabled/uninstalled add-on, the exact preview hash and a fresh verified full
 backup. The preview counts collections/extensions, revision markers, retained
 history, requests, audit rows and affected recovery points.
 
-Apply atomically removes that namespace and its values from local recovery
-images, so normal campaign recovery cannot silently recreate it. Shared retained
+Apply atomically removes that namespace and the add-on's recovery points, so
+recovery cannot silently recreate it. Shared retained
 payloads and all other namespaces remain intact. Package archives and external
 backup ZIPs remain; restoring a full older backup deliberately restores its old
 namespace too. Core character/profile records are preserved. Add-on-owned blob

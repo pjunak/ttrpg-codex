@@ -12,7 +12,7 @@ import (
 type RecoveryPoints interface {
 	List(context.Context) (recoverystore.Listing, error)
 	Create(context.Context) error
-	DeleteContext(context.Context, recoverystore.DeleteRequest) error
+	Delete(context.Context, recoverystore.DeleteRequest) error
 	Restore(context.Context, recoverystore.RestoreRequest, string) error
 }
 
@@ -71,7 +71,7 @@ func (s *server) recoveryDelete(w http.ResponseWriter, r *http.Request) {
 	if !decodeBoundedJSON(w, r, &request, 1024, "recovery") {
 		return
 	}
-	if err := s.recoveryPoints.DeleteContext(r.Context(), request); err != nil {
+	if err := s.recoveryPoints.Delete(r.Context(), request); err != nil {
 		s.recoveryError(w, err)
 		return
 	}

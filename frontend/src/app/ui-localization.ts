@@ -50,7 +50,7 @@ const enCatalog = {
   "recovery.create": "Create recovery point",
   "recovery.refresh": "Refresh",
   "recovery.intro":
-    "Recover the campaign or one add-on independently. Campaign recovery works even if an add-on's old build or saved context is gone. Edits are grouped at most once a minute; the newest 50 snapshots are retained.",
+    "The campaign and each add-on keep their own recovery points. An edit saves a point of only the part it changes, at most once a minute, and each part keeps its newest 50 points.",
   "recovery.scope": "Recovery data",
   "recovery.campaign": "Campaign",
   "recovery.addon": "Add-on: {addon}",
@@ -83,6 +83,8 @@ const enCatalog = {
   "recovery.manual": "✦ Manual",
   "recovery.safety": "⚠ Before restore",
   "recovery.edit": "✎ Before edits",
+  "recovery.downloaded": "⬇ Downloaded",
+  "recovery.imported": "⇪ Imported",
   "recovery.restore": "Restore",
   "recovery.delete": "Delete",
   "recovery.restoreReview": "Restore this saved state?",
@@ -91,9 +93,9 @@ const enCatalog = {
   "recovery.restoreEffect":
     "This restores campaign records and campaign files, saving the current state first. Add-on saves, installed packages and passwords stay as they are. Missing add-on context does not block campaign recovery.",
   "recovery.deleteEffect":
-    "This deletes only the selected campaign or add-on recovery data. Other recovery data in this snapshot and all current saves stay as they are.",
+    "This deletes only this recovery point. Current data and other points stay as they are.",
   "recovery.cancel": "Cancel",
-  "recovery.created": "Recovery point created.",
+  "recovery.created": "Recovery points created for the campaign and each add-on.",
   "recovery.deleted": "Recovery point deleted.",
   "recovery.restored":
     "Selected data restored. A copy of the previous state is available in the list.",
@@ -630,7 +632,7 @@ const csCatalog = {
   "recovery.create": "Vytvořit bod obnovy",
   "recovery.refresh": "Obnovit seznam",
   "recovery.intro":
-    "Kampaň a jednotlivé doplňky lze obnovit nezávisle. Kampaň lze obnovit i bez starého sestavení nebo uloženého stavu doplňku. Úpravy se seskupují nejvýše jednou za minutu; uchovává se posledních 50 snímků.",
+    "Kampaň i každý doplněk mají vlastní body obnovy. Úprava uloží bod jen té části, kterou mění, nejvýše jednou za minutu, a každá část uchovává posledních 50 bodů.",
   "recovery.scope": "Obnovovaná data",
   "recovery.campaign": "Kampaň",
   "recovery.addon": "Doplněk: {addon}",
@@ -663,6 +665,8 @@ const csCatalog = {
   "recovery.manual": "✦ Ruční",
   "recovery.safety": "⚠ Před obnovou",
   "recovery.edit": "✎ Před úpravami",
+  "recovery.downloaded": "⬇ Staženo",
+  "recovery.imported": "⇪ Importováno",
   "recovery.restore": "Obnovit",
   "recovery.delete": "Smazat",
   "recovery.restoreReview": "Obnovit tento uložený stav?",
@@ -671,9 +675,9 @@ const csCatalog = {
   "recovery.restoreEffect":
     "Obnoví se záznamy a soubory kampaně. Současný stav se nejprve uloží. Uložená data doplňků, nainstalované balíčky a hesla zůstanou beze změny. Chybějící stav doplňku nebrání obnově kampaně.",
   "recovery.deleteEffect":
-    "Smažou se pouze vybraná data obnovy kampaně nebo doplňku. Ostatní data obnovy v tomto snímku i všechna současná uložená data zůstanou beze změny.",
+    "Smaže se pouze tento bod obnovy. Současná data i ostatní body zůstanou beze změny.",
   "recovery.cancel": "Zrušit",
-  "recovery.created": "Bod obnovy byl vytvořen.",
+  "recovery.created": "Body obnovy byly vytvořeny pro kampaň i každý doplněk.",
   "recovery.deleted": "Bod obnovy byl smazán.",
   "recovery.restored": "Vybraná data byla obnovena. Kopie předchozího stavu je dostupná v seznamu.",
   "recovery.conflict":

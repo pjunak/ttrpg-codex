@@ -15,26 +15,41 @@ describe("campaign recovery boundaries", () => {
     reason: "manual",
     bytes: 512,
     records: 4,
-    documents: 2,
+    documents: 0,
     media: 1,
-    campaignAvailable: true,
-    campaignMedia: 1,
-    addons: [],
+    generationId: "",
+    compatible: true,
   };
-  const listing = { contractVersion: "recovery-points.v2", revision: 7, points: [point] };
-  it("accepts a bounded newest-first list with no campaign bodies", () => {
+  const addonPoint = {
+    ...point,
+    id: 3,
+    reason: "imported",
+    records: 0,
+    documents: 2,
+    generationId: "a".repeat(64),
+    compatible: false,
+  };
+  const campaign = { scope: "campaign", points: [point] };
+  const sheets = { scope: "addon", addonId: "sheets", points: [addonPoint] };
+  const listing = { contractVersion: "recovery-points.v3", revision: 7, parts: [campaign, sheets] };
+  it("accepts bounded newest-first parts with no saved bodies", () => {
     expect(parseRecoveryListing(listing)).toEqual(listing);
-    expect(parseRecoveryListing({ ...listing, revision: 0, points: [] }).points).toEqual([]);
+    expect(
+      parseRecoveryListing({ ...listing, revision: 0, parts: [{ ...campaign, points: [] }] }).parts,
+    ).toEqual([{ scope: "campaign", points: [] }]);
+    const withPoints = (points: unknown[]) => ({ ...listing, parts: [{ ...campaign, points }] });
     for (const value of [
       null,
       { ...listing, revision: -1 },
       { ...listing, revision: Number.MAX_SAFE_INTEGER + 1 },
-      { ...listing, points: [point, point] },
-      { ...listing, points: [{ ...point, records: -1 }] },
-      { ...listing, points: [{ ...point, id: 0 }] },
-      { ...listing, points: [{ ...point, reason: "unknown" }] },
-      { ...listing, points: [{ ...point, createdAt: "invalid" }] },
-      { ...listing, points: [{ ...point, image: { private: true } }] },
+      withPoints([point, point]),
+      withPoints([{ ...point, records: -1 }]),
+      withPoints([{ ...point, id: 0 }]),
+      withPoints([{ ...point, reason: "unknown" }]),
+      withPoints([{ ...point, createdAt: "invalid" }]),
+      withPoints([{ ...point, image: { private: true } }]),
+      withPoints([{ ...point, generationId: "latest" }]),
+      withPoints(Array.from({ length: 51 }, (_, index) => ({ ...point, id: 60 - index }))),
     ])
       expect(() => parseRecoveryListing(value)).toThrow();
   });
@@ -63,26 +78,22 @@ describe("campaign recovery boundaries", () => {
     ])
       expect(() => parseCampaignRestored(message(invalid))).toThrow();
   });
-  it("keeps independent add-on summaries closed and uniquely identified", () => {
-    const addon = {
-      addonId: "sheets",
-      generationId: "a".repeat(64),
-      documents: 1,
-      media: 0,
-      compatible: false,
-    };
-    const valid = { ...listing, points: [{ ...point, addons: [addon] }] };
-    expect(parseRecoveryListing(valid)).toEqual(valid);
-    for (const addons of [
-      [addon, addon],
-      [{ ...addon, body: { private: true } }],
-      [{ ...addon, compatible: "yes" }],
-      [{ ...addon, generationId: "latest" }],
-      [{ ...addon, addonId: "../sheets" }],
+  it("starts with the campaign and keeps add-on parts closed and uniquely ordered", () => {
+    const planner = { ...sheets, addonId: "planner" };
+    for (const parts of [
+      [],
+      [sheets],
+      [campaign, campaign],
+      [campaign, sheets, sheets],
+      [campaign, sheets, planner],
+      [campaign, { ...sheets, addonId: "../sheets" }],
+      [campaign, { ...sheets, body: { private: true } }],
+      [{ ...campaign, addonId: "sheets" }, sheets],
+      [campaign, { ...sheets, points: [{ ...addonPoint, compatible: "yes" }] }],
     ])
-      expect(() => parseRecoveryListing({ ...listing, points: [{ ...point, addons }] })).toThrow();
+      expect(() => parseRecoveryListing({ ...listing, parts })).toThrow();
     expect(() =>
-      parseRecoveryListing({ ...listing, contractVersion: "recovery-points.v1" }),
+      parseRecoveryListing({ ...listing, contractVersion: "recovery-points.v2" }),
     ).toThrow();
   });
 });

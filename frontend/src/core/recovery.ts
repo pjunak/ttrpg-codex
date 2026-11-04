@@ -3,32 +3,28 @@ import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 import { waitForSignal } from "./abort-signal.js";
 
-export interface AddonRecoveryPoint {
-  readonly addonId: string;
-  readonly generationId: string;
-  readonly documents: number;
-  readonly media: number;
-  readonly compatible: boolean;
-}
 export interface RecoveryPoint {
   readonly id: number;
   readonly createdAt: string;
-  readonly reason: "manual" | "save" | "pre-restore";
+  readonly reason: "manual" | "save" | "pre-restore" | "download" | "imported";
   readonly bytes: number;
   readonly records: number;
   readonly documents: number;
   readonly media: number;
-  readonly campaignAvailable: boolean;
-  readonly campaignMedia: number;
-  readonly addons: readonly AddonRecoveryPoint[];
-}
-export interface RecoveryListing {
-  readonly contractVersion: "recovery-points.v2";
-  readonly revision: number;
-  readonly points: readonly RecoveryPoint[];
+  /** The add-on build the point needs; empty for the campaign. */
+  readonly generationId: string;
+  readonly compatible: boolean;
 }
 export type RecoveryScope =
   { readonly scope: "campaign" } | { readonly scope: "addon"; readonly addonId: string };
+/** One part's points, newest first. */
+export type RecoveryPart = RecoveryScope & { readonly points: readonly RecoveryPoint[] };
+export interface RecoveryListing {
+  readonly contractVersion: "recovery-points.v3";
+  readonly revision: number;
+  /** The campaign first, then add-ons with points by ID. */
+  readonly parts: readonly RecoveryPart[];
+}
 export type RecoveryAction =
   | { readonly kind: "create" }
   | (RecoveryScope &
@@ -47,78 +43,48 @@ export class RecoveryRequestError extends Error {
 }
 const natural = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-export function parseRecoveryListing(value: unknown): RecoveryListing {
-  if (
-    !isRecord(value) ||
-    !hasOnlyKeys(value, new Set(["contractVersion", "revision", "points"])) ||
-    value["contractVersion"] !== "recovery-points.v2" ||
-    !natural(value["revision"]) ||
-    !Array.isArray(value["points"]) ||
-    value["points"].length > 50
-  ) {
-    throw new BoundaryValidationError("recovery points", "invalid listing");
-  }
+const pointsPerPart = 50;
+const reasons: ReadonlySet<unknown> = new Set([
+  "manual",
+  "save",
+  "pre-restore",
+  "download",
+  "imported",
+]);
+const pointKeys: ReadonlySet<string> = new Set([
+  "id",
+  "createdAt",
+  "reason",
+  "bytes",
+  "records",
+  "documents",
+  "media",
+  "generationId",
+  "compatible",
+]);
+function parsePoints(value: unknown): RecoveryPoint[] {
+  if (!Array.isArray(value) || value.length > pointsPerPart)
+    throw new BoundaryValidationError("recovery points", "invalid part points");
   const points: RecoveryPoint[] = [];
-  for (const point of value["points"]) {
+  for (const point of value) {
     if (
       !isRecord(point) ||
-      !hasOnlyKeys(
-        point,
-        new Set([
-          "id",
-          "createdAt",
-          "reason",
-          "bytes",
-          "records",
-          "documents",
-          "media",
-          "campaignAvailable",
-          "campaignMedia",
-          "addons",
-        ]),
-      ) ||
+      !hasOnlyKeys(point, pointKeys) ||
       !natural(point["id"]) ||
       point["id"] < 1 ||
       points.some((existing) => existing.id <= Number(point["id"])) ||
       typeof point["createdAt"] !== "string" ||
       !Number.isFinite(Date.parse(point["createdAt"])) ||
-      !["manual", "save", "pre-restore"].includes(String(point["reason"])) ||
+      !reasons.has(point["reason"]) ||
       !natural(point["bytes"]) ||
       !natural(point["records"]) ||
       !natural(point["documents"]) ||
       !natural(point["media"]) ||
-      typeof point["campaignAvailable"] !== "boolean" ||
-      !natural(point["campaignMedia"]) ||
-      !Array.isArray(point["addons"]) ||
-      point["addons"].length > 512
+      typeof point["generationId"] !== "string" ||
+      (point["generationId"] !== "" && !isSha256(point["generationId"])) ||
+      typeof point["compatible"] !== "boolean"
     ) {
       throw new BoundaryValidationError("recovery points", "invalid recovery point");
-    }
-    const addons: AddonRecoveryPoint[] = [];
-    for (const addon of point["addons"]) {
-      if (
-        !isRecord(addon) ||
-        !hasOnlyKeys(
-          addon,
-          new Set(["addonId", "generationId", "documents", "media", "compatible"]),
-        ) ||
-        typeof addon["addonId"] !== "string" ||
-        !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(addon["addonId"]) ||
-        addons.some((existing) => existing.addonId === addon["addonId"]) ||
-        typeof addon["generationId"] !== "string" ||
-        (addon["generationId"] !== "" && !isSha256(addon["generationId"])) ||
-        !natural(addon["documents"]) ||
-        !natural(addon["media"]) ||
-        typeof addon["compatible"] !== "boolean"
-      )
-        throw new BoundaryValidationError("recovery points", "invalid add-on context");
-      addons.push({
-        addonId: addon["addonId"],
-        generationId: addon["generationId"],
-        documents: addon["documents"],
-        media: addon["media"],
-        compatible: addon["compatible"],
-      });
     }
     points.push({
       id: point["id"],
@@ -128,12 +94,45 @@ export function parseRecoveryListing(value: unknown): RecoveryListing {
       records: point["records"],
       documents: point["documents"],
       media: point["media"],
-      campaignAvailable: point["campaignAvailable"],
-      campaignMedia: point["campaignMedia"],
-      addons,
+      generationId: point["generationId"],
+      compatible: point["compatible"],
     });
   }
-  return { contractVersion: "recovery-points.v2", revision: value["revision"], points };
+  return points;
+}
+export function parseRecoveryListing(value: unknown): RecoveryListing {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, new Set(["contractVersion", "revision", "parts"])) ||
+    value["contractVersion"] !== "recovery-points.v3" ||
+    !natural(value["revision"]) ||
+    !Array.isArray(value["parts"]) ||
+    value["parts"].length < 1 ||
+    value["parts"].length > 513
+  ) {
+    throw new BoundaryValidationError("recovery points", "invalid listing");
+  }
+  const parts: RecoveryPart[] = [];
+  for (const [index, part] of value["parts"].entries()) {
+    if (!isRecord(part)) throw new BoundaryValidationError("recovery points", "invalid part");
+    if (index === 0) {
+      if (!hasOnlyKeys(part, new Set(["scope", "points"])) || part["scope"] !== "campaign")
+        throw new BoundaryValidationError("recovery points", "campaign part missing");
+      parts.push({ scope: "campaign", points: parsePoints(part["points"]) });
+      continue;
+    }
+    const addonId = part["addonId"];
+    if (
+      !hasOnlyKeys(part, new Set(["scope", "addonId", "points"])) ||
+      part["scope"] !== "addon" ||
+      typeof addonId !== "string" ||
+      !/^[a-z0-9][a-z0-9._-]{0,127}$/.test(addonId) ||
+      parts.some((existing) => existing.scope === "addon" && existing.addonId >= addonId)
+    )
+      throw new BoundaryValidationError("recovery points", "invalid add-on part");
+    parts.push({ scope: "addon", addonId, points: parsePoints(part["points"]) });
+  }
+  return { contractVersion: "recovery-points.v3", revision: value["revision"], parts };
 }
 export async function recoveryRequest(
   signal: AbortSignal,

@@ -43,7 +43,7 @@ func TestLatestRetentionCleansExistingAndFutureBuildsPreservingCampaignRecovery(
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := points.Points[0].ID
+	id := points.Parts[0].Points[0].ID
 	selected := installUninstallFixture(t, m, packageSpec{ID: "example", Version: "2.0.0"})
 	if err := m.ConfigurePackageRetention(ctx, true); err != nil {
 		t.Fatal(err)
@@ -59,12 +59,10 @@ func TestLatestRetentionCleansExistingAndFutureBuildsPreservingCampaignRecovery(
 	if err != nil {
 		t.Fatal(err)
 	}
-	point := points.Points[0]
-	if point.ID != id || !point.CampaignAvailable || point.Records != 1 || len(point.Addons) != 1 || point.Addons[0].AddonID != "other" {
-		t.Fatal("campaign or other add-on recovery lost", point)
-	}
-	if point.Addons[0].GenerationID != other.GenerationID {
-		t.Fatal("recovery point kept a retired dependency", point.Addons)
+	// The retired build's add-on points go; the campaign and other add-on stay.
+	if len(points.Parts) != 2 || points.Parts[0].Points[0].ID != id || points.Parts[0].Points[0].Records != 1 ||
+		points.Parts[1].AddonID != "other" || points.Parts[1].Points[0].GenerationID != other.GenerationID {
+		t.Fatal("campaign or other add-on recovery lost", points.Parts)
 	}
 	var materialized int
 	if err := db.QueryRow(`SELECT materialized FROM addon_data_sets WHERE addon_id='example'`).Scan(&materialized); err != nil || materialized != 1 {
@@ -150,7 +148,7 @@ func TestLatestRetentionRollsBackContextRetirementBeforeDeletingFiles(t *testing
 		t.Fatal("accepted failed metadata retirement")
 	}
 	after, _ := recovery.List(ctx)
-	if after.Revision != before.Revision || len(after.Points[0].Addons) != 1 {
+	if after.Revision != before.Revision || len(after.Parts) != len(before.Parts) {
 		t.Fatal("failed cleanup retired recovery", after)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "example", "generations", old.GenerationID, "package.zip")); err != nil {

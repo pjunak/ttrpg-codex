@@ -112,9 +112,9 @@ func inspect(ctx context.Context, tx *sql.Tx, options Options) (Report, error) {
 		if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM addon_package_generations WHERE addon_id=?", options.AddonID).Scan(&report.ArchiveGenerations); err != nil {
 			return report, err
 		}
-		// Recovery images can recreate deleted namespaces, so their affected portions
-		// are explicitly included in the same review and atomic removal.
-		stats, err := fingerprint(ctx, tx, digest, "recovery_points", "EXISTS (SELECT 1 FROM json_each(image_json, '$.sets') WHERE value ->> 'addon_id'=?) OR EXISTS (SELECT 1 FROM json_each(image_json, '$.documents') WHERE value ->> 'addon_id'=?)", options.AddonID, options.AddonID)
+		// The add-on's recovery points could recreate the deleted namespace, so
+		// they are included in the same review and atomic removal.
+		stats, err := fingerprint(ctx, tx, digest, "recovery_points", "scope='addon' AND addon_id=?", options.AddonID)
 		if err != nil {
 			return report, err
 		}
@@ -215,12 +215,10 @@ func Apply(ctx context.Context, db *sql.DB, options Options, reviewed string) (R
 		return report, ErrStale
 	}
 	if options.Kind == "delete-addon-data" {
-		if _, err = tx.ExecContext(ctx, `UPDATE recovery_points SET image_json=json_set(image_json,
-   '$.sets',json(COALESCE((SELECT json_group_array(json(value)) FROM json_each(image_json,'$.sets') WHERE value ->> 'addon_id' != ?),'[]')),
-   '$.documents',json(COALESCE((SELECT json_group_array(json(value)) FROM json_each(image_json,'$.documents') WHERE value ->> 'addon_id' != ?),'[]')))
-   WHERE EXISTS (SELECT 1 FROM json_each(image_json,'$.sets') WHERE value ->> 'addon_id'=?)
-      OR EXISTS (SELECT 1 FROM json_each(image_json,'$.documents') WHERE value ->> 'addon_id'=?)`,
-			options.AddonID, options.AddonID, options.AddonID, options.AddonID); err != nil {
+		if _, err = tx.ExecContext(ctx, "DELETE FROM recovery_points WHERE scope='addon' AND addon_id=?", options.AddonID); err != nil {
+			return report, err
+		}
+		if _, err = tx.ExecContext(ctx, "DELETE FROM recovery_capture WHERE scope='addon' AND addon_id=?", options.AddonID); err != nil {
 			return report, err
 		}
 		for _, table := range []string{"addon_update_attempts", "addon_schema_reviews", "addon_data_commits", "addon_data_sets"} {

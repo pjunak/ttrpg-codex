@@ -37,14 +37,16 @@ type EventJournal interface {
 }
 
 type Config struct {
-	BeforeWrite func(context.Context, *sql.Tx) error
+	// BeforeWrite runs before the transaction's first change with the add-on ID
+	// whose data it changes, or "" for the campaign.
+	BeforeWrite func(context.Context, *sql.Tx, string) error
 	DB          *sql.DB
 	Events      EventJournal
 	Now         func() time.Time
 }
 
 type Store struct {
-	beforeWrite func(context.Context, *sql.Tx) error
+	beforeWrite func(context.Context, *sql.Tx, string) error
 	db          *sql.DB
 	events      EventJournal
 	now         func() time.Time
@@ -220,7 +222,7 @@ func (store *Store) Transact(ctx context.Context, input Transaction) (Commit, er
 	}
 	defer cleanup()
 	if store.beforeWrite != nil {
-		if err := store.beforeWrite(ctx, transaction); err != nil {
+		if err := store.beforeWrite(ctx, transaction, ""); err != nil {
 			return Commit{}, err
 		}
 	}

@@ -314,7 +314,7 @@ func (manager *Manager) cleanupLocked(ctx context.Context, scope CleanupScope, r
 			continue
 		}
 		if scope.DiscardAddonRecovery {
-			if err := recoverystore.RetireAddonContext(ctx, tx, generation.AddonID, generation.GenerationID); err != nil {
+			if err := recoverystore.RetireAddonGeneration(ctx, tx, generation.AddonID, generation.GenerationID); err != nil {
 				return CleanupResult{}, err
 			}
 		}

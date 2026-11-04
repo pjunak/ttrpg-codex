@@ -7,7 +7,8 @@ import (
 	"github.com/pjunak/ttrpg-codex/contracts/addons/v3"
 )
 
-// Scope selects the campaign or one add-on inside a recovery point.
+// Scope names one part of the campaign: the campaign itself or one add-on.
+// Every recovery point belongs to exactly one part.
 type Scope struct {
 	Scope   string `json:"scope"`
 	AddonID string `json:"addonId,omitempty"`
@@ -17,25 +18,17 @@ func (scope Scope) valid() bool {
 	return scope.Scope == "campaign" && scope.AddonID == "" || scope.Scope == "addon" && addonv3.ValidAddonID(scope.AddonID)
 }
 
-type AddonPoint struct {
-	AddonID      string `json:"addonId"`
-	GenerationID string `json:"generationId"`
-	Documents    int64  `json:"documents"`
-	Media        int64  `json:"media"`
-	Compatible   bool   `json:"compatible"`
+// args names the part for the queries in this package, followed by extra.
+func (scope Scope) args(extra ...any) []any {
+	return append([]any{sql.Named("scope", scope.Scope), sql.Named("addon", scope.AddonID)}, extra...)
 }
 
-// A context exists even for an installed add-on with no saved documents, or a
-// disabled add-on whose owned data remains. Package identity is checked later.
-const addonContexts = `SELECT value ->> 'addon_id' AS addon_id FROM json_each(@image, '$.packages')
- UNION SELECT value ->> 'addon_id' FROM json_each(@image, '$.sets')
- UNION SELECT b.owner_id FROM json_each(@image, '$.blobs') j JOIN blobs b ON b.blob_id = j.value ->> 'blob_id' WHERE b.owner_kind = 'addon'`
-
-func contextExists(ctx context.Context, tx *sql.Tx, image string, scope Scope) (bool, error) {
-	var exists bool
-	err := tx.QueryRowContext(ctx, `SELECT CASE WHEN @scope = 'addon' THEN EXISTS(SELECT 1 FROM (`+addonContexts+`) WHERE addon_id = @addon)
- ELSE COALESCE(json_extract(@image, '$.campaignAvailable'), 1) END`, sql.Named("image", image), sql.Named("scope", scope.Scope), sql.Named("addon", scope.AddonID)).Scan(&exists)
-	return exists, err
+// partOf maps a store's write hook argument to its part.
+func partOf(addonID string) Scope {
+	if addonID == "" {
+		return Scope{Scope: "campaign"}
+	}
+	return Scope{Scope: "addon", AddonID: addonID}
 }
 
 func compatibleContext(ctx context.Context, tx *sql.Tx, image string, scope Scope) (bool, error) {
@@ -66,69 +59,24 @@ func compatibleContext(ctx context.Context, tx *sql.Tx, image string, scope Scop
 	return compatible, err
 }
 
-func listContexts(ctx context.Context, tx *sql.Tx, image string, point *Point) error {
-	point.Addons = []AddonPoint{}
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(json_extract(@image, '$.campaignAvailable'), 1),
- (SELECT count(*) FROM json_each(@image, '$.blobs') j JOIN blobs b ON b.blob_id = j.value ->> 'blob_id' WHERE b.owner_kind <> 'addon' AND j.value ->> 'deleted' = 0)`, sql.Named("image", image)).Scan(&point.CampaignAvailable, &point.CampaignMedia); err != nil {
-		return err
-	}
-	rows, err := tx.QueryContext(ctx, `SELECT addon_id,
- COALESCE((SELECT value ->> 'active_generation_id' FROM json_each(@image, '$.packages') WHERE value ->> 'addon_id' = owners.addon_id), ''),
- (SELECT count(*) FROM json_each(@image, '$.documents') WHERE value ->> 'addon_id' = owners.addon_id),
- (SELECT count(*) FROM json_each(@image, '$.blobs') j JOIN blobs b ON b.blob_id = j.value ->> 'blob_id' WHERE b.owner_kind = 'addon' AND b.owner_id = owners.addon_id AND j.value ->> 'deleted' = 0)
- FROM (`+addonContexts+`) owners ORDER BY addon_id`, sql.Named("image", image))
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var addon AddonPoint
-		if err := rows.Scan(&addon.AddonID, &addon.GenerationID, &addon.Documents, &addon.Media); err != nil {
-			rows.Close()
-			return err
-		}
-		point.Addons = append(point.Addons, addon)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return err
-	}
-	for i := range point.Addons {
-		point.Addons[i].Compatible, err = compatibleContext(ctx, tx, image, Scope{Scope: "addon", AddonID: point.Addons[i].AddonID})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// RetireAddonContext is part of the package cleanup transaction. Removing an
-// obsolete package can never remove the campaign or another add-on's snapshot.
-func RetireAddonContext(ctx context.Context, tx *sql.Tx, addonID, generationID string) error {
-	result, err := tx.ExecContext(ctx, retireAddonSQL+` WHERE EXISTS(SELECT 1 FROM json_each(image_json, '$.packages')
- WHERE value ->> 'addon_id' = @addon AND value ->> 'active_generation_id' = @generation)`, sql.Named("addon", addonID), sql.Named("generation", generationID))
+// RetireAddonGeneration is part of the package cleanup transaction. It removes
+// the add-on's points that need the obsolete generation; the campaign's and
+// other add-ons' points are separate and stay.
+func RetireAddonGeneration(ctx context.Context, tx *sql.Tx, addonID, generationID string) error {
+	result, err := tx.ExecContext(ctx, `DELETE FROM recovery_points WHERE scope = 'addon' AND addon_id = @addon
+ AND EXISTS(SELECT 1 FROM json_each(image_json, '$.packages') WHERE value ->> 'active_generation_id' = @generation)`,
+		sql.Named("addon", addonID), sql.Named("generation", generationID))
 	if err != nil {
 		return err
 	}
 	if count, err := result.RowsAffected(); err != nil || count == 0 {
 		return err
 	}
-	return finishContextRetirement(ctx, tx)
-}
-
-const retireAddonSQL = `UPDATE recovery_points SET image_json = json_set(image_json,
- '$.packages', (SELECT json_group_array(json(value)) FROM json_each(image_json, '$.packages') WHERE value ->> 'addon_id' <> @addon),
- '$.sets', (SELECT json_group_array(json(value)) FROM json_each(image_json, '$.sets') WHERE value ->> 'addon_id' <> @addon),
- '$.documents', (SELECT json_group_array(json(value)) FROM json_each(image_json, '$.documents') WHERE value ->> 'addon_id' <> @addon),
- '$.blobs', (SELECT json_group_array(json(j.value)) FROM json_each(image_json, '$.blobs') j WHERE NOT EXISTS(SELECT 1 FROM blobs b WHERE b.blob_id = j.value ->> 'blob_id' AND b.owner_kind = 'addon' AND b.owner_id = @addon)))`
-
-func finishContextRetirement(ctx context.Context, tx *sql.Tx) error {
-	// Remove envelopes only when every independently recoverable context is gone.
-	if _, err := tx.ExecContext(ctx, `DELETE FROM recovery_points WHERE json_extract(image_json, '$.campaignAvailable') = 0
- AND json_array_length(image_json, '$.packages') = 0 AND json_array_length(image_json, '$.sets') = 0 AND json_array_length(image_json, '$.blobs') = 0`); err != nil {
+	// The add-on's history is gone, so its next edit starts a new group.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM recovery_capture WHERE scope = 'addon' AND addon_id = ?`, addonID); err != nil {
 		return err
 	}
-	_, err := tx.ExecContext(ctx, `UPDATE recovery_control SET revision = revision + 1, last_capture = 0 WHERE singleton = 1`)
+	_, err = tx.ExecContext(ctx, `UPDATE recovery_control SET revision = revision + 1 WHERE singleton = 1`)
 	return err
 }
 
@@ -138,7 +86,7 @@ type DeleteRequest struct {
 	ExpectedRevision int64 `json:"expectedRevision"`
 }
 
-func (s *Store) DeleteContext(ctx context.Context, request DeleteRequest) error {
+func (s *Store) Delete(ctx context.Context, request DeleteRequest) error {
 	if !request.Scope.valid() || request.ID < 1 || request.ExpectedRevision < 0 {
 		return ErrInvalid
 	}
@@ -150,33 +98,17 @@ func (s *Store) DeleteContext(ctx context.Context, request DeleteRequest) error 
 	if err := claim(ctx, tx, request.ExpectedRevision); err != nil {
 		return err
 	}
-	var image string
-	if err := tx.QueryRowContext(ctx, `SELECT image_json FROM recovery_points WHERE point_id = ?`, request.ID).Scan(&image); err == sql.ErrNoRows {
-		return ErrNotFound
-	} else if err != nil {
-		return err
-	}
-	exists, err := contextExists(ctx, tx, image, request.Scope)
+	result, err := tx.ExecContext(ctx, `DELETE FROM recovery_points WHERE point_id = @id AND scope = @scope AND addon_id = @addon`,
+		request.Scope.args(sql.Named("id", request.ID))...)
 	if err != nil {
 		return err
 	}
-	if !exists {
+	if count, err := result.RowsAffected(); err != nil {
+		return err
+	} else if count != 1 {
 		return ErrNotFound
 	}
-	if request.Scope.Scope == "addon" {
-		_, err = tx.ExecContext(ctx, retireAddonSQL+` WHERE point_id = @id`, sql.Named("addon", request.AddonID), sql.Named("id", request.ID))
-	} else {
-		_, err = tx.ExecContext(ctx, `UPDATE recovery_points SET image_json = json_set(image_json, '$.campaignAvailable', json('false'),
- '$.collections', json('[]'), '$.records', json('[]'), '$.assets', json('[]'),
- '$.blobs', (SELECT json_group_array(json(j.value)) FROM json_each(image_json, '$.blobs') j JOIN blobs b ON b.blob_id = j.value ->> 'blob_id' WHERE b.owner_kind = 'addon')) WHERE point_id = ?`, request.ID)
-	}
-	if err != nil {
-		return err
-	}
-	if err := finishContextRetirement(ctx, tx); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `UPDATE recovery_control SET suppressed = 0 WHERE singleton = 1`); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE recovery_control SET suppressed = 0, revision = revision + 1 WHERE singleton = 1`); err != nil {
 		return err
 	}
 	return tx.Commit()

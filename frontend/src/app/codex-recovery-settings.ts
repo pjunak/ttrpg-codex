@@ -8,6 +8,7 @@ import {
   waitForHostRestart,
   type RecoveryAction,
   type RecoveryListing,
+  type RecoveryPart,
   type RecoveryPoint,
   type RecoveryScope,
 } from "../core/recovery.js";
@@ -59,19 +60,10 @@ export class CodexRecoverySettings extends LitElement {
     super.disconnectedCallback();
   }
   protected override render() {
-    const scope = this.#scope();
-    const points =
-      this.listing?.points.filter((point) =>
-        scope.scope === "campaign"
-          ? point.campaignAvailable
-          : point.addons.some((addon) => addon.addonId === scope.addonId),
-      ) ?? [];
+    const points = this.#part()?.points ?? [];
     const automatic = points.filter((point) => point.reason === "save");
-    const addons = [
-      ...new Set(
-        this.listing?.points.flatMap((point) => point.addons.map((addon) => addon.addonId)) ?? [],
-      ),
-    ].sort();
+    const addons =
+      this.listing?.parts.flatMap((part) => (part.scope === "addon" ? [part.addonId] : [])) ?? [];
     return html`<section class="settings-ledger settings-recovery-panel" aria-labelledby="recovery-title">
       <header class="settings-ledger-heading"><div><span class="settings-category-mark" aria-hidden="true">💾</span><div><h2 id="recovery-title">${this.#ui.t("recovery.title")}</h2></div></div>
         <div class="settings-recovery-actions">
@@ -180,13 +172,23 @@ export class CodexRecoverySettings extends LitElement {
       ? { scope: "addon", addonId: this.selection.slice(6) }
       : { scope: "campaign" };
   }
+  #part(): RecoveryPart | undefined {
+    const scope = this.#scope();
+    return this.listing?.parts.find((part) =>
+      part.scope === "campaign"
+        ? scope.scope === "campaign"
+        : scope.scope === "addon" && part.addonId === scope.addonId,
+    );
+  }
   #row(point: RecoveryPoint) {
-    const reason: MessageKey =
-      point.reason === "manual"
-        ? "recovery.manual"
-        : point.reason === "pre-restore"
-          ? "recovery.safety"
-          : "recovery.edit";
+    const reasons: Readonly<Record<RecoveryPoint["reason"], MessageKey>> = {
+      manual: "recovery.manual",
+      "pre-restore": "recovery.safety",
+      save: "recovery.edit",
+      download: "recovery.downloaded",
+      imported: "recovery.imported",
+    };
+    const reason = reasons[point.reason];
     return html`<div class="settings-snapshot-row" data-point-id=${point.id}>
       <span aria-hidden="true">🕒</span><time datetime=${point.createdAt}>${this.#date(point.createdAt)}</time><span class="settings-snapshot-reason">${this.#ui.t(reason)}</span>
       <span class="settings-row-usage">${Math.max(1, Math.round(point.bytes / 1024))} kB</span>
@@ -250,15 +252,11 @@ export class CodexRecoverySettings extends LitElement {
     const { point, action } = this.review!;
     const deleting = action.kind === "delete";
     const scope = this.#scope();
-    const addon =
-      scope.scope === "addon"
-        ? point.addons.find((addon) => addon.addonId === scope.addonId)
-        : undefined;
-    const ready = scope.scope === "campaign" || addon?.compatible === true;
+    const ready = point.compatible;
     return html`<section class="settings-recovery-review" aria-labelledby="recovery-review-title">
       <h3 id="recovery-review-title" tabindex="-1">${this.#ui.t(deleting ? "recovery.deleteReview" : "recovery.restoreReview")}</h3>
       <p><strong>${scope.scope === "campaign" ? this.#ui.t("recovery.campaign") : this.#ui.t("recovery.addon", { addon: scope.addonId })}</strong> · ${this.#date(point.createdAt)}</p>
-      <p>${this.#ui.t("recovery.summary", { records: scope.scope === "campaign" ? point.records : 0, documents: addon?.documents ?? 0, media: addon?.media ?? point.campaignMedia })}</p>
+      <p>${this.#ui.t("recovery.summary", { records: point.records, documents: point.documents, media: point.media })}</p>
       <p>${this.#ui.t(deleting ? "recovery.deleteEffect" : scope.scope === "campaign" ? "recovery.restoreEffect" : "recovery.addonEffect")}</p>
       ${!deleting && !ready ? html`<p role="status">${this.#ui.t("recovery.compatibility")}</p>` : nothing}
       <div class="settings-recovery-actions"><button type="button" ?disabled=${this.busy || (!deleting && !ready)} @click=${() => void this.#request(action)}>${this.#ui.t(deleting ? "recovery.delete" : "recovery.restore")}</button>
@@ -278,14 +276,7 @@ export class CodexRecoverySettings extends LitElement {
         this.listing = listing;
         this.#closeReview();
         this.#reloadRequired = false;
-        const scope = this.#scope();
-        if (
-          scope.scope === "addon" &&
-          !listing.points.some((point) =>
-            point.addons.some((addon) => addon.addonId === scope.addonId),
-          )
-        )
-          this.selection = "campaign";
+        if (!this.#part()) this.selection = "campaign";
         if (action)
           this.message =
             action.kind === "create"
