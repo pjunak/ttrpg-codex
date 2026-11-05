@@ -75,16 +75,7 @@ not obvious. Move an entry between sections instead of duplicating it.
   Candidates the owner has not chosen between yet: map pins and empty map
   space, timeline cards and session columns, relationships ("add relationship
   to…"), faction ranks, and lending the menu to add-ons through the SDK (a
-  contract change). The wiki writer's link menu is part of the Homebrew
-  editor redesign.
-- **Homebrew editor redesign** `ttrpg-codex`, `addon-dnd-2024-compendium`,
-  `addon-dnd-homebrew`, `addon-dnd-character-sheets` — The item editor mixes
-  lists with free text, hides which choices reveal other fields and scatters
-  its settings. Make it one page per record, with a start chooser for new
-  items, a Settings side panel and one look per field type. Lend the host's
-  writer to add-ons with rules links (selection toolbar, right-click, `[[`);
-  search matches gain a `kind:id` hint. Render the links on character sheets.
-  Order: host, Compendium, Homebrew, Sheets.
+  contract change). The writer has its own link menu.
 - **Character sheet refinement** `addon-dnd-character-sheets` — Compact has
   per-tab context bars, pips and floating windows; the owner keeps refining it.
   Known gaps: carrying capacity ignores size and features that change it (such
