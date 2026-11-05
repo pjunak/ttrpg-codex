@@ -154,7 +154,10 @@
     resize: vertical;
     min-height: 6rem;
   }
-  [data-codex-ui] input.ui-control:is([type="checkbox"], [type="radio"]) {
+  [data-codex-ui]
+    input.ui-control:is([type="checkbox"], [type="radio"]):not(
+      [data-ui="choices"] > label > input
+    ) {
     accent-color: var(--ui-accent);
     min-height: 1.15rem;
     width: 1.15rem;
@@ -193,7 +196,10 @@
     width: 100%;
   }
   [data-ui-field]:has(> input:is([type="checkbox"], [type="radio"])),
-  [data-codex-ui] label:has(> input.ui-control:is([type="checkbox"], [type="radio"])) {
+  [data-codex-ui]
+    label:has(> input.ui-control:is([type="checkbox"], [type="radio"])):not(
+      [data-ui="choices"] > label
+    ) {
     display: inline-flex;
     flex-wrap: wrap;
     align-items: center;
@@ -203,6 +209,86 @@
   }
   [data-codex-ui] legend {
     font: var(--ui-font-size)/1.5 var(--ui-font);
+  }
+  /* A few short choices as joined buttons over native radios. */
+  fieldset[data-ui="choices"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  fieldset[data-ui="choices"] > legend {
+    float: left;
+    width: 100%;
+    margin-bottom: var(--space-1);
+    padding: 0;
+  }
+  fieldset[data-ui="choices"] > label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--ui-target);
+    min-width: 2.75rem;
+    margin: 0 0 0 -1px;
+    padding: 0 0.85rem;
+    border: 1px solid var(--ui-border);
+    background: var(--ui-field);
+    color: var(--ui-text);
+    font: 500 var(--ui-font-size)/1.3 var(--ui-font);
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+  fieldset[data-ui="choices"] > legend + label,
+  fieldset[data-ui="choices"] > label:first-child {
+    margin-left: 0;
+    border-start-start-radius: var(--ui-radius);
+    border-end-start-radius: var(--ui-radius);
+  }
+  fieldset[data-ui="choices"] > label:last-of-type {
+    border-start-end-radius: var(--ui-radius);
+    border-end-end-radius: var(--ui-radius);
+  }
+  fieldset[data-ui="choices"] > label > input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: inherit;
+  }
+  fieldset[data-ui="choices"] > label:hover {
+    border-color: var(--ui-accent);
+    z-index: 1;
+  }
+  fieldset[data-ui="choices"] > label:has(> input:checked) {
+    z-index: 1;
+    border-color: var(--ui-accent);
+    background: var(--ui-accent);
+    color: var(--ui-on-accent);
+    font-weight: 600;
+  }
+  fieldset[data-ui="choices"] > label:has(> input:focus-visible) {
+    z-index: 2;
+    outline: 2px solid var(--ui-focus);
+    outline-offset: 2px;
+  }
+  fieldset[data-ui="choices"] > label:has(> input:disabled) {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  fieldset[data-ui="choices"] > :is(small, [data-ui-help]) {
+    width: 100%;
+    margin-top: var(--space-1);
+  }
+  @media (forced-colors: active) {
+    fieldset[data-ui="choices"] > label:has(> input:checked) {
+      outline: 2px solid Highlight;
+    }
   }
   [data-ui-field].ui-search-field {
     grid-template-columns: minmax(0, 1fr) auto;
