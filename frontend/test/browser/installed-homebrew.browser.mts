@@ -1032,15 +1032,21 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
     page.on("console", (message) => {
       if (message.type() === "error") errors.push(message.text());
     });
+    // While a record is open on this width, the list folds behind "All records".
+    const openRecord = async (name: RegExp): Promise<void> => {
+      const browse = page.getByRole("button", { name: "All records", exact: true });
+      if (await browse.isVisible()) await browse.click();
+      await page.getByRole("button", { name }).click();
+    };
     await page.goto(
       `${(await dm.get("/api/health")).url().replace("/api/health", "")}/#/addons/dnd-homebrew/homebrew`,
     );
     await page.getByRole("heading", { name: "Homebrew", exact: true }).waitFor();
     assert.equal(await page.locator('a[href="#/addons/dnd-homebrew/homebrew"]').count(), 1);
-    await page.getByRole("button", { name: /^Ward/u }).click();
+    await openRecord(/^Ward/u);
     await page.locator(".hb-effect-row").first().waitFor();
     if (shots) await page.screenshot({ path: `${shots}/ui-editor.png`, fullPage: true });
-    await page.getByRole("button", { name: /^Lantern of Embers/u }).click();
+    await openRecord(/^Lantern of Embers/u);
     await page.locator(".hb-toggle-change").first().waitFor();
     // The pickers read the installed Compendium's classes and spells.
     const classes = page.locator('select[name="requirementClasses"]');
@@ -1056,10 +1062,29 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
       "the Compendium's classes are offered",
     );
     if (shots) await page.screenshot({ path: `${shots}/ui-properties.png`, fullPage: true });
-    await page.getByRole("button", { name: /^Ward/u }).click();
+    await openRecord(/^Ward/u);
     await page.locator(".hb-effect-row").first().waitFor();
-    const description = page.locator('textarea[name="text"]');
-    await description.fill("You gain a +1 bonus to Armor Class while you carry this stone.");
+    // The description is the host's writer; Ctrl+K links the selected word to a rule.
+    const writer = page.locator("codex-addon-markdown-editor").first();
+    await writer
+      .getByRole("combobox", { name: "Editor view", exact: true })
+      .selectOption("markdown");
+    const source = writer.locator(".writer-source");
+    await source.fill(
+      "You gain a +1 bonus to Armor Class while you carry this stone, as with Shield.",
+    );
+    await source.evaluate((area: HTMLTextAreaElement) => {
+      const start = area.value.lastIndexOf("Shield");
+      area.setSelectionRange(start, start + "Shield".length);
+      area.dispatchEvent(new Event("select"));
+    });
+    await source.press("Control+k");
+    await page
+      .getByRole("listbox", { name: "Matches", exact: true })
+      .getByRole("option", { name: /^Shield.*Compendium$/u })
+      .first()
+      .click();
+    assert.match(await source.inputValue(), /as with \[\[Shield\|(?:spell|armor):[\w-]+\]\]\.$/u);
     await page.locator(".hb-editor-actions").getByRole("button", { name: "Save" }).click();
     await page.getByText("Unpublished changes: 1.").waitFor();
     await page.getByRole("button", { name: "Publish changes (1)" }).click();
@@ -1137,22 +1162,21 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
     await page.reload();
     await page.getByRole("heading", { name: "Homebrew", exact: true }).waitFor();
     await page.getByRole("button", { name: "New item" }).click();
+    await page.getByRole("heading", { name: "What are you making?" }).waitFor();
+    await page.getByRole("button", { name: "Start blank" }).click();
     await page.locator('input[name="name"]').fill("Temp");
     await page
       .locator(".hb-editor-actions")
       .getByRole("button", { name: "Save and add another" })
       .click();
-    await page.getByRole("button", { name: /^Temp/u }).waitFor();
-    assert.equal(
-      await page.locator('input[name="name"]').inputValue(),
-      "",
-      "the editor is ready for the next item",
-    );
+    await page.getByRole("button", { name: /^Temp/u }).waitFor({ state: "attached" });
+    // The next item starts from the chooser again.
+    await page.getByRole("heading", { name: "What are you making?" }).waitFor();
     const keys = (await all("homebrew_items")).documents.map((document) => document.key);
     assert.ok(keys.includes("temp-2") && !keys.includes("temp"), JSON.stringify(keys));
 
     // The subclass editor: one grant added through the vocabulary's own form.
-    await page.getByRole("button", { name: /^Banner Warden/u }).click();
+    await openRecord(/^Banner Warden/u);
     const unbroken = page
       .locator("fieldset.hb-feature")
       .filter({ has: page.locator('input[name="features[3].name"]') });
@@ -1180,7 +1204,7 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
     assert.deepEqual(line?.grants, { resistances: ["psychic"], hpBonus: 5 });
 
     // The spell editor: a changed range republishes the record and its stat block.
-    await page.getByRole("button", { name: /^Ember Lance/u }).click();
+    await openRecord(/^Ember Lance/u);
     const range = page.locator('input[name="range"]');
     await range.waitFor();
     if (shots) await page.screenshot({ path: `${shots}/ui-spell.png`, fullPage: true });
