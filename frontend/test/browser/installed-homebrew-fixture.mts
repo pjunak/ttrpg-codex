@@ -334,6 +334,35 @@ export const homebrewSample = {
 };
 
 /**
+ * A dnd-homebrew import with two spellcasting foci: a wand with its own +1 to
+ * +3 for spell attacks, and a quarterstaff whose +1 to +3 also raises a
+ * wizard's spell attacks and save DCs.
+ */
+export const homebrewFocusSample = {
+  format: "dnd-homebrew",
+  schemaVersion: 1,
+  mode: "merge",
+  sets: [],
+  items: [
+    {
+      id: "wand-of-sparks",
+      name: "Wand of Sparks",
+      text: "While holding this wand, you have a bonus to spell attack rolls.",
+      overrides: { itemType: "Wand", rarity: "Uncommon" },
+      spellcastingFocus: { appliesTo: ["spellAttack"], bonus: [1, 2, 3] },
+    },
+    {
+      id: "grove-staff",
+      name: "Grove Staff",
+      text: "This staff's bonus also applies to your wizard spell attack rolls and spell save DC.",
+      overrides: { itemType: "Staff", rarity: "Rare" },
+      baseItem: { kind: "weapon", ids: ["quarterstaff"], bonus: [1, 2, 3] },
+      spellcastingFocus: { appliesTo: ["spellAttack", "spellSaveDC"], classes: ["wizard"] },
+    },
+  ],
+};
+
+/**
  * A dnd-homebrew import with one fighter subclass: a skill, extra Hit Points,
  * a pool of uses, a toggle that spends one, and a level 7 feature.
  * It copies addon-dnd-homebrew's docs/examples/sample-subclass.json.

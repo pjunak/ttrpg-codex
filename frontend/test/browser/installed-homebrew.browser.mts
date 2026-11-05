@@ -24,6 +24,7 @@ import {
   homebrewBackgroundSample,
   homebrewFeatSample,
   homebrewModel,
+  homebrewFocusSample,
   homebrewSample,
   homebrewSpeciesSample,
   homebrewSpellSample,
@@ -364,6 +365,7 @@ type Evaluation = {
   evaluation: {
     inputs: unknown;
     sheet: Record<string, any>;
+    guidance: Record<string, any>;
     spellOptions: Record<string, any>;
     issues: { id: string; severity: string }[];
   };
@@ -594,6 +596,75 @@ void test(
       magic.issues.filter((issue) => /^(item-|rules-data:magic-item:)/u.test(issue.id)),
       [],
       "picked magic gear raises no item issues",
+    );
+  },
+);
+
+void test(
+  "a homebrew spellcasting focus raises spells by the bonus the player picks",
+  { skip: !enabled },
+  async () => {
+    const importer = await connect(dm, dmCsrf, "dnd-homebrew", {
+      contract: "codex.import-adapter",
+      own: true,
+    });
+    const preview = await importer("preview", {
+      contractVersion: "import-preview.v1",
+      format: "dnd-homebrew",
+      document: homebrewFocusSample,
+    });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    assert.deepEqual(preview.body.result.summary, { creates: 2, updates: 0, skips: 0, deletes: 0 });
+    const commit = await importer(
+      "commit",
+      { contractVersion: "import-commit.v1", token: preview.body.result.token },
+      "import-foci",
+    );
+    assert.equal(commit.status, 200, JSON.stringify(commit.body));
+    assert.ok((await publish()) > 0, "the foci publish");
+
+    const engine = await engineAs(dm, dmCsrf);
+    const wizard = async (inventory: unknown[]) => {
+      const request = inputs(inventory);
+      request.inputs.build.levels = Array.from({ length: 3 }, (_, i) => ({
+        id: `level-${i + 1}`,
+        classId: "wizard",
+      }));
+      const call = await engine("evaluate-character", request);
+      assert.equal(call.status, 200, JSON.stringify(call.body));
+      return (call.body.result as Evaluation).evaluation;
+    };
+    const caster = (evaluation: Evaluation["evaluation"]) => {
+      const found = evaluation.sheet.spellcasting.perClass.find(
+        (entry: { classId: string }) => entry.classId === "wizard",
+      );
+      assert.ok(found, JSON.stringify(evaluation.sheet.spellcasting));
+      return found as { spellAttack: number; saveDC: number };
+    };
+    const itemIssues = (evaluation: Evaluation["evaluation"]) =>
+      evaluation.issues.filter((issue) => /^(item-|rules-data:magic-item:)/u.test(issue.id));
+    const plain = caster(await wizard([]));
+
+    // The wand offers its bonuses, and the picked one raises spell attacks only.
+    const unpicked = await wizard([card("hb.wand-of-sparks")]);
+    assert.deepEqual(unpicked.guidance.equipment["inv-hb.wand-of-sparks"].bonuses, [1, 2, 3]);
+    assert.deepEqual(caster(unpicked), plain, "an unpicked bonus raises nothing");
+    const wand = await wizard([card("hb.wand-of-sparks", { bonus: 2 })]);
+    assert.deepEqual(itemIssues(wand), []);
+    assert.equal(caster(wand).spellAttack, plain.spellAttack + 2);
+    assert.equal(caster(wand).saveDC, plain.saveDC);
+
+    // The staff's one pick raises its attacks and the wizard's spells together.
+    const staff = await wizard([card("hb.grove-staff", { bonus: 3 })]);
+    assert.deepEqual(itemIssues(staff), []);
+    assert.equal(caster(staff).spellAttack, plain.spellAttack + 3);
+    assert.equal(caster(staff).saveDC, plain.saveDC + 3);
+    const row = staff.sheet.weapons.find(
+      (weapon: { itemId: string }) => weapon.itemId === "inv-hb.grove-staff",
+    );
+    assert.ok(
+      row?.modifiers.some((entry: { attackBonus: number }) => entry.attackBonus === 3),
+      JSON.stringify(row),
     );
   },
 );
