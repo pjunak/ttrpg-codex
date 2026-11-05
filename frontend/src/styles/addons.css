@@ -9,6 +9,7 @@
 
 .addon-route {
   margin-top: 0;
+  max-width: none;
 }
 .addon-article {
   max-width: none;
@@ -80,11 +81,19 @@ codex-addon-markdown {
   padding: var(--space-4);
 }
 
+/* A route is the add-on's whole page: full width, no card chrome. */
 .route-addon .addon-contribution,
 .addon-route .addon-contribution {
   min-height: calc(100vh - 6rem);
   /* Clip route content without creating a scroll container that traps sticky controls. */
   overflow: clip;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.route-addon .addon-contribution > :not(.addon-contribution-heading),
+.addon-route .addon-contribution > :not(.addon-contribution-heading) {
+  padding: 0;
 }
 
 @media (max-width: 58rem) {
