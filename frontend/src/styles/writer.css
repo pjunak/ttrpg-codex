@@ -412,3 +412,56 @@ codex-markdown-editor {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
+/* Floating bar over selected text, and the link picker it opens. */
+.writer-selection-bar {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--chrome-field-border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+  font: var(--text-sm) var(--font-ui);
+}
+.writer-selection-bar button {
+  min-height: 32px;
+  border-color: transparent;
+  background: transparent;
+  white-space: nowrap;
+}
+.writer-selection-bar .writer-selection-link {
+  color: var(--ui-accent);
+}
+.writer-link-search {
+  width: min(24rem, calc(100vw - 1rem));
+  max-width: min(24rem, calc(100vw - 1rem));
+}
+.writer-link-search .ui-menu-item.is-active {
+  background: color-mix(in srgb, var(--ui-accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px var(--ui-focus);
+}
+.writer-link-group {
+  margin: var(--space-2) 0.55rem var(--space-1);
+  color: var(--ui-muted);
+  font-size: 0.75em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.writer-link-search [role="group"] .ui-menu-item .ui-menu-detail {
+  max-width: 7rem;
+}
+@media (pointer: coarse) {
+  .writer-selection-bar button {
+    min-height: 44px;
+  }
+}
+@media (forced-colors: active) {
+  .writer-link-search .ui-menu-item.is-active {
+    outline: 2px solid Highlight;
+  }
+}

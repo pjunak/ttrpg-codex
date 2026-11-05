@@ -25,6 +25,7 @@ import { rememberRecentRecord } from "./recent-records.js";
 import { navigateTabs } from "../ui/focus.js";
 import "./codex-settings.js";
 import "./codex-addon-markdown.js";
+import "./codex-addon-markdown-editor.js";
 import "./codex-map.js";
 import "./codex-timeline.js";
 import "./codex-campaign-graph.js";

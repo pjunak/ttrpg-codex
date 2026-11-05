@@ -139,6 +139,24 @@ describe("public wiki links", () => {
       ),
     ).toHaveLength(1);
   });
+  it("accepts a search hint only in the provider's own kinds", () => {
+    const search: WikiRequest = {
+      contractVersion: "wiki-links.v1",
+      operation: "search",
+      query: "shield",
+      limit: 20,
+    };
+    const withHint = (hint: string) => ({
+      ...response(),
+      matches: response().matches.map((match) => ({ ...match, label: "Shield", hint })),
+    });
+    expect(parseWikiMatches(withHint("spell:shield"), provider, [route], search)[0]?.hint).toBe(
+      "spell:shield",
+    );
+    for (const hint of ["armor:shield", "spell", "spell:a]b", "spell:a|b"])
+      expect(() => parseWikiMatches(withHint(hint), provider, [route], search)).toThrow();
+    expect(() => parseWikiMatches(withHint("spell:shield"), provider, [route], request)).toThrow();
+  });
   it("ends a callback that ignores its deadline", async () => {
     const stuck = {
       ...provider,

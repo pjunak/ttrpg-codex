@@ -33,6 +33,7 @@
         "index": { "type": "integer", "minimum": 0, "maximum": 99 },
         "label": { "type": "string", "minLength": 1, "maxLength": 200 },
         "description": { "type": "string", "maxLength": 500 },
+        "hint": { "type": "string", "minLength": 3, "maxLength": 300, "pattern": "^[^\\[\\]|\\n]+:[^\\[\\]|\\n]+$" },
         "target": { "$ref": "#/$defs/target" }
       }
     },

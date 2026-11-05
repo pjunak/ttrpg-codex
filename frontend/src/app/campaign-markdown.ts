@@ -172,6 +172,34 @@ export function resolveCampaignWikiLink(
   return undefined;
 }
 
+/** Visible records whose name contains the query, grouped by collection, as exact `page:key` links. */
+export function searchCampaignWikiRecords(
+  context: CampaignMarkdownContext,
+  query: string,
+  limit = 20,
+): readonly {
+  readonly label: string;
+  readonly choices: readonly { readonly label: string; readonly hint: string }[];
+}[] {
+  const wanted = normalizeIdentity(query);
+  if (wanted === "") return [];
+  let left = limit;
+  return campaignPages.flatMap((page) => {
+    const choices = campaignCollection(context.dataset, page.collection)
+      .records.flatMap((record) => {
+        const name = isRecord(record.value) ? record.value["name"] : undefined;
+        return typeof name === "string" &&
+          /^[^[\]|\n]{1,200}$/u.test(name) &&
+          normalizeIdentity(name).includes(wanted)
+          ? [{ label: name, hint: `${page.id}:${record.key}` }]
+          : [];
+      })
+      .slice(0, left);
+    left -= choices.length;
+    return choices.length ? [{ label: page.plural, choices }] : [];
+  });
+}
+
 export function safeCampaignMarkdownLink(href: string): SafeMarkdownLink | undefined {
   const normalized = href.trim();
   if (normalized.startsWith("#/")) return { href: normalized, external: false };

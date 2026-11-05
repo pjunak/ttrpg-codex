@@ -1,5 +1,5 @@
 import { LitElement, html, nothing, type TemplateResult } from "lit";
-import { EditorState, type Command } from "prosemirror-state";
+import { EditorState, NodeSelection, TextSelection, type Command } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import {
   baseKeymap,
@@ -28,8 +28,17 @@ import {
   parseCampaignMarkdown,
   renderCampaignMarkdown,
   safeCampaignMarkdownLink,
+  searchCampaignWikiRecords,
   type CampaignMarkdownContext,
 } from "./campaign-markdown.js";
+import {
+  openLinkSearch,
+  requestAddonLinks,
+  validLinkLabel,
+  type WriterLinkChoice,
+  type WriterLinkGroup,
+} from "./writer-link-search.js";
+import { openContextMenu, type ContextMenuItem } from "../ui/context-menu.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
 import { MarkdownDraftController } from "./markdown-draft-controller.js";
 import type { MarkdownDraft, MarkdownDraftContext } from "../core/markdown-drafts.js";
@@ -37,6 +46,18 @@ import { selectOptions } from "./select-options.js";
 import { containDialogTab } from "../ui/focus.js";
 
 type Mode = "formatted" | "markdown" | "preview";
+/** What a chosen link replaces: a document range, or a range of the Markdown source. */
+interface LinkRange {
+  readonly source: boolean;
+  readonly from: number;
+  readonly to: number;
+  readonly subject: string;
+}
+interface LinkAnchor {
+  readonly x: number;
+  readonly top: number;
+  readonly bottom: number;
+}
 let writerID = 0;
 
 export class CodexMarkdownEditor extends LitElement {
@@ -51,6 +72,8 @@ export class CodexMarkdownEditor extends LitElement {
     saveLabel: { type: String },
     draftContext: { attribute: false },
     quietIdle: { type: Boolean },
+    linkScope: { type: String },
+    selectionBar: { state: true },
     recoveryBusy: { state: true },
     recoveryMessage: { state: true },
     mode: { state: true },
@@ -70,6 +93,9 @@ export class CodexMarkdownEditor extends LitElement {
   declare draftContext: MarkdownDraftContext | undefined;
   /** Another editor in the same form already explains local recovery. */
   declare quietIdle: boolean;
+  /** "campaign" links records and rules; "rules" (add-on prose) links add-on references only. */
+  declare linkScope: "campaign" | "rules";
+  declare private selectionBar: (LinkAnchor & { readonly wiki: boolean }) | undefined;
   declare private recoveryBusy: boolean;
   declare private recoveryMessage: string;
   declare private mode: Mode;
@@ -86,6 +112,10 @@ export class CodexMarkdownEditor extends LitElement {
   #lastEmitted = "";
   #sourceSelection = { from: 0, to: 0 };
   #returnFocus: HTMLElement | undefined;
+  #listeners: AbortController | undefined;
+  #barFrame = 0;
+  #propsView: EditorView | undefined;
+  #propsKey = "";
 
   constructor() {
     super();
@@ -100,13 +130,29 @@ export class CodexMarkdownEditor extends LitElement {
     this.expanded = false;
     this.menu = "";
     this.issue = "";
+    this.linkScope = "campaign";
     this.recoveryBusy = false;
     this.recoveryMessage = "";
   }
   protected override createRenderRoot() {
     return this;
   }
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.#listeners = new AbortController();
+    // The selection toolbar is placed in viewport coordinates; follow scrolling.
+    this.ownerDocument.addEventListener(
+      "scroll",
+      () => {
+        if (this.selectionBar) this.#updateSelectionBar();
+      },
+      { capture: true, passive: true, signal: this.#listeners.signal },
+    );
+  }
   override disconnectedCallback(): void {
+    this.#listeners?.abort();
+    cancelAnimationFrame(this.#barFrame);
+    this.#barFrame = 0;
     this.#view?.destroy();
     this.#view = undefined;
     super.disconnectedCallback();
@@ -125,14 +171,19 @@ export class CodexMarkdownEditor extends LitElement {
       (changed.has("value") && this.value !== this.#lastEmitted && this.value !== this.#richValue)
     )
       this.#loadRich();
-    this.#view?.setProps({
-      editable: () => !this.disabled && !this.recoveryBusy,
-      attributes: {
-        "aria-label": this.label || uiText("Wiki text"),
-        "aria-multiline": "true",
-        role: "textbox",
-      },
-    });
+    this.#placeSelectionBar();
+    // Setting props redraws the browser selection from the editor state, which can lag
+    // behind fast Shift+arrow selection, so only do it when the props change.
+    const label = this.label || uiText("Wiki text"),
+      key = `${this.disabled}|${this.recoveryBusy}|${label}`;
+    if (this.#view && (this.#view !== this.#propsView || key !== this.#propsKey)) {
+      this.#propsView = this.#view;
+      this.#propsKey = key;
+      this.#view.setProps({
+        editable: () => !this.disabled && !this.recoveryBusy,
+        attributes: { "aria-label": label, "aria-multiline": "true", role: "textbox" },
+      });
+    }
     if (this.disabled) this.menu = "";
   }
 
@@ -164,6 +215,16 @@ export class CodexMarkdownEditor extends LitElement {
           view.updateState(next);
           this.requestUpdate();
         }
+        this.#updateSelectionBar();
+      },
+      // Typing "[[" opens the link search; dismissing it keeps the brackets as text.
+      handleTextInput: (view, from, to, text) => {
+        if (text !== "[" || from < 1 || view.state.doc.textBetween(from - 1, from) !== "[")
+          return false;
+        view.dispatch(view.state.tr.insertText(text, from, to));
+        if (view.state.doc.textBetween(from - 1, from + 1) === "[[")
+          this.#openLinkSearch({ source: false, from: from - 1, to: from + 1, subject: "" });
+        return true;
       },
       handleDOMEvents: {
         click: (_view, event) => {
@@ -171,6 +232,19 @@ export class CodexMarkdownEditor extends LitElement {
             event.preventDefault();
             return true;
           }
+          return false;
+        },
+        contextmenu: (view, event) => this.#contextMenu(view, event),
+        focus: () => {
+          this.#updateSelectionBar();
+          return false;
+        },
+        blur: (_view, event) => {
+          if (
+            !(event.relatedTarget instanceof Node) ||
+            !this.querySelector(".writer-selection-bar")?.contains(event.relatedTarget)
+          )
+            this.selectionBar = undefined;
           return false;
         },
       },
@@ -207,6 +281,9 @@ export class CodexMarkdownEditor extends LitElement {
   #change(source: string): void {
     this.value = source;
     this.#lastEmitted = source;
+    // Forms read the named source field; keep it current before listeners run.
+    const area = this.querySelector<HTMLTextAreaElement>(".writer-source");
+    if (area && area.value !== source) area.value = source;
     this.issue = "";
     this.#drafts.changed(source);
     this.dispatchEvent(
@@ -380,9 +457,10 @@ export class CodexMarkdownEditor extends LitElement {
             @input=${this.#sourceInput} @select=${this.#rememberSource} @keyup=${this.#rememberSource}></textarea>
         </div>
         <div class="writer-preview" ?hidden=${!this.split && this.mode !== "preview"} aria-label=${uiText("Article preview")}>
-          ${this.context ? renderCampaignMarkdown(parseCampaignMarkdown(this.value), this.context) : nothing}
+          ${this.#preview()}
         </div>
       </div>
+      ${this.#selectionToolbar()}
       ${this.issue ? html`<p class="writer-issue" role="alert">${this.issue}</p>` : nothing}
       ${
         this.expanded
@@ -441,20 +519,24 @@ export class CodexMarkdownEditor extends LitElement {
           <span class=${`writer-swatch md-color-${color}`} aria-hidden="true">●</span>${uiText(colorLabels[color])}</button>`,
         )}</div>`;
     }
-    if (this.menu === "link" || this.menu === "image" || this.menu === "wiki")
+    if (this.menu === "link" || this.menu === "image")
       return html`
-      <label>${uiText(this.menu === "wiki" ? "Campaign link" : "URL")}<input class="writer-insert-url" aria-label=${uiText(this.menu === "wiki" ? "Campaign link" : "URL")} /></label>
+      <label>${uiText("URL")}<input class="writer-insert-url" aria-label=${uiText("URL")} /></label>
       <label>${uiText(this.menu === "image" ? "Alternative text" : "Label")}<input class="writer-insert-label" /></label>
       <button type="button" @click=${this.#insertLink}>${uiText("Insert")}</button>`;
     if (this.menu === "insert")
       return html`
       ${this.#button(uiText("Bullet list"), "Bullet list", () => this.#list(false))}
       ${this.#button(uiText("Numbered list"), "Numbered list", () => this.#list(true))}
-      ${["wiki", "link", "image"].map(
+      <button type="button" @click=${(event: Event) => {
+        const range = this.#currentLinkRange();
+        if (range) this.#openLinkSearch(range, anchorOf(event.currentTarget as HTMLElement));
+      }}>${uiText("Link to…")}</button>
+      ${(["link", "image"] as const).map(
         (kind) =>
           html`<button type="button" @click=${() => {
             this.menu = kind;
-          }}>${uiText(kind === "wiki" ? "Campaign link" : kind === "link" ? "Link" : "Image")}</button>`,
+          }}>${uiText(kind === "link" ? "Link" : "Image")}</button>`,
       )}
       ${this.#button(uiText("Table"), "Table", this.#insertTable)}
       ${this.#button(uiText("Add row"), "Add row", () => this.#command(addRowAfter))}
@@ -675,32 +757,19 @@ export class CodexMarkdownEditor extends LitElement {
     const href = this.querySelector<HTMLInputElement>(".writer-insert-url")?.value.trim() ?? "";
     const label = this.querySelector<HTMLInputElement>(".writer-insert-label")?.value.trim() ?? "";
     const kind = this.menu;
-    if (
-      kind === "wiki"
-        ? !/^[^[\]\n]{1,200}$/u.test(href)
-        : !safeCampaignMarkdownLink(href) || (kind === "image" && /^(?:mailto:|#\/)/u.test(href))
-    ) {
+    if (!safeCampaignMarkdownLink(href) || (kind === "image" && /^(?:mailto:|#\/)/u.test(href))) {
       this.issue = uiText("Enter a valid link.");
       return;
     }
     if (this.mode === "markdown") {
       this.#sourceReplace(
-        kind === "wiki"
-          ? `[[${href}]]`
-          : `${kind === "image" ? "!" : ""}[${label.replace(/[[\]]/gu, "")}](${href.replace(/\)/gu, "%29")})`,
+        `${kind === "image" ? "!" : ""}[${label.replace(/[[\]]/gu, "")}](${href.replace(/\)/gu, "%29")})`,
       );
       return;
     }
     const view = this.#view;
     if (!view) return;
-    if (kind === "wiki") {
-      const [name, ...hint] = href.split("|");
-      view.dispatch(
-        view.state.tr.replaceSelectionWith(
-          schema.node("wiki", { label: name, hint: hint.join("|") }),
-        ),
-      );
-    } else if (kind === "image")
+    if (kind === "image")
       view.dispatch(
         view.state.tr.replaceSelectionWith(schema.node("image", { src: href, alt: label })),
       );
@@ -787,6 +856,14 @@ export class CodexMarkdownEditor extends LitElement {
       this.menu = "";
       this.focusEditor();
     }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && !e.defaultPrevented) {
+      const range = this.#currentLinkRange();
+      if (range) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.#openLinkSearch(range);
+      }
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
       e.preventDefault();
       e.stopPropagation();
@@ -796,6 +873,228 @@ export class CodexMarkdownEditor extends LitElement {
   readonly #requestSave = (): void => {
     this.dispatchEvent(new CustomEvent("markdown-save", { bubbles: true, composed: true }));
   };
+
+  #preview() {
+    if (this.context)
+      return renderCampaignMarkdown(parseCampaignMarkdown(this.value), this.context);
+    // Add-on prose has no campaign data; wiki links resolve through the rule-details providers.
+    return this.linkScope === "rules"
+      ? html`<codex-addon-markdown .source=${this.value}></codex-addon-markdown>`
+      : nothing;
+  }
+  #currentLinkRange(): LinkRange | undefined {
+    if (this.disabled || this.mode === "preview") return undefined;
+    if (this.mode === "markdown") {
+      this.#rememberSource();
+      const { from, to } = this.#sourceSelection;
+      return { source: true, from, to, subject: this.value.slice(from, to) };
+    }
+    const view = this.#view;
+    if (!view) return undefined;
+    const selection = view.state.selection;
+    if (selection instanceof NodeSelection && selection.node.type.name === "wiki")
+      return {
+        source: false,
+        from: selection.from,
+        to: selection.to,
+        subject: String(selection.node.attrs["label"]),
+      };
+    // A link is one inline node, so a selection across blocks only places one.
+    if (!selection.$from.sameParent(selection.$to))
+      return { source: false, from: selection.to, to: selection.to, subject: "" };
+    return {
+      source: false,
+      from: selection.from,
+      to: selection.to,
+      subject: view.state.doc.textBetween(selection.from, selection.to, " "),
+    };
+  }
+  #anchorFor(range: LinkRange): LinkAnchor {
+    const view = this.#view;
+    if (!range.source && view) {
+      const start = view.coordsAtPos(range.from),
+        end = view.coordsAtPos(range.to, -1);
+      return {
+        x: start.left,
+        top: Math.min(start.top, end.top),
+        bottom: Math.max(start.bottom, end.bottom),
+      };
+    }
+    return anchorOf(this.querySelector<HTMLElement>(".writer-source") ?? this);
+  }
+  #openLinkSearch(range: LinkRange, anchor: LinkAnchor = this.#anchorFor(range)): void {
+    if (this.disabled) return;
+    this.menu = "";
+    this.selectionBar = undefined;
+    const subject = range.subject.trim().replace(/\s+/gu, " ");
+    openLinkSearch(this.ownerDocument, anchor, {
+      query: subject.slice(0, 200),
+      ...(subject ? { subject: subject.length > 60 ? `${subject.slice(0, 59)}…` : subject } : {}),
+      search: this.#searchLinks,
+      choose: (choice) => this.#applyLink(range, subject, choice),
+      returnFocus: range.source
+        ? this.querySelector<HTMLElement>(".writer-source")
+        : (this.#view?.dom ?? null),
+    });
+  }
+  readonly #searchLinks = async (
+    query: string,
+    signal: AbortSignal,
+  ): Promise<readonly WriterLinkGroup[]> => {
+    const records =
+      this.linkScope === "campaign" && this.context
+        ? searchCampaignWikiRecords(this.context, query)
+        : [];
+    return [...records, ...(await requestAddonLinks(this, query, signal))];
+  };
+  /** Selected words keep their wording and point at the chosen target. */
+  #applyLink(range: LinkRange, subject: string, choice: WriterLinkChoice): void {
+    const label = choice.hint && validLinkLabel(subject) ? subject : choice.label;
+    if (!validLinkLabel(label) || this.disabled) return;
+    if (range.source) {
+      this.#sourceSelection = { from: range.from, to: range.to };
+      this.#sourceReplace(`[[${label}${choice.hint ? `|${choice.hint}` : ""}]]`);
+      return;
+    }
+    const view = this.#view;
+    if (!view || range.to > view.state.doc.content.size) return;
+    const marks = view.state.doc.resolve(range.from).marks();
+    const transaction = view.state.tr.replaceWith(
+      range.from,
+      range.to,
+      schema.node("wiki", { label, hint: choice.hint }, undefined, marks),
+    );
+    view.dispatch(
+      transaction
+        .setSelection(TextSelection.create(transaction.doc, range.from + 1))
+        .scrollIntoView(),
+    );
+    view.focus();
+  }
+  readonly #unlink = (): void => {
+    const view = this.#view;
+    const selection = view?.state.selection;
+    if (
+      !view ||
+      this.disabled ||
+      !(selection instanceof NodeSelection) ||
+      selection.node.type.name !== "wiki"
+    )
+      return;
+    view.dispatch(
+      view.state.tr.replaceSelectionWith(
+        schema.text(String(selection.node.attrs["label"]), selection.node.marks),
+        false,
+      ),
+    );
+    view.focus();
+  };
+  #contextMenu(view: EditorView, event: MouseEvent): boolean {
+    // Shift+right-click keeps the browser's own menu (spelling, paste). Menus outside a
+    // modal dialog would be inert, so the full-screen writer keeps the browser menu too.
+    if (
+      event.shiftKey ||
+      this.disabled ||
+      this.mode !== "formatted" ||
+      view.dom.closest("dialog:modal")
+    )
+      return false;
+    event.preventDefault();
+    const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
+    if (at && at.inside >= 0 && view.state.doc.nodeAt(at.inside)?.type.name === "wiki")
+      view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, at.inside)));
+    const range = this.#currentLinkRange();
+    if (!range) return true;
+    const wiki = view.state.selection instanceof NodeSelection,
+      point = { x: event.clientX, top: event.clientY, bottom: event.clientY };
+    const items: ContextMenuItem[] = [
+      {
+        label: uiText(wiki ? "Change link…" : "Link to…"),
+        icon: "⌕",
+        detail: "Ctrl+K",
+        run: () => this.#openLinkSearch(range, point),
+      },
+      ...(wiki ? [{ label: uiText("Unlink"), run: this.#unlink }] : []),
+      {
+        label: uiText("Bold"),
+        detail: "Ctrl+B",
+        separator: true,
+        run: () => this.#format("strong"),
+      },
+      { label: uiText("Italic"), detail: "Ctrl+I", run: () => this.#format("em") },
+      { label: uiText("Clear formatting"), run: this.#clearFormatting },
+    ];
+    openContextMenu(this.ownerDocument, { x: event.clientX, y: event.clientY }, items, {
+      returnFocus: view.dom,
+    });
+    return true;
+  }
+  /** At most once a frame, after the editor has read the browser's selection. */
+  #updateSelectionBar(): void {
+    if (this.#barFrame) return;
+    this.#barFrame = requestAnimationFrame(() => {
+      this.#barFrame = 0;
+      this.#placeBarFor();
+    });
+  }
+  #placeBarFor(): void {
+    const view = this.#view;
+    if (
+      !view ||
+      this.mode !== "formatted" ||
+      this.disabled ||
+      !view.hasFocus() ||
+      view.state.selection.empty
+    ) {
+      if (this.selectionBar) this.selectionBar = undefined;
+      return;
+    }
+    const range = this.#currentLinkRange();
+    if (!range) return;
+    this.selectionBar = {
+      ...this.#anchorFor(range),
+      wiki: view.state.selection instanceof NodeSelection,
+    };
+  }
+  #selectionToolbar() {
+    const bar = this.selectionBar;
+    if (!bar) return nothing;
+    const link = (): void => {
+      const range = this.#currentLinkRange();
+      if (range) this.#openLinkSearch(range);
+    };
+    // Buttons keep focus (and the selection) in the text; keyboard users have Ctrl+B/I/K.
+    return html`<div class="writer-selection-bar" popover="manual" role="toolbar"
+      aria-label=${uiText("Selected text")} @pointerdown=${(event: Event) => event.preventDefault()}>
+      ${
+        bar.wiki
+          ? html`<button type="button" tabindex="-1" @click=${link}>⌕ ${uiText("Change link…")}</button>
+            <button type="button" tabindex="-1" @click=${this.#unlink}>${uiText("Unlink")}</button>`
+          : html`<button type="button" tabindex="-1" aria-label=${uiText("Bold")} title=${uiText("Bold")}
+              @click=${() => this.#format("strong")}><b>B</b></button>
+            <button type="button" tabindex="-1" aria-label=${uiText("Italic")} title=${uiText("Italic")}
+              @click=${() => this.#format("em")}><i>I</i></button>
+            <button type="button" tabindex="-1" class="writer-selection-link" @click=${link}>⌕ ${uiText("Link to…")}</button>`
+      }
+    </div>`;
+  }
+  #placeSelectionBar(): void {
+    const bar = this.querySelector<HTMLElement>(".writer-selection-bar"),
+      anchor = this.selectionBar;
+    if (!bar || !anchor) return;
+    if (!bar.matches(":popover-open")) bar.showPopover();
+    const window = this.ownerDocument.defaultView!,
+      box = bar.getBoundingClientRect(),
+      // On touch screens the system's own selection menu sits above the words.
+      below = window.matchMedia("(pointer: coarse)").matches || anchor.top - box.height - 8 < 8;
+    bar.style.left = `${Math.max(8, Math.min(anchor.x, window.innerWidth - box.width - 8))}px`;
+    bar.style.top = `${below ? anchor.bottom + 8 : anchor.top - box.height - 8}px`;
+  }
+}
+
+function anchorOf(element: HTMLElement): LinkAnchor {
+  const box = element.getBoundingClientRect();
+  return { x: box.left, top: box.top, bottom: box.bottom };
 }
 
 const colorLabels = {

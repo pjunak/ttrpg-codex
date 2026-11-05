@@ -208,7 +208,9 @@ submenus only after the pointer moves, so a menu opened by keyboard under a
 resting pointer stays put. The user's own wheel or touch scrolling outside the
 menu, resize and window blur close it. `bindLongPress` opens the same menu
 after a 550 ms touch hold and suppresses the following click. Menus are host UI
-for now; lending them to add-ons would be a contract change.
+for now; lending them to add-ons would be a contract change. The Markdown
+writer's own right-click menu (Link to…, formatting) is host code inside the
+writer, so add-ons get it with `ui.markdown-editor`.
 
 ## Theme contract
 

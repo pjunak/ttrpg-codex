@@ -523,12 +523,47 @@ container.append(prose);
 The reactive `source` property accepts a string of at most 200,000 characters.
 It uses the host's safe Markdown renderer for headings, lists, tables, code,
 emphasis, links, images and supported inline formatting. Raw HTML stays text;
-unsafe URLs do not become links. Heading IDs are unique per component. Wiki
-references remain unresolved text because this component receives no campaign
-data or reference resolver. Use separately authorized reference links for
-campaign records. Invalid/oversized input shows an error without truncating
-or changing stored text. It is a browser component, not an HTML-returning
-service.
+unsafe URLs do not become links. Heading IDs are unique per component. The
+component receives no campaign data, so wiki references never link campaign
+records: each `[[Label|kind:id]]` becomes a [rule-details](../../docs/reference/RULE_DETAILS.md)
+link resolved through the active [wiki providers](#wiki-references-and-library-search),
+and a reference no provider resolves says so when opened. Invalid/oversized
+input shows an error without truncating or changing stored text. It is a
+browser component, not an HTML-returning service.
+
+### Markdown writer for integrated add-ons
+
+Require capability `ui.markdown-editor` and create the host's writer:
+
+```ts
+const writer = document.createElement("codex-addon-markdown-editor") as HTMLElement & {
+  value: string;
+  name: string;
+  label: string;
+  maximumLength: number;
+  disabled: boolean;
+};
+writer.name = "description";
+writer.label = "Description";
+writer.value = savedMarkdown;
+writer.addEventListener("markdown-change", (event) => {
+  draft = (event as CustomEvent<{ value: string }>).detail.value;
+});
+form.append(writer);
+```
+
+It is the campaign writer (formatted, Markdown and preview views, the
+full-screen writer) without campaign data or local draft storage. A field
+named by `name` carries the Markdown, so `new FormData(form)` reads it like a
+textarea. `maximumLength` defaults to 200,000 characters. `markdown-save`
+fires for Ctrl+S and the full-screen writer's Save button. The element marks
+itself `data-ui-skip`, so `ui.enhance` leaves its own controls alone.
+
+Links go only to add-on references. Selecting text shows a small toolbar with
+"Link to…"; right-click, Ctrl+K and typing `[[` open the same search over the
+active wiki providers that declare `search: true`. A chosen match keeps the
+selected words and points at the match's `hint`, written as
+`[[selected words|kind:id]]`. A match without a hint is written by its label.
 
 ### Wiki references and library search
 
@@ -567,7 +602,10 @@ Return only unique matches (omit missing/ambiguous references):
 
 For resolve, `index` is the reference's position. Search uses unique indices
 below the requested limit and requires a plain-text `label` (1–200 characters);
-optional `description` is at most 500 characters. All returned targets must name
+optional `description` is at most 500 characters. An optional search `hint`
+(`kind:id`, at most 300 characters, the kind one of the provider's declared
+kinds, without `[`, `]` or `|`) names the exact entry, so a writer can link
+other words to it; resolve responses must omit it. All returned targets must name
 an active, role-visible route contribution in the provider's own generation.
 The host constructs and validates the URL; providers cannot supply arbitrary
 URLs. Query strings follow the ordinary route query limits. Responses are

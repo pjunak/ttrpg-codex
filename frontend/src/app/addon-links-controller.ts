@@ -170,6 +170,26 @@ export class AddonLinksController implements ReactiveController {
       });
     }
   }
+  /** A one-off search for a writer's link picker, apart from the search page's state. */
+  async find(query: string, signal: AbortSignal): Promise<readonly WikiResult[]> {
+    query = query.trim().slice(0, 200);
+    const providers = wikiProviders(this.#registry, this.#role).filter(
+      (active) => active.descriptor.config["search"] === true,
+    );
+    if (!query || !providers.length) return [];
+    const routes = this.#role ? (this.#registry?.list("route", this.#role) ?? []) : [],
+      combined = AbortSignal.any([this.#owner.signal, signal]);
+    return Promise.all(
+      providers.map((active) =>
+        requestWikiProvider(
+          active,
+          { contractVersion: "wiki-links.v1", operation: "search", query, limit: 20 },
+          routes,
+          combined,
+        ),
+      ),
+    );
+  }
   search(query: string): AddonSearchState {
     query = query.trim().slice(0, 200);
     if (query === this.#query) return this.#search;

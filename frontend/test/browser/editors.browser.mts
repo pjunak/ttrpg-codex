@@ -906,7 +906,8 @@ void test("the compact writer applies formatting, preserves source, and retains 
   assert.equal(await rich.locator(".md-effect-underline").textContent(), "Old notes");
   await page.getByRole("button", { name: "Underline", exact: true }).click();
   assert.equal(await rich.locator(".md-effect-underline").count(), 0);
-  await page.getByRole("button", { name: "Bold", exact: true }).click();
+  // The toolbar's Bold, not the selection bar's copy above the selected words.
+  await page.locator(".writer-toolbar").getByRole("button", { name: "Bold", exact: true }).click();
   await page.getByRole("button", { name: "Text color", exact: true }).click();
   await page.getByRole("button", { name: "Red", exact: true }).click();
   await page.getByRole("button", { name: "Text color", exact: true }).click();
@@ -1384,4 +1385,94 @@ void test("a confirmed field save leaves another field's open draft unsaved", as
     .locator(".character-save-status")
     .getByText("Unsaved changes", { exact: true })
     .waitFor();
+});
+
+void test("the writer links selected words, typed brackets and right-clicked text to campaign records", async (t) => {
+  const host = await campaign(t, {
+    factions: [{ key: "watch", value: { name: "Lantern Watch" } }],
+    locations: [{ key: "keep", value: { name: "Keep" } }],
+  });
+  const { page, writes } = await open(t, host, "#/locations");
+  await page.getByRole("button", { name: "Add location", exact: true }).click();
+  const writer = page.locator("codex-markdown-editor").first();
+  const text = writer.locator(".writer-rich .ProseMirror");
+  const source = async () => {
+    await writer
+      .getByRole("combobox", { name: "Editor view", exact: true })
+      .selectOption("markdown");
+    const value = await writer.locator(".writer-source").inputValue();
+    await writer
+      .getByRole("combobox", { name: "Editor view", exact: true })
+      .selectOption("formatted");
+    return value;
+  };
+  const search = page.getByRole("combobox", { name: "Search rules and records", exact: true });
+  const results = page.getByRole("listbox", { name: "Matches", exact: true });
+
+  await text.click();
+  await page.keyboard.type("Guarded by the old watch.");
+  await page.keyboard.press("ArrowLeft");
+  for (let index = 0; index < "the old watch".length; index++)
+    await page.keyboard.press("Shift+ArrowLeft");
+  const bar = page.getByRole("toolbar", { name: "Selected text", exact: true });
+  await bar.getByRole("button", { name: "⌕ Link to…", exact: true }).click();
+  assert.equal(await search.inputValue(), "the old watch");
+  await page.getByText("Link “the old watch” to", { exact: true }).waitFor();
+  await search.fill("lantern");
+  await results.getByRole("option", { name: /^Lantern Watch/u }).click();
+  await bar.waitFor({ state: "detached" });
+  assert.equal(await source(), "Guarded by [[the old watch|factions:watch]].");
+
+  // Typing [[ searches inline; Enter links the first match by its own name.
+  await text.click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" Ask [[");
+  await search.waitFor();
+  assert.equal(await search.inputValue(), "");
+  await search.fill("keep");
+  await results.getByRole("option", { name: /^Keep/u }).waitFor();
+  await page.keyboard.press("Enter");
+  assert.equal(
+    await source(),
+    "Guarded by [[the old watch|factions:watch]]. Ask [[Keep|locations:keep]]",
+  );
+
+  // Escape keeps the typed brackets as text.
+  await text.click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" [[");
+  await search.waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await search.count(), 0);
+  assert.match(await source(), / \\?\[\\?\[$/u);
+
+  // Right-click offers the same search; "Link as typed" writes a name-only link.
+  // The editor reads the browser's selection after each event, as with a person's pace.
+  await text.click();
+  await page.keyboard.press("End");
+  await sleep(100);
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Home");
+  for (let index = 0; index < "Guarded".length; index++)
+    await page.keyboard.press("Shift+ArrowRight");
+  await sleep(100);
+  const box = await page.evaluate(() => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount) throw new Error("No selected words");
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  });
+  await page.mouse.click(box.x, box.y, { button: "right" });
+  await page.getByRole("menuitem", { name: /Link to…/u }).click();
+  assert.equal(await search.inputValue(), "Guarded");
+  await results.getByRole("option", { name: /Guarded.*Link as typed/u }).click();
+  assert.match(await source(), /^\[\[Guarded\]\] by \[\[the old watch\|factions:watch\]\]/u);
+
+  // A link in the writer offers Change link… and Unlink.
+  await text.locator(".writer-wiki-link", { hasText: "the old watch" }).click();
+  await bar.getByRole("button", { name: "Unlink", exact: true }).click();
+  assert.match(await source(), /^\[\[Guarded\]\] by the old watch\. Ask/u);
+  assert.equal(writes.length, 0);
 });

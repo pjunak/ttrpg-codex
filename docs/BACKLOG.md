@@ -202,8 +202,9 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 - **Host locale and Markdown services for add-ons** `ttrpg-codex` — The add-ons
   run three localization systems, and the Compendium ships its own Markdown
   renderer, because the host serves no add-on locales and its Markdown
-  component cannot resolve wiki links. Lend a translator over manifest catalogs
-  and a reference-resolver hook through the SDK.
+  component shows add-on references only as rule-detail popovers, never as
+  in-place links. Lend a translator over manifest catalogs and a
+  reference-resolver hook through the SDK.
 
 ## Ideas
 

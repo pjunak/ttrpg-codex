@@ -22,6 +22,8 @@ export interface WikiMatch {
   readonly href: string;
   readonly label: string;
   readonly description: string;
+  /** Search only: the provider's `kind:id` reference, so a writer can link custom text to it. */
+  readonly hint: string;
 }
 export interface WikiResult {
   readonly active: ActiveBrowserContribution;
@@ -73,7 +75,7 @@ export function parseWikiMatches(
     throw new TypeError("Invalid wiki response");
   const indices = new Set<number>();
   return model["matches"].map((raw) => {
-    const match = object(raw, ["index", "target", "label", "description"]),
+    const match = object(raw, ["index", "target", "label", "description", "hint"]),
       index = match["index"];
     if (
       typeof index !== "number" ||
@@ -111,6 +113,7 @@ export function parseWikiMatches(
           ? ""
           : text(match["label"], 200, true),
       description: match["description"] === undefined ? "" : text(match["description"], 500),
+      hint: matchHint(match["hint"], active, request),
     };
   });
 }
@@ -131,6 +134,21 @@ export async function requestWikiProvider(
   }
 }
 
+function matchHint(
+  value: unknown,
+  active: ActiveBrowserContribution,
+  request: WikiRequest,
+): string {
+  if (value === undefined) return "";
+  const hint = text(value, 300, true);
+  if (
+    request.operation !== "search" ||
+    !/^[^[\]|]+:[^[\]|]+$/u.test(hint) ||
+    !acceptsWikiReference(active, { label: "", hint })
+  )
+    throw new TypeError("Wiki hint must be one of the provider's kind:id references");
+  return hint;
+}
 function strings(value: unknown): readonly string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")

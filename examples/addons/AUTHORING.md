@@ -60,6 +60,7 @@ saved-data and integration namespaces. Display names may change.
 | `ui.contributions` | Browser modules (`runtime.ui.mode` is always `integrated`) |
 | `ui.controls.v1` | The host's shared fields, searchable choices, tabs and dialogs |
 | `ui.markdown`, `ui.rule-details` | Shared Markdown rendering and rule-detail popovers |
+| `ui.markdown-editor` | The host's Markdown writer, with links to add-on references |
 | `worker.native` | A native Go worker per target platform |
 | `data.transactions` | Multi-document transactions on your collections |
 | `services.own` | `context.services.own(contract)` to call your own worker from your UI |

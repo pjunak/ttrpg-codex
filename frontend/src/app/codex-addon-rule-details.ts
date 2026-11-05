@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing } from "lit";
 import type { AddonLinkState, AddonLinksController } from "./addon-links-controller.js";
 import type { WikiReference } from "../addons/wiki-links.js";
 import { UiLocalizationController } from "./ui-localization.js";
+import { linkSearchEvent, type LinkSearchRequest } from "./writer-link-search.js";
 
 import {
   parseRuleDetails,
@@ -15,7 +16,10 @@ interface ResolveDetails {
 }
 const resolveEvent = "codex-rule-details-resolve";
 
-/** One mounted application supplies the existing generation/role-scoped resolver. */
+/**
+ * One mounted application supplies the existing generation/role-scoped resolver
+ * to descendant rule details and to writers searching for a link target.
+ */
 export function bindRuleDetails(
   root: HTMLElement,
   links: AddonLinksController,
@@ -92,12 +96,43 @@ export function bindRuleDetails(
     detail.dispose = dispose;
     update();
   };
+  const search = (event: Event): void => {
+    if (!(event instanceof CustomEvent)) return;
+    const detail = event.detail as LinkSearchRequest;
+    if (
+      !detail ||
+      typeof detail.query !== "string" ||
+      !(detail.signal instanceof AbortSignal) ||
+      typeof detail.respond !== "function"
+    )
+      return;
+    event.stopPropagation();
+    event.preventDefault();
+    void links.find(detail.query, detail.signal).then((results) => {
+      if (detail.signal.aborted) return;
+      detail.respond(
+        results
+          .map((result) => ({
+            label: result.active.descriptor.label,
+            failed: result.failed,
+            choices: result.matches.map(({ label, hint, description }) => ({
+              label,
+              hint,
+              description,
+            })),
+          }))
+          .filter((group) => group.failed || group.choices.length),
+      );
+    });
+  };
   root.addEventListener(resolveEvent, listener);
+  root.addEventListener(linkSearchEvent, search);
   if (presentSDK) root.ownerDocument.addEventListener(showRuleDetailsEvent, show);
   return () => {
     disposePresented?.();
     root.ownerDocument.removeEventListener(showRuleDetailsEvent, show);
     root.removeEventListener(resolveEvent, listener);
+    root.removeEventListener(linkSearchEvent, search);
     for (const dispose of active) dispose();
   };
 }

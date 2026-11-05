@@ -41,6 +41,15 @@ Explicit rule references such as `[[Shield|spell:shield]]` use the participating
 provider's public reference contract and [shared rule details](RULE_DETAILS.md).
 A source's display name is not a reliable record identity.
 
+The writer finds link targets for you. Select words and choose **Link to…** in
+the small toolbar above them, right-click (Shift+right-click keeps the
+browser's menu), press Ctrl+K, or type `[[`. One search lists matching
+campaign records and add-on references; the chosen target keeps the selected
+words, for example `[[the old watch|factions:watch]]`. "Link as typed" writes
+a name-only link. Clicking a link in the writer offers Change link… and
+Unlink. Add-on prose uses the same writer with add-on references only
+([`ui.markdown-editor`](../../examples/addons/API_V3.md#markdown-writer-for-integrated-add-ons)).
+
 ## Connected article context
 
 Scalar and multi-record facts, relationship endpoints, additional location roles,
