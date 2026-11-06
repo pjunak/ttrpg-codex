@@ -1232,7 +1232,8 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
     });
     await page.reload();
     await page.getByRole("heading", { name: "Homebrew", exact: true }).waitFor();
-    await page.getByRole("button", { name: "New item" }).click();
+    // The header's New item; the overview's Items card has one too.
+    await page.locator(".hb-header").getByRole("button", { name: "New item" }).click();
     await page.getByRole("heading", { name: "What are you making?" }).waitFor();
     await page.getByRole("button", { name: "Start blank" }).click();
     await page.locator('input[name="name"]').fill("Temp");
