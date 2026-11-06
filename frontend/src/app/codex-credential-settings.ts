@@ -21,10 +21,15 @@ const blank = (): Draft => ({ current: "", password: "", confirmation: "", disab
 export class CodexCredentialSettings extends LitElement {
   static override properties = {
     csrfToken: { attribute: false },
+    busy: { type: Boolean },
+    openPlayerPreview: { attribute: false },
     status: { state: true },
     message: { state: true },
   };
   declare csrfToken: string;
+  /** The app is busy, so no player preview may open. */
+  declare busy: boolean;
+  declare openPlayerPreview: () => void;
   declare status: CredentialStatus | undefined;
   declare message: string;
   #ui = new UiLocalizationController(this);
@@ -37,6 +42,8 @@ export class CodexCredentialSettings extends LitElement {
   constructor() {
     super();
     this.csrfToken = "";
+    this.busy = false;
+    this.openPlayerPreview = () => undefined;
     this.message = "";
   }
   get loading(): boolean {
@@ -66,9 +73,20 @@ export class CodexCredentialSettings extends LitElement {
       <header class="settings-ledger-heading"><div><span class="settings-category-mark" aria-hidden="true">🖥</span><div>
         <h2 id="credentials-title">${this.#ui.t("credentials.title")}</h2><p>${this.#ui.t("credentials.intro")}</p>
       </div></div></header>
+      ${this.#preview()}
       ${this.message ? html`<p role=${this.#success ? "status" : "alert"}>${this.#message()}</p>` : nothing}
       ${this.message && !this.#success ? html`<button type="button" ?disabled=${this.loading || this.saving} @click=${() => void this.#load()}>${this.#ui.t(this.loading ? "credentials.loading" : "credentials.refresh")}</button>` : nothing}
       ${this.status ? html`${this.#form("dm")}${this.#form("player")}` : nothing}
+    </section>`;
+  }
+
+  #preview() {
+    return html`<section class="settings-password-card" aria-labelledby="player-preview-title">
+      <div class="settings-password-card-head"><h3 id="player-preview-title">${this.#ui.t("preview.title")}</h3></div>
+      <p class="settings-hint">${this.#ui.t("preview.intro")}</p>
+      <button type="button" ?disabled=${this.busy || this.saving} @click=${() => this.openPlayerPreview()}>
+        <span aria-hidden="true">👁</span> ${this.#ui.t("shell.viewAs", { role: this.#ui.t("shell.player") })}
+      </button>
     </section>`;
   }
 

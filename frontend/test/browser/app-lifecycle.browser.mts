@@ -47,13 +47,17 @@ void test(
         },
       }),
     );
-    await page.goto("/#/characters", { waitUntil: "domcontentloaded" });
-    await page.getByText("Ryn", { exact: true }).waitFor();
+    await page.goto("/#/settings/access", { waitUntil: "domcontentloaded" });
+    const button = page
+      .locator("codex-credential-settings")
+      .getByRole("button", { name: "View as player", exact: true });
+    await button.waitFor();
+    assert.equal(
+      await page.locator(".sidebar-footer").getByRole("button", { name: "View as player" }).count(),
+      0,
+    );
     const opened = context.waitForEvent("page");
-    await page
-      .locator(".sidebar-footer")
-      .getByRole("button", { name: "View as player", exact: true })
-      .click();
+    await button.click();
     const popup = await opened;
     popup.on("pageerror", (error) => errors.push(error.message));
     await popup.waitForURL((url) => url.href !== "about:blank");
@@ -64,7 +68,7 @@ void test(
     const freshAuth = page.waitForRequest((request) => request.url().endsWith("/api/auth"));
     await app.evaluate((node) => document.body.append(node));
     await freshAuth;
-    await page.getByText("Ryn", { exact: true }).waitFor();
+    await button.waitFor();
     assert.equal(popup.isClosed(), false);
     assert.equal(context.pages().length, 2);
   },
@@ -156,9 +160,17 @@ for (const action of ["login", "logout", "view-as", "player-preview"] as const) 
           settled.resolve();
         }
       });
+      // The player preview opens from Settings → Server access.
+      const preview = action === "player-preview";
+      const ready = () =>
+        preview
+          ? page.getByRole("heading", { name: "Player preview", exact: true }).waitFor()
+          : page.getByText("Ryn", { exact: true }).waitFor();
       try {
-        await page.goto("/#/characters", { waitUntil: "domcontentloaded" });
-        await page.getByText("Ryn", { exact: true }).waitFor();
+        await page.goto(preview ? "/#/settings/access" : "/#/characters", {
+          waitUntil: "domcontentloaded",
+        });
+        await ready();
         await page.locator(".account-menu > summary").click();
         const account = page.locator(".account-panel");
         if (action === "login") {
@@ -166,13 +178,15 @@ for (const action of ["login", "logout", "view-as", "player-preview"] as const) 
           await account.getByRole("button", { name: "Sign in", exact: true }).click();
         } else if (action === "logout") {
           await account.getByRole("button", { name: "Sign out", exact: true }).click();
-        } else {
+        } else if (action === "view-as") {
           await page
             .locator(".sidebar-footer")
-            .getByRole("button", {
-              name: action === "view-as" ? "View as DM" : "View as player",
-              exact: true,
-            })
+            .getByRole("button", { name: "View as DM", exact: true })
+            .click();
+        } else {
+          await page
+            .locator("codex-credential-settings")
+            .getByRole("button", { name: "View as player", exact: true })
             .click();
         }
         await started.promise;
@@ -184,7 +198,7 @@ for (const action of ["login", "logout", "view-as", "player-preview"] as const) 
         const freshAuth = page.waitForRequest((request) => request.url().endsWith("/api/auth"));
         await app.evaluate((node) => document.body.append(node));
         await freshAuth;
-        await page.getByText("Ryn", { exact: true }).waitFor();
+        await ready();
         await page.waitForFunction(() => document.querySelector("codex-app")?.busy === false);
         await account
           .getByRole("button", { name: action === "login" ? "Sign in" : "Sign out", exact: true })

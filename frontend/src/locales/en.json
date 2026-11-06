@@ -1049,7 +1049,7 @@
     },
     "credentials": {
       "credentials.title": "Server access",
-      "credentials.intro": "Manage the shared DM and player passwords for this site.",
+      "credentials.intro": "See the campaign as your players do, and manage the shared DM and player passwords for this site.",
       "credentials.refresh": "Refresh password status",
       "credentials.loading": "Loading password status…",
       "credentials.dm": "DM password",
@@ -1163,7 +1163,8 @@
       "preview.notice": "Player preview — this tab has player access. Your DM tab remains signed in.",
       "preview.unavailable": "Player preview is unavailable or expired. Open a new preview from your DM tab.",
       "preview.close": "Close player preview",
-      "preview.openHint": "Open the player view in a separate tab",
+      "preview.title": "Player preview",
+      "preview.intro": "Opens the campaign in a new tab signed in as a player, so you see exactly what your players see. This tab stays signed in as DM. The player tab signs out after an hour or when you sign out here.",
       "preview.blocked": "Allow pop-ups for this site to open player preview.",
       "preview.failed": "Could not open player preview. Close an existing preview and try again."
     },

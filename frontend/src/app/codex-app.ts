@@ -402,15 +402,22 @@ export class CodexApp extends LitElement {
     if (list) navigateTabs(list, event);
   };
 
-  /** Role switching stays outside the account menu because DMs use it during play. */
+  /**
+   * The way back for a DM session switched to the player view through the
+   * API. The player preview itself opens from Settings → Server access.
+   */
   #viewAs() {
     const auth = this.#session.auth;
-    if (isPlayerPreview() || !auth?.authenticated || auth.realRole !== "dm") return nothing;
-    const toPlayer = auth.role === "dm";
+    if (
+      isPlayerPreview() ||
+      !auth?.authenticated ||
+      auth.realRole !== "dm" ||
+      auth.role !== "player"
+    )
+      return nothing;
     return html`<button class="sidebar-footer-action" type="button"
-      @click=${() => void (toPlayer ? this.#session.openPreview() : this.#session.switchRole())} ?disabled=${this.busy}
-      title=${toPlayer ? this.#ui.t("preview.openHint") : nothing}>
-      <span aria-hidden="true">👁</span>${this.#ui.t("shell.viewAs", { role: toPlayer ? this.#ui.t("shell.player") : uiText("DM") })}
+      @click=${() => void this.#session.switchRole()} ?disabled=${this.busy}>
+      <span aria-hidden="true">👁</span>${this.#ui.t("shell.viewAs", { role: uiText("DM") })}
     </button>`;
   }
 
@@ -472,6 +479,7 @@ export class CodexApp extends LitElement {
           .mapTarget=${this.route.mapParentId}
           .canManageCampaign=${session.canManage}
           .busy=${this.busy}
+          .openPlayerPreview=${() => void session.openPreview()}
         ></codex-settings>`;
       case "collection":
       case "record":

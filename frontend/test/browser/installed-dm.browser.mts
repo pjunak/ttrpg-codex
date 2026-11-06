@@ -208,6 +208,17 @@ async function open(t: TestContext, role = "dm", mobile = false) {
   await page.locator("#dm-page-title").waitFor();
   return page;
 }
+/** The player preview opens from Settings → Server access. */
+async function playerPreviewButton(page: Page) {
+  await page.evaluate(() => {
+    location.hash = "#/settings/access";
+  });
+  const button = page
+    .locator("codex-credential-settings")
+    .getByRole("button", { name: "View as player", exact: true });
+  await button.waitFor();
+  return button;
+}
 function slotRoot(page: Page) {
   return page.locator("[data-dm-dashboard-slot]");
 }
@@ -1125,9 +1136,13 @@ void test("player preview opens in a separate tab with player data, media and li
     const dm = await open(t, "dm", mobile),
       context = dm.context();
     const original = await jsonResponse(await context.request.get("/api/auth"));
-    if (mobile) await dm.locator("[data-menu-toggle]").click();
+    assert.equal(
+      await dm.locator(".sidebar-footer").getByRole("button", { name: "View as player" }).count(),
+      0,
+    );
+    const button = await playerPreviewButton(dm);
     const opened = context.waitForEvent("page");
-    await dm.getByRole("button", { name: "View as player", exact: true }).click();
+    await button.click();
     const preview = await opened;
     await preview
       .locator(".player-preview-notice")
@@ -1142,7 +1157,7 @@ void test("player preview opens in a separate tab with player data, media and li
     assert.equal(player.realRole, "player");
     assert.notEqual(player.csrfToken, original.csrfToken);
     assert.deepEqual(await jsonResponse(await context.request.get("/api/auth")), original);
-    assert.equal(await dm.locator("#dm-page-title").count(), 1);
+    assert.equal(await dm.locator("#credentials-title").count(), 1);
     assert.equal(await preview.locator('.sidebar-footer > a[href="#/dm"]').count(), 0);
     assert.equal(await preview.locator('.account-panel input[name="password"]').count(), 0);
     await preview.evaluate(() => {
@@ -1275,13 +1290,14 @@ void test("player preview fails closed after missing storage or DM logout and re
     window.savedOpen = window.open;
     window.open = () => null;
   });
-  await dm.getByRole("button", { name: "View as player", exact: true }).click();
+  const button = await playerPreviewButton(dm);
+  await button.click();
   await dm.getByRole("alert").filter({ hasText: "Allow pop-ups" }).waitFor();
   await dm.evaluate(() => {
     window.open = window.savedOpen;
   });
   const opened = context.waitForEvent("page");
-  await dm.getByRole("button", { name: "View as player", exact: true }).click();
+  await button.click();
   const preview = await opened;
   await preview
     .locator(".player-preview-notice")

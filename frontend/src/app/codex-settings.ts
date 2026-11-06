@@ -101,6 +101,7 @@ export class CodexSettings extends LitElement {
     actorRole: { attribute: false },
     addonTarget: { attribute: false },
     category: { attribute: false },
+    openPlayerPreview: { attribute: false },
   };
 
   declare campaign: CampaignDataset | undefined;
@@ -121,6 +122,8 @@ export class CodexSettings extends LitElement {
   declare addonTarget: string | null | undefined;
   /** The category named by the route; maps and add-ons use their own route targets. */
   declare category: SettingsSlug | undefined;
+  /** Opens a separate tab signed in as a player; the DM session stays here. */
+  declare openPlayerPreview: () => void;
   readonly #contributions = new AddonContributionsController(this, () => ({
     registry: this.registry,
     role: this.actorRole,
@@ -146,6 +149,7 @@ export class CodexSettings extends LitElement {
     this.activeCategory = "language";
     this.editingId = null;
     this.deleteId = null;
+    this.openPlayerPreview = () => undefined;
   }
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
@@ -211,6 +215,7 @@ export class CodexSettings extends LitElement {
     if (!this.canManageCampaign) return this.#shell(this.#languagePanel());
     if (this.activeCategory === "account")
       return this.#shell(html`<codex-credential-settings .csrfToken=${this.csrfToken}
+      .busy=${this.busy} .openPlayerPreview=${this.openPlayerPreview}
       @campaign-edit-dirty=${this.#onSystemSaving}></codex-credential-settings>`);
     if (this.activeCategory === "backup")
       return this.#shell(html`<codex-recovery-settings .csrfToken=${this.csrfToken}
