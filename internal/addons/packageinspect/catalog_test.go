@@ -138,7 +138,8 @@ func TestInspectFileBuildsEffectiveLocaleCatalogs(t *testing.T) {
 
 	sk := report.Locales[2]
 	if sk.Path != "locales/sk.json" || sk.Messages != 0 || len(sk.Issues) != 1 ||
-		!strings.Contains(sk.Issues[0], "not a message-catalog.v1 file") {
+		!strings.Contains(sk.Issues[0], "not a message-catalog.v1 file: at ''") ||
+		strings.Contains(sk.Issues[0], "file://") {
 		t.Fatalf("rejected catalog = %+v", sk)
 	}
 

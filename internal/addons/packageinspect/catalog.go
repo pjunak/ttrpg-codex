@@ -134,7 +134,7 @@ func (i *Inspector) checkCatalog(body []byte, locale string, english *messageCat
 		return reject("not valid JSON: " + err.Error())
 	}
 	if err := i.catalogSchema.Validate(instance); err != nil {
-		return reject("not a message-catalog.v1 file: " + firstLine(err.Error()))
+		return reject("not a message-catalog.v1 file: " + schemaReason(err))
 	}
 	catalog, err := orderedCatalog(body)
 	if err != nil {
@@ -370,11 +370,16 @@ func expectDelimiter(decoder *json.Decoder, delimiter json.Delim) error {
 	return nil
 }
 
-func firstLine(value string) string {
-	if index := strings.IndexByte(value, '\n'); index >= 0 {
-		value = value[:index]
+// schemaReason is the first specific problem of a schema validation error.
+// Its header line names the schema by a local file URL, which helps no one.
+func schemaReason(err error) string {
+	lines := strings.Split(err.Error(), "\n")
+	for _, line := range lines[1:] {
+		if reason := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "- ")); reason != "" {
+			return reason
+		}
 	}
-	return strings.TrimSpace(value)
+	return strings.TrimSpace(lines[0])
 }
 
 // encode writes the effective catalog in file order, omitting empty sections.
