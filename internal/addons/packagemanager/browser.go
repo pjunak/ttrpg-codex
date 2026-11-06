@@ -115,6 +115,7 @@ func (manager *Manager) browserGraphLocked(ctx context.Context) (BrowserGraph, e
 		addOns = append(addOns, generation)
 	}
 	sort.Slice(addOns, func(left, right int) bool { return addOns[left].AddonID < addOns[right].AddonID })
+	catalogs := manager.catalogIndexLocked(states)
 	configuration, err := manager.store.configuration(ctx)
 	if err != nil {
 		return BrowserGraph{}, err
@@ -125,15 +126,77 @@ func (manager *Manager) browserGraphLocked(ctx context.Context) (BrowserGraph, e
 		RuntimeRevision       string              `json:"runtimeRevision,omitempty"`
 		States                []browserGraphState `json:"states"`
 		Addons                []BrowserGeneration `json:"addons"`
-	}{ContractVersion: BrowserGraphContractVersion, ConfigurationRevision: configuration.Revision, States: revisionStates, Addons: addOns, RuntimeRevision: manager.monitoringRevisionLocked()})
+		Catalogs              []BrowserCatalogs   `json:"catalogs"`
+	}{ContractVersion: BrowserGraphContractVersion, ConfigurationRevision: configuration.Revision, States: revisionStates, Addons: addOns, Catalogs: catalogs, RuntimeRevision: manager.monitoringRevisionLocked()})
 	if err != nil {
 		return BrowserGraph{}, fmt.Errorf("encode browser graph revision: %w", err)
 	}
 	digest := sha256.Sum256(body)
 	return BrowserGraph{
 		ContractVersion: BrowserGraphContractVersion,
-		GraphRevision:   hex.EncodeToString(digest[:]), Addons: addOns,
+		GraphRevision:   hex.EncodeToString(digest[:]), Addons: addOns, Catalogs: catalogs,
 	}, nil
+}
+
+// catalogIndexLocked lists the interface languages of every recovered active
+// generation. It is the one place a catalog source is chosen: language packs
+// will add their catalogs here, and browsers fetch whatever it lists.
+func (manager *Manager) catalogIndexLocked(states []State) []BrowserCatalogs {
+	result := make([]BrowserCatalogs, 0, len(states))
+	for _, state := range states {
+		active, recovered := manager.runtimes[state.AddonID]
+		if !recovered || active.generation.GenerationID != state.ActiveGenerationID {
+			continue
+		}
+		entry := BrowserCatalogs{
+			AddonID: state.AddonID, AddonName: active.report.Manifest.Name,
+			GenerationID: active.generation.GenerationID,
+			Locales:      make([]BrowserCatalogLocale, 0, len(active.report.Locales)),
+		}
+		for _, catalog := range active.report.Locales {
+			issues := append([]string{}, catalog.Issues...)
+			entry.Locales = append(entry.Locales, BrowserCatalogLocale{
+				Locale: catalog.Locale, SHA256: catalog.SHA256, Messages: catalog.Messages,
+				URL:    localeCatalogURL(state.AddonID, active.generation.GenerationID, catalog.Locale, catalog.SHA256),
+				Source: "package", Issues: issues,
+			})
+		}
+		result = append(result, entry)
+	}
+	sort.Slice(result, func(left, right int) bool { return result[left].AddonID < result[right].AddonID })
+	return result
+}
+
+func localeCatalogURL(addonID, generationID, locale, digest string) string {
+	return "/api/addons/" + url.PathEscape(addonID) +
+		"/generations/" + url.PathEscape(generationID) +
+		"/locales/" + url.PathEscape(locale) + "/" + digest
+}
+
+// OpenLocaleCatalog returns one catalog of an exact recovered generation by
+// language and content digest; anything stale or unknown is not found.
+func (manager *Manager) OpenLocaleCatalog(
+	ctx context.Context,
+	addonID, generationID, locale, digest string,
+) (LocaleCatalog, error) {
+	if err := ctx.Err(); err != nil {
+		return LocaleCatalog{}, err
+	}
+	if !addonv3.ValidAddonID(addonID) || !validGenerationID(generationID) {
+		return LocaleCatalog{}, ErrLocaleCatalogNotFound
+	}
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	active, recovered := manager.runtimes[addonID]
+	if !recovered || active.generation.GenerationID != generationID {
+		return LocaleCatalog{}, ErrLocaleCatalogNotFound
+	}
+	for _, catalog := range active.report.Locales {
+		if catalog.Locale == locale && catalog.SHA256 == digest {
+			return LocaleCatalog{SHA256: catalog.SHA256, Body: catalog.Body()}, nil
+		}
+	}
+	return LocaleCatalog{}, ErrLocaleCatalogNotFound
 }
 
 func (manager *Manager) publishBrowserGraphChangeLocked(

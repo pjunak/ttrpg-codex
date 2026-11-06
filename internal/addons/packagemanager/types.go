@@ -16,25 +16,26 @@ import (
 )
 
 var (
-	ErrInvalidConfig        = errors.New("invalid package manager configuration")
-	ErrInvalidPackage       = errors.New("invalid installed package")
-	ErrGenerationNotFound   = errors.New("add-on generation not found")
-	ErrStaleActivationPlan  = errors.New("stale add-on activation plan")
-	ErrCompatibility        = errors.New("add-on compatibility check failed")
-	ErrCapability           = errors.New("required add-on capability unavailable")
-	ErrPermission           = errors.New("add-on permission approval invalid")
-	ErrDependency           = errors.New("required add-on dependency unavailable")
-	ErrServiceResolution    = errors.New("required add-on service unavailable")
-	ErrRuntimeUnsupported   = errors.New("add-on runtime unsupported")
-	ErrRecoveryRequired     = errors.New("active add-on generation requires recovery")
-	ErrActivationCohort     = errors.New("dependent add-ons require coordinated activation")
-	ErrActivationFailed     = errors.New("add-on activation failed")
-	ErrNotActive            = errors.New("add-on is not active")
-	ErrReviewNotFound       = errors.New("activation review not found")
-	ErrReviewState          = errors.New("activation review is in the wrong state")
-	ErrReviewStale          = errors.New("activation review no longer matches current state")
-	ErrReviewBlocked        = errors.New("activation review has unresolved blockers")
-	ErrBrowserAssetNotFound = errors.New("browser add-on asset not found")
+	ErrInvalidConfig         = errors.New("invalid package manager configuration")
+	ErrInvalidPackage        = errors.New("invalid installed package")
+	ErrGenerationNotFound    = errors.New("add-on generation not found")
+	ErrStaleActivationPlan   = errors.New("stale add-on activation plan")
+	ErrCompatibility         = errors.New("add-on compatibility check failed")
+	ErrCapability            = errors.New("required add-on capability unavailable")
+	ErrPermission            = errors.New("add-on permission approval invalid")
+	ErrDependency            = errors.New("required add-on dependency unavailable")
+	ErrServiceResolution     = errors.New("required add-on service unavailable")
+	ErrRuntimeUnsupported    = errors.New("add-on runtime unsupported")
+	ErrRecoveryRequired      = errors.New("active add-on generation requires recovery")
+	ErrActivationCohort      = errors.New("dependent add-ons require coordinated activation")
+	ErrActivationFailed      = errors.New("add-on activation failed")
+	ErrNotActive             = errors.New("add-on is not active")
+	ErrReviewNotFound        = errors.New("activation review not found")
+	ErrReviewState           = errors.New("activation review is in the wrong state")
+	ErrReviewStale           = errors.New("activation review no longer matches current state")
+	ErrReviewBlocked         = errors.New("activation review has unresolved blockers")
+	ErrBrowserAssetNotFound  = errors.New("browser add-on asset not found")
+	ErrLocaleCatalogNotFound = errors.New("add-on locale catalog not found")
 )
 
 type ReviewStatus string
@@ -184,6 +185,34 @@ type BrowserGraph struct {
 	ContractVersion int                 `json:"contractVersion"`
 	GraphRevision   string              `json:"graphRevision"`
 	Addons          []BrowserGeneration `json:"addons"`
+	// Catalogs lists every active add-on's interface languages, headless
+	// add-ons included, so browsers can translate any add-on's messages.
+	Catalogs []BrowserCatalogs `json:"catalogs"`
+}
+
+type BrowserCatalogs struct {
+	AddonID      string                 `json:"addonId"`
+	AddonName    string                 `json:"addonName"`
+	GenerationID string                 `json:"generationId"`
+	Locales      []BrowserCatalogLocale `json:"locales"`
+}
+
+// BrowserCatalogLocale is one language an add-on supplies. Issues describe
+// messages or files the inspector dropped from it.
+type BrowserCatalogLocale struct {
+	Locale   string `json:"locale"`
+	URL      string `json:"url"`
+	SHA256   string `json:"sha256"`
+	Messages int    `json:"messages"`
+	// Source is "package" for catalogs in the add-on's own ZIP.
+	Source string   `json:"source"`
+	Issues []string `json:"issues"`
+}
+
+// LocaleCatalog is one served message-catalog.v1 body.
+type LocaleCatalog struct {
+	SHA256 string
+	Body   []byte
 }
 
 type BrowserGeneration struct {

@@ -1,20 +1,25 @@
 import { HostRequestError } from "../core/api.js";
 import { readJSONResponse } from "../core/http.js";
-import { isSha256 } from "../core/validators.js";
 import { sessionFetch } from "../core/player-preview.js";
 import { waitForSignal } from "../core/abort-signal.js";
 import { validContributionLabels } from "./contribution-label.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
+import { isLocaleTag, maximumCatalogMessages } from "../core/message-catalog.js";
+import { addonIdPattern, isSha256 } from "../core/validators.js";
 import {
   isContributionSurface,
   validateBrowserGenerationSet,
+  type BrowserCatalogIndexEntry,
+  type BrowserCatalogLocale,
   type BrowserGenerationDescriptor,
   type BrowserGenerationSet,
 } from "./generation-manager.js";
 
 const boundary = "GET /api/addons/browser-graph";
 const maximumGraphBytes = 512 * 1024;
-const graphKeys = new Set(["contractVersion", "graphRevision", "addons"]);
+const graphKeys = new Set(["contractVersion", "graphRevision", "addons", "catalogs"]);
+const catalogEntryKeys = new Set(["addonId", "addonName", "generationId", "locales"]);
+const catalogLocaleKeys = new Set(["locale", "url", "sha256", "messages", "source", "issues"]);
 const descriptorKeys = new Set([
   "addonId",
   "addonVersion",
@@ -179,11 +184,77 @@ export function parseBrowserGenerationSet(value: unknown): BrowserGenerationSet 
   if (!Array.isArray(value["addons"]) || value["addons"].length > 100) {
     throw new BoundaryValidationError(boundary, "addons must contain at most 100 descriptors");
   }
+  const catalogs = value["catalogs"];
+  if (catalogs !== undefined && (!Array.isArray(catalogs) || catalogs.length > 100)) {
+    throw new BoundaryValidationError(boundary, "catalogs must contain at most 100 add-ons");
+  }
   return {
     contractVersion: 2,
     graphRevision: value["graphRevision"],
     addons: value["addons"].map((descriptor, index) => parseDescriptor(descriptor, index)),
+    ...(catalogs === undefined
+      ? {}
+      : { catalogs: catalogs.map((entry, index) => parseCatalogEntry(entry, index)) }),
   };
+}
+
+function parseCatalogEntry(value: unknown, index: number): BrowserCatalogIndexEntry {
+  const location = `catalogs[${index}]`;
+  if (!isRecord(value) || !hasOnlyKeys(value, catalogEntryKeys)) {
+    throw new BoundaryValidationError(boundary, `${location} must be an exact catalog entry`);
+  }
+  const addonId = requiredString(value["addonId"], `${location}.addonId`);
+  const generationId = requiredString(value["generationId"], `${location}.generationId`);
+  const addonName = value["addonName"];
+  const locales = value["locales"];
+  if (
+    !addonIdPattern.test(addonId) ||
+    !isSha256(generationId) ||
+    typeof addonName !== "string" ||
+    addonName.length > 100 ||
+    !Array.isArray(locales) ||
+    locales.length > 32
+  ) {
+    throw new BoundaryValidationError(boundary, `${location} is invalid`);
+  }
+  return {
+    addonId,
+    addonName,
+    generationId,
+    locales: locales.map((locale, localeIndex) =>
+      parseCatalogLocale(locale, `${location}.locales[${localeIndex}]`, addonId, generationId),
+    ),
+  };
+}
+
+function parseCatalogLocale(
+  value: unknown,
+  location: string,
+  addonId: string,
+  generationId: string,
+): BrowserCatalogLocale {
+  if (!isRecord(value) || !hasOnlyKeys(value, catalogLocaleKeys)) {
+    throw new BoundaryValidationError(boundary, `${location} must be an exact catalog language`);
+  }
+  const { locale, url, sha256, messages, source, issues } = value;
+  if (
+    !isLocaleTag(locale) ||
+    typeof sha256 !== "string" ||
+    !isSha256(sha256) ||
+    url !==
+      `/api/addons/${encodeURIComponent(addonId)}/generations/${generationId}/locales/${locale}/${sha256}` ||
+    typeof messages !== "number" ||
+    !Number.isSafeInteger(messages) ||
+    messages < 0 ||
+    messages > maximumCatalogMessages ||
+    (source !== "package" && source !== "pack") ||
+    !Array.isArray(issues) ||
+    issues.length > 16 ||
+    issues.some((issue) => typeof issue !== "string" || issue.length > 600)
+  ) {
+    throw new BoundaryValidationError(boundary, `${location} is invalid`);
+  }
+  return { locale, url, sha256, messages, source, issues: issues as string[] };
 }
 
 function parseDescriptor(value: unknown, index: number): BrowserGenerationDescriptor {

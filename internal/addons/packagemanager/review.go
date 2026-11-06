@@ -230,6 +230,7 @@ func (manager *Manager) buildReviewProposal(
 		state.GrantedPermissionIDs, report.Manifest.Permissions,
 	)
 	proposal.Changes = compareManifests(currentManifest, report.Manifest)
+	proposal.Changes.Locales = manager.localeChangesLocked(addonID, state.ActiveGenerationID, currentManifest, report)
 	proposal.SourceChoices = []SourceChoice{}
 	if report.Manifest.Rules != nil {
 		proposal.SourceChoices, err = sourceChoices(report, configuration)
@@ -462,8 +463,34 @@ func compareManifests(current *packageinspect.Manifest, target packageinspect.Ma
 		Collections:      changeSet(keyed(before.Collections, func(value packageinspect.Collection) string { return value.ID }), keyed(target.Collections, func(value packageinspect.Collection) string { return value.ID })),
 		RecordExtensions: changeSet(keyed(before.RecordExtensions, func(value packageinspect.RecordExtension) string { return value.ID }), keyed(target.RecordExtensions, func(value packageinspect.RecordExtension) string { return value.ID })),
 		Content:          changeSet(keyed(before.Content, func(value packageinspect.ContentSet) string { return value.ID }), keyed(target.Content, func(value packageinspect.ContentSet) string { return value.ID })),
-		Locales:          changeSet(stringItems(before.Locales), stringItems(target.Locales)),
 	}
+}
+
+// localeChangesLocked compares effective catalogs by content, so a changed
+// translation shows even when its file keeps its path. An active generation
+// that is not running is compared by declared path instead.
+func (manager *Manager) localeChangesLocked(
+	addonID, activeGenerationID string,
+	current *packageinspect.Manifest,
+	target packageinspect.Report,
+) ChangeSet {
+	before := map[string]any{}
+	if active, recovered := manager.runtimes[addonID]; recovered && active.generation.GenerationID == activeGenerationID {
+		before = localeDigests(active.report.Locales)
+	} else if current != nil {
+		for locale, path := range current.Locales {
+			before[locale] = "path:" + path
+		}
+	}
+	return changeSet(before, localeDigests(target.Locales))
+}
+
+func localeDigests(catalogs []packageinspect.LocaleCatalog) map[string]any {
+	result := make(map[string]any, len(catalogs))
+	for _, catalog := range catalogs {
+		result[catalog.Locale] = catalog.SHA256
+	}
+	return result
 }
 
 func rulesItems(manifest packageinspect.Manifest) map[string]any {
@@ -489,14 +516,6 @@ func capabilityItems(manifest packageinspect.Manifest) map[string]any {
 	}
 	for _, value := range manifest.Capabilities.Optional {
 		result["optional:"+value] = value
-	}
-	return result
-}
-
-func stringItems(values map[string]string) map[string]any {
-	result := make(map[string]any, len(values))
-	for key, value := range values {
-		result[key] = value
 	}
 	return result
 }

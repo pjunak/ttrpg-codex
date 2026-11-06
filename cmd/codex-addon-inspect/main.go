@@ -54,12 +54,27 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	// The host installs a package with catalog issues and drops the broken
+	// messages; package builds fail here so authors fix them before release.
+	var catalogIssues []string
+	for _, catalog := range report.Locales {
+		for _, issue := range catalog.Issues {
+			catalogIssues = append(catalogIssues, catalog.Locale+": "+issue)
+		}
+	}
 	value := struct {
 		OK bool `json:"ok"`
 		packageinspect.Report
-	}{OK: true, Report: report}
+	}{OK: len(catalogIssues) == 0, Report: report}
 	if err := encodeJSON(stdout, value, *compact); err != nil {
 		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if len(catalogIssues) > 0 {
+		fmt.Fprintln(stderr, "message catalog issues:")
+		for _, issue := range catalogIssues {
+			fmt.Fprintln(stderr, "  "+issue)
+		}
 		return 1
 	}
 	return 0

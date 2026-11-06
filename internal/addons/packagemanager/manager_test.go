@@ -1088,6 +1088,77 @@ func TestOpenBrowserAssetRequiresExactRecoveredGenerationAndVerifiedWebFile(t *t
 	}
 }
 
+func TestBrowserGraphIndexesEveryActiveAddonsCatalogs(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	activate := func(spec packageSpec) Generation {
+		t.Helper()
+		generation, err := manager.Stage(context.Background(), writeAddonPackage(t, spec))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.Activate(context.Background(), ActivationPlan{
+			AddonID: spec.ID, GenerationID: generation.GenerationID, ExpectedStateRevision: 0,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return generation
+	}
+	catalog := func(locale, title string) []byte {
+		return []byte(`{"contractVersion":"message-catalog.v1","locale":"` + locale +
+			`","sections":{"main":{"main.title":"` + title + `"}}}`)
+	}
+	browser := activate(packageSpec{
+		ID: "browser-addon", Version: "1.0.0", UIEntry: "web/index.js",
+		Locales: map[string]string{"en": "locales/en.json", "cs": "locales/cs.json"},
+		ExtraFiles: map[string][]byte{
+			"locales/en.json": catalog("en", "Planner"),
+			"locales/cs.json": catalog("cs", "Plánovač"),
+		},
+	})
+	headless := activate(packageSpec{ID: "headless-addon", Version: "1.0.0"})
+
+	graph, err := manager.BrowserGraph(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(graph.Addons) != 1 || len(graph.Catalogs) != 2 {
+		t.Fatalf("graph addons %d, catalogs %+v", len(graph.Addons), graph.Catalogs)
+	}
+	ui, worker := graph.Catalogs[0], graph.Catalogs[1]
+	if ui.AddonID != "browser-addon" || ui.GenerationID != browser.GenerationID || len(ui.Locales) != 2 ||
+		ui.Locales[0].Locale != "en" || ui.Locales[1].Locale != "cs" || ui.Locales[1].Source != "package" ||
+		ui.Locales[0].Messages != 3 || ui.Locales[1].Messages != 1 || len(ui.Locales[1].Issues) != 0 {
+		t.Fatalf("browser add-on catalogs = %+v", ui)
+	}
+	if worker.AddonID != "headless-addon" || len(worker.Locales) != 1 || worker.Locales[0].Messages != 2 {
+		t.Fatalf("headless add-on catalogs = %+v", worker)
+	}
+	czech := ui.Locales[1]
+	if czech.URL != "/api/addons/browser-addon/generations/"+browser.GenerationID+"/locales/cs/"+czech.SHA256 {
+		t.Fatalf("catalog url = %q", czech.URL)
+	}
+	opened, err := manager.OpenLocaleCatalog(context.Background(), "browser-addon", browser.GenerationID, "cs", czech.SHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(opened.Body)
+	if hex.EncodeToString(digest[:]) != czech.SHA256 || !strings.Contains(string(opened.Body), "Plánovač") {
+		t.Fatalf("opened catalog = %s", opened.Body)
+	}
+	for _, request := range [][4]string{
+		{"browser-addon", browser.GenerationID, "en", czech.SHA256},
+		{"browser-addon", headless.GenerationID, "cs", czech.SHA256},
+		{"missing-addon", browser.GenerationID, "cs", czech.SHA256},
+	} {
+		if _, err := manager.OpenLocaleCatalog(context.Background(), request[0], request[1], request[2], request[3]); !errors.Is(err, ErrLocaleCatalogNotFound) {
+			t.Fatalf("open %v error = %v", request, err)
+		}
+	}
+}
+
 func TestRecoveryNeverFallsBackFromCorruptActiveGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -1225,6 +1296,7 @@ type packageSpec struct {
 	ContentService       bool
 	Rules                *packageinspect.RulesDeclaration
 	ContentGroups        *packageinspect.ContentGroups
+	Locales              map[string]string
 }
 
 func stageServicePackage(t *testing.T, manager *Manager, addonID, version, contractVersion string) Generation {
@@ -1272,6 +1344,9 @@ func writeAddonPackage(t *testing.T, spec packageSpec) string {
 	files := make(map[string][]byte)
 	if len(spec.Collections) > 0 {
 		manifest["collections"] = spec.Collections
+	}
+	if spec.Locales != nil {
+		manifest["locales"] = spec.Locales
 	}
 	if spec.Permission {
 		manifest["permissions"] = []any{map[string]any{

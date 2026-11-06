@@ -1,11 +1,13 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -16,6 +18,7 @@ import (
 type BrowserAddonSource interface {
 	BrowserGraph(context.Context) (packagemanager.BrowserGraph, error)
 	OpenBrowserAsset(context.Context, string, string, string) (packagemanager.BrowserAsset, error)
+	OpenLocaleCatalog(ctx context.Context, addonID, generationID, locale, digest string) (packagemanager.LocaleCatalog, error)
 }
 
 type BrowserAuthorizer func(*http.Request) error
@@ -28,6 +31,58 @@ func (s *server) registerBrowserAddonRoutes(mux *http.ServeMux) {
 		"GET /api/addons/{addonID}/generations/{generationID}/assets/{assetPath...}",
 		s.requireBrowserAccess(http.HandlerFunc(s.browserAsset)),
 	)
+	mux.Handle(
+		"GET /api/addons/{addonID}/generations/{generationID}/locales/{locale}/{sha256}",
+		s.requireBrowserAccess(http.HandlerFunc(s.localeCatalog)),
+	)
+}
+
+var localeTagPattern = regexp.MustCompile(`^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$`)
+
+// localeCatalog serves one add-on language. The URL names its content digest,
+// so the response never changes and browsers may cache it for good.
+func (s *server) localeCatalog(w http.ResponseWriter, r *http.Request) {
+	addonID, ok := pathResourceID(w, r, "addonID")
+	if !ok {
+		return
+	}
+	generationID, ok := pathResourceID(w, r, "generationID")
+	if !ok {
+		return
+	}
+	locale, digest := r.PathValue("locale"), r.PathValue("sha256")
+	if r.URL.RawQuery != "" || !localeTagPattern.MatchString(locale) || !validSHA256(digest) {
+		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "locale catalog path is invalid")
+		return
+	}
+	catalog, err := s.browserAddons.OpenLocaleCatalog(r.Context(), addonID, generationID, locale, digest)
+	if errors.Is(err, packagemanager.ErrLocaleCatalogNotFound) {
+		writeAPIError(w, http.StatusNotFound, "ADDON_CATALOG_NOT_FOUND", err.Error())
+		return
+	}
+	if err != nil {
+		s.logger.Error("add-on locale catalog failed", "path", r.URL.Path, "error", err)
+		writeAPIError(w, http.StatusInternalServerError, "INTERNAL", "the add-on locale catalog request failed")
+		return
+	}
+	setPrivateBrowserHeaders(w)
+	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("ETag", quotedETag(catalog.SHA256))
+	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+	http.ServeContent(w, r, "catalog.json", time.Time{}, bytes.NewReader(catalog.Body))
+}
+
+func validSHA256(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	for _, character := range value {
+		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *server) requireBrowserAccess(next http.Handler) http.Handler {

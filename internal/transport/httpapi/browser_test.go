@@ -175,6 +175,47 @@ func TestBrowserAssetErrorsAreStableAndRedacted(t *testing.T) {
 	}
 }
 
+func TestLocaleCatalogsAreImmutableAndExact(t *testing.T) {
+	t.Parallel()
+
+	digest := strings.Repeat("c", 64)
+	generation := strings.Repeat("a", 64)
+	source := &recordingBrowserSource{catalog: packagemanager.LocaleCatalog{
+		SHA256: digest, Body: []byte(`{"contractVersion":"message-catalog.v1","locale":"cs","sections":{}}`),
+	}}
+	handler := newBrowserHandler(t, source, func(*http.Request) error { return nil })
+	path := "/api/addons/dm-tools/generations/" + generation + "/locales/cs/" + digest
+
+	response := serveBrowserRequest(handler, http.MethodGet, path, "")
+	if response.Code != http.StatusOK || response.Body.String() != string(source.catalog.Body) {
+		t.Fatalf("response = %d, %s", response.Code, response.Body.String())
+	}
+	if strings.Join(source.catalogRequest, " ") != "dm-tools "+generation+" cs "+digest {
+		t.Fatalf("catalog request = %q", source.catalogRequest)
+	}
+	assertHeader(t, response, "Cache-Control", "private, max-age=31536000, immutable")
+	assertHeader(t, response, "Content-Type", "application/json; charset=utf-8")
+	assertHeader(t, response, "ETag", `"`+digest+`"`)
+	assertHeader(t, response, "X-Content-Type-Options", "nosniff")
+	if response := serveBrowserRequest(handler, http.MethodGet, path, `"`+digest+`"`); response.Code != http.StatusNotModified {
+		t.Fatalf("revalidation status = %d", response.Code)
+	}
+	stale := "/api/addons/dm-tools/generations/" + generation + "/locales/cs/" + strings.Repeat("d", 64)
+	if response := serveBrowserRequest(handler, http.MethodGet, stale, ""); response.Code != http.StatusNotFound ||
+		!strings.Contains(response.Body.String(), "ADDON_CATALOG_NOT_FOUND") {
+		t.Fatalf("stale catalog response = %d, %s", response.Code, response.Body.String())
+	}
+	for _, invalid := range []string{
+		path + "?locale=en",
+		"/api/addons/dm-tools/generations/" + generation + "/locales/cs-cz/" + digest,
+		"/api/addons/dm-tools/generations/" + generation + "/locales/cs/" + strings.ToUpper(digest),
+	} {
+		if response := serveBrowserRequest(handler, http.MethodGet, invalid, ""); response.Code != http.StatusBadRequest {
+			t.Fatalf("%s status = %d", invalid, response.Code)
+		}
+	}
+}
+
 func newBrowserHandler(
 	t *testing.T,
 	source BrowserAddonSource,
@@ -225,6 +266,8 @@ type recordingBrowserSource struct {
 	assetAddonID       string
 	assetGenerationID  string
 	requestedAssetPath string
+	catalog            packagemanager.LocaleCatalog
+	catalogRequest     []string
 }
 
 func (source *recordingBrowserSource) BrowserGraph(
@@ -251,6 +294,17 @@ func (source *recordingBrowserSource) OpenBrowserAsset(
 		Path: source.assetPath, SHA256: source.assetSHA, Bytes: uint64(len(source.assetBody)),
 		Content: &readSeekCloser{Reader: bytes.NewReader(source.assetBody)},
 	}, nil
+}
+
+func (source *recordingBrowserSource) OpenLocaleCatalog(
+	_ context.Context,
+	addonID, generationID, locale, digest string,
+) (packagemanager.LocaleCatalog, error) {
+	source.catalogRequest = []string{addonID, generationID, locale, digest}
+	if digest != source.catalog.SHA256 {
+		return packagemanager.LocaleCatalog{}, packagemanager.ErrLocaleCatalogNotFound
+	}
+	return source.catalog, nil
 }
 
 type readSeekCloser struct {

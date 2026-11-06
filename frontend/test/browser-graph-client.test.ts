@@ -84,6 +84,42 @@ describe("parseBrowserGenerationSet", () => {
     expect(parsed.addons).not.toBe(graph.addons);
   });
 
+  it("accepts the catalog index of every active add-on with exact catalog URLs", () => {
+    const generationId = "c".repeat(64),
+      sha256 = "d".repeat(64);
+    const locale = {
+      locale: "cs",
+      url: `/api/addons/dnd-engine/generations/${generationId}/locales/cs/${sha256}`,
+      sha256,
+      messages: 12,
+      source: "package",
+      issues: ["browse.extra: the key is not in the English catalog"],
+    };
+    const indexed = (entry: Record<string, unknown>) => ({
+      ...graph,
+      catalogs: [
+        { addonId: "dnd-engine", addonName: "D&D Engine", generationId, locales: [], ...entry },
+      ],
+    });
+    expect(parseBrowserGenerationSet(indexed({ locales: [locale] })).catalogs).toEqual([
+      { addonId: "dnd-engine", addonName: "D&D Engine", generationId, locales: [locale] },
+    ]);
+    for (const invalid of [
+      { url: `/api/addons/other/generations/${generationId}/locales/cs/${sha256}` },
+      { locale: "cs-cz" },
+      { messages: -1 },
+      { source: "network" },
+      { issues: [1] },
+      { extra: true },
+    ])
+      expect(() =>
+        parseBrowserGenerationSet(indexed({ locales: [{ ...locale, ...invalid }] })),
+      ).toThrow(BoundaryValidationError);
+    expect(() => parseBrowserGenerationSet(indexed({ generationId: "short" }))).toThrow(
+      BoundaryValidationError,
+    );
+  });
+
   it("keeps the optional manifest display name", () => {
     const named = { ...graph, addons: [{ ...descriptor, addonName: "DM Tools" }] };
     expect(parseBrowserGenerationSet(named).addons[0]?.addonName).toBe("DM Tools");

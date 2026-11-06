@@ -61,10 +61,32 @@ export interface BrowserGenerationDescriptor {
   readonly contributions: readonly BrowserContributionDescriptor[];
 }
 
+/** One interface language an active add-on supplies. */
+export interface BrowserCatalogLocale {
+  readonly locale: string;
+  /** Immutable URL of the language's message-catalog.v1 file. */
+  readonly url: string;
+  readonly sha256: string;
+  readonly messages: number;
+  readonly source: "package" | "pack";
+  /** Messages or files the host dropped from this language. */
+  readonly issues: readonly string[];
+}
+
+/** An active add-on's languages; headless add-ons are listed too. */
+export interface BrowserCatalogIndexEntry {
+  readonly addonId: string;
+  readonly addonName: string;
+  readonly generationId: string;
+  readonly locales: readonly BrowserCatalogLocale[];
+}
+
 export interface BrowserGenerationSet {
   readonly contractVersion: 2;
   readonly graphRevision: string;
   readonly addons: readonly BrowserGenerationDescriptor[];
+  /** Every active add-on's languages; absent from hosts that serve no catalogs. */
+  readonly catalogs?: readonly BrowserCatalogIndexEntry[];
 }
 
 export interface BrowserGenerationContext {
@@ -414,6 +436,7 @@ export function validateBrowserGenerationSet(target: BrowserGenerationSet): Brow
     addons: [...normalized.addons.values()].sort((left, right) =>
       left.addonId.localeCompare(right.addonId),
     ),
+    ...(target.catalogs === undefined ? {} : { catalogs: target.catalogs }),
   };
 }
 
