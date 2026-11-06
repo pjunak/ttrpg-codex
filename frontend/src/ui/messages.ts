@@ -1,35 +1,10 @@
-const english = {
-  clear: "Clear search",
-  show: "Show options",
-  empty: "No matching options",
-  loading: "Loading options…",
-  narrow: "Showing the first 100 matches. Type more to narrow the list.",
-  details: "Highlight an option to read its description.",
-  required: "Choose an option.",
-  add: "Add…",
-  remove: "Remove {0}",
-  filter: "Filter…",
-  menu: "Actions",
-};
-const czech: typeof english = {
-  clear: "Vymazat hledání",
-  show: "Zobrazit možnosti",
-  empty: "Žádné odpovídající možnosti",
-  loading: "Načítání možností…",
-  narrow: "Zobrazeno prvních 100 výsledků. Upřesněte hledání.",
-  details: "Zvýrazněte možnost a zobrazí se její popis.",
-  required: "Vyberte možnost.",
-  add: "Přidat…",
-  remove: "Odebrat {0}",
-  filter: "Filtrovat…",
-  menu: "Akce",
-};
-export function messages(element: Element): typeof english {
-  return (
-    element.closest("[lang]")?.getAttribute("lang") ?? element.ownerDocument.documentElement.lang
-  ).startsWith("cs")
-    ? czech
-    : english;
+import { controlMessages, type ControlMessages } from "../locales/index.js";
+
+/** Texts for a control, in the language of its nearest `lang` attribute. */
+export function messages(element: Element): ControlMessages {
+  return controlMessages(
+    element.closest("[lang]")?.getAttribute("lang") ?? element.ownerDocument.documentElement.lang,
+  );
 }
 export function folded(value: string): string {
   return value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase();

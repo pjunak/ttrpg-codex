@@ -192,6 +192,31 @@ func TestManifestLocalesRequireEnglishAndCanonicalTags(t *testing.T) {
 	}
 }
 
+// The host's own catalogs follow the same rules, and every built-in language is complete.
+func TestHostCatalogsAreCompleteMessageCatalogs(t *testing.T) {
+	t.Parallel()
+
+	inspector := newTestInspector(t)
+	read := func(locale string) []byte {
+		body, err := os.ReadFile(filepath.Join("../../../frontend/src/locales", locale+".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return body
+	}
+	english, issues, _ := inspector.checkCatalog(read("en"), "en", nil)
+	if english == nil || len(issues) != 0 {
+		t.Fatalf("English host catalog issues: %q", issues)
+	}
+	for _, locale := range []string{"cs"} {
+		catalog, issues, _ := inspector.checkCatalog(read(locale), locale, english)
+		if catalog == nil || len(issues) != 0 || catalog.messageCount() != english.messageCount() {
+			t.Fatalf("%s host catalog has %d of %d messages, issues %q",
+				locale, catalog.messageCount(), english.messageCount(), issues)
+		}
+	}
+}
+
 func readCatalogFixture(t *testing.T, name string) []byte {
 	t.Helper()
 	body, err := os.ReadFile(filepath.Join(catalogFixtures, name))

@@ -1,1210 +1,46 @@
-import { schemaUpgradeEn, schemaUpgradeCs } from "./schema-upgrade-messages.js";
-import { diagnosticsEn, diagnosticsCs } from "./diagnostic-messages.js";
-import { recordWorkflowEn, recordWorkflowCs } from "./record-workflow-messages.js";
-import { storageEn, storageCs } from "./storage-messages.js";
-import { disableEn, disableCs } from "./disable-messages.js";
-import { cleanupEn, cleanupCs } from "./cleanup-messages.js";
 import type { ReactiveController, ReactiveControllerHost } from "lit";
-import { sourceEn, sourceCs } from "./ui-source-messages.js";
-import { githubEn, githubCs } from "./github-messages.js";
-import { editingEn, editingCs } from "./editing-messages.js";
-import { contextEn, contextCs } from "./context-messages.js";
-import { configurationEn, configurationCs } from "./configuration-messages.js";
-import { ruleDetailsEn, ruleDetailsCs } from "./rule-details-messages.js";
+import { isRecord } from "../core/boundary.js";
+import { interpolate, isLocaleTag, selectPluralForm } from "../core/message-catalog.js";
+import {
+  hostLocales,
+  hostMessage,
+  isHostMessageKey,
+  languageEndonym,
+  type HostMessage,
+  type HostMessageKey,
+} from "../locales/index.js";
 
-export type UiLocale = "en" | "cs";
+/** A canonical BCP 47 tag; the host ships English and Czech, add-ons may add more. */
+export type UiLocale = string;
+export type Message = HostMessage;
+export type MessageKey = HostMessageKey;
 
-interface PluralForms {
-  readonly one: string;
-  readonly few?: string;
-  readonly many?: string;
-  readonly other: string;
+/** The DM's site-wide choice, kept in the campaign's `settings/language` record. */
+export interface SiteLanguages {
+  readonly defaultLocale: string;
+  /** Languages a browser may choose; always includes English and the default. */
+  readonly enabledLocales: readonly string[];
 }
 
-export type Message = string | PluralForms;
-
-const enCatalog = {
-  ...sourceEn,
-  ...recordWorkflowEn,
-  ...githubEn,
-  ...editingEn,
-  ...contextEn,
-  ...configurationEn,
-  ...cleanupEn,
-  ...schemaUpgradeEn,
-  ...diagnosticsEn,
-  ...disableEn,
-  ...storageEn,
-  ...ruleDetailsEn,
-  "settings.usedRecords": { one: "Used by {n} record", other: "Used by {n} records" },
-  "settings.replaceRecords": {
-    one: "{n} campaign record uses this definition. Choose how those records should change.",
-    other: "{n} campaign records use this definition. Choose how those records should change.",
-  },
-  "settings.deleteRelationships": {
-    one: "{n} relationship uses this type. Deleting the type also deletes that relationship.",
-    other: "{n} relationships use this type. Deleting the type also deletes those relationships.",
-  },
-  "recovery.title": "Backup & recovery",
-  "recovery.download": "Download backup",
-  "recovery.create": "Create recovery point",
-  "recovery.refresh": "Refresh",
-  "recovery.intro":
-    "The campaign and each add-on keep their own recovery points. An edit saves a point of only the part it changes, at most once a minute, and each part keeps its newest 50 points.",
-  "recovery.scope": "Recovery data",
-  "recovery.campaign": "Campaign",
-  "recovery.addon": "Add-on: {addon}",
-  "recovery.addonEffect":
-    "This restores only the selected add-on's documents and files. Campaign records and other add-ons stay as they are. The current state is saved first. Linked records must still match; restore the campaign first if needed.",
-  "recovery.guide": "Full server backup and restore (opens in a new tab)",
-  "recovery.offline":
-    "Download backup saves the newest point of the campaign and of each add-on, with their files, in one ZIP. Keep it somewhere other than this server.",
-  "recovery.importTitle": "Import a backup",
-  "recovery.importIntro":
-    "Adds each part of a downloaded backup as an imported recovery point; nothing changes until you restore one. Restore the campaign first, then each add-on, which needs the same version installed. Moving a whole server, with passwords and installed add-ons, uses the maintenance command's full archive.",
-  "recovery.importFile": "Backup ZIP",
-  "recovery.import": "Import",
-  "recovery.importing": "Uploading and checking the backup…",
-  "recovery.importDone": {
-    one: "Backup from {date} imported as {n} recovery point. Restore it from its part's list.",
-    other:
-      "Backup from {date} imported as {n} recovery points. Restore each from its part's list, the campaign first.",
-  },
-  "recovery.importInvalid": "This file is not a valid backup: {detail}",
-  "recovery.importTooLarge": "The backup is larger than the 1 GiB upload limit.",
-  "recovery.importFailed": "The backup could not be imported. Current data is unchanged.",
-  "recovery.busy": "Working…",
-  "recovery.revertCount": "Recent saves to undo",
-  "recovery.revert": "Undo",
-  "recovery.empty": "No recovery points yet.",
-  "recovery.older": "Older points ({n})",
-  "recovery.manual": "✦ Manual",
-  "recovery.safety": "⚠ Before restore",
-  "recovery.edit": "✎ Before edits",
-  "recovery.downloaded": "⬇ Downloaded",
-  "recovery.imported": "⇪ Imported",
-  "recovery.restore": "Restore",
-  "recovery.delete": "Delete",
-  "recovery.restoreReview": "Restore this saved state?",
-  "recovery.deleteReview": "Delete this recovery data?",
-  "recovery.summary": "{records} records · {documents} add-on documents · {media} files",
-  "recovery.restoreEffect":
-    "This restores campaign records and campaign files, saving the current state first. Add-on saves, installed packages and passwords stay as they are. Missing add-on context does not block campaign recovery.",
-  "recovery.deleteEffect":
-    "This deletes only this recovery point. Current data and other points stay as they are.",
-  "recovery.cancel": "Cancel",
-  "recovery.created": "Recovery points created for the campaign and each add-on.",
-  "recovery.deleted": "Recovery point deleted.",
-  "recovery.restored":
-    "Selected data restored. A copy of the previous state is available in the list.",
-  "recovery.conflict":
-    "The campaign or recovery list changed. Refresh, then review the point again.",
-  "recovery.compatibility":
-    "This add-on requires its matching active build, data definitions and linked campaign records. Check its version in Add-ons or restore the campaign first. Campaign recovery remains available independently.",
-  "recovery.forbidden": "Sign in as DM and leave player preview to manage recovery.",
-  "recovery.missing": "That recovery point or edit group is no longer available. Refresh the list.",
-  "recovery.failed":
-    "Could not confirm the result. Refresh before retrying; a completed action may already be in the list.",
-  "recovery.openEdits":
-    "The campaign was restored. Your unsaved edits are still open; reload before editing the restored data.",
-  "credentials.title": "Server access",
-  "credentials.intro": "Manage the shared DM and player passwords for this site.",
-  "credentials.refresh": "Refresh password status",
-  "credentials.loading": "Loading password status…",
-  "credentials.dm": "DM password",
-  "credentials.player": "Player password",
-  "credentials.enabled": "Password set",
-  "credentials.disabled": "Player sign-in disabled",
-  "credentials.current": "Current DM password",
-  "credentials.new": "New password",
-  "credentials.confirm": "Confirm new password",
-  "credentials.save": "Change password",
-  "credentials.disable": "Disable player sign-in",
-  "credentials.disableSave": "Disable player access",
-  "credentials.dmEffect":
-    "Other DM sessions and player previews will sign out. This tab stays signed in.",
-  "credentials.playerEffect":
-    "Existing player sessions and previews will sign out. Public campaign reading stays available.",
-  "credentials.saved": "Password settings saved. This tab is still signed in.",
-  "credentials.mismatch": "The new passwords do not match.",
-  "credentials.currentIncorrect": "The current DM password is incorrect.",
-  "credentials.policy": "Use 4–4096 bytes and a different password for each role.",
-  "credentials.forbidden": "Sign in as DM and leave player preview to manage passwords.",
-  "credentials.conflict":
-    "Password settings changed in another tab. Refresh status, review your entries, and try again.",
-  "credentials.rateLimited": "Too many password attempts. Wait a minute before trying again.",
-  "credentials.loadFailed":
-    "Could not load password settings. Your entries are retained; try refreshing again.",
-  "credentials.failed":
-    "Could not confirm the save. Refresh status before retrying. If the DM password changed, enter the new password as the current one.",
-  "wiki.loading": "Loading reference links…",
-  "wiki.failed": "Some add-on references could not be loaded.",
-  "wiki.missing": "No unique visible entry matches this link. Check its kind or record ID.",
-  "wiki.retry": "Retry references",
-  "addons.title": "Add-ons",
-  "addons.intro": "Install from GitHub or a release ZIP, and manage installed versions.",
-  "addons.upload": "Inspect ZIP",
-  "addons.file": "Release ZIP",
-  "addons.empty": "No add-ons are installed.",
-  "addons.loading": "Loading add-ons…",
-  "addons.active": "Active",
-  "addons.reload": "Reload",
-  "addons.disable": "Disable",
-  "addons.versions": "Saved packages",
-  "addons.versionsHint":
-    "Only the active package runs. Other packages are kept for review or rollback; they do not run alongside it.",
-  "addons.savedInactive": "Inactive",
-  "addons.review": "Review activation",
-  "addons.rollback": "Review rollback",
-  "addons.reviewUpdate": "Review update",
-  "addons.history": "Recent activity",
-  "addons.disabled": "Disabled",
-  "addons.enable": "Enable",
-  "addons.notRunning": "Not running",
-  "addons.notRunningHelp":
-    "This add-on is enabled but not running. Reload it from ⋯, or open Details for diagnostics.",
-  "addons.updateAvailable": "{version} available",
-  "addons.updateTo": "Update to {version}",
-  "addons.moreActions": "More actions",
-  "addons.details": "Technical details",
-  "addons.uses": "Uses {names}",
-  "addons.usedBy": "Used by {names}",
-  "addons.missingService": "Missing a required add-on",
-  "configuration.pendingBooks": {
-    one: "{n} new sourcebook stays off until you review it.",
-    other: "{n} new sourcebooks stay off until you review them.",
-  },
-  "addons.permissions": "Requested access",
-  "addons.noPermissions": "No additional permissions requested.",
-  "addons.required": "Required",
-  "addons.restart": "Restarted together",
-  "addons.changes": "Package changes",
-  "addons.runtimeChanged": "The package runtime changes.",
-  "addons.blocked": "Resolve these issues before activation",
-  "addons.approve": "Approve and activate",
-  "addons.cancel": "Cancel review",
-  "addons.added": "Added",
-  "addons.changed": "Changed",
-  "addons.removed": "Removed",
-  "addons.done": "Add-on state updated.",
-  "addons.failed":
-    "The action could not be confirmed. Review the current state before trying again.",
-  "addons.fileRequired": "Choose a nonempty release ZIP up to 128 MiB.",
-  "addons.generation": "Package fingerprint",
-  "addons.grantHint": "Select the access you approve for this exact package.",
-  "addons.capabilities": "Capabilities",
-  "addons.contributions": "Interface contributions",
-  "addons.dependencies": "Dependencies",
-  "addons.providedServices": "Provided services",
-  "addons.consumedServices": "Used services",
-  "addons.collections": "Saved collections",
-  "addons.recordExtensions": "Record extensions",
-  "addons.content": "Bundled content",
-  "addons.locales": "Languages",
-  "addons.current": "Current version",
-  "addons.target": "Selected version",
-  "addons.noChanges": "No declaration changes.",
-  "dm.title": "DM panel",
-  "dm.refusal": "This page is available only in DM view.",
-  "dm.tools": "Campaign tools",
-  "dm.addonHealth": "Add-on status",
-  "dm.addonHealthHint": "Status of the browser add-ons loaded for this session.",
-  "dm.noAddons": "No browser add-ons are loaded.",
-  "dm.loading": "Loading add-on tools…",
-  "dm.failed":
-    "Some add-on tools could not be displayed. You can use the available tools below or retry.",
-  "dm.retry": "Reload add-on tools",
-  "preview.notice": "Player preview — this tab has player access. Your DM tab remains signed in.",
-  "preview.unavailable":
-    "Player preview is unavailable or expired. Open a new preview from your DM tab.",
-  "preview.close": "Close player preview",
-  "preview.openHint": "Open the player view in a separate tab",
-  "preview.blocked": "Allow pop-ups for this site to open player preview.",
-  "preview.failed": "Could not open player preview. Close an existing preview and try again.",
-  "dm.state.ready": "Ready",
-  "dm.state.blocked": "Blocked",
-  "dm.state.failed": "Failed",
-  "dm.hiddenContent": "Hidden content",
-  "dm.hiddenEmpty": "No records are marked as DM-only.",
-  "dm.hiddenCount": {
-    one: "{n} record is marked as DM-only.",
-    other: "{n} records are marked as DM-only.",
-  },
-  "dm.onlyDm": "DM-only / total",
-  "graph.title": "Mind Palace",
-  "graph.relationships": "Relationships",
-  "graph.mysteries": "Mysteries",
-  "graph.factionCanvas": "Faction graph",
-  "graph.mysteryCanvas": "Mystery graph",
-  "graph.factionStrip": "Faction",
-  "graph.placeStrip": "Place",
-  "graph.mysteryStrip": "Mystery",
-  "graph.priorityMedium": "medium",
-  "graph.member": "Faction member",
-  "graph.locatedAt": "Location",
-  "graph.involved": "Involved character",
-  "graph.memberCount": { one: "{n} character", other: "{n} characters" },
-  "graph.commandCount": { one: "Commands {n} character", other: "Commands {n} characters" },
-  "graph.mysteryCount": { one: "{n} mystery", other: "{n} mysteries" },
-  "graph.underCommand": "Under command: {name}",
-  "graph.noCommands": "No command links",
-  "graph.emptyCards": "No cards to display",
-  "graph.emptyCardsHint": "Add campaign records or clear the faction filters.",
-  "graph.hint": "Drag to arrange · click to open",
-  "graph.readOnly": "Read-only content",
-  "graph.zoomControls": "Graph zoom",
-  "graph.zoomOut": "Zoom out",
-  "graph.zoomIn": "Zoom in",
-  "graph.zoomReset": "Reset zoom to 100%",
-  "graph.fit": "Fit",
-  "graph.hiddenDetails": "Details hidden at this zoom",
-  "graph.filter": "Filter graph",
-  "graph.filterPlaceholder": "Name, status, faction, tag…",
-  "graph.removeFilter": "Remove filter {value}",
-  "graph.edgeTypes": "Relationship types",
-  "graph.focus": "Focus",
-  "graph.focusHops": "Neighborhood depth",
-  "graph.clearFilters": "Clear filters",
-  "graph.storageFailed":
-    "This browser could not save your arrangement and filters. They remain available until you leave this page.",
-  "graph.storageChanged":
-    "Another tab changed the arrangement. Current movement was cancelled and the saved view was loaded.",
-  "graph.retry": "Retry",
-  "graph.addonLoading": "Loading add-on cards…",
-  "timeline.addonFailed": "Could not display this timeline add-on.",
-  "graph.addonFailed": "Could not load graph content: {names}.",
-  "graph.addonUnavailable": "This add-on view is currently unavailable for your role.",
-  "graph.canvas": "Relationship graph",
-  "graph.keyboardHelp":
-    "Tab to a card and press Enter to open it. Arrow keys move the focused card; Shift moves farther. Arrow keys on the canvas pan. Escape cancels a drag. Shift+F10 opens card actions.",
-  "graph.connectionCount": { one: "{n} relationship", other: "{n} relationships" },
-  "graph.empty": "No characters to display",
-  "graph.emptyHint": "Add characters to the campaign or clear the faction filters.",
-  "graph.legend": "Legend & filters",
-  "graph.factions": "Factions",
-  "graph.noFaction": "No faction",
-  "graph.openDetail": "Open detail",
-  "graph.focusNeighborhood": "Focus neighborhood",
-  "timeline.title": "Timeline",
-  "timeline.hint": "Click a card to open the event",
-  "timeline.dragHint": "Drag cards between sessions or use their move controls",
-  "timeline.edit": "Edit timeline",
-  "timeline.done": "Done editing",
-  "timeline.save": "Save order",
-  "timeline.newEvent": "New event",
-  "timeline.editEvent": "Edit event",
-  "timeline.session": "Session {n}",
-  "timeline.newSession": "New session {n}",
-  "timeline.empty": "No events in this session yet.",
-  "timeline.emptyEditing": "Drop a card here or add a new event.",
-  "timeline.scroll": "Scroll through sessions",
-  "timeline.up": "Move {name} up",
-  "timeline.down": "Move {name} down",
-  "timeline.move": "Move {name} to session",
-  "timeline.back": "Back to timeline",
-  "timeline.stale":
-    "The events changed. Your order is kept; cancel to review the current timeline before trying again.",
-  "timeline.invalid": "This order cannot be saved. Your draft is kept.",
-  "timeline.limit": "This move changes too many events at once. Cancel and move a smaller group.",
-  "timeline.failed": "The order could not be saved. Your draft is kept; try again.",
-  "shell.skip": "Skip to campaign content",
-  "shell.campaignArchive": "Campaign archive",
-  "shell.openOverview": "Open campaign overview",
-  "shell.addons": "Add-ons",
-  "shell.signInForTools": "Sign in to open campaign tools.",
-  "shell.browserAddonsRunning": {
-    one: "{n} browser add-on running",
-    other: "{n} browser add-ons running",
-  },
-  "shell.addonsActiveFailed": "{active} active · {failed} failed",
-  "shell.addonsAttention": "Add-ons need attention",
-  "shell.campaignAddons": "Campaign add-ons",
-  "shell.recordAddons": "Record add-ons",
-  "shell.addonPage": "Add-on page",
-  "shell.dismiss": "Dismiss",
-  "shell.campaign": "Campaign",
-  "shell.world": "World",
-  "shell.compendium": "Compendium",
-  "shell.closeMenu": "Close menu",
-  "shell.overview": "Overview",
-  "shell.search": "Search",
-  "shell.party": "The party",
-  "shell.settings": "Settings",
-  "shell.people": "People",
-  "shell.places": "Places",
-  "shell.primaryNavigation": "Primary campaign navigation",
-  "shell.checkingSession": "Checking session…",
-  "shell.privateArchive": "Private archive",
-  "shell.passwordLabel": "DM or player password",
-  "shell.passwordPlaceholder": "Campaign password",
-  "shell.signIn": "Sign in",
-  "shell.viewingAs": "Viewing as",
-  "shell.player": "player",
-  "shell.viewAs": "View as {role}",
-  "shell.signOut": "Sign out",
-  "shell.menu": "Menu",
-  "shell.signedInDm": "Signed in as DM",
-  "shell.signedInPlayer": "Signed in as player",
-  "shell.checkingHost": "Checking host",
-  "shell.hostUnavailable": "Host unavailable",
-  "shell.connecting": "Connecting",
-  "shell.live": "Live",
-  "shell.reconnecting": "Reconnecting",
-  "session.recoverTitle": "Sign in again to continue",
-  "session.recoverHint":
-    "Your session needs to be restored. Your core edits are kept here. After signing in, review and save them again.",
-  "session.resume": "Resume editing",
-  "session.restored": "Signed in again. Review your edits and save when ready.",
-  "session.sameRole": "Use the password for the same role as this editing session.",
-  "session.resumeFailed":
-    "Sign-in could not be confirmed. Your edits are kept; check the password and connection, then try again.",
-  "shell.openingCampaign": "Opening the campaign chronicle…",
-  "shell.campaignOpenFailed": "The chronicle could not be opened.",
-  "shell.tryAgain": "Try again",
-  "shell.signInSettings": "Sign in to open settings.",
-  "shell.settingsAuthHint":
-    "Personal preferences are available to everyone; campaign configuration requires a DM session.",
-  "shell.signInAddon": "Sign in to open this page.",
-  "shell.addonRoleHint": "Add-on tools inherit your current campaign role.",
-  "shell.openingAddon": "Opening add-on page…",
-  "shell.pageMissing": "This page is not in the index.",
-  "shell.pageMissingHint": "The address may be old or incomplete.",
-  "shell.returnOverview": "Return to overview",
-  "collection.characters.one": "Character",
-  "collection.characters.other": "Characters",
-  "collection.locations.one": "Location",
-  "collection.locations.other": "Locations",
-  "collection.events.one": "Event",
-  "collection.events.other": "Events",
-  "collection.mysteries.one": "Mystery",
-  "collection.mysteries.other": "Mysteries",
-  "collection.factions.one": "Faction",
-  "collection.factions.other": "Factions",
-  "collection.pantheon.one": "Deity",
-  "collection.pantheon.other": "Pantheon",
-  "collection.artifacts.one": "Artifact",
-  "collection.artifacts.other": "Artifacts",
-  "collection.history.one": "Historical event",
-  "collection.history.other": "History",
-  "collection.companions.one": "Companion",
-  "collection.companions.other": "Companions",
-  "dashboard.campaignOverview": "Campaign overview",
-  "dashboard.partyTitle": "The party",
-  "dashboard.partyIntro": "The adventurers and companions at the center of the campaign.",
-  "dashboard.taglinePlaceholder": "Campaign tagline",
-  "map.world": "World map",
-  "map.show": "Show on map",
-  "map.placeLocation": "Place location pin",
-  "map.moveLocation": "Move location pin",
-  "map.locationUnavailable": "This location or its pin is unavailable on this map.",
-  "map.locationControls": "Map placement and local image",
-  "map.saveLocationFirst": "Save the location before placing it or uploading its local map.",
-  "map.search": "Find a place…",
-  "map.noResults": "No matching places on this map.",
-  "map.clearSearch": "Clear search",
-  "map.fit": "Whole map",
-  "map.add": "Add place",
-  "map.placeExisting": "Place existing location…",
-  "map.saveView": "Save view",
-  "map.viewName": "Name this map view",
-  "map.savedView": "Saved map view",
-  "map.editView": "Edit view: {name}",
-  "map.viewIcon": "View icon",
-  "map.captureView": "Use current map area",
-  "map.previewView": "Show saved area",
-  "map.viewBounds": "Area: {x1}%, {y1}% to {x2}%, {y2}%",
-  "map.viewBoundsUnavailable": "Move back over the map image before saving its visible area.",
-  "map.deleteView": "Delete view",
-  "map.deleteViewConfirm": "Delete the saved view “{name}”?",
-  "map.eventPaths": "Event paths",
-  "map.storyPath": "Story path",
-  "map.inSession": "Session event",
-  "map.pastEvent": "Past event",
-  "map.noEvents": "No placed events on this map.",
-  "map.placeEvent": "Place event pin",
-  "map.moveEvent": "Move event pin",
-  "map.pickEvent": "Place an event",
-  "map.eventPosition": "Event map position",
-  "map.eventArticle": "Open event article",
-  "map.chooseEventPosition": "Choose position on map",
-  "map.removeEvent": "Remove event pin",
-  "map.eventUnavailable": "This event or its pin is unavailable on this map.",
-  "map.settings": "Maps",
-  "map.selectMap": "Select a map",
-  "map.previewImage": "Map image preview",
-  "map.openMap": "Open map",
-  "map.configInvalid": "This map configuration has an invalid stored shape and was left untouched.",
-  "map.markerZoom": "Marker scaling with zoom",
-  "map.markerZoomHint":
-    "0% keeps markers the same size on screen. 100% scales them with the map. Values in between give a gentler change.",
-  "map.savedViews": "Saved views",
-  "map.noViews": "No saved views for this map.",
-  "map.manageViews": "Manage views on map",
-  "map.placeHint": "Click the map to place the marker.",
-  "map.panHint": "Drag to pan · Scroll to zoom",
-  "map.edit": "Edit map",
-  "map.done": "Done",
-  "map.upload": "Upload map image",
-  "map.canvas": "Interactive campaign map",
-  "map.zoomIn": "Zoom in",
-  "map.zoomOut": "Zoom out",
-  "map.zoom": "Map zoom",
-  "map.actualSize": "Actual image size",
-  "map.loading": "Opening map…",
-  "map.empty": "No map image is available yet.",
-  "map.missing": "This location is unavailable.",
-  "map.failed": "The map image could not be loaded.",
-  "map.location": "Map location",
-  "map.close": "Close location panel",
-  "map.article": "Open location",
-  "map.local": "Local map",
-  "map.position": "Edit position",
-  "map.name": "Name",
-  "map.x": "Horizontal position (%)",
-  "map.y": "Vertical position (%)",
-  "map.removePin": "Remove from map",
-  "map.stale":
-    "This map entry changed. Your draft is kept; cancel and reopen it to review the current version.",
-  "map.saveFailed":
-    "The map change could not be saved. Check the values and try again; your draft is kept.",
-  "dashboard.editName": "Edit campaign name",
-  "dashboard.editTagline": "Edit campaign tagline",
-  "dashboard.dmIdentity": "Campaign name and tagline require DM mode.",
-  "dashboard.save": "Save",
-  "dashboard.saving": "Saving…",
-  "dashboard.cancel": "Cancel",
-  "dashboard.add": "Add",
-  "dashboard.addPartyMember": "Add party member",
-  "dashboard.identityStale":
-    "Campaign details changed. Your draft is kept; copy any text you need, then cancel and reopen to review the current version.",
-  "dashboard.identityInvalid":
-    "Enter a campaign name and use at most 500 characters per field, on one line.",
-  "dashboard.identityFailed": "Campaign details could not be saved. Your draft is kept; try again.",
-  "dashboard.company": "Our party",
-  "dashboard.openRoster": "Whole party →",
-  "dashboard.emptyParty": "No party members have been recorded yet.",
-  "dashboard.partyCompanions": "Party companions",
-  "dashboard.lastSession": "Last session",
-  "dashboard.emptySession": "There are no events with an assigned session yet.",
-  "dashboard.openTimeline": "View events →",
-  "dashboard.session": "Session {n}",
-  "dashboard.characterCount": { one: "{n} character", other: "{n} characters" },
-  "dashboard.placeCount": { one: "{n} place", other: "{n} places" },
-  "dashboard.recent": "Recent changes",
-  "dashboard.emptyRecent": "No changes yet. Newly created and edited entries will appear here.",
-  "dashboard.archiveIndex": "Campaign archive index",
-  "dashboard.today": "today",
-  "dashboard.yesterday": "yesterday",
-  "dashboard.daysAgo": "{n} days ago",
-  "search.kicker": "Campaign index",
-  "search.title": "Search the chronicle",
-  "search.intro":
-    "Find people, places, events, mysteries, factions, lore, and companions in your current view.",
-  "search.label": "Search the campaign",
-  "search.placeholder": "Name, title, tag, or remembered phrase",
-  "search.prompt": "Begin typing to search every visible part of the campaign archive.",
-  "search.empty": "Nothing in the current campaign view matches “{query}”.",
-  "search.count": { one: "{n} entry found", other: "{n} entries found" },
-  "settings.kicker": "Campaign administration",
-  "settings.title": "Settings",
-  "settings.allSettings": "All settings",
-  "settings.intro":
-    "Choose your reading language, and manage the campaign’s look, vocabulary, add-ons, access and backups.",
-  "settings.introPlayer":
-    "Choose your reading language and the options your campaign’s add-ons offer.",
-  "settings.categories": "Settings categories",
-  "settings.groupPersonal": "This browser",
-  "settings.groupCampaign": "Campaign",
-  "settings.groupVocabulary": "Vocabulary",
-  "settings.groupSystem": "Server",
-  "settings.language": "Language",
-  "settings.languageIntro":
-    "Choose the language used by this browser. It does not change campaign data or another player’s preference.",
-  "settings.languageLabel": "Interface language",
-  "settings.languageProgress":
-    "Interface language applies to the campaign tools and first-party add-ons. Authored campaign text and reference content keep their original language.",
-  "settings.appearance": "Appearance",
-  "settings.appearanceIntro":
-    "The campaign theme is shared by everyone. Only the DM can change it.",
-  "settings.appearanceLabel": "Campaign theme",
-  "settings.appearanceClassic": "Classic archive",
-  "settings.appearanceClassicHint":
-    "The original dark brown canvas, parchment text, and gold headings.",
-  "settings.appearanceMoonlit": "Moonlit archive",
-  "settings.appearanceMoonlitHint": "Dark slate surfaces with silver blue headings.",
-  "settings.themeApplies": "A theme changes for everyone as soon as you pick it.",
-  "branding.title": "Site branding",
-  "branding.intro":
-    "Choose the logo and wordmark shown in the sidebar and the browser tab. Save to apply your changes.",
-  "branding.logo": "Campaign logo",
-  "branding.customLogo": "Custom logo",
-  "branding.defaultLogo": "Default logo",
-  "branding.upload": "Upload logo",
-  "branding.restoreLogo": "Use default logo",
-  "branding.name": "Site name",
-  "branding.subtitle": "Subtitle",
-  "branding.invalid": "The branding settings are invalid. Check the stored values before saving.",
-  "branding.stale": "Branding changed. Your draft is kept; cancel to review the current values.",
-  "branding.failed":
-    "Branding could not be saved. Your draft and selected file are kept; try again.",
-  "sidebar.title": "Sidebar",
-  "sidebar.addonPages": "Add-on pages",
-  "sidebar.addonHint":
-    "Choose which installed pages appear in the sidebar. Add-on role restrictions still apply.",
-  "sidebar.addonVisibility": "Visibility of {name}",
-  "sidebar.everyone": "Everyone",
-  "sidebar.intro":
-    "Arrange pages and sections by dragging or using the arrow and move controls. Save to update the shared sidebar.",
-  "sidebar.addSection": "Add section",
-  "sidebar.defaults": "Reset layout",
-  "sidebar.hidden": "Hidden pages",
-  "sidebar.sectionName": "Section name",
-  "sidebar.icon": "Section icon",
-  "sidebar.iconPlaceholder": "Icon",
-  "sidebar.moveTo": "Move to…",
-  "sidebar.sectionUp": "Move section {name} up",
-  "sidebar.sectionDown": "Move section {name} down",
-  "sidebar.deleteSection": "Delete section {name}",
-  "sidebar.collapsible": "Collapsible",
-  "sidebar.defaultOpen": "Open by default",
-  "sidebar.dmOnly": "DM only",
-  "sidebar.pageUp": "Move {name} up",
-  "sidebar.pageDown": "Move {name} down",
-  "sidebar.movePage": "Move {name} to",
-  "sidebar.newSection": "New section",
-  "sidebar.dropHere": "Drop a page here",
-  "sidebar.confirmDefaults": "Reset the sidebar layout? You can cancel before saving.",
-  "sidebar.invalid": "The saved sidebar layout is invalid. It has been kept unchanged.",
-  "sidebar.stale": "The sidebar changed. Your draft is kept; cancel to review the current layout.",
-  "sidebar.failed": "The sidebar could not be saved. Your draft is kept; try again.",
-  "settings.playerParty": "Player party",
-  "settings.partyIntro": "Set the party name, symbol, and colors used throughout the campaign.",
-  "settings.partyName": "Name",
-  "settings.partyIcon": "Icon / emoji",
-  "settings.partyColor": "Color (glow / chip)",
-  "settings.partyMembers": { one: "{n} party member", other: "{n} party members" },
-  "settings.partyMembersHint":
-    "To add or remove a member, change the faction on their character page.",
-  "settings.partyNoMembers": "No members yet.",
-  "settings.partyOpen": "Open →",
-  "settings.partyInvalid":
-    "The party settings are invalid. Check the name, symbol, and colors before saving.",
-  "settings.partyStale":
-    "The party settings changed. Your draft is kept; cancel to review the current values before saving.",
-  "settings.partyFailed": "The party settings could not be saved. Your draft is kept; try again.",
-  "settings.saving": "Saving…",
-} satisfies Record<string, Message>;
-
-export type MessageKey = keyof typeof enCatalog;
-
-const csCatalog = {
-  ...sourceCs,
-  ...recordWorkflowCs,
-  ...githubCs,
-  ...editingCs,
-  ...contextCs,
-  ...configurationCs,
-  ...cleanupCs,
-  ...schemaUpgradeCs,
-  ...diagnosticsCs,
-  ...disableCs,
-  ...storageCs,
-  ...ruleDetailsCs,
-  "settings.usedRecords": {
-    one: "Používá {n} záznam",
-    few: "Používají {n} záznamy",
-    other: "Používá {n} záznamů",
-  },
-  "settings.replaceRecords": {
-    one: "Tuto definici používá {n} záznam kampaně. Vyberte, jak se mají použití změnit.",
-    few: "Tuto definici používají {n} záznamy kampaně. Vyberte, jak se mají použití změnit.",
-    other: "Tuto definici používá {n} záznamů kampaně. Vyberte, jak se mají použití změnit.",
-  },
-  "settings.deleteRelationships": {
-    one: "Tento typ používá {n} vztah. Odstraněním typu se odstraní i tento vztah.",
-    few: "Tento typ používají {n} vztahy. Odstraněním typu se odstraní i tyto vztahy.",
-    other: "Tento typ používá {n} vztahů. Odstraněním typu se odstraní i tyto vztahy.",
-  },
-  "recovery.title": "Zálohy a obnova",
-  "recovery.download": "Stáhnout zálohu",
-  "recovery.create": "Vytvořit bod obnovy",
-  "recovery.refresh": "Obnovit seznam",
-  "recovery.intro":
-    "Kampaň i každý doplněk mají vlastní body obnovy. Úprava uloží bod jen té části, kterou mění, nejvýše jednou za minutu, a každá část uchovává posledních 50 bodů.",
-  "recovery.scope": "Obnovovaná data",
-  "recovery.campaign": "Kampaň",
-  "recovery.addon": "Doplněk: {addon}",
-  "recovery.addonEffect":
-    "Obnoví se pouze dokumenty a soubory vybraného doplňku. Záznamy kampaně a ostatní doplňky zůstanou beze změny. Současný stav se nejprve uloží. Propojené záznamy musí odpovídat; podle potřeby nejprve obnovte kampaň.",
-  "recovery.guide": "Úplná záloha a obnova serveru (anglicky, otevře novou kartu)",
-  "recovery.offline":
-    "Stažená záloha obsahuje v jednom ZIPu nejnovější bod kampaně i každého doplňku spolu s jejich soubory. Uložte ji mimo tento server.",
-  "recovery.importTitle": "Importovat zálohu",
-  "recovery.importIntro":
-    "Každá část stažené zálohy se přidá jako importovaný bod obnovy; nic se nezmění, dokud některý neobnovíte. Nejprve obnovte kampaň, potom jednotlivé doplňky, které musí mít nainstalovanou stejnou verzi. Přesun celého serveru včetně hesel a nainstalovaných doplňků se provádí úplným archivem údržbového příkazu.",
-  "recovery.importFile": "ZIP se zálohou",
-  "recovery.import": "Importovat",
-  "recovery.importing": "Nahrávám a kontroluji zálohu…",
-  "recovery.importDone": {
-    one: "Záloha z {date} byla importována jako {n} bod obnovy. Obnovte jej ze seznamu jeho části.",
-    few: "Záloha z {date} byla importována jako {n} body obnovy. Obnovte je ze seznamů jejich částí, nejprve kampaň.",
-    other:
-      "Záloha z {date} byla importována jako {n} bodů obnovy. Obnovte je ze seznamů jejich částí, nejprve kampaň.",
-  },
-  "recovery.importInvalid": "Tento soubor není platná záloha: {detail}",
-  "recovery.importTooLarge": "Záloha je větší než limit 1 GiB pro nahrání.",
-  "recovery.importFailed": "Zálohu se nepodařilo importovat. Současná data zůstala beze změny.",
-  "recovery.busy": "Pracuji…",
-  "recovery.revertCount": "Počet posledních uložení k vrácení",
-  "recovery.revert": "Vrátit",
-  "recovery.empty": "Zatím nejsou žádné body obnovy.",
-  "recovery.older": "Starší body ({n})",
-  "recovery.manual": "✦ Ruční",
-  "recovery.safety": "⚠ Před obnovou",
-  "recovery.edit": "✎ Před úpravami",
-  "recovery.downloaded": "⬇ Staženo",
-  "recovery.imported": "⇪ Importováno",
-  "recovery.restore": "Obnovit",
-  "recovery.delete": "Smazat",
-  "recovery.restoreReview": "Obnovit tento uložený stav?",
-  "recovery.deleteReview": "Smazat tato data obnovy?",
-  "recovery.summary": "Záznamy: {records} · dokumenty doplňků: {documents} · soubory: {media}",
-  "recovery.restoreEffect":
-    "Obnoví se záznamy a soubory kampaně. Současný stav se nejprve uloží. Uložená data doplňků, nainstalované balíčky a hesla zůstanou beze změny. Chybějící stav doplňku nebrání obnově kampaně.",
-  "recovery.deleteEffect":
-    "Smaže se pouze tento bod obnovy. Současná data i ostatní body zůstanou beze změny.",
-  "recovery.cancel": "Zrušit",
-  "recovery.created": "Body obnovy byly vytvořeny pro kampaň i každý doplněk.",
-  "recovery.deleted": "Bod obnovy byl smazán.",
-  "recovery.restored": "Vybraná data byla obnovena. Kopie předchozího stavu je dostupná v seznamu.",
-  "recovery.conflict":
-    "Kampaň nebo seznam bodů se změnil. Obnovte seznam a znovu zkontrolujte vybraný bod.",
-  "recovery.compatibility":
-    "Tento doplněk vyžaduje odpovídající aktivní sestavení, definice dat a propojené záznamy kampaně. Zkontrolujte verzi v Doplňcích nebo nejprve obnovte kampaň. Kampaň lze obnovit nezávisle.",
-  "recovery.forbidden": "Pro správu obnovy se přihlaste jako DM a opusťte náhled hráče.",
-  "recovery.missing": "Tento bod nebo skupina úprav už není dostupná. Obnovte seznam.",
-  "recovery.failed":
-    "Výsledek se nepodařilo potvrdit. Před dalším pokusem obnovte seznam; dokončená akce už v něm může být.",
-  "recovery.openEdits":
-    "Kampaň byla obnovena. Vaše neuložené úpravy zůstávají otevřené; před úpravou obnovených dat znovu načtěte stránku.",
-  "credentials.title": "Přístup k serveru",
-  "credentials.intro": "Spravujte společná hesla PJ a hráčů pro tento web.",
-  "credentials.refresh": "Obnovit stav hesel",
-  "credentials.loading": "Načítání stavu hesel…",
-  "credentials.dm": "Heslo PJ",
-  "credentials.player": "Heslo hráčů",
-  "credentials.enabled": "Heslo nastaveno",
-  "credentials.disabled": "Přihlášení hráčů vypnuto",
-  "credentials.current": "Současné heslo PJ",
-  "credentials.new": "Nové heslo",
-  "credentials.confirm": "Potvrzení nového hesla",
-  "credentials.save": "Změnit heslo",
-  "credentials.disable": "Vypnout přihlášení hráčů",
-  "credentials.disableSave": "Vypnout přístup hráčů",
-  "credentials.dmEffect":
-    "Ostatní relace PJ a hráčské náhledy budou odhlášeny. Tato karta zůstane přihlášená.",
-  "credentials.playerEffect":
-    "Stávající relace hráčů a náhledy budou odhlášeny. Veřejné čtení kampaně zůstane dostupné.",
-  "credentials.saved": "Nastavení hesel bylo uloženo. Tato karta je stále přihlášená.",
-  "credentials.mismatch": "Nová hesla se neshodují.",
-  "credentials.currentIncorrect": "Současné heslo PJ není správné.",
-  "credentials.policy": "Použijte 4–4096 bajtů a jiné heslo pro každou roli.",
-  "credentials.forbidden": "Pro správu hesel se přihlaste jako PJ a opusťte hráčský náhled.",
-  "credentials.conflict":
-    "Nastavení hesel se změnilo v jiné kartě. Obnovte stav, zkontrolujte údaje a zkuste to znovu.",
-  "credentials.rateLimited":
-    "Příliš mnoho pokusů o zadání hesla. Počkejte minutu a zkuste to znovu.",
-  "credentials.loadFailed":
-    "Nastavení hesel se nepodařilo načíst. Zadané údaje zůstaly zachovány; zkuste stav obnovit znovu.",
-  "credentials.failed":
-    "Uložení se nepodařilo potvrdit. Před dalším pokusem obnovte stav. Pokud se heslo PJ změnilo, zadejte nové heslo jako současné.",
-  "wiki.loading": "Načítání odkazů na příručky…",
-  "wiki.failed": "Některé odkazy doplňků se nepodařilo načíst.",
-  "wiki.missing": "Odkazu neodpovídá jediný dostupný záznam. Zkontroluj druh nebo ID záznamu.",
-  "wiki.retry": "Zkusit odkazy znovu",
-  "addons.title": "Doplňky",
-  "addons.intro": "Instalujte z GitHubu nebo ZIP balíčku a spravujte nainstalované verze.",
-  "addons.upload": "Zkontrolovat ZIP",
-  "addons.file": "Vydaný ZIP balíček",
-  "addons.empty": "Nejsou nainstalovány žádné doplňky.",
-  "addons.loading": "Načítání doplňků…",
-  "addons.active": "Aktivní",
-  "addons.reload": "Znovu načíst",
-  "addons.disable": "Vypnout",
-  "addons.versions": "Uložené balíčky",
-  "addons.versionsHint":
-    "Spuštěný je pouze aktivní balíček. Ostatní balíčky jsou uložené pro kontrolu nebo návrat k předchozí verzi; neběží současně s ním.",
-  "addons.savedInactive": "Neaktivní",
-  "addons.review": "Zkontrolovat aktivaci",
-  "addons.rollback": "Zkontrolovat návrat verze",
-  "addons.reviewUpdate": "Zkontrolovat aktualizaci",
-  "addons.history": "Nedávná aktivita",
-  "addons.disabled": "Vypnuto",
-  "addons.enable": "Zapnout",
-  "addons.notRunning": "Neběží",
-  "addons.notRunningHelp":
-    "Doplněk je zapnutý, ale neběží. Znovu ho načtěte přes ⋯ nebo otevřete Podrobnosti s diagnostikou.",
-  "addons.updateAvailable": "K dispozici {version}",
-  "addons.updateTo": "Aktualizovat na {version}",
-  "addons.moreActions": "Další akce",
-  "addons.details": "Technické podrobnosti",
-  "addons.uses": "Využívá: {names}",
-  "addons.usedBy": "Využívají ho: {names}",
-  "addons.missingService": "Chybí potřebný doplněk",
-  "configuration.pendingBooks": {
-    one: "{n} nová příručka zůstane vypnutá, dokud ji nezkontrolujete.",
-    few: "{n} nové příručky zůstanou vypnuté, dokud je nezkontrolujete.",
-    other: "{n} nových příruček zůstane vypnutých, dokud je nezkontrolujete.",
-  },
-  "addons.permissions": "Požadovaný přístup",
-  "addons.noPermissions": "Žádná další oprávnění nejsou požadována.",
-  "addons.required": "Povinné",
-  "addons.restart": "Společně se restartují",
-  "addons.changes": "Změny balíčku",
-  "addons.runtimeChanged": "Mění se běhová část balíčku.",
-  "addons.blocked": "Před aktivací vyřešte tyto problémy",
-  "addons.approve": "Schválit a aktivovat",
-  "addons.cancel": "Zrušit kontrolu",
-  "addons.added": "Přidáno",
-  "addons.changed": "Změněno",
-  "addons.removed": "Odebráno",
-  "addons.done": "Stav doplňku byl aktualizován.",
-  "addons.failed": "Akci se nepodařilo potvrdit. Před dalším pokusem zkontrolujte aktuální stav.",
-  "addons.fileRequired": "Vyberte neprázdný vydaný ZIP balíček do 128 MiB.",
-  "addons.generation": "Otisk balíčku",
-  "addons.grantHint": "Vyberte oprávnění, která schvalujete pro tento konkrétní balíček.",
-  "addons.capabilities": "Schopnosti",
-  "addons.contributions": "Prvky rozhraní",
-  "addons.dependencies": "Závislosti",
-  "addons.providedServices": "Poskytované služby",
-  "addons.consumedServices": "Používané služby",
-  "addons.collections": "Uložené kolekce",
-  "addons.recordExtensions": "Rozšíření záznamů",
-  "addons.content": "Obsah balíčku",
-  "addons.locales": "Jazyky",
-  "addons.current": "Současná verze",
-  "addons.target": "Vybraná verze",
-  "addons.noChanges": "Žádné změny deklarací.",
-  "dm.title": "DM panel",
-  "dm.refusal": "Tato stránka je dostupná pouze v pohledu DM.",
-  "dm.tools": "Nástroje kampaně",
-  "dm.addonHealth": "Stav doplňků",
-  "dm.addonHealthHint": "Stav doplňků načtených v prohlížeči pro toto přihlášení.",
-  "dm.noAddons": "Žádné doplňky prohlížeče nejsou načtené.",
-  "dm.loading": "Načítání nástrojů doplňků…",
-  "dm.failed":
-    "Některé nástroje doplňků se nepodařilo zobrazit. Můžete použít dostupné nástroje níže nebo načtení zopakovat.",
-  "dm.retry": "Znovu načíst nástroje doplňků",
-  "preview.notice":
-    "Náhled hráče — tato karta má hráčský přístup. Vaše DM karta zůstává přihlášená.",
-  "preview.unavailable":
-    "Náhled hráče není dostupný nebo vypršel. Otevřete nový náhled z DM karty.",
-  "preview.close": "Zavřít náhled hráče",
-  "preview.openHint": "Otevřít hráčský pohled v samostatné kartě",
-  "preview.blocked": "Pro otevření náhledu hráče povolte vyskakovací okna pro tento web.",
-  "preview.failed":
-    "Náhled hráče se nepodařilo otevřít. Zavřete existující náhled a zkuste to znovu.",
-  "dm.state.ready": "Připraveno",
-  "dm.state.blocked": "Blokováno",
-  "dm.state.failed": "Chyba",
-  "dm.hiddenContent": "Skrytý obsah",
-  "dm.hiddenEmpty": "Žádný záznam není označen jako pouze pro DM.",
-  "dm.hiddenCount": {
-    one: "{n} záznam je označen jako pouze pro DM.",
-    few: "{n} záznamy jsou označené jako pouze pro DM.",
-    other: "{n} záznamů je označených jako pouze pro DM.",
-  },
-  "dm.onlyDm": "Pouze DM / celkem",
-  "graph.title": "Myšlenkový palác",
-  "graph.relationships": "Vztahy",
-  "graph.mysteries": "Záhady",
-  "graph.factionCanvas": "Graf frakcí",
-  "graph.mysteryCanvas": "Graf záhad",
-  "graph.factionStrip": "Frakce",
-  "graph.placeStrip": "Místo",
-  "graph.mysteryStrip": "Záhada",
-  "graph.priorityMedium": "střední",
-  "graph.member": "Člen frakce",
-  "graph.locatedAt": "Působení",
-  "graph.involved": "Zapojená postava",
-  "graph.memberCount": { one: "{n} postava", few: "{n} postavy", other: "{n} postav" },
-  "graph.commandCount": { one: "Velí {n} postavě", other: "Velí {n} postavám" },
-  "graph.mysteryCount": { one: "{n} záhada", few: "{n} záhady", other: "{n} záhad" },
-  "graph.underCommand": "Pod velením: {name}",
-  "graph.noCommands": "Bez velitelských vazeb",
-  "graph.emptyCards": "Žádné karty k zobrazení",
-  "graph.emptyCardsHint": "Přidejte záznamy do kampaně nebo vymažte filtry frakcí.",
-  "graph.hint": "Přetažením uspořádáte · kliknutím otevřete",
-  "graph.readOnly": "Obsah jen pro čtení",
-  "graph.zoomControls": "Přiblížení grafu",
-  "graph.zoomOut": "Oddálit",
-  "graph.zoomIn": "Přiblížit",
-  "graph.zoomReset": "Obnovit přiblížení na 100 %",
-  "graph.fit": "Vejít vše",
-  "graph.hiddenDetails": "Podrobnosti jsou při tomto přiblížení skryté",
-  "graph.filter": "Filtrovat graf",
-  "graph.filterPlaceholder": "Jméno, stav, frakce, štítek…",
-  "graph.removeFilter": "Odebrat filtr {value}",
-  "graph.edgeTypes": "Typy vztahů",
-  "graph.focus": "Zaměřit",
-  "graph.focusHops": "Hloubka okolí",
-  "graph.clearFilters": "Vymazat filtry",
-  "graph.storageFailed":
-    "Prohlížeč nemohl uložit rozložení a filtry. Zůstanou dostupné do opuštění této stránky.",
-  "graph.storageChanged":
-    "Jiná karta změnila rozložení. Pohyb byl zrušen a načetlo se uložené zobrazení.",
-  "graph.retry": "Zkusit znovu",
-  "graph.addonLoading": "Načítání karet doplňků…",
-  "timeline.addonFailed": "Nepodařilo se zobrazit doplněk časové osy.",
-  "graph.addonFailed": "Nepodařilo se načíst obsah grafu: {names}.",
-  "graph.addonUnavailable": "Tento pohled doplňku není pro vaši roli nyní dostupný.",
-  "graph.canvas": "Graf vztahů",
-  "graph.keyboardHelp":
-    "Tabulátorem vyberte kartu a Enterem ji otevřete. Šipky přesouvají vybranou kartu, se Shiftem dále. Šipky na plátně posouvají pohled. Escape zruší přesun. Shift+F10 otevře akce karty.",
-  "graph.connectionCount": { one: "{n} vztah", few: "{n} vztahy", other: "{n} vztahů" },
-  "graph.empty": "Žádné postavy k zobrazení",
-  "graph.emptyHint": "Přidejte postavy do kampaně nebo vymažte filtry frakcí.",
-  "graph.legend": "Legenda a filtry",
-  "graph.factions": "Frakce",
-  "graph.noFaction": "Bez frakce",
-  "graph.openDetail": "Otevřít detail",
-  "graph.focusNeighborhood": "Zaměřit okolí",
-  "timeline.title": "Časová osa",
-  "timeline.hint": "Kliknutím na kartu otevřete událost",
-  "timeline.dragHint": "Přetáhněte karty mezi sezeními nebo použijte tlačítka přesunu",
-  "timeline.edit": "Upravit osu",
-  "timeline.done": "Dokončit úpravy",
-  "timeline.save": "Uložit pořadí",
-  "timeline.newEvent": "Nová událost",
-  "timeline.editEvent": "Upravit událost",
-  "timeline.session": "Sezení {n}",
-  "timeline.newSession": "Nové sezení {n}",
-  "timeline.empty": "V tomto sezení zatím nejsou události.",
-  "timeline.emptyEditing": "Přetáhněte sem kartu nebo přidejte novou událost.",
-  "timeline.scroll": "Posun mezi sezeními",
-  "timeline.up": "Přesunout {name} výš",
-  "timeline.down": "Přesunout {name} níž",
-  "timeline.move": "Přesunout {name} do sezení",
-  "timeline.back": "Zpět na časovou osu",
-  "timeline.stale":
-    "Události se změnily. Vaše pořadí zůstalo zachováno; zrušte úpravy a zkontrolujte aktuální osu.",
-  "timeline.invalid": "Toto pořadí nelze uložit. Vaše úpravy zůstaly zachovány.",
-  "timeline.limit":
-    "Tento přesun mění příliš mnoho událostí najednou. Zrušte úpravy a přesuňte menší skupinu.",
-  "timeline.failed": "Pořadí se nepodařilo uložit. Vaše úpravy zůstaly zachovány; zkuste to znovu.",
-  "shell.skip": "Přeskočit na obsah kampaně",
-  "shell.campaignArchive": "Archiv kampaně",
-  "shell.openOverview": "Otevřít přehled kampaně",
-  "shell.addons": "Doplňky",
-  "shell.signInForTools": "Přihlas se pro přístup k nástrojům kampaně.",
-  "shell.browserAddonsRunning": {
-    one: "Běží {n} doplněk prohlížeče",
-    few: "Běží {n} doplňky prohlížeče",
-    other: "Běží {n} doplňků prohlížeče",
-  },
-  "shell.addonsActiveFailed": "Aktivní: {active} · selhalo: {failed}",
-  "shell.addonsAttention": "Doplňky vyžadují pozornost",
-  "shell.campaignAddons": "Doplňky kampaně",
-  "shell.recordAddons": "Doplňky záznamu",
-  "shell.addonPage": "Stránka doplňku",
-  "shell.dismiss": "Skrýt",
-  "shell.campaign": "Kampaň",
-  "shell.world": "Svět",
-  "shell.compendium": "Kompendium",
-  "shell.closeMenu": "Zavřít nabídku",
-  "shell.overview": "Přehled",
-  "shell.search": "Hledat",
-  "shell.party": "Družina",
-  "shell.settings": "Nastavení",
-  "shell.people": "Postavy",
-  "shell.places": "Místa",
-  "shell.primaryNavigation": "Hlavní navigace kampaně",
-  "shell.checkingSession": "Ověřuji přihlášení…",
-  "shell.privateArchive": "Soukromý archiv",
-  "shell.passwordLabel": "Heslo DM nebo hráče",
-  "shell.passwordPlaceholder": "Heslo kampaně",
-  "shell.signIn": "Přihlásit se",
-  "shell.viewingAs": "Zobrazení jako",
-  "shell.player": "hráč",
-  "shell.viewAs": "Zobrazit jako {role}",
-  "shell.signOut": "Odhlásit se",
-  "shell.menu": "Menu",
-  "shell.signedInDm": "Přihlášení: DM",
-  "shell.signedInPlayer": "Přihlášení: hráč",
-  "shell.checkingHost": "Ověřuji server",
-  "shell.hostUnavailable": "Server není dostupný",
-  "shell.connecting": "Připojuji",
-  "shell.live": "Živě",
-  "shell.reconnecting": "Obnovuji spojení",
-  "session.recoverTitle": "Pro pokračování se znovu přihlaste",
-  "session.recoverHint":
-    "Je třeba obnovit přihlášení. Vaše rozepsané úpravy v hlavní aplikaci zůstávají zachované. Po přihlášení je zkontrolujte a znovu uložte.",
-  "session.resume": "Pokračovat v úpravách",
-  "session.restored":
-    "Jste znovu přihlášeni. Zkontrolujte úpravy a uložte je, až budete připraveni.",
-  "session.sameRole": "Použijte heslo pro stejnou roli jako při zahájení úprav.",
-  "session.resumeFailed":
-    "Přihlášení se nepodařilo potvrdit. Úpravy zůstávají zachované; zkontrolujte heslo a připojení a zkuste to znovu.",
-  "shell.openingCampaign": "Otevírám kroniku kampaně…",
-  "shell.campaignOpenFailed": "Kroniku se nepodařilo otevřít.",
-  "shell.tryAgain": "Zkusit znovu",
-  "shell.signInSettings": "Přihlas se pro nastavení kampaně.",
-  "shell.settingsAuthHint":
-    "Osobní volby jsou dostupné všem; nastavení kampaně vyžaduje přihlášení DM.",
-  "shell.signInAddon": "Přihlas se pro otevření této stránky.",
-  "shell.addonRoleHint": "Nástroje doplňků používají tvou současnou roli v kampani.",
-  "shell.openingAddon": "Otevírám stránku doplňku…",
-  "shell.pageMissing": "Tato stránka není v rejstříku.",
-  "shell.pageMissingHint": "Adresa může být stará nebo neúplná.",
-  "shell.returnOverview": "Zpět na přehled",
-  "collection.characters.one": "Postava",
-  "collection.characters.other": "Postavy",
-  "collection.locations.one": "Místo",
-  "collection.locations.other": "Místa",
-  "collection.events.one": "Událost",
-  "collection.events.other": "Události",
-  "collection.mysteries.one": "Záhada",
-  "collection.mysteries.other": "Záhady",
-  "collection.factions.one": "Frakce",
-  "collection.factions.other": "Frakce",
-  "collection.pantheon.one": "Božstvo",
-  "collection.pantheon.other": "Panteon",
-  "collection.artifacts.one": "Artefakt",
-  "collection.artifacts.other": "Artefakty",
-  "collection.history.one": "Historická událost",
-  "collection.history.other": "Historie",
-  "collection.companions.one": "Společník",
-  "collection.companions.other": "Společníci",
-  "dashboard.campaignOverview": "Přehled kampaně",
-  "dashboard.partyTitle": "Družina",
-  "dashboard.partyIntro": "Dobrodruzi a společníci v centru kampaně.",
-  "dashboard.taglinePlaceholder": "Podtitul kampaně",
-  "map.world": "Mapa světa",
-  "map.show": "Zobrazit na mapě",
-  "map.placeLocation": "Umístit místo na mapu",
-  "map.moveLocation": "Přesunout značku místa",
-  "map.locationUnavailable": "Toto místo nebo jeho značka není na této mapě dostupná.",
-  "map.locationControls": "Umístění na mapě a místní obrázek",
-  "map.saveLocationFirst": "Před umístěním nebo nahráním místní mapy místo uložte.",
-  "map.search": "Najít místo…",
-  "map.noResults": "Na této mapě nejsou odpovídající místa.",
-  "map.clearSearch": "Vymazat hledání",
-  "map.fit": "Celá mapa",
-  "map.add": "Přidat místo",
-  "map.placeExisting": "Umístit existující místo…",
-  "map.saveView": "Uložit pohled",
-  "map.viewName": "Název pohledu na mapu",
-  "map.savedView": "Uložený pohled na mapu",
-  "map.editView": "Upravit pohled: {name}",
-  "map.viewIcon": "Ikona pohledu",
-  "map.captureView": "Použít aktuální oblast mapy",
-  "map.previewView": "Zobrazit uloženou oblast",
-  "map.viewBounds": "Oblast: {x1} %, {y1} % až {x2} %, {y2} %",
-  "map.viewBoundsUnavailable": "Před uložením viditelné oblasti se vrať nad obrázek mapy.",
-  "map.deleteView": "Smazat pohled",
-  "map.deleteViewConfirm": "Smazat uložený pohled „{name}“?",
-  "map.eventPaths": "Cesty událostí",
-  "map.storyPath": "Cesta příběhu",
-  "map.inSession": "Událost sezení",
-  "map.pastEvent": "Minulá událost",
-  "map.noEvents": "Na této mapě nejsou umístěné události.",
-  "map.placeEvent": "Umístit událost na mapu",
-  "map.moveEvent": "Přesunout značku události",
-  "map.pickEvent": "Umístit událost",
-  "map.eventPosition": "Poloha události na mapě",
-  "map.eventArticle": "Otevřít článek události",
-  "map.chooseEventPosition": "Vybrat polohu na mapě",
-  "map.removeEvent": "Odebrat značku události",
-  "map.eventUnavailable": "Tato událost nebo její značka není na této mapě dostupná.",
-  "map.settings": "Mapy",
-  "map.selectMap": "Vybrat mapu",
-  "map.previewImage": "Náhled obrázku mapy",
-  "map.openMap": "Otevřít mapu",
-  "map.configInvalid": "Uložené nastavení této mapy má neplatný formát a zůstalo beze změny.",
-  "map.markerZoom": "Změna velikosti značek při přiblížení",
-  "map.markerZoomHint":
-    "0 % zachová stejnou velikost značek na obrazovce. 100 % mění velikost spolu s mapou. Hodnoty mezi tím změnu zmírní.",
-  "map.savedViews": "Uložené pohledy",
-  "map.noViews": "Pro tuto mapu nejsou uložené pohledy.",
-  "map.manageViews": "Spravovat pohledy na mapě",
-  "map.placeHint": "Kliknutím do mapy umístíš značku.",
-  "map.panHint": "Tažením posunout · Kolečkem přiblížit",
-  "map.edit": "Upravit mapu",
-  "map.done": "Hotovo",
-  "map.upload": "Nahrát obrázek mapy",
-  "map.canvas": "Interaktivní mapa kampaně",
-  "map.zoomIn": "Přiblížit",
-  "map.zoomOut": "Oddálit",
-  "map.zoom": "Přiblížení mapy",
-  "map.actualSize": "Původní velikost obrázku",
-  "map.loading": "Otevírání mapy…",
-  "map.empty": "Mapa zatím nemá obrázek.",
-  "map.missing": "Toto místo není dostupné.",
-  "map.failed": "Obrázek mapy se nepodařilo načíst.",
-  "map.location": "Místo na mapě",
-  "map.close": "Zavřít panel místa",
-  "map.article": "Otevřít místo",
-  "map.local": "Místní mapa",
-  "map.position": "Upravit polohu",
-  "map.name": "Název",
-  "map.x": "Vodorovná poloha (%)",
-  "map.y": "Svislá poloha (%)",
-  "map.removePin": "Odebrat z mapy",
-  "map.stale":
-    "Záznam mapy se změnil. Rozepsané změny zůstávají zachovány. Zruš úpravu a znovu ji otevři pro zobrazení aktuální verze.",
-  "map.saveFailed":
-    "Změnu mapy se nepodařilo uložit. Zkontroluj hodnoty a zkus to znovu. Rozepsané změny zůstávají zachovány.",
-  "dashboard.editName": "Upravit název kampaně",
-  "dashboard.editTagline": "Upravit podtitul kampaně",
-  "dashboard.dmIdentity": "Název a podtitul kampaně lze upravit v režimu DM.",
-  "dashboard.save": "Uložit",
-  "dashboard.saving": "Ukládání…",
-  "dashboard.cancel": "Zrušit",
-  "dashboard.add": "Přidat",
-  "dashboard.addPartyMember": "Přidat člena družiny",
-  "dashboard.identityStale":
-    "Údaje kampaně se změnily. Rozepsaný text zůstává zachován. Zkopíruj si potřebný text, zruš úpravu a znovu ji otevři pro zobrazení aktuální verze.",
-  "dashboard.identityInvalid":
-    "Vyplň název kampaně. Každé pole může mít nejvýše 500 znaků na jednom řádku.",
-  "dashboard.identityFailed":
-    "Údaje kampaně se nepodařilo uložit. Rozepsaný text zůstává zachován; zkus to znovu.",
-  "dashboard.company": "Družina",
-  "dashboard.openRoster": "Otevřít seznam družiny",
-  "dashboard.emptyParty": "Zatím nejsou zapsáni žádní členové družiny.",
-  "dashboard.partyCompanions": "Společníci družiny",
-  "dashboard.lastSession": "Poslední sezení",
-  "dashboard.emptySession": "Zatím nejsou žádné události s přiřazeným sezením.",
-  "dashboard.openTimeline": "Zobrazit události →",
-  "dashboard.session": "Sezení {n}",
-  "dashboard.characterCount": { one: "{n} postava", few: "{n} postavy", other: "{n} postav" },
-  "dashboard.placeCount": { one: "{n} místo", few: "{n} místa", other: "{n} míst" },
-  "dashboard.recent": "Nedávno změněno",
-  "dashboard.emptyRecent": "Zatím žádné změny. Nově vytvořené a upravené záznamy se zobrazí zde.",
-  "dashboard.archiveIndex": "Rejstřík archivu kampaně",
-  "dashboard.today": "dnes",
-  "dashboard.yesterday": "včera",
-  "dashboard.daysAgo": "před {n} dny",
-  "search.kicker": "Rejstřík kampaně",
-  "search.title": "Hledat v kronice",
-  "search.intro":
-    "Najdi postavy, místa, události, záhady, frakce, příběhy a společníky v aktuálním zobrazení.",
-  "search.label": "Hledat v kampani",
-  "search.placeholder": "Jméno, titul, štítek nebo zapamatovaná fráze",
-  "search.prompt": "Začni psát a prohledej všechny viditelné části archivu kampaně.",
-  "search.empty": "V aktuálním zobrazení kampaně nic neodpovídá „{query}“.",
-  "search.count": {
-    one: "Nalezen {n} záznam",
-    few: "Nalezeny {n} záznamy",
-    other: "Nalezeno {n} záznamů",
-  },
-  "settings.kicker": "Správa kampaně",
-  "settings.title": "Kniha nastavení",
-  "settings.allSettings": "Všechna nastavení",
-  "settings.intro":
-    "Vyber jazyk rozhraní a spravuj vzhled kampaně, pojmy, doplňky, přístup a zálohy.",
-  "settings.introPlayer": "Vyber jazyk rozhraní a volby, které nabízejí doplňky kampaně.",
-  "settings.categories": "Kategorie nastavení",
-  "settings.groupPersonal": "Tento prohlížeč",
-  "settings.groupCampaign": "Kampaň",
-  "settings.groupVocabulary": "Slovník",
-  "settings.groupSystem": "Server",
-  "settings.language": "Jazyk",
-  "settings.languageIntro":
-    "Vyber jazyk pro tento prohlížeč. Data kampaně ani volbu jiného hráče to nezmění.",
-  "settings.languageLabel": "Jazyk rozhraní",
-  "settings.languageProgress":
-    "Jazyk rozhraní platí pro nástroje kampaně i doplňky této sady. Vlastní text kampaně a obsah příruček si zachovávají původní jazyk.",
-  "settings.appearance": "Vzhled",
-  "settings.appearanceIntro": "Vzhled kampaně je společný pro všechny. Změnit jej může pouze DM.",
-  "settings.appearanceLabel": "Vzhled kampaně",
-  "settings.appearanceClassic": "Klasický archiv",
-  "settings.appearanceClassicHint": "Původní tmavě hnědé pozadí, pergamenový text a zlaté nadpisy.",
-  "settings.appearanceMoonlit": "Měsíční archiv",
-  "settings.appearanceMoonlitHint": "Tmavé břidlicové plochy se stříbřitě modrými nadpisy.",
-  "settings.themeApplies": "Motiv se změní pro všechny hned po výběru.",
-  "branding.title": "Značka webu",
-  "branding.intro":
-    "Vyberte logo a název v postranním panelu a na kartě prohlížeče. Změny potvrďte uložením.",
-  "branding.logo": "Logo kampaně",
-  "branding.customLogo": "Vlastní logo",
-  "branding.defaultLogo": "Výchozí logo",
-  "branding.upload": "Nahrát logo",
-  "branding.restoreLogo": "Použít výchozí logo",
-  "branding.name": "Název webu",
-  "branding.subtitle": "Podtitulek",
-  "branding.invalid": "Nastavení značky není platné. Před uložením zkontrolujte uložené hodnoty.",
-  "branding.stale":
-    "Značka se změnila. Rozepsané úpravy zůstaly zachovány; tlačítkem Zrušit načtete aktuální hodnoty.",
-  "branding.failed":
-    "Značku se nepodařilo uložit. Rozepsané úpravy i vybraný soubor zůstaly zachovány; zkuste to znovu.",
-  "sidebar.title": "Postranní panel",
-  "sidebar.addonPages": "Stránky doplňků",
-  "sidebar.addonHint":
-    "Vyberte stránky nainstalovaných doplňků do postranního panelu. Omezení rolí doplňku stále platí.",
-  "sidebar.addonVisibility": "Viditelnost stránky {name}",
-  "sidebar.everyone": "Všichni",
-  "sidebar.intro":
-    "Stránky a sekce uspořádáte přetažením, šipkami nebo výběrem cílové sekce. Uložením změníte společný postranní panel.",
-  "sidebar.addSection": "Přidat sekci",
-  "sidebar.defaults": "Obnovit rozložení",
-  "sidebar.hidden": "Skryté stránky",
-  "sidebar.sectionName": "Název sekce",
-  "sidebar.icon": "Ikona sekce",
-  "sidebar.iconPlaceholder": "Ikona",
-  "sidebar.moveTo": "Přesunout do…",
-  "sidebar.sectionUp": "Posunout sekci {name} nahoru",
-  "sidebar.sectionDown": "Posunout sekci {name} dolů",
-  "sidebar.deleteSection": "Smazat sekci {name}",
-  "sidebar.collapsible": "Sbalovací",
-  "sidebar.defaultOpen": "Ve výchozím stavu otevřená",
-  "sidebar.dmOnly": "Pouze DM",
-  "sidebar.pageUp": "Posunout {name} nahoru",
-  "sidebar.pageDown": "Posunout {name} dolů",
-  "sidebar.movePage": "Přesunout {name} do",
-  "sidebar.newSection": "Nová sekce",
-  "sidebar.dropHere": "Sem přetáhněte stránku",
-  "sidebar.confirmDefaults":
-    "Obnovit rozložení postranního panelu? Před uložením můžete změny zrušit.",
-  "sidebar.invalid": "Uložené rozložení postranního panelu není platné. Zůstalo beze změny.",
-  "sidebar.stale":
-    "Postranní panel se změnil. Rozepsané úpravy zůstaly zachovány; tlačítkem Zrušit načtete aktuální rozložení.",
-  "sidebar.failed":
-    "Postranní panel se nepodařilo uložit. Rozepsané úpravy zůstaly zachovány; zkuste to znovu.",
-  "settings.playerParty": "Hráčská družina",
-  "settings.partyIntro": "Nastavte název, symbol a barvy družiny používané v celé kampani.",
-  "settings.partyName": "Název",
-  "settings.partyIcon": "Ikona / emoji",
-  "settings.partyColor": "Barva (záře / štítek)",
-  "settings.partyMembers": {
-    one: "{n} člen družiny",
-    few: "{n} členové družiny",
-    other: "{n} členů družiny",
-  },
-  "settings.partyMembersHint":
-    "Člena přidáte nebo odeberete změnou frakce na stránce jeho postavy.",
-  "settings.partyNoMembers": "Zatím žádní členové.",
-  "settings.partyOpen": "Otevřít →",
-  "settings.partyInvalid":
-    "Nastavení družiny není platné. Před uložením zkontrolujte název, symbol a barvy.",
-  "settings.partyStale":
-    "Nastavení družiny se změnilo. Rozepsané úpravy zůstaly zachovány; tlačítkem Zrušit načtete aktuální hodnoty.",
-  "settings.partyFailed":
-    "Nastavení družiny se nepodařilo uložit. Rozepsané úpravy zůstaly zachovány; zkuste to znovu.",
-  "settings.saving": "Ukládám…",
-} satisfies Record<MessageKey, Message>;
-
-const catalogs: Readonly<Record<UiLocale, Readonly<Record<MessageKey, Message>>>> = Object.freeze({
-  en: Object.freeze(enCatalog),
-  cs: Object.freeze(csCatalog),
+/** Until the DM chooses, English is the default and every built-in language is offered. */
+export const defaultSiteLanguages: SiteLanguages = Object.freeze({
+  defaultLocale: "en",
+  enabledLocales: hostLocales,
 });
 
-export const availableUiLocales = Object.freeze([
-  Object.freeze({ id: "en" as const, endonym: "English" }),
-  Object.freeze({ id: "cs" as const, endonym: "Čeština" }),
-]);
+export const maximumSiteLanguages = 32;
 
+/** The host's built-in languages with their own names. */
+export const availableUiLocales = Object.freeze(
+  hostLocales.map((id) => Object.freeze({ id, endonym: languageEndonym(id) })),
+);
+
+const personalStorageKey = "codex_lang";
+const siteStorageKey = "codex_site_lang";
 const localeChangeTarget = new EventTarget();
-let activeLocale: UiLocale = resolveUiLocale(readStorage("codex_lang"));
+let personalLocale = readPersonalLocale();
+let siteLanguagesValue = readCachedSiteLanguages();
+let activeLocale = resolveActiveLocale();
 
 export class UiLocalizationController implements ReactiveController {
   readonly #host: ReactiveControllerHost;
@@ -1248,34 +84,78 @@ export function initializeUiLocalization(): void {
   applyLocale();
 }
 
+/** A stored personal choice the host can show by itself, or English. */
 export function resolveUiLocale(stored: string | null | undefined): UiLocale {
-  return stored === "cs" ? "cs" : "en";
+  return typeof stored === "string" && hostLocales.includes(stored) ? stored : "en";
 }
 
 export function currentUiLocale(): UiLocale {
   return activeLocale;
 }
 
+/** This browser's own choice, or undefined when it follows the site default. */
+export function personalUiLocale(): UiLocale | undefined {
+  return personalLocale;
+}
+
+export function siteLanguages(): SiteLanguages {
+  return siteLanguagesValue ?? defaultSiteLanguages;
+}
+
+/** Chooses this browser's language and keeps it across visits. */
 export function setUiLocale(locale: UiLocale): void {
-  if (locale === activeLocale) return;
-  activeLocale = locale;
-  writeStorage("codex_lang", locale);
-  applyLocale();
-  localeChangeTarget.dispatchEvent(new Event("change"));
+  setPersonalUiLocale(locale);
+}
+
+/** Chooses this browser's language, or follows the site default when undefined. */
+export function setPersonalUiLocale(locale: UiLocale | undefined): void {
+  if (locale !== undefined && !isLocaleTag(locale)) return;
+  const changed = locale !== personalLocale;
+  personalLocale = locale;
+  if (locale === undefined) removeStorage(personalStorageKey);
+  else writeStorage(personalStorageKey, locale);
+  update(changed);
+}
+
+/** Applies the campaign's site languages; undefined restores the defaults. */
+export function applySiteLanguages(languages: SiteLanguages | undefined): void {
+  const next = languages === undefined ? undefined : normalizeSiteLanguages(languages);
+  if (JSON.stringify(next) === JSON.stringify(siteLanguagesValue)) return;
+  siteLanguagesValue = next;
+  if (next === undefined) removeStorage(siteStorageKey);
+  else writeStorage(siteStorageKey, JSON.stringify(next));
+  update(true);
+}
+
+/** Reads site languages from untrusted data, repairing what it can; undefined when unusable. */
+export function parseSiteLanguages(value: unknown): SiteLanguages | undefined {
+  if (!isRecord(value) || !isLocaleTag(value["defaultLocale"])) return undefined;
+  const enabled = value["enabledLocales"];
+  if (!Array.isArray(enabled) || enabled.length > maximumSiteLanguages) return undefined;
+  if (!enabled.every(isLocaleTag)) return undefined;
+  return normalizeSiteLanguages({ defaultLocale: value["defaultLocale"], enabledLocales: enabled });
+}
+
+/**
+ * Notifies `listener` after the active language, the personal choice or the
+ * site languages change; returns an unsubscribe function.
+ */
+export function onUiLocaleChange(listener: () => void, signal?: AbortSignal): () => void {
+  const handler = (): void => listener();
+  localeChangeTarget.addEventListener("change", handler, signal ? { signal } : undefined);
+  return () => localeChangeTarget.removeEventListener("change", handler);
 }
 
 /** Only for code-owned descriptor labels; never for authored record or provider text. */
 export function uiSourceLabel(source: string): string {
-  return Object.hasOwn(enCatalog, source) ? uiText(source as MessageKey) : source;
+  return isHostMessageKey(source) ? uiText(source) : source;
 }
 
 export function uiText(
   key: MessageKey,
   parameters: Readonly<Record<string, string | number>> = {},
 ): string {
-  const message = catalogs[activeLocale][key] ?? catalogs.en[key];
-  const template = typeof message === "string" ? message : message.other;
-  return interpolate(template, parameters);
+  return uiTextIn(activeLocale, key, parameters);
 }
 
 /** The message `key` in `locale` rather than the active language, for surfaces with their own. */
@@ -1284,15 +164,15 @@ export function uiTextIn(
   key: MessageKey,
   parameters: Readonly<Record<string, string | number>> = {},
 ): string {
-  const message = catalogs[resolveUiLocale(locale)][key] ?? catalogs.en[key];
+  const message = hostMessage(locale, key) ?? key;
   return interpolate(typeof message === "string" ? message : message.other, parameters);
 }
 
 /** Whether `text` is the message `key` in any interface language. */
 export function uiTextInAnyLocale(key: MessageKey, text: string): boolean {
-  return Object.values(catalogs).some((catalog) => {
-    const message = catalog[key];
-    return (typeof message === "string" ? message : message.other) === text;
+  return hostLocales.some((locale) => {
+    const message = hostMessage(locale, key);
+    return (typeof message === "string" ? message : message?.other) === text;
   });
 }
 
@@ -1301,18 +181,8 @@ export function uiPlural(
   count: number,
   parameters: Readonly<Record<string, string | number>> = {},
 ): string {
-  const message = catalogs[activeLocale][key] ?? catalogs.en[key];
-  if (typeof message === "string") return interpolate(message, { n: count, ...parameters });
-  const category = new Intl.PluralRules(activeLocale).select(Math.abs(count));
-  const template =
-    category === "one"
-      ? message.one
-      : category === "few"
-        ? (message.few ?? message.other)
-        : category === "many"
-          ? (message.many ?? message.other)
-          : message.other;
-  return interpolate(template, { n: count, ...parameters });
+  const message = hostMessage(activeLocale, key) ?? key;
+  return interpolate(selectPluralForm(message, activeLocale, count), { n: count, ...parameters });
 }
 
 export function uiCollectionLabel(pageID: string, form: "one" | "other"): string {
@@ -1360,13 +230,31 @@ const collectionKeys: Readonly<Record<string, Readonly<Record<"one" | "other", M
     }),
   });
 
-function interpolate(
-  template: string,
-  parameters: Readonly<Record<string, string | number>>,
-): string {
-  return template.replace(/\{([A-Za-z0-9_]+)\}/gu, (match, key: string) =>
-    Object.prototype.hasOwnProperty.call(parameters, key) ? String(parameters[key]) : match,
+function normalizeSiteLanguages(languages: SiteLanguages): SiteLanguages {
+  const enabled = ["en", ...languages.enabledLocales.filter(isLocaleTag)].filter(
+    (locale, index, all) => all.indexOf(locale) === index,
   );
+  const kept = enabled.slice(0, maximumSiteLanguages);
+  return Object.freeze({
+    defaultLocale: kept.includes(languages.defaultLocale) ? languages.defaultLocale : "en",
+    enabledLocales: Object.freeze(kept),
+  });
+}
+
+/** The personal choice while the site offers it, otherwise the site default. */
+function resolveActiveLocale(): UiLocale {
+  const site = siteLanguages();
+  return personalLocale !== undefined && site.enabledLocales.includes(personalLocale)
+    ? personalLocale
+    : site.defaultLocale;
+}
+
+function update(notify: boolean): void {
+  const next = resolveActiveLocale();
+  if (next === activeLocale && !notify) return;
+  activeLocale = next;
+  applyLocale();
+  localeChangeTarget.dispatchEvent(new Event("change"));
 }
 
 function formatDate(instant: number): string {
@@ -1381,6 +269,21 @@ function applyLocale(): void {
   if (typeof document !== "undefined") document.documentElement.lang = activeLocale;
 }
 
+function readPersonalLocale(): UiLocale | undefined {
+  const stored = readStorage(personalStorageKey);
+  return isLocaleTag(stored) ? stored : undefined;
+}
+
+function readCachedSiteLanguages(): SiteLanguages | undefined {
+  const stored = readStorage(siteStorageKey);
+  if (stored === null) return undefined;
+  try {
+    return parseSiteLanguages(JSON.parse(stored));
+  } catch {
+    return undefined;
+  }
+}
+
 function readStorage(key: string): string | null {
   try {
     return typeof window === "undefined" ? null : window.localStorage.getItem(key);
@@ -1392,6 +295,14 @@ function readStorage(key: string): string | null {
 function writeStorage(key: string, value: string): void {
   try {
     if (typeof window !== "undefined") window.localStorage.setItem(key, value);
+  } catch {
+    /* A blocked preference store must not break the campaign UI. */
+  }
+}
+
+function removeStorage(key: string): void {
+  try {
+    if (typeof window !== "undefined") window.localStorage.removeItem(key);
   } catch {
     /* A blocked preference store must not break the campaign UI. */
   }
