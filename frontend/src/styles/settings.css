@@ -1566,6 +1566,163 @@ codex-addon-settings {
   margin-top: var(--space-4);
 }
 
+.language-coverage {
+  max-width: 60rem;
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--chrome-field-border);
+}
+
+.language-coverage h3 {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: var(--text-base);
+}
+
+.language-coverage .settings-hint,
+.language-comparison .settings-hint {
+  color: var(--text-muted);
+  font: var(--text-xs) / 1.5 var(--font-ui);
+}
+
+.language-coverage-locale {
+  display: grid;
+  max-width: 24rem;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  color: var(--text-light);
+  font: 600 var(--text-xs) / 1.3 var(--font-ui);
+}
+
+.language-coverage-sources {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.language-coverage-source {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.language-coverage-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  align-items: baseline;
+  padding: var(--space-3);
+  cursor: pointer;
+}
+
+.language-coverage-summary strong {
+  font-family: var(--font-title);
+}
+
+.language-coverage-figure {
+  color: var(--accent-gold);
+  font: 600 var(--text-sm) var(--font-ui);
+}
+
+.language-coverage-source details > :not(summary) {
+  margin: 0 var(--space-3) var(--space-3);
+}
+
+.language-coverage-issues li {
+  overflow-wrap: anywhere;
+  color: var(--color-danger-bright);
+  font: var(--text-xs) / 1.5 var(--font-ui);
+}
+
+.language-coverage-sections,
+.language-comparison-table {
+  width: calc(100% - 2 * var(--space-3));
+  border-collapse: collapse;
+  font: var(--text-sm) / 1.4 var(--font-ui);
+}
+
+.language-comparison-table {
+  width: 100%;
+}
+
+.language-coverage-sections th,
+.language-coverage-sections td,
+.language-comparison-table th,
+.language-comparison-table td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px dotted var(--border-subtle);
+  text-align: start;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.language-coverage-sections tr:not([data-complete]) td:nth-child(2) {
+  color: var(--accent-gold);
+}
+
+.language-coverage-export {
+  display: inline-block;
+}
+
+.language-comparison {
+  margin-top: var(--space-4);
+}
+
+.language-comparison header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.language-comparison h4 {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: var(--text-base);
+}
+
+.language-comparison header label {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  font: var(--text-sm) var(--font-ui);
+}
+
+.language-comparison-table tr[data-missing] {
+  background: var(--surface-sunken);
+}
+
+.language-comparison-missing {
+  color: var(--color-danger-bright);
+  font-style: italic;
+}
+
+/* On phones each comparison row becomes a card: key, English, translation. */
+@media (max-width: 640px) {
+  .language-comparison-table thead {
+    display: none;
+  }
+
+  .language-comparison-table tr,
+  .language-comparison-table th,
+  .language-comparison-table td {
+    display: block;
+  }
+
+  .language-comparison-table tr {
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .language-comparison-table th,
+  .language-comparison-table td {
+    border: 0;
+  }
+}
+
 .settings-progress-note {
   max-width: 45rem;
   margin: var(--space-5) 0 0;

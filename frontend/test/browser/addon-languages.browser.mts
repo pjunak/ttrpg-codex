@@ -229,3 +229,73 @@ void test("catalogs are served immutably by exact generation and digest", async 
   assert.equal(result.body.sections.messages["engine.unknownSpell"], "Kouzlo {name} neznám.");
   assert.equal(result.stale, 404);
 });
+
+for (const mobile of [false, true])
+  void test(`the DM sees what each add-on translates, compares and exports it (${mobile ? "phone" : "desktop"})`, async (t) => {
+    await setSiteLanguage("en");
+    const page = await open(t, "dm", mobile);
+    await page.goto("/#/settings/language");
+    const coverage = page.locator("codex-language-coverage");
+    const fixture = coverage.locator('[data-source="lang-ui"]');
+    await fixture.locator(".language-coverage-figure").waitFor();
+    assert.equal(
+      await coverage.locator('[data-source="codex"] .language-coverage-figure').textContent(),
+      "100%",
+    );
+    // English names the add-on, two contributions and two messages; Czech translates three.
+    assert.equal(await fixture.locator(".language-coverage-figure").textContent(), "60%");
+    assert.match(
+      await fixture.locator("summary").textContent().then(String),
+      /3 of 5 · in the add-on package/u,
+    );
+    assert.equal(
+      await coverage.locator('[data-source="lang-engine"] .language-coverage-figure').textContent(),
+      "50%",
+    );
+
+    await fixture.locator("summary").click();
+    const exported = await fixture
+      .locator(".language-coverage-export")
+      .evaluate((link: HTMLAnchorElement) => ({
+        name: link.download,
+        catalog: JSON.parse(decodeURIComponent(link.href.slice(link.href.indexOf(",") + 1))),
+      }));
+    assert.equal(exported.name, "lang-ui-cs-missing.json");
+    assert.deepEqual(exported.catalog, {
+      contractVersion: "message-catalog.v1",
+      locale: "cs",
+      sections: {
+        manifest: {
+          "manifest.name": "Language fixture",
+          "manifest.contribution.page.label": "Language page",
+        },
+      },
+    });
+
+    await fixture
+      .getByRole("button", { name: "Compare main of Language fixture", exact: true })
+      .click();
+    const comparison = page.locator(".language-comparison");
+    await comparison.locator("tbody tr").first().waitFor();
+    assert.deepEqual(await comparison.locator("tbody th").allTextContents(), [
+      "main.title",
+      "main.count",
+    ]);
+    assert.equal(
+      await comparison.locator("tbody tr").nth(1).locator("td").nth(1).textContent(),
+      "one: {n} kouzlo · few: {n} kouzla · other: {n} kouzel",
+    );
+    await fixture
+      .getByRole("button", { name: "Compare manifest of Language fixture", exact: true })
+      .click();
+    await comparison.getByLabel("Missing only").check();
+    assert.deepEqual(await comparison.locator("tbody th").allTextContents(), [
+      "manifest.name",
+      "manifest.contribution.page.label",
+    ]);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({
+      path: `test-results/addon-languages/coverage-${mobile ? "phone" : "desktop"}.png`,
+      fullPage: true,
+    });
+  });

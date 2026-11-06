@@ -395,7 +395,7 @@ export class CodexSettings extends LitElement {
 
   #languagePanel() {
     return html`<codex-language-settings .campaign=${this.campaign} ?canManage=${this.canManageCampaign}
-      ?busy=${this.busy}></codex-language-settings>`;
+      ?busy=${this.busy} .catalogs=${this.registry?.catalogs}></codex-language-settings>`;
   }
 
   #appearancePanel() {

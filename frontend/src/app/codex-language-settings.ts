@@ -1,4 +1,5 @@
 import { LitElement, html, nothing } from "lit";
+import type { BrowserCatalogStore } from "../addons/catalog-store.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import { hostLocales, languageEndonym } from "../locales/index.js";
 import {
@@ -7,6 +8,7 @@ import {
   type CampaignLanguageSaveDetail,
 } from "./campaign-language.js";
 import { saveCampaign } from "./campaign-writes.js";
+import "./codex-language-coverage.js";
 import { saveFailure } from "./save-failure.js";
 import {
   UiLocalizationController,
@@ -27,7 +29,7 @@ export class CodexLanguageSettings extends LitElement {
     campaign: { attribute: false },
     canManage: { type: Boolean },
     busy: { type: Boolean },
-    addonLocales: { attribute: false },
+    catalogs: { attribute: false },
     draft: { state: true },
     dirty: { state: true },
     saving: { state: true },
@@ -39,20 +41,21 @@ export class CodexLanguageSettings extends LitElement {
   declare canManage: boolean;
   /** The app is saving or otherwise busy, so no write may start. */
   declare busy: boolean;
-  /** Languages that active add-ons ship beyond the host's own. */
-  declare addonLocales: readonly string[];
+  /** The add-on session's catalogs; their languages can be enabled too. */
+  declare catalogs: BrowserCatalogStore | undefined;
   declare private draft: CampaignLanguageSaveDetail | undefined;
   declare private dirty: boolean;
   declare private saving: boolean;
   declare private error: string;
   declare private notice: string;
   readonly #ui = new UiLocalizationController(this);
+  #unsubscribe: (() => void) | undefined;
+  #subscribed: BrowserCatalogStore | undefined;
 
   constructor() {
     super();
     this.canManage = false;
     this.busy = false;
-    this.addonLocales = [];
     this.dirty = false;
     this.saving = false;
     this.error = "";
@@ -64,11 +67,19 @@ export class CodexLanguageSettings extends LitElement {
   }
 
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
+    if (this.#subscribed !== this.catalogs) {
+      this.#unsubscribe?.();
+      this.#subscribed = this.catalogs;
+      this.#unsubscribe = this.catalogs?.subscribe(() => this.requestUpdate());
+    }
     if (this.draft === undefined || (changed.has("campaign") && !this.dirty)) this.#reset();
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.#unsubscribe?.();
+    this.#unsubscribe = undefined;
+    this.#subscribed = undefined;
     if (this.dirty) reportEditState(this, { dirty: false });
   }
 
@@ -99,6 +110,12 @@ export class CodexLanguageSettings extends LitElement {
         </label>
         <p class="settings-progress-note">${this.#ui.t("settings.languageProgress")}</p>
         ${this.canManage && this.campaign !== undefined ? this.#siteForm() : nothing}
+        ${
+          this.canManage
+            ? html`<codex-language-coverage .catalogs=${this.catalogs}
+              .locales=${site.enabledLocales.filter((locale) => locale !== "en")}></codex-language-coverage>`
+            : nothing
+        }
       </section>`;
   }
 
@@ -161,7 +178,7 @@ export class CodexLanguageSettings extends LitElement {
   /** English first, then every built-in, add-on and already enabled language. */
   #candidates(): readonly string[] {
     const draft = this.draft?.enabledLocales ?? [];
-    return ["en", ...hostLocales, ...this.addonLocales, ...draft].filter(
+    return ["en", ...hostLocales, ...(this.catalogs?.locales() ?? []), ...draft].filter(
       (locale, index, all) => all.indexOf(locale) === index,
     );
   }
