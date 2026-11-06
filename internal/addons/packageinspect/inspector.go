@@ -65,6 +65,7 @@ type Report struct {
 	DataContracts           []datacontract.Description    `json:"dataContracts"`
 	ServiceContracts        []servicecontract.Description `json:"serviceContracts"`
 	ContentContracts        []contentcontract.Description `json:"contentContracts"`
+	Locales                 []LocaleCatalog               `json:"locales"`
 	dataRegistry            *datacontract.Registry
 	serviceRegistry         *servicecontract.Registry
 	contentRegistry         *contentcontract.Registry
@@ -86,6 +87,7 @@ type Inspector struct {
 	limits          Limits
 	manifestSchema  *jsonschema.Schema
 	checksumsSchema *jsonschema.Schema
+	catalogSchema   *jsonschema.Schema
 	serviceCompiler *servicecontract.Compiler
 }
 
@@ -99,6 +101,10 @@ func New(limits Limits) (*Inspector, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compile checksums schema: %w", err)
 	}
+	catalogSchema, err := compileSchema("message-catalog.schema.json", addonv3.MessageCatalogSchema())
+	if err != nil {
+		return nil, fmt.Errorf("compile message catalog schema: %w", err)
+	}
 	serviceCompiler, err := servicecontract.NewCompiler()
 	if err != nil {
 		return nil, err
@@ -107,6 +113,7 @@ func New(limits Limits) (*Inspector, error) {
 		limits:          limits,
 		manifestSchema:  manifestSchema,
 		checksumsSchema: checksumsSchema,
+		catalogSchema:   catalogSchema,
 		serviceCompiler: serviceCompiler,
 	}, nil
 }
@@ -230,6 +237,10 @@ func (i *Inspector) InspectFile(ctx context.Context, filename string) (Report, e
 	if err := validateRules(manifest, contentRegistry); err != nil {
 		return Report{}, inspectionError(CodeInvalidDeclaration, "rules", err)
 	}
+	locales, err := i.localeCatalogs(ctx, manifest, entries)
+	if err != nil {
+		return Report{}, err
+	}
 
 	checksumDigest := sha256.Sum256(checksumBody)
 	return Report{
@@ -242,6 +253,7 @@ func (i *Inspector) InspectFile(ctx context.Context, filename string) (Report, e
 		DataContracts:           dataRegistry.Descriptions(),
 		ServiceContracts:        serviceRegistry.Descriptions(),
 		ContentContracts:        contentRegistry.Descriptions(),
+		Locales:                 locales,
 		dataRegistry:            dataRegistry,
 		serviceRegistry:         serviceRegistry,
 		contentRegistry:         contentRegistry,

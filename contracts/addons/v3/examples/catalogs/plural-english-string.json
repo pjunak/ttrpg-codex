@@ -1,0 +1,10 @@
+{
+  "contractVersion": "message-catalog.v1",
+  "locale": "cs",
+  "sections": {
+    "browse": {
+      "browse.results": "Výsledky: {n}",
+      "browse.resultsFor": { "one": "Výsledek pro {query}", "other": "Výsledky pro {query}" }
+    }
+  }
+}

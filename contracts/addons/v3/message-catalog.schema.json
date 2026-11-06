@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://junak.eu/ttrpg-codex/contracts/addons/v3/message-catalog.schema.json",
+  "title": "TTRPG Codex message catalog v1",
+  "description": "Interface texts of the host or one add-on in one language. Sections only group keys for display; each key is unique across the catalog.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "locale", "sections"],
+  "properties": {
+    "contractVersion": { "const": "message-catalog.v1" },
+    "locale": { "$ref": "#/$defs/locale" },
+    "sections": {
+      "type": "object",
+      "maxProperties": 200,
+      "propertyNames": { "$ref": "#/$defs/sectionId" },
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": { "$ref": "#/$defs/key" },
+        "additionalProperties": { "$ref": "#/$defs/message" }
+      }
+    }
+  },
+  "$defs": {
+    "locale": {
+      "description": "A canonical BCP 47 tag: language, optional script, optional region.",
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$"
+    },
+    "sectionId": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^[^\u0000-\u001f\u007f]+$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "message": {
+      "oneOf": [
+        { "$ref": "#/$defs/text" },
+        {
+          "description": "Plural forms by CLDR category; `other` is required.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["other"],
+          "properties": {
+            "zero": { "$ref": "#/$defs/text" },
+            "one": { "$ref": "#/$defs/text" },
+            "two": { "$ref": "#/$defs/text" },
+            "few": { "$ref": "#/$defs/text" },
+            "many": { "$ref": "#/$defs/text" },
+            "other": { "$ref": "#/$defs/text" }
+          }
+        }
+      ]
+    }
+  }
+}

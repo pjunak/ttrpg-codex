@@ -144,4 +144,5 @@ type Dependency struct {
 	ID       string `json:"id"`
 	Range    string `json:"range"`
 	Required bool   `json:"required"`
+	Reason   string `json:"reason,omitempty"`
 }

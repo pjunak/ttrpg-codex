@@ -1,0 +1,17 @@
+{
+  "contractVersion": "message-catalog.v1",
+  "locale": "cs",
+  "sections": {
+    "manifest": {
+      "manifest.name": "Ukázkové kompendium"
+    },
+    "browse": {
+      "browse.title": "Kompendium",
+      "browse.results": { "one": "{n} výsledek", "few": "{n} výsledky", "other": "{n} výsledků" },
+      "Clear filters": "Zrušit filtry"
+    },
+    "errors": {
+      "errors.missing": "{name} už není k dispozici."
+    }
+  }
+}

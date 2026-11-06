@@ -1,0 +1,20 @@
+{
+  "contractVersion": "message-catalog.v1",
+  "locale": "en",
+  "sections": {
+    "manifest": {
+      "manifest.name": "Example Compendium",
+      "manifest.contribution.browse.label": "Compendium"
+    },
+    "browse": {
+      "browse.title": "Compendium",
+      "browse.results": { "one": "{n} result", "other": "{n} results" },
+      "browse.resultsFor": "Results for {query}",
+      "Clear filters": "Clear filters"
+    },
+    "errors": {
+      "errors.offline": "The compendium is offline.",
+      "errors.missing": "{name} is no longer available."
+    }
+  }
+}

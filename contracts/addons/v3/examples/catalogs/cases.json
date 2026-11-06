@@ -1,0 +1,31 @@
+{
+  "description": "Shared expectations for the Go and TypeScript message-catalog validators. A rejected file loses the whole language; otherwise only the listed keys are dropped. goOnly cases need a parser that sees duplicate JSON members.",
+  "cases": [
+    { "name": "valid English", "file": "en.json", "locale": "en", "rejected": false, "dropped": [], "messages": 6 },
+    { "name": "valid partial Czech", "file": "cs.json", "locale": "cs", "english": "en-effective.json", "rejected": false, "dropped": [], "messages": 5 },
+    { "name": "English must not write the manifest section", "file": "en-with-manifest.json", "locale": "en", "rejected": false, "dropped": ["manifest.name", "manifest.description"], "messages": 1 },
+    { "name": "flat legacy file", "file": "flat-legacy.json", "locale": "cs", "english": "en-effective.json", "rejected": true },
+    { "name": "locale differs from the declared tag", "file": "wrong-locale.json", "locale": "cs", "english": "en-effective.json", "rejected": true },
+    {
+      "name": "translation rule breaks drop single messages",
+      "file": "rule-breaks.json",
+      "locale": "cs",
+      "english": "en-effective.json",
+      "rejected": false,
+      "dropped": [
+        "manifest.description",
+        "browse.title",
+        "browse.results",
+        "browse.resultsFor",
+        "browse.unknown",
+        "errors.offline",
+        "manifest.contribution.browse.label",
+        "Clear filters"
+      ],
+      "messages": 2
+    },
+    { "name": "a key appears in two sections", "file": "duplicate-across-sections.json", "locale": "en", "rejected": false, "dropped": ["browse.title"], "messages": 2 },
+    { "name": "plural against an English string", "file": "plural-english-string.json", "locale": "cs", "english": "en-effective.json", "rejected": false, "dropped": ["browse.resultsFor"], "messages": 1 },
+    { "name": "duplicate JSON member", "file": "duplicate-member.json", "locale": "cs", "english": "en-effective.json", "rejected": true, "goOnly": true }
+  ]
+}

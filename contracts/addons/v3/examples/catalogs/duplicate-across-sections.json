@@ -1,0 +1,8 @@
+{
+  "contractVersion": "message-catalog.v1",
+  "locale": "en",
+  "sections": {
+    "browse": { "browse.title": "Compendium" },
+    "errors": { "browse.title": "Second copy", "errors.offline": "The compendium is offline." }
+  }
+}

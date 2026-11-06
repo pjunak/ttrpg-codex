@@ -1,0 +1,8 @@
+{
+  "contractVersion": "message-catalog.v1",
+  "locale": "en",
+  "sections": {
+    "manifest": { "manifest.name": "Written by hand" },
+    "browse": { "browse.title": "Compendium", "manifest.description": "Out of place" }
+  }
+}

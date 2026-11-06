@@ -1,0 +1,22 @@
+{
+  "contractVersion": "message-catalog.v1",
+  "locale": "cs",
+  "sections": {
+    "manifest": {
+      "manifest.name": "Ukázkové kompendium",
+      "manifest.description": "Neexistuje v angličtině",
+      "browse.title": "Nepatří do manifestu"
+    },
+    "browse": {
+      "browse.results": { "one": "{count} výsledek", "other": "{count} výsledků" },
+      "browse.resultsFor": "Výsledky",
+      "browse.unknown": "Neznámý klíč",
+      "errors.offline": "Kompendium je offline.",
+      "manifest.contribution.browse.label": "Kompendium"
+    },
+    "errors": {
+      "Clear filters": { "one": "Zrušit filtr", "other": "Zrušit filtry" },
+      "errors.missing": "{name} už není k dispozici."
+    }
+  }
+}

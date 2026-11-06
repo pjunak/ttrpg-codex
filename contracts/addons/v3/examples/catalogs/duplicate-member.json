@@ -1,0 +1,7 @@
+{
+  "contractVersion": "message-catalog.v1",
+  "locale": "cs",
+  "sections": {
+    "browse": { "browse.title": "Kompendium", "browse.title": "Druhá kopie" }
+  }
+}
