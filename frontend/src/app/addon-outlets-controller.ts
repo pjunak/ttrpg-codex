@@ -87,9 +87,7 @@ export class AddonOutletsController implements ReactiveController {
   hostUpdated(): void {
     if (!this.#host.isConnected || this.#locale === this.#options.locale()) return;
     this.#locale = this.#options.locale();
-    this.#route?.refresh();
-    this.#article?.refresh();
-    this.#navigation?.refresh();
+    this.refresh();
   }
 
   hostDisconnected(): void {
@@ -302,6 +300,10 @@ export class AddonOutletsController implements ReactiveController {
       include: (active) =>
         this.#options.route().kind === "dashboard" &&
         active.descriptor.config["slot"] === undefined,
+      hostContext: () => ({
+        contractVersion: "overview-context.v1",
+        locale: this.#options.locale(),
+      }),
       onError,
       onCountChange: counted((count) => (this.dashboardCount = count)),
     });

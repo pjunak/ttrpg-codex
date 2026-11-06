@@ -9,7 +9,7 @@ import type {
   BrowserContributionEditRegistration,
 } from "./edit-state.js";
 import { contributionLabel } from "./contribution-label.js";
-import { contextEn, contextCs } from "../app/context-messages.js";
+import { uiTextIn } from "../app/ui-localization.js";
 
 export interface BrowserContributionElementContext {
   readonly edits: BrowserContributionEditHandle;
@@ -160,14 +160,14 @@ export class BrowserContributionOutlet {
     for (const [id, handoff] of this.#handoffs) {
       if (this.#registry.edits.pending(handoff.slot)) {
         const notice = this.#document.createElement("section");
-        const cs = this.#locale() === "cs";
+        const locale = this.#locale();
         notice.className = "addon-contribution";
         notice.dataset["uiState"] = "unavailable";
         notice.setAttribute("role", "status");
         notice.textContent =
-          contributionLabel(handoff.active.descriptor, cs ? "cs" : "en") +
+          contributionLabel(handoff.active.descriptor, locale) +
           ": " +
-          (cs ? contextCs : contextEn)["recordAddons.pendingRestart"];
+          uiTextIn(locale, "recordAddons.pendingRestart");
         ordered.push(notice);
       } else if (handoff.active.signal.aborted) this.#handoffs.delete(id);
     }

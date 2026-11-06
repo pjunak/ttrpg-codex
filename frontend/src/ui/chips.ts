@@ -183,7 +183,10 @@ export function enhanceChips(select: HTMLSelectElement): ControlHandle {
         button.className = "ui-chip-remove";
         button.textContent = "×";
         button.disabled = disabled;
-        button.setAttribute("aria-label", text.remove.replace("{0}", option.label));
+        button.setAttribute(
+          "aria-label",
+          text.remove.replace("{0}", () => option.label),
+        );
         button.title = button.getAttribute("aria-label")!;
         button.addEventListener("click", () => remove(option));
         item.append(button);

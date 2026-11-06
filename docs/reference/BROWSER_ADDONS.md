@@ -328,6 +328,9 @@ disable, replacement, or explicit authority teardown and do not persist draft co
 
 The current shell instantiates the generic outlet for the `slot` surface under
 Campaign tools and shows a direct empty state when that role has no panels.
+Those panels receive the host context
+`{ contractVersion: "overview-context.v1", locale }`, reassigned when the
+interface language changes.
 Routes, record outlets, and settings use the same registry. Editor locations
 and custom renderers remain owned by their corresponding core features.
 

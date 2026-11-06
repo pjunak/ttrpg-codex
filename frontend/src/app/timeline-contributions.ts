@@ -29,6 +29,7 @@ export function isTimelineSlot(active: ActiveBrowserContribution, slot?: Timelin
 export function timelineSlotContext(
   context: TimelineSlotContext,
   active: ActiveBrowserContribution,
+  locale: string,
 ) {
   const permitted = active.permissions?.some(
     (grant) => grant.id === "core.data.read" && grant.resources.includes("events"),
@@ -43,6 +44,7 @@ export function timelineSlotContext(
     }
   return {
     contractVersion: "timeline-context.v1",
+    locale,
     slot: context.slot,
     editing: context.editing,
     sitting: context.sitting,

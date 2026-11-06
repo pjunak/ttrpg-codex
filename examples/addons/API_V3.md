@@ -409,6 +409,10 @@ Initial surfaces cover existing suite needs:
 | `graph-view` | Named graph view with a bounded model provider |
 | `graph-contributor` | Additive nodes and edges for an existing graph view |
 
+A `slot` contribution without a named `slot` config appears under Campaign
+tools on the campaign overview and receives
+`{ contractVersion: "overview-context.v1", locale }`.
+
 Any future override must use a versioned serializable renderer contract and
 explicit selection policy. There is no current override/renderer-selection
 implementation; ordinary article sections and editor panels are additive.
@@ -642,6 +646,7 @@ Elements receive frozen `codexContribution.host` values with this shape:
 ```ts
 interface TimelineContributionHostContext {
   readonly contractVersion: "timeline-context.v1";
+  readonly locale: string;
   readonly slot: "timeline:toolbar" | "timeline:column:header"
     | "timeline:column:footer" | "timeline:card:extra";
   readonly editing: boolean;
@@ -651,7 +656,8 @@ interface TimelineContributionHostContext {
 }
 ```
 
-Toolbar context has `sitting: null` and no event references. Column and card
+`locale` is the reader's interface language, and the host reassigns the
+context when it changes. Toolbar context has `sitting: null` and no event references. Column and card
 contexts identify their displayed session and events; a card has at most one
 reference. References require an approved `core.data.read` grant for `events`
 and must still exist in the latest role projection, even while the user keeps

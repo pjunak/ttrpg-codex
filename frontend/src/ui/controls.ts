@@ -40,6 +40,12 @@ export function enhanceControls(
     { signal },
   );
   const observer = new MutationObserver(() => refresh());
+  // Controls without a [lang] ancestor in the root follow the document's language.
+  const languageObserver = new MutationObserver(() => refresh());
+  languageObserver.observe(root.ownerDocument.documentElement, {
+    attributes: true,
+    attributeFilter: ["lang"],
+  });
   const observe = (): void =>
     observer.observe(root, {
       subtree: true,
@@ -231,6 +237,7 @@ export function enhanceControls(
     disposed = true;
     clearTimeout(invalidTimer);
     observer.disconnect();
+    languageObserver.disconnect();
     scope.abort();
     options.signal?.removeEventListener("abort", dispose);
     // Restore the native select before restoring field descriptions.

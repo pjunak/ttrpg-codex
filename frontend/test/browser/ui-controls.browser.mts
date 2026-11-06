@@ -95,6 +95,24 @@ void test("chip picker mirrors a native multiple select for forms, keyboard and 
   assert.equal(await picker.isDisabled(), true);
 });
 
+void test("controls follow the document language and keep option labels literal", async (t) => {
+  const page = await fixture(t);
+  await page.locator("[name=companions]").evaluate((node: HTMLSelectElement) => {
+    node.append(new Option("Fang $& $1", "fang", true, true));
+  });
+  await page.getByRole("button", { name: "Remove Fang $& $1", exact: true }).waitFor();
+  await page.evaluate(() => {
+    document.documentElement.lang = "cs";
+  });
+  await page.getByRole("button", { name: "Odebrat Hound", exact: true }).waitFor();
+  assert.equal(
+    await page
+      .getByRole("combobox", { name: "Companions", exact: true })
+      .getAttribute("placeholder"),
+    "Přidat…",
+  );
+});
+
 void test("context menus nest, filter and return focus with the keyboard", async (t) => {
   const page = await fixture(t),
     target = page.getByRole("button", { name: "Menu target", exact: true });

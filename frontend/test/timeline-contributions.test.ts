@@ -48,28 +48,34 @@ describe("timeline slot context", () => {
       ...context,
       events: [{ key: "arrival", revision: 3, value: { secret: "Never forward" } }],
     };
-    expect(timelineSlotContext(source, active)).toEqual({
+    expect(timelineSlotContext(source, active, "cs")).toEqual({
       contractVersion: "timeline-context.v1",
+      locale: "cs",
       ...context,
       truncated: false,
     });
-    expect(timelineSlotContext(context, { ...active, permissions: [] }).events).toEqual([]);
+    expect(timelineSlotContext(context, { ...active, permissions: [] }, "en").events).toEqual([]);
     expect(
-      timelineSlotContext(context, {
-        ...active,
-        permissions: [{ id: "core.data.read", resources: ["characters"] }],
-      }).events,
+      timelineSlotContext(
+        context,
+        {
+          ...active,
+          permissions: [{ id: "core.data.read", resources: ["characters"] }],
+        },
+        "en",
+      ).events,
     ).toEqual([]);
   });
   it("bounds context by count and UTF-8 bytes while reporting truncation", () => {
     const events = Array.from({ length: 500 }, (_, i) => ({ key: String(i), revision: 1 }));
-    expect(timelineSlotContext({ ...context, events }, active)).toMatchObject({
+    expect(timelineSlotContext({ ...context, events }, active, "en")).toMatchObject({
       truncated: true,
       events: events.slice(0, 256),
     });
     const large = timelineSlotContext(
       { ...context, events: events.map((event) => ({ ...event, key: "é".repeat(500) })) },
       active,
+      "en",
     );
     expect(large.truncated).toBe(true);
     expect(new TextEncoder().encode(JSON.stringify(large)).length).toBeLessThan(25_000);

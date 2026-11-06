@@ -77,7 +77,7 @@ export class CodexTimelineSlot extends LitElement {
   }
   protected override updated(): void {
     if (!this.isConnected || !this.#visible || !this.registry || !this.actorRole) return;
-    const signature = JSON.stringify(this.context);
+    const signature = JSON.stringify([this.#ui.locale, this.context]);
     if (!this.#outlet)
       this.#outlet = new BrowserContributionOutlet({
         document: this.ownerDocument,
@@ -88,7 +88,7 @@ export class CodexTimelineSlot extends LitElement {
         locale: () => this.#ui.locale,
         compact: true,
         include: (active) => isTimelineSlot(active, this.context.slot),
-        hostContext: (active) => timelineSlotContext(this.context, active),
+        hostContext: (active) => timelineSlotContext(this.context, active, this.#ui.locale),
         onError: () => {
           this.error = true;
         },

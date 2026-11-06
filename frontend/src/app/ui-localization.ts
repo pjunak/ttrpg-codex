@@ -1278,6 +1278,16 @@ export function uiText(
   return interpolate(template, parameters);
 }
 
+/** The message `key` in `locale` rather than the active language, for surfaces with their own. */
+export function uiTextIn(
+  locale: string,
+  key: MessageKey,
+  parameters: Readonly<Record<string, string | number>> = {},
+): string {
+  const message = catalogs[resolveUiLocale(locale)][key] ?? catalogs.en[key];
+  return interpolate(typeof message === "string" ? message : message.other, parameters);
+}
+
 /** Whether `text` is the message `key` in any interface language. */
 export function uiTextInAnyLocale(key: MessageKey, text: string): boolean {
   return Object.values(catalogs).some((catalog) => {
