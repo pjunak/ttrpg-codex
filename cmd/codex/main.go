@@ -70,7 +70,9 @@ func run() error {
 	dataDirectory := flag.String("data-dir", "data", "data directory")
 	webDirectory := flag.String("web-dir", filepath.Join("frontend", "dist"), "built TypeScript frontend directory")
 	secureCookies := flag.Bool("secure-cookies", false, "mark session cookies Secure (required behind production TLS)")
-	locale := flag.String("locale", "en", "BCP 47 locale reported to add-on workers")
+	// Deprecated and ignored: workers speak English and the DM sets site
+	// languages in Settings → Language. Kept so existing deployments start.
+	flag.String("locale", "en", "deprecated and ignored; set site languages in Settings → Language")
 	timeZone := flag.String("time-zone", "UTC", "IANA time zone reported to add-on workers")
 	resetPasswords := flag.Bool("reset-passwords", false, "offline: replace stored passwords from CODEX_DM_PASSWORD and optional CODEX_PLAYER_PASSWORD, then exit")
 	flag.Parse()
@@ -110,7 +112,7 @@ func run() error {
 	}
 	runtime, err := composeHost(
 		ctx, db, *dataDirectory, dmPassword, os.Getenv("CODEX_PLAYER_PASSWORD"),
-		*secureCookies, *locale, *timeZone, logger, os.DirFS(*webDirectory),
+		*secureCookies, *timeZone, logger, os.DirFS(*webDirectory),
 	)
 	if err != nil {
 		return err
@@ -163,7 +165,6 @@ func composeHost(
 	dmPassword string,
 	playerPassword string,
 	secureCookies bool,
-	locale string,
 	timeZone string,
 	logger *slog.Logger,
 	frontend fs.FS,
@@ -241,7 +242,8 @@ func composeHost(
 	}
 	runtimeFactory, err := packagemanager.NewSupervisorFactory(packagemanager.SupervisorFactoryConfig{
 		Host: workersupervisor.HostInfo{
-			Version: version.Host, Locale: locale, TimeZone: timeZone,
+			// Workers stay English; browsers translate through message catalogs.
+			Version: version.Host, Locale: "en", TimeZone: timeZone,
 		},
 		ProtocolVersion: workerProtocolVersion,
 		HandlerFactory: packagemanager.WorkerHandlerFactoryFunc(func(

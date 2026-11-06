@@ -226,6 +226,12 @@ export interface ServiceError extends Error {
    * language. Show it as text only (`textContent`), never as HTML or Markdown.
    */
   readonly issue?: string;
+  /**
+   * `issue` with the catalog key the provider attached, if any, and `addon`
+   * naming the provider; `i18n.message(issueText)` shows it in the reader's
+   * language and falls back to `issue`.
+   */
+  readonly issueText?: LocalizedText;
 }
 
 export interface ServiceHandle {

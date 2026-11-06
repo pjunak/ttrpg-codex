@@ -16,7 +16,6 @@ services:
       - -web-dir
       - /app/frontend
       - -secure-cookies=${CODEX_SECURE_COOKIES:-false}
-      - -locale=${CODEX_LOCALE:-en}
       - -time-zone=${CODEX_TIME_ZONE:-Europe/Prague}
     mem_limit: 512m
     mem_reservation: 128m

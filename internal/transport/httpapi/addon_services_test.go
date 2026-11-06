@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -193,10 +194,50 @@ func TestBrowserServiceIssueIsOneBoundedLine(t *testing.T) {
 		{"over limit", `{"issue":"` + long + `x"}`, strings.Repeat("é", maximumBrowserServiceIssue-1) + "…"},
 	} {
 		t.Run(check.name, func(t *testing.T) {
-			if issue := browserServiceIssue(json.RawMessage(check.details)); issue != check.issue {
-				t.Fatalf("issue = %q, want %q", issue, check.issue)
+			if issue := browserServiceIssue(json.RawMessage(check.details)); issue.Text != check.issue || issue.Key != "" {
+				t.Fatalf("issue = %+v, want %q", issue, check.issue)
 			}
 		})
+	}
+}
+
+func TestBrowserServiceIssueCarriesItsCatalogKey(t *testing.T) {
+	t.Parallel()
+	for _, check := range []struct {
+		name    string
+		details string
+		key     string
+		args    map[string]any
+	}{
+		{"key and arguments", `{"issue":"Target speed is not supported.","issueKey":"homebrew.unknownTarget","issueArgs":{"target":"spe\u202eed","index":2}}`,
+			"homebrew.unknownTarget", map[string]any{"target": "spe ed", "index": float64(2)}},
+		{"key alone", `{"issue":"Plain.","issueKey":"homebrew.plain"}`, "homebrew.plain", map[string]any{}},
+		{"control character in key", `{"issue":"Plain.","issueKey":"bad\nkey"}`, "", nil},
+		{"argument name", `{"issue":"Plain.","issueKey":"k","issueArgs":{"not a name":1}}`, "", nil},
+		{"structured argument", `{"issue":"Plain.","issueKey":"k","issueArgs":{"list":[1]}}`, "", nil},
+		{"long argument", `{"issue":"Plain.","issueKey":"k","issueArgs":{"name":"` + strings.Repeat("a", 301) + `"}}`, "", nil},
+		{"key of the wrong type", `{"issue":"Plain.","issueKey":7}`, "", nil},
+	} {
+		t.Run(check.name, func(t *testing.T) {
+			issue := browserServiceIssue(json.RawMessage(check.details))
+			if issue.Text == "" || issue.Key != check.key ||
+				(check.args != nil && !reflect.DeepEqual(issue.Args, check.args)) {
+				t.Fatalf("issue = %+v, want key %q and args %v", issue, check.key, check.args)
+			}
+		})
+	}
+
+	source := &recordingBrowserServices{callError: workerrpc.NewRPCError(
+		workerrpc.JSONRPCApplication, workerrpc.KindInvalidRequest, "private message", false,
+		workerrpc.IssueDetails(workerrpc.Localized("homebrew.unknownTarget", "Target speed is not supported.", map[string]any{"target": "speed"})),
+	)}
+	handler := newBrowserServiceHandler(t, source, func(*http.Request) (workerrpc.Actor, error) { return workerrpc.Actor{Role: "dm", ID: "fixture"}, nil })
+	generation := strings.Repeat("a", 64)
+	response := serveBrowserServiceRequest(handler, "/api/addons/dm-tools/generations/"+generation+"/services/call",
+		`{"contractVersion":"addon-service-call.v1","contract":"codex.import-adapter","providerAddonId":"dnd-homebrew","providerVersion":"3.0.0","providerGeneration":"`+generation+`","bindingRevision":0,"method":"preview","params":{},"deadlineMs":2000}`)
+	if !strings.Contains(response.Body.String(), `"issueKey":"homebrew.unknownTarget"`) ||
+		!strings.Contains(response.Body.String(), `"issueArgs":{"target":"speed"}`) {
+		t.Fatalf("response = %d, %s", response.Code, response.Body.String())
 	}
 }
 

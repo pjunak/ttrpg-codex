@@ -4,6 +4,7 @@ import { readJSONResponse } from "../core/http.js";
 import { sessionFetch } from "../core/player-preview.js";
 import { waitForSignal } from "../core/abort-signal.js";
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "../core/boundary.js";
+import type { LocalizedText } from "./i18n.js";
 
 const maximumResponseBytes = 2 * 1024 * 1024 + 128 * 1024;
 const contractPattern = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$/;
@@ -76,14 +77,18 @@ export class AddonServiceHTTPError extends HostRequestError {
   override readonly name = "AddonServiceHTTPError";
   /** The provider's plain-text problem for INVALID_REQUEST; render as text only. */
   readonly issue?: string;
+  /** `issue` with its catalog key, for `i18n.message`; `addon` names the provider. */
+  readonly issueText?: LocalizedText;
 
   constructor(
     status: number,
     readonly code: string,
     issue?: string,
+    issueText?: LocalizedText,
   ) {
     super(status, "add-on service request", `add-on service request returned ${status} (${code})`);
     if (issue !== undefined) this.issue = issue;
+    if (issueText !== undefined) this.issueText = issueText;
   }
 }
 
@@ -216,6 +221,7 @@ export class BrowserAddonServiceClient {
         ...(idempotencyKey === "" ? {} : { idempotencyKey }),
       },
       options.signal,
+      provider.addonId,
     );
     if (
       !isRecord(value) ||
@@ -234,6 +240,7 @@ export class BrowserAddonServiceClient {
     operation: "connect" | "call",
     body: unknown,
     signal?: AbortSignal,
+    providerAddonId?: string,
   ): Promise<unknown> {
     this.#signal.throwIfAborted();
     signal?.throwIfAborted();
@@ -257,10 +264,16 @@ export class BrowserAddonServiceClient {
       boundary: `add-on service ${operation}`,
       maxBytes: maximumResponseBytes,
       signal: combined,
-      httpError: (status, body) =>
-        body === undefined
-          ? new AddonServiceHTTPError(status, "HTTP_ERROR")
-          : new AddonServiceHTTPError(status, errorCode(body), errorIssue(body)),
+      httpError: (status, body) => {
+        if (body === undefined) return new AddonServiceHTTPError(status, "HTTP_ERROR");
+        const issue = errorIssue(body);
+        return new AddonServiceHTTPError(
+          status,
+          errorCode(body),
+          issue,
+          issue === undefined ? undefined : errorIssueText(body, issue, providerAddonId),
+        );
+      },
     });
   }
 }
@@ -384,6 +397,41 @@ function errorCode(value: unknown): string {
     return "HTTP_ERROR";
   }
   return value["error"]["kind"];
+}
+
+const issueArgumentName = /^[A-Za-z0-9_]{1,40}$/u;
+
+/** The issue with its catalog key and arguments when the host forwarded valid ones. */
+function errorIssueText(
+  value: unknown,
+  issue: string,
+  providerAddonId: string | undefined,
+): LocalizedText {
+  const error = isRecord(value) && isRecord(value["error"]) ? value["error"] : {};
+  const key = error["issueKey"],
+    args = error["issueArgs"];
+  const keyed =
+    typeof key === "string" &&
+    key.length > 0 &&
+    Array.from(key).length <= 500 &&
+    !issueRejectedCharacters.test(key) &&
+    (args === undefined ||
+      (isRecord(args) &&
+        Object.keys(args).length <= 16 &&
+        Object.entries(args).every(
+          ([name, argument]) =>
+            issueArgumentName.test(name) &&
+            ((typeof argument === "string" && Array.from(argument).length <= maximumIssueLength) ||
+              (typeof argument === "number" && Number.isFinite(argument))),
+        )));
+  return Object.freeze({
+    text: issue,
+    ...(keyed ? { key } : {}),
+    ...(keyed && isRecord(args)
+      ? { args: Object.freeze({ ...(args as Record<string, string | number>) }) }
+      : {}),
+    ...(providerAddonId === undefined ? {} : { addon: providerAddonId }),
+  });
 }
 
 /** Accepts only the one-line, bounded text the host forwards; anything else is dropped. */

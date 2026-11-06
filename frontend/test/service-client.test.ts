@@ -317,6 +317,56 @@ describe("BrowserAddonServiceClient", () => {
   });
 });
 
+describe("service issue keys", () => {
+  it("gives a provider's issue its catalog key and the provider's add-on ID", async () => {
+    const issueResponse = (error: Record<string, unknown>) =>
+      new Response(
+        JSON.stringify({
+          error: {
+            kind: "INVALID_REQUEST",
+            message: "m",
+            issue: "Target speed is not supported.",
+            ...error,
+          },
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    const failure = async (error: Record<string, unknown>) => {
+      const responses = [jsonResponse(connection()), issueResponse(error)];
+      const handle = await createClient(async () => responses.shift()!)
+        .api()
+        .connect("dnd5e.rules-engine", { range: "^3.0.0", cardinality: "one" });
+      return (await handle
+        .call("hydrate", {})
+        .catch((reason: unknown) => reason)) as AddonServiceHTTPError;
+    };
+    const provider = connection().providers[0]!["addonId"];
+    expect(
+      (
+        await failure({
+          issueKey: "engine.unknownTarget",
+          issueArgs: { target: "speed", index: 2 },
+        })
+      ).issueText,
+    ).toEqual({
+      text: "Target speed is not supported.",
+      key: "engine.unknownTarget",
+      args: { target: "speed", index: 2 },
+      addon: provider,
+    });
+    for (const malformed of [
+      { issueKey: "bad\nkey" },
+      { issueKey: 7 },
+      { issueKey: "engine.unknownTarget", issueArgs: { "not a name": 1 } },
+      { issueKey: "engine.unknownTarget", issueArgs: { list: [1] } },
+    ])
+      expect((await failure(malformed)).issueText).toEqual({
+        text: "Target speed is not supported.",
+        addon: provider,
+      });
+  });
+});
+
 function connection(): Record<string, unknown> & { providers: Array<Record<string, unknown>> } {
   return {
     contractVersion: "addon-service-connection.v1",

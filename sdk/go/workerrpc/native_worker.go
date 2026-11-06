@@ -24,7 +24,9 @@ type NativeWorkerAddon struct {
 }
 
 type NativeWorkerHost struct {
-	Version  string `json:"version"`
+	Version string `json:"version"`
+	// Locale is always "en": workers write English and attach catalog keys
+	// (LocalizedText) so browsers can show the reader's language.
 	Locale   string `json:"locale"`
 	TimeZone string `json:"timeZone"`
 }

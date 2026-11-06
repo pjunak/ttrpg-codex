@@ -27,7 +27,6 @@ Copy `.env.example` to `.env` and set:
 | `CODEX_DM_PASSWORD` | Initial DM password; required only before passwords have been saved |
 | `CODEX_PLAYER_PASSWORD` | Optional initial public-record editing password |
 | `CODEX_SECURE_COOKIES` | Set `true` behind HTTPS |
-| `CODEX_LOCALE` | Locale reported to add-on workers; default `en` |
 | `CODEX_TIME_ZONE` | IANA time zone reported to workers |
 | `CODEX_ADDON_AUTO_CLEANUP` | `true` by default; retain only the selected add-on build after healthy startup and activation. Superseded packages and their add-on recovery contexts are removed; campaign recovery and current saves remain. Set `false` for manual retention. See [package retention](reference/PACKAGE_LIFECYCLE.md#automatic-package-file-retention). |
 

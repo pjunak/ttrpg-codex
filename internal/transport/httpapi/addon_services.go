@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/pjunak/ttrpg-codex/internal/addons/packagemanager"
 	"github.com/pjunak/ttrpg-codex/internal/addons/requestcontext"
@@ -199,7 +201,7 @@ func objectOrArrayJSON(value json.RawMessage) bool {
 
 func (s *server) writeBrowserServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	status, kind, message := http.StatusServiceUnavailable, "SERVICE_UNAVAILABLE", "the add-on service is unavailable"
-	issue := ""
+	var issue browserIssue
 	var workerError *workerrpc.RPCError
 	switch {
 	case errors.Is(err, packagemanager.ErrNotActive):
@@ -249,33 +251,111 @@ func (s *server) writeBrowserServiceError(w http.ResponseWriter, r *http.Request
 		status, kind, message = http.StatusInternalServerError, "INTERNAL", "the add-on service request failed"
 	}
 	s.logger.Error("browser add-on service request failed", "method", r.Method, "path", r.URL.Path, "kind", kind, "error", err)
-	if issue == "" {
+	if issue.Text == "" {
 		writeAPIError(w, status, kind, message)
 		return
 	}
-	writeJSON(w, status, map[string]any{
-		"error": map[string]string{"kind": kind, "message": message, "issue": issue},
-	})
+	body := map[string]any{"kind": kind, "message": message, "issue": issue.Text}
+	if issue.Key != "" {
+		body["issueKey"] = issue.Key
+		if len(issue.Args) > 0 {
+			body["issueArgs"] = issue.Args
+		}
+	}
+	writeJSON(w, status, map[string]any{"error": body})
+}
+
+// browserIssue is the provider's user-facing problem: English text and,
+// optionally, the key and arguments that translate it through the
+// provider's message catalog (workerrpc.IssueDetails).
+type browserIssue struct {
+	Text string
+	Key  string
+	Args map[string]any
 }
 
 // browserServiceIssue returns the provider's details.issue as one line of
-// plain text for the caller. It is the only worker text a browser receives;
-// messages and other details stay private.
-func browserServiceIssue(details json.RawMessage) string {
+// plain text for the caller, with its catalog key and arguments when they are
+// well formed. It is the only worker text a browser receives; messages and
+// other details stay private.
+func browserServiceIssue(details json.RawMessage) browserIssue {
 	var body struct {
-		Issue string `json:"issue"`
+		Issue     string                     `json:"issue"`
+		IssueKey  string                     `json:"issueKey"`
+		IssueArgs map[string]json.RawMessage `json:"issueArgs"`
 	}
 	if len(details) == 0 || json.Unmarshal(details, &body) != nil {
-		return ""
+		var plain struct {
+			Issue string `json:"issue"`
+		}
+		if len(details) == 0 || json.Unmarshal(details, &plain) != nil {
+			return browserIssue{}
+		}
+		body.Issue = plain.Issue
 	}
-	// Control, format (including bidi overrides) and separator characters
-	// could reorder or hide the text, so each run of them becomes one space.
-	words := strings.FieldsFunc(body.Issue, func(character rune) bool {
+	issue := browserIssue{Text: oneLine(body.Issue, maximumBrowserServiceIssue)}
+	if issue.Text == "" || !validIssueKey(body.IssueKey) {
+		return issue
+	}
+	args, ok := issueArguments(body.IssueArgs)
+	if !ok {
+		return issue
+	}
+	issue.Key, issue.Args = body.IssueKey, args
+	return issue
+}
+
+// oneLine collapses control, format (including bidi overrides) and separator
+// characters, which could reorder or hide the text, into single spaces.
+func oneLine(value string, maximum int) string {
+	words := strings.FieldsFunc(value, func(character rune) bool {
 		return unicode.IsSpace(character) || unicode.In(character, unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp)
 	})
-	issue := []rune(strings.Join(words, " "))
-	if len(issue) > maximumBrowserServiceIssue {
-		issue = append(issue[:maximumBrowserServiceIssue-1], '…')
+	text := []rune(strings.Join(words, " "))
+	if len(text) > maximum {
+		text = append(text[:maximum-1], '…')
 	}
-	return string(issue)
+	return string(text)
+}
+
+func validIssueKey(key string) bool {
+	if key == "" || utf8.RuneCountInString(key) > 500 {
+		return false
+	}
+	for _, character := range key {
+		if unicode.IsControl(character) {
+			return false
+		}
+	}
+	return true
+}
+
+var issueArgumentName = regexp.MustCompile(`^[A-Za-z0-9_]{1,40}$`)
+
+// issueArguments keeps at most 16 placeholder values: one-line strings of at
+// most 300 characters or finite numbers.
+func issueArguments(raw map[string]json.RawMessage) (map[string]any, bool) {
+	if len(raw) > 16 {
+		return nil, false
+	}
+	args := make(map[string]any, len(raw))
+	for name, value := range raw {
+		if !issueArgumentName.MatchString(name) {
+			return nil, false
+		}
+		var text string
+		if json.Unmarshal(value, &text) == nil {
+			if utf8.RuneCountInString(text) > 300 {
+				return nil, false
+			}
+			args[name] = oneLine(text, 300)
+			continue
+		}
+		var number float64
+		if json.Unmarshal(value, &number) != nil {
+			return nil, false
+		}
+		args[name] = number
+	}
+	return args, true
 }
