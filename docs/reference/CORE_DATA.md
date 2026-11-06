@@ -294,13 +294,18 @@ priority editors consume the shared definitions. Deletion uses the explicit Go
 operation above, shows current usage, and requires an intentional reject,
 replacement, or clear policy rather than creating dangling stored IDs.
 
-Language and appearance deliberately have different ownership. Interface
-language is a per-browser preference stored outside campaign data, so one
-reader cannot change another reader's language. Appearance is a shared
-campaign setting changed by the DM through the normal optimistic settings
-transaction. The browser caches only the last accepted theme ID to avoid a
-flash of the default chrome during startup; the campaign record remains
-authoritative and replaces that cache as soon as it loads.
+Appearance and site languages are shared campaign settings changed by the DM
+through the normal optimistic settings transaction: `settings/appearance`
+holds the theme and `settings/language` holds `defaultLocale` and
+`enabledLocales` (English is always enabled; unknown fields survive edits).
+Each browser may also keep a personal language, stored outside campaign data
+in `localStorage`, so one reader never changes another reader's language. A
+personal choice applies while the site still enables that language; otherwise
+the browser follows the site default
+([ADR-0007](../decisions/0007-interface-languages.md)). The browser caches the
+last accepted theme and site languages to avoid a flash of the defaults during
+startup, including on the sign-in page; the campaign records remain
+authoritative and replace those caches as soon as they load.
 
 World/local map viewing and editing use the same transaction and media
 boundaries. Coordinates, map scope, saved views, draft revisions, and image

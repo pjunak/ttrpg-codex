@@ -27,7 +27,7 @@ checksums.json   SHA-256 of every other regular file
 contracts/       closed JSON Schemas referenced by the manifest
 web/             compiled browser code, if the add-on has UI
 worker/          one executable per supported target, if it has a worker
-locales/         UI string catalogs
+locales/         message catalogs, one per language (see Translating)
 data/            immutable content, if declared
 ```
 
@@ -61,6 +61,7 @@ saved-data and integration namespaces. Display names may change.
 | `ui.controls.v1` | The host's shared fields, searchable choices, tabs and dialogs |
 | `ui.markdown`, `ui.rule-details` | Shared Markdown rendering and rule-detail popovers |
 | `ui.markdown-editor` | The host's Markdown writer, with links to add-on references |
+| `ui.i18n` | `context.i18n`, translations from message catalogs in the reader's language |
 | `worker.native` | A native Go worker per target platform |
 | `data.transactions` | Multi-document transactions on your collections |
 | `services.own` | `context.services.own(contract)` to call your own worker from your UI |
@@ -133,6 +134,51 @@ The [initialization protocol](API_V3.md#initialization) and
 develop against an unreleased host change, use an uncommitted `go.work`
 (`go work init . ../ttrpg-codex`).
 
+## Translating
+
+Every text a person reads can be translated; English is the source and the
+fallback. Keep your texts in `message-catalog.v1` files, one per language, and
+declare them in the manifest:
+
+```json
+"locales": { "en": "locales/en.json", "cs": "locales/cs.json" }
+```
+
+```json
+{
+  "contractVersion": "message-catalog.v1",
+  "locale": "en",
+  "sections": {
+    "planner": {
+      "planner.title": "Story planner",
+      "planner.items": { "one": "{n} item", "other": "{n} items" }
+    }
+  }
+}
+```
+
+- English is required and lists every key. Another language may leave keys
+  out; they show in English, and the DM sees what is missing on Settings →
+  Language, where they can also export the missing texts as a file to
+  translate.
+- Sections only group keys for that page. Keys may be IDs (`planner.title`) or
+  the English sentence; each key is unique across sections and stays in the
+  same section in every language.
+- Translate manifest strings in a `manifest` section of the non-English
+  catalogs: `manifest.name`, `manifest.description`,
+  `manifest.contribution.<id>.label`, `manifest.permission.<id>.reason` and so
+  on ([full list](API_V3.md#message-catalogs)). The host writes the English
+  ones from `addon.json`. This replaces `config.labels`.
+- In the browser, declare `ui.i18n` and use `context.i18n.t(key, args)`,
+  `plural(key, count)` and `message(localizedText)`; re-render in
+  `onChange` ([API](API_V3.md#translating-in-the-browser)).
+- Workers write English. For a user-facing problem, return
+  `workerrpc.IssueDetails(workerrpc.Localized(key, english, args))` so callers
+  can show it in the reader's language; put the key in your catalog.
+- `codex-addon-inspect` fails on any catalog problem (wrong shape, unknown key,
+  changed placeholders), so run it in CI. The host installs such a package but
+  drops the broken messages.
+
 ## Data, services and content
 
 - **Collections and record extensions** need closed JSON Schemas and explicit
@@ -154,7 +200,7 @@ develop against an unreleased host change, use an uncommitted `go.work`
 
 1. Your repository's build, tests, type checks and `go vet` pass.
 2. Packaging is deterministic (same source, same ZIP).
-3. The host inspector accepts the ZIP.
+3. The host inspector accepts the ZIP, including its message catalogs.
 4. The add-on works with its optional providers absent.
 5. Install, update, reload and disable work on a local host, including any
    providers or consumers you integrate with.

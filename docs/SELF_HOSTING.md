@@ -30,6 +30,10 @@ Copy `.env.example` to `.env` and set:
 | `CODEX_TIME_ZONE` | IANA time zone reported to workers |
 | `CODEX_ADDON_AUTO_CLEANUP` | `true` by default; retain only the selected add-on build after healthy startup and activation. Superseded packages and their add-on recovery contexts are removed; campaign recovery and current saves remain. Set `false` for manual retention. See [package retention](reference/PACKAGE_LIFECYCLE.md#automatic-package-file-retention). |
 
+`CODEX_LOCALE` and the `-locale` flag are no longer used and may be removed;
+set the site's language in Settings → Language
+([languages](reference/LOCALIZATION.md)).
+
 The host has no default credential. Password bootstrap values initialize saved
 password hashes once. Later starts use the saved credentials, so editing `.env`
 does not undo a password change or re-enable a disabled player password.

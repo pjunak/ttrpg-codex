@@ -75,8 +75,24 @@ an inspected inventory entry, and the original SHA-256 bytes before returning
 an open handle. Manifests, worker executables, contracts, content, and locale
 files cannot be requested through the browser asset route.
 
+Message catalogs travel separately. The graph's `catalogs` array lists every
+recovered active add-on, headless ones included, with each language's
+messages count, source, inspection issues and digest-addressed URL
+`/api/addons/{id}/generations/{generation}/locales/{locale}/{sha256}`. That
+route serves the inspector's effective catalog (validated, with the built
+manifest section) only for the exact recovered generation and digest, with
+`private, max-age=31536000, immutable` caching; anything stale is
+`404 ADDON_CATALOG_NOT_FOUND`. `catalogIndexLocked` in the package manager is
+the single place that chooses catalog sources, so language packs can add
+theirs without browser changes. In the browser, `catalog-store.ts` loads an
+add-on's catalogs for the reader's language and its fallbacks before its
+module activates and again when the language changes, and lends them through
+`context.i18n` (capability `ui.i18n`) and host-drawn contribution labels
+([languages](LOCALIZATION.md)).
+
 The opaque revision is a SHA-256 digest over every durable active add-on ID,
-generation, and state revision plus the projected UI descriptors. Including
+generation, and state revision plus the projected UI descriptors and catalog
+index. Including
 worker-only state is intentional: a provider reload or cold backend cohort can
 force all browser SDK handles to rebuild even when UI assets did not change.
 Stopping a runtime removes its descriptor and changes the digest; recovery of

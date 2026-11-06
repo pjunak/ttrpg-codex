@@ -33,6 +33,11 @@ boundaries validate browser models.
   indices and same-generation, role-visible route targets.
 - `contribution-edits.d.ts` defines mounted edit guards and the optional
   in-memory handoff for integrated record article sections.
+- `message-catalog.schema.json` validates one language's interface texts
+  (`message-catalog.v1`). The Go inspector and
+  `frontend/src/core/message-catalog.ts` add the translation rules (keys from
+  English, same section, same placeholders, the reserved `manifest` section)
+  and both run the cases in `examples/catalogs/`.
 - `examples/reference-addon.json` exercises the main manifest features.
 - `examples/import-adapter.service.json` shows a package-owned service
   document.
@@ -83,7 +88,10 @@ rejects the whole package.
 Package format, Add-on API, worker protocol, service contracts, and collection
 schemas have independent versions. Changing this manifest schema in a way that
 invalidates an otherwise valid manifest requires a package-format or Add-on API
-major-version decision. Adding an optional field does not.
+major-version decision. Adding an optional field does not. One exception was
+accepted while every published package already complied: `locales` now
+requires `en` and canonical language tags
+([ADR-0007](../../../docs/decisions/0007-interface-languages.md)).
 
 Protocol framing is outside `protocol.schema.json`. A message is accepted only
 after its `Content-Length` frame, UTF-8 bytes, JSON syntax, envelope, negotiated

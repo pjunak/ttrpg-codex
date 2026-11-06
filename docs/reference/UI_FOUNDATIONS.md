@@ -152,8 +152,9 @@ Use a separate `label for` inside the field container for composite search and
 combobox controls. Their clear/toggle buttons must sit outside the label; an
 implicit label should contain only its one native control. The clear action uses
 an accessible localized name and a compact visible ×. Native validation message
-language follows the browser; built-in shared-control messages support English
-and Czech.
+language follows the browser; the shared controls take their own messages
+from the host catalog's `controls` section in the language of the nearest
+`lang` attribute, falling back to English.
 
 Listen to `codex-query` on a marked search input for a bubbling/composed
 `CustomEvent<{ value: string }>`. It emits only changed, settled user input,

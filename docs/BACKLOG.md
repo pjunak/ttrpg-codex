@@ -66,10 +66,33 @@ not obvious. Move an entry between sections instead of duplicating it.
   flagged feature/feat/subclass scope (classes, species, spells, rules,
   monsters, magic items), and the PHB wizard-subclass table lists
   Bladesinger, which is neither a 2024 PHB subclass nor in the repository.
+- **Move the add-ons to message catalogs** `addon-dnd-2024-compendium`,
+  `addon-dnd-character-sheets`, `addon-dm-tools`, `addon-dnd-homebrew`,
+  `addon-dnd-engine` — Adopt `message-catalog.v1` and `ui.i18n`
+  ([authoring guide](../examples/addons/AUTHORING.md#translating)). The
+  Compendium converts its flat `locales/*.json` (the host shows them as
+  catalog issues, and its CI fails from the next host bump). Sheets ships its
+  catalogs and replaces its regex reverse translation of Engine messages with
+  `i18n.message`. DM Tools and Homebrew move their TypeScript catalogs to
+  JSON and key their worker issues and import warnings. The Engine ships a
+  catalog for its messages and replaces `Text{LabelKey}` with `LocalizedText`.
+  Each translates its manifest strings in a `manifest` section instead of
+  `config.labels` and copies the new `browser-sdk.d.ts`.
+- **Language packs** `ttrpg-codex`, first-party add-ons — Downloadable
+  translations ([ADR-0007](decisions/0007-interface-languages.md)): a
+  data-only pack ZIP holds one language's catalog (and later content
+  overlays) for one add-on version range, published by
+  `.github/actions/publish-addon` beside each release. When the DM enables a
+  language, and when an add-on is installed or updated, the host fetches the
+  matching packs through `githubsource` for every linked add-on, stores them
+  content-addressed, merges them in `catalogIndexLocked` with source `pack`,
+  and removes them when the language is disabled. Host packs only if a host
+  language beyond English and Czech is wanted.
 - **Compendium translation overlays** `addon-dnd-2024-compendium` — The
   `data/i18n/` record overlays are specified in `data/SCHEMA.md` but nothing
   loads or applies them. Implement them (planned for its own session) so the
-  browse UI and the rules-data service can show translated record fields.
+  browse UI and the rules-data service can show translated record fields;
+  ship them as language-pack content once packs exist.
 - **More context-menu targets** `ttrpg-codex` — Record menus exist
   ([editing and browsing](reference/EDITOR_BROWSING.md#record-context-menus)).
   Candidates the owner has not chosen between yet: map pins and empty map
@@ -127,8 +150,8 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   Split `campaign-record-editor.ts` (field descriptors, parsing, relationship
   planning), the article and collection views out of `codex-record-page.ts`,
   `codex-map.ts` (one panel state, layers, search), the vocabulary editor out
-  of `codex-settings.ts`, the inline catalogs out of `ui-localization.ts`, and
-  DM Tools' `planner-element.ts` (canvas, forms, commands, draft session).
+  of `codex-settings.ts`, and DM Tools' `planner-element.ts` (canvas, forms,
+  commands, draft session).
 
 ## Undecided
 
@@ -190,12 +213,13 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   not, so even with DM adjudication they get no attack row or armor AC. Declare
   their base, and a bonus only where the item is otherwise complete.
   Ammunition, +1, +2, or +3 waits for ammunition attacks.
-- **Host locale and Markdown services for add-ons** `ttrpg-codex` — The add-ons
-  run three localization systems, and the Compendium ships its own Markdown
-  renderer, because the host serves no add-on locales and its Markdown
-  component shows add-on references only as rule-detail popovers, never as
-  in-place links. Lend a translator over manifest catalogs and a
+- **Markdown reference links for add-ons** `ttrpg-codex` — The Compendium ships
+  its own Markdown renderer because the host's Markdown component shows add-on
+  references only as rule-detail popovers, never as in-place links. Lend a
   reference-resolver hook through the SDK.
+- **Translated activation reviews** `ttrpg-codex` — The add-on manager shows
+  manifest names, descriptions and permission and dependency reasons in
+  English; read them from the catalogs' `manifest` sections.
 
 ## Ideas
 

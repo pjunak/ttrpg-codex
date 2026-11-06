@@ -12,6 +12,7 @@ checked out next to this one.
 | Install or update add-ons, including from private GitHub repositories | [Add-on installation](SELF_HOSTING.md#add-on-installation) |
 | Back up, restore or recover access | [Backups](SELF_HOSTING.md#backups) and [password recovery](SELF_HOSTING.md#password-changes-and-access-recovery) |
 | Choose a ruleset, books or service providers | [Rules and sources](reference/RULES_SOURCES.md) |
+| Set the site's languages or see what is translated | [Languages](reference/LOCALIZATION.md) |
 | Recover Markdown drafts or customize collection views | [Editing and browsing](reference/EDITOR_BROWSING.md) |
 | Write characters, locations and plans for import, by hand or with an agent | [Campaign bundles](reference/CAMPAIGN_BUNDLES.md) and DM Tools [content generation](../../addon-dm-tools/docs/AGENT_GENERATION.md) |
 | Use quick search, activity and map editing | [Search, activity and maps](reference/SEARCH_ACTIVITY_MAP.md) |
@@ -31,6 +32,7 @@ then the [API reference](../examples/addons/API_V3.md) and the
 | Live updates | [Event stream](reference/EVENT_STREAM.md) |
 | Campaign views | [Maps](reference/MAPS.md), [editing and browsing](reference/EDITOR_BROWSING.md), [performance](reference/PERFORMANCE.md) |
 | Packages and browser add-ons | [Package lifecycle](reference/PACKAGE_LIFECYCLE.md), [browser add-ons](reference/BROWSER_ADDONS.md), [shared UI](reference/UI_FOUNDATIONS.md) |
+| Interface languages and translations | [Languages](reference/LOCALIZATION.md) |
 | Add-on data, content and services | [Add-on data](reference/ADDON_DATA.md), [content](reference/CONTENT.md), [service broker](reference/SERVICE_BROKER.md), [rule details](reference/RULE_DETAILS.md) |
 | Native workers | [Supervision](reference/WORKER_SUPERVISION.md), [worker broker](reference/WORKER_BROKER.md) |
 

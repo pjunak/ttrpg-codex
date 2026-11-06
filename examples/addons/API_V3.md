@@ -19,7 +19,8 @@ requirements. Machine-readable definitions live in
 | Area | Available |
 | --- | --- |
 | Package lifecycle | ZIP inspection and staging, permission and compatibility review, approval, activation, reload, disable, uninstall and start-up recovery. Only the selected build of each add-on is kept; older builds must be uploaded again to roll back. |
-| Browser SDK | `addon`, `signal`, `capabilities`, `permissions`, `ui`, `data`, `content` and `services`. Contributions also receive host context, navigation and edit guards. |
+| Browser SDK | `addon`, `signal`, `capabilities`, `permissions`, `ui`, `data`, `content`, `services` and `i18n`. Contributions also receive host context, navigation and edit guards. |
+| Languages | `message-catalog.v1` files per language, inspected and served by the host; `ui.i18n` lends `context.i18n` for translations that follow the site's language ([message catalogs](#message-catalogs)). |
 | Shared controls | `ui.controls.v1` lends `ui.enhance(ownRoot)` for native fields, searchable choices, states, actions, tabs and modal focus ([shared UI](../../docs/reference/UI_FOUNDATIONS.md)). |
 | UI contributions | Routes, sidebar items, settings panels, article actions and sections, editor panels, named slots, wiki providers, graph views and graph contributors. |
 | Workers | Native Go workers with lifecycle, health, cancellation, brokered service calls and package data. |
@@ -76,7 +77,7 @@ web/                          optional prebuilt browser assets
 worker/                       optional native worker binaries
 contracts/                    service and collection JSON Schemas
 content/                      immutable content sets
-locales/                      localization catalogs
+locales/                      message-catalog.v1 files, one per language
 ```
 
 Every `runtime.ui.entry` is a `.js` or `.mjs` module and every
@@ -90,7 +91,9 @@ them, and prefix any custom property of your own with your add-on's name.
 [`style-check.mts`](../../contracts/addons/v3/style-check.mts) checks a source
 tree against these rules.
 The host never serves worker binaries, contracts, content
-sets, locales, or package metadata through the browser asset route.
+sets, locale files, or package metadata through the browser asset route;
+browsers get the inspected catalogs from their own route instead (see
+[Content and localization](#content-and-localization)).
 
 Production installation MUST NOT invoke npm, Go, Python, a shell, or any other
 build tool. The release pipeline builds target artifacts before packaging.
@@ -219,6 +222,7 @@ interface AddonContext {
   readonly data: DataApi;
   readonly content: ContentApi;
   readonly services: ServiceApi;
+  readonly i18n: I18nApi; // Requires ui.i18n.
 }
 
 interface Disposable {
@@ -337,7 +341,7 @@ Route elements in either UI mode receive a frozen `codexContribution.host`:
 ```ts
 interface AddonRouteHostContext {
   readonly contractVersion: "addon-route-context.v1";
-  readonly locale: "en" | "cs";
+  readonly locale: string;
   readonly query: readonly (readonly [string, string])[];
   readonly recordReferences?: {
     readonly ready: boolean;
@@ -378,7 +382,7 @@ contribution fields plus a frozen `codexContribution.host` value:
 ```ts
 interface RecordContributionHostContext {
   readonly kind: "campaign-record";
-  readonly locale: "en" | "cs"; // Current browser language.
+  readonly locale: string; // The reader's interface language, a BCP 47 tag.
   readonly collection: string;
   readonly key: string;
   readonly revision: number;
@@ -436,7 +440,7 @@ Each settings element receives this frozen `codexContribution.host` context:
 ```ts
 interface AddonSettingsHostContext {
   readonly contractVersion: "addon-settings-context.v1";
-  readonly locale: "en" | "cs";
+  readonly locale: string;
   readonly role: "dm" | "player";
 }
 ```
@@ -482,7 +486,7 @@ Elements receive this frozen context:
 ```ts
 interface RecordHostContext {
   readonly contractVersion: "record-context.v1";
-  readonly locale: "en" | "cs";
+  readonly locale: string;
   readonly readOnly: boolean;
   readonly record: {
     readonly collection: string;
@@ -684,7 +688,7 @@ The stable `#/dm` route accepts additive `slot` contributions with exact config
 through the usual UI contract. The host checks
 real/effective DM authority before mounting this outlet, even if the manifest
 declares broader roles. It passes the frozen host context
-`{ contractVersion: "dm-dashboard-context.v1", locale: "en" | "cs" }`, with updates when the selected language changes. It passes no campaign
+`{ contractVersion: "dm-dashboard-context.v1", locale }`, with updates when the selected language changes. It passes no campaign
 bodies; add-ons read their own collections through the public SDK.
 These named slots do not also appear on the campaign overview.
 
@@ -1036,7 +1040,9 @@ contract; it must not identify or inspect the provider package directly.
 ### Settings, navigation, events, and logs
 
 The activation context does not expose standalone `settings`, `navigation`,
-`events` or `log` objects. Contribution contexts carry host locale/role,
+`events` or `log` objects. Contribution contexts carry the reader's language
+and role (`context.i18n` translates; see
+[Content and localization](#content-and-localization)),
 public navigation and edit guards. Add-ons choose their own settings storage
 through permitted data APIs or personal browser state. `data.subscribe` supplies
 payload-free invalidation, not arbitrary package event publication.
@@ -1344,8 +1350,16 @@ diagnostics.
 plain sentence that tells the calling user what to fix, such as
 `items[3]: effect 1: target "speed" is not supported`. The host passes it to browser
 callers as `ServiceError.issue`, cleaned to one line of at most 300
-characters. Write it for that user, in your own language, and never include
-data they cannot read.
+characters. Write it in English for that user and never include data they
+cannot read. To make it translatable, also set `details.issueKey` (a key in
+your add-on's message catalog, at most 500 characters) and optionally
+`details.issueArgs` (at most 16 placeholder values: strings of at most 300
+characters or finite numbers); the Go SDK's `workerrpc.IssueDetails` builds
+all three from a `LocalizedText`. The host forwards a well-formed key and its
+arguments, and the browser's `ServiceError.issueText` carries them with
+`addon` set to your add-on, so a consumer shows
+`context.i18n.message(error.issueText)`. Workers always receive `host.locale`
+`en`; they never translate.
 
 ### Backpressure and resilience
 
@@ -1498,21 +1512,101 @@ provenance, source-group metadata, and a package revision. The host indexes
 them and exposes a revision-pinned query API. Add-ons never mutate installed
 content in place; overlays and user choices live in host or add-on data.
 
-Locale catalogs are declarative package assets. Message IDs are add-on scoped.
-The host validates catalogs without executing UI code and reports fallback
-behavior in the Inspector.
+### Message catalogs
 
-Route, sidebar, article-section, and dashboard slot contributions may additionally
-declare `config.labels`, an object with optional
-`en` and `cs` display strings, for host-owned navigation and contribution headings.
-Each label is non-empty plain text of at most 200 characters without control
-characters. Inspection and browser boundaries reject malformed metadata. A missing
-locale falls back to the contribution's required `label`; display helpers also
-defend against invalid entries. Hosts predating this optional metadata may reject
-such packages at inspection and should be updated first. This metadata changes
-display text only; contribution IDs, route paths, permissions, and mounted view
-identities stay unchanged. Views continue translating their own content from
-the locale in their host context.
+An add-on's interface texts live in
+[`message-catalog.v1`](../../contracts/addons/v3/message-catalog.schema.json)
+files, one per language, declared in the manifest's `locales` map by canonical
+BCP 47 tag (`en`, `cs`, `pt-BR`). English is required and defines the keys;
+another language may leave keys out, which then show in English. The
+[authoring guide](AUTHORING.md#translating) shows the format, and
+[ADR-0007](../../docs/decisions/0007-interface-languages.md) records the
+design.
+
+```json
+{
+  "contractVersion": "message-catalog.v1",
+  "locale": "cs",
+  "sections": {
+    "manifest": { "manifest.contribution.planner.route.label": "Plánovač" },
+    "planner": {
+      "planner.title": "Plánovač příběhu",
+      "planner.items": { "one": "{n} položka", "few": "{n} položky", "other": "{n} položek" }
+    }
+  }
+}
+```
+
+- Sections group keys for the Languages page; a key is unique across sections
+  and sits in the same section in every language.
+- A message is a string or plural forms by CLDR category (`zero`, `one`, `two`,
+  `few`, `many`, `other`; `other` required) with `{name}` placeholders. A
+  translation uses exactly the placeholders of its English message, and only
+  an English plural may be translated with plural forms.
+- The reserved `manifest` section translates manifest strings. The host builds
+  its English text from `addon.json`, so English catalogs must not write it.
+  Keys: `manifest.name`, `manifest.description`,
+  `manifest.contribution.<id>.label`, `manifest.permission.<id>.reason`,
+  `manifest.dependency.<addonId>.reason`, `manifest.rules.name` and
+  `manifest.content.<setId>.groups.label`.
+- At most 2 MiB and 20,000 messages per file, 200 sections, keys of at most 500
+  and messages of at most 4,000 characters.
+
+The inspector checks every catalog. A file with the wrong shape or language is
+dropped whole and a message that breaks a rule is dropped alone; either way the
+package still installs, because every host start re-inspects active packages,
+and the DM sees the issue on Settings → Language. `codex-addon-inspect` exits
+non-zero on any catalog issue, so run it in your package build. Reviews compare
+catalogs by content.
+
+Browsers receive each active add-on's effective catalogs (validated, with the
+built manifest section and any folded labels), headless add-ons included. The
+browser graph's `catalogs` index names each language's
+`GET /api/addons/{addonId}/generations/{generationId}/locales/{locale}/{sha256}`
+URL; responses are immutable and cached for good.
+
+### Translating in the browser
+
+Declare capability `ui.i18n` (required or optional) and use `context.i18n`:
+
+```ts
+interface I18nApi {
+  readonly locale: string; // The reader's language, such as "cs".
+  t(key: string, args?: Readonly<Record<string, string | number>>): string;
+  plural(key: string, count: number, args?: Readonly<Record<string, string | number>>): string;
+  message(text: LocalizedText): string;
+  onChange(listener: () => void, options?: { signal?: AbortSignal }): () => void;
+}
+interface LocalizedText {
+  readonly text: string; // English, shown when no catalog translates `key`.
+  readonly key?: string;
+  readonly args?: Readonly<Record<string, string | number>>;
+  readonly addon?: string; // Whose catalog holds `key`; the caller by default.
+}
+```
+
+The host loads your catalogs for the reader's language and its fallbacks
+before `activate` runs, so these calls answer synchronously. A missing key
+falls back through base languages (`pt-BR`, `pt`) to English and then to the
+key itself. `plural` fills `{n}` with `count` and picks the form with
+`Intl.PluralRules`. `message` translates another add-on's text too, such as a
+provider's `ServiceError.issueText` or a `LocalizedText` it returns in a
+service document. `onChange` fires after the language changes or more catalogs
+arrive, and stops with the generation; re-render then. The language itself
+follows the site: the DM sets a default and the enabled languages, and each
+browser may choose another enabled one.
+
+### Contribution labels
+
+Host-drawn navigation and contribution headings show a contribution's
+`manifest.contribution.<id>.label` from the catalog in the reader's language,
+then the deprecated `config.labels` entry, then the English `label`. Route,
+sidebar, article-section and dashboard slot contributions may still declare
+`config.labels` (optional `en` and `cs` strings of at most 200 characters
+without control characters); the host folds a `cs` label into the Czech
+catalog when that catalog lacks the key. Prefer the catalog for new packages.
+Labels change display text only; contribution IDs, route paths, permissions
+and mounted view identities stay unchanged.
 
 ## Debugging contract
 

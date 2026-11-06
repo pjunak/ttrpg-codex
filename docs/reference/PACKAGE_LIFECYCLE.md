@@ -201,6 +201,12 @@ the expected state revision, retained and required permissions, directly
 affected add-ons, the complete restart set, blockers, and stable
 added/changed/removed summaries for runtime, capabilities, contributions,
 dependencies, services, collections, record extensions, content, and locales.
+Locales compare each language's effective message catalog by digest, so a
+changed translation shows even when its file keeps its path; an active
+generation that is not running is compared by declared path. Catalog problems
+never block a review or activation: the inspector drops the broken messages or
+file and records an issue, which the browser graph and Settings → Language
+show, while `codex-addon-inspect` exits non-zero on them for package builds.
 It also includes blockers from the durable add-on data owner when a removed or
 changed declaration still has campaign state. The full proposal is SHA-256
 hashed. See [`ADDON_DATA.md`](ADDON_DATA.md).

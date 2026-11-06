@@ -19,7 +19,9 @@ add-on is installed as a built package after permission and compatibility review
   repositories with server-side credentials.
 - Restore the campaign or one add-on from its recovery points or from a
   downloaded backup.
-- Use the interface in English or Czech without translating authored content.
+- Use the interface in English or Czech: the DM sets the site's language and
+  each browser may pick its own. Add-ons translate their own texts through the
+  same message catalogs; authored campaign content keeps its language.
 
 Local drafts protect work in the same browser. Save commits it to the campaign;
 downloaded backups protect it outside that browser and server.
