@@ -64,8 +64,8 @@ interface Editor {
   context: BrowserContext;
   /** Transactions this page sent, in order. */
   writes: CampaignWrite[];
-  /** Switches this session's view and reloads the page. */
-  viewAs(role: "dm" | "player"): Promise<void>;
+  /** Signs this browser in again as another role and reloads the page. */
+  signInAs(role: "dm" | "player"): Promise<void>;
 }
 
 async function open(
@@ -82,7 +82,7 @@ async function open(
   });
   const errors: string[] = [];
   host.closers.push(await trackBrowserContext(t, context, () => assert.deepEqual(errors, [])));
-  const auth = await jsonResponse(
+  await jsonResponse(
     await context.request.post("/api/login", { data: { password: host.password("dm") } }),
   );
   if (options.locale)
@@ -96,19 +96,15 @@ async function open(
   const writes = transactions(page);
   await page.goto(`/${route}`);
   await ready(page);
-  let csrf = auth.csrfToken as string;
   return {
     page,
     context,
     writes,
-    async viewAs(role) {
-      const next = await jsonResponse(
-        await context.request.post("/api/view-as", {
-          headers: { "X-Codex-CSRF": csrf },
-          data: { role },
-        }),
+    async signInAs(role) {
+      await jsonResponse(await context.request.post("/api/logout"));
+      await jsonResponse(
+        await context.request.post("/api/login", { data: { password: host.password(role) } }),
       );
-      csrf = next.csrfToken;
       await reload(page);
     },
   };
@@ -427,10 +423,10 @@ void test("generic create forms recover Markdown by field and role without chang
     .locator(".writer-recovery-status")
     .filter({ hasText: "Recovery copy saved" })
     .waitFor();
-  await editor.viewAs("player");
+  await editor.signInAs("player");
   await page.getByRole("button", { name: "Add location", exact: true }).click();
   assert.equal(await page.locator(".writer-recovery-review").count(), 0);
-  await editor.viewAs("dm");
+  await editor.signInAs("dm");
   await page.getByRole("button", { name: "Add location", exact: true }).click();
   await page.getByText("Local drafts available (1)", { exact: true }).waitFor();
   await page.locator(".writer-recovery-review > summary").click();
@@ -584,14 +580,14 @@ void test("a linked collection view survives article navigation and role changes
   await page.getByRole("heading", { name: "Ryn", exact: true }).waitFor();
   await go(page, "#/characters");
   await page.getByText("1 of 2 entries", { exact: true }).waitFor();
-  await editor.viewAs("player");
+  await editor.signInAs("player");
   await page.getByText("2 of 2 entries", { exact: true }).waitFor();
   assert.equal(
     await page.getByRole("searchbox", { name: "Search this collection", exact: true }).inputValue(),
     "",
   );
   assert.doesNotMatch(page.url(), /q=Ryn/);
-  await editor.viewAs("dm");
+  await editor.signInAs("dm");
   await page.getByText("1 of 2 entries", { exact: true }).waitFor();
 });
 
@@ -629,7 +625,7 @@ void test("a deleted record's draft remains downloadable from its collection wit
   assert.equal(content, "Text for an entry removed elsewhere");
   assert.equal(writes.length, 0);
   assert.equal(await storedRecord(host, "characters", "ryn"), undefined);
-  await editor.viewAs("player");
+  await editor.signInAs("player");
   // Another role's drafts stay separate, so the player sees no draft library at all.
   await page.getByText("There are no entries in this collection yet.", { exact: true }).waitFor();
   assert.equal(await page.locator(".collection-local-drafts").count(), 0);

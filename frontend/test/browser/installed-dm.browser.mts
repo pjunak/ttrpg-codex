@@ -352,17 +352,6 @@ void test("DM panel preserves the fallback cards and its tool links on desktop a
   await dm.getByRole("heading", { name: "Skrytý obsah" }).waitFor();
   await dm.evaluate(() => localStorage.setItem("codex_lang", "en"));
   await dm.reload();
-  const currentAuth = await jsonResponse(await dm.context().request.get("/api/auth"));
-  await jsonResponse(
-    await dm.context().request.post("/api/view-as", {
-      headers: { "X-Codex-CSRF": currentAuth.csrfToken },
-      data: { role: "player" },
-    }),
-  );
-  await dm.reload();
-  await dm.getByText("This page is available only in DM view.").waitFor();
-  assert.equal(await dm.locator(".dm-count-card").count(), 0);
-  assert.equal(await dm.locator('.sidebar-footer > a[href="#/dm"]').count(), 0);
   for (const role of ["player", ""]) {
     const page = await open(t, role);
     await page.getByText("This page is available only in DM view.").waitFor();
@@ -1180,15 +1169,6 @@ void test("player preview opens in a separate tab with player data, media and li
     assert.equal((await context.request.get("/api/backup", { headers })).status(), 403);
     assert.equal(
       (await context.request.get("/api/admin/addons/dm-tools", { headers })).status(),
-      403,
-    );
-    assert.equal(
-      (
-        await context.request.post("/api/view-as", {
-          headers: { ...headers, "X-Codex-CSRF": player.csrfToken },
-          data: { role: "dm" },
-        })
-      ).status(),
       403,
     );
     const campaign = await jsonResponse(await context.request.get("/api/campaign", { headers }));

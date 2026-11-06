@@ -199,50 +199,6 @@ func (service *Service) ValidateCSRF(token, csrfToken string) bool {
 	return subtle.ConstantTimeCompare(candidate[:], record.csrfDigest[:]) == 1
 }
 
-func (service *Service) SwitchRole(token string, target Role) (Session, error) {
-	if service == nil || !validToken(token) || target != RoleDM && target != RolePlayer {
-		return Session{}, ErrRoleTransition
-	}
-	digest := sha256.Sum256([]byte(token))
-	now := service.now().UTC()
-	nextToken, nextCSRFToken, err := service.generateSessionTokens()
-	if err != nil {
-		return Session{}, err
-	}
-	nextDigest := sha256.Sum256([]byte(nextToken))
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	record, exists := service.sessions[digest]
-	if !exists || !record.expiresAt.After(now) || record.actor.RealRole != RoleDM {
-		if exists && !record.expiresAt.After(now) {
-			delete(service.sessions, digest)
-		}
-		return Session{}, ErrRoleTransition
-	}
-	if _, collision := service.sessions[nextDigest]; collision {
-		return Session{}, fmt.Errorf("%w: generated duplicate token", ErrSessionUnavailable)
-	}
-	actor := Actor{
-		SessionID: hex.EncodeToString(nextDigest[:12]),
-		RealRole:  RoleDM, Role: target,
-	}
-	expiresAt := now.Add(service.ttl)
-	next := storedSession{
-		actor: actor, csrfToken: nextCSRFToken,
-		csrfDigest: sha256.Sum256([]byte(nextCSRFToken)),
-		createdAt:  now, expiresAt: expiresAt,
-	}
-	if err := service.applyLocked([]sessionWrite{{nextDigest, next}}, [][sha256.Size]byte{digest}); err != nil {
-		return Session{}, err
-	}
-	delete(service.sessions, digest)
-	service.sessions[nextDigest] = next
-	return Session{
-		Token: nextToken, CSRFToken: nextCSRFToken,
-		Actor: actor, ExpiresAt: expiresAt,
-	}, nil
-}
-
 func (service *Service) Revoke(token string) error {
 	if service == nil || !validToken(token) {
 		return nil

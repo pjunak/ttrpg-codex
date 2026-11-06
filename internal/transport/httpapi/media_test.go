@@ -166,15 +166,15 @@ func TestSessionMediaAuthorizerUsesEffectiveRoleAndBoundCSRF(t *testing.T) {
 	if err != nil || authority.Role != applicationmedia.RoleDM {
 		t.Fatalf("DM authority = %+v, %v", authority, err)
 	}
-	playerView, err := service.SwitchRole(session.Token, sessionauth.RolePlayer)
+	player, err := service.Login("adventurer")
 	if err != nil {
 		t.Fatal(err)
 	}
 	request = httptest.NewRequest(http.MethodGet, "/api/media/id", nil)
-	request = request.WithContext(sessionauth.WithActor(request.Context(), playerView.Actor))
+	request = request.WithContext(sessionauth.WithActor(request.Context(), player.Actor))
 	authority, err = authorize(request)
 	if err != nil || authority.Role != applicationmedia.RolePlayer {
-		t.Fatalf("effective player authority = %+v, %v", authority, err)
+		t.Fatalf("player authority = %+v, %v", authority, err)
 	}
 }
 

@@ -46,49 +46,41 @@ func TestSessionsSurviveRestartUntilRevokedOrExpired(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	asPlayer, err := service.SwitchRole(dm.Token, auth.RolePlayer)
-	if err != nil {
-		t.Fatal(err)
-	}
 	if err := service.Revoke(leaving.Token); err != nil {
 		t.Fatal(err)
 	}
 
 	restarted := start()
-	if actor, ok := restarted.Resolve(asPlayer.Token); !ok || actor != asPlayer.Actor ||
-		!restarted.ValidateCSRF(asPlayer.Token, asPlayer.CSRFToken) {
-		t.Fatalf("rotated DM session after restart = %+v, %v", actor, ok)
+	if actor, ok := restarted.Resolve(dm.Token); !ok || actor != dm.Actor ||
+		!restarted.ValidateCSRF(dm.Token, dm.CSRFToken) {
+		t.Fatalf("DM session after restart = %+v, %v", actor, ok)
 	}
 	if actor, ok := restarted.Resolve(player.Token); !ok || actor != player.Actor {
 		t.Fatalf("player session after restart = %+v, %v", actor, ok)
 	}
-	for name, token := range map[string]string{
-		"rotated-away": dm.Token, "signed out": leaving.Token,
-		"preview of rotated parent": preview.Token,
-	} {
-		if _, ok := restarted.Resolve(token); ok {
-			t.Fatalf("%s session survived restart", name)
-		}
+	if _, ok := restarted.InspectPlayerPreview(preview.Token); !ok {
+		t.Fatal("player preview did not survive restart")
+	}
+	if _, ok := restarted.Resolve(leaving.Token); ok {
+		t.Fatal("signed-out session survived restart")
 	}
 
-	back, err := restarted.SwitchRole(asPlayer.Token, auth.RoleDM)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := restarted.ChangePassword(ctx, back.Token, back.CSRFToken, "dm-secret", auth.RolePlayer, "new-player", 1); err != nil {
+	if _, err := restarted.ChangePassword(ctx, dm.Token, dm.CSRFToken, "dm-secret", auth.RolePlayer, "new-player", 1); err != nil {
 		t.Fatal(err)
 	}
 	restarted = start()
-	if _, ok := restarted.Resolve(player.Token); ok {
-		t.Fatal("player session revoked by a password change survived restart")
+	for name, token := range map[string]string{"player": player.Token, "preview": preview.Token} {
+		if _, ok := restarted.Resolve(token); ok {
+			t.Fatalf("%s session revoked by a password change survived restart", name)
+		}
 	}
-	if _, ok := restarted.Resolve(back.Token); !ok {
+	if _, ok := restarted.Resolve(dm.Token); !ok {
 		t.Fatal("reviewing DM lost the session across restart")
 	}
 
 	now = now.Add(time.Hour)
 	restarted = start()
-	if _, ok := restarted.Resolve(back.Token); ok {
+	if _, ok := restarted.Resolve(dm.Token); ok {
 		t.Fatal("expired session survived restart")
 	}
 	var remaining int

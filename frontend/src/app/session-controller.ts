@@ -7,7 +7,6 @@ import {
   getHealth,
   login as loginSession,
   logout as logoutSession,
-  switchRole as switchSessionRole,
   type AuthState,
   type Health,
 } from "../core/api.js";
@@ -197,17 +196,7 @@ export class SessionController implements ReactiveController {
     this.#host.requestUpdate();
     let resumed = false;
     try {
-      let current = await waitForSignal(loginSession(password, signal), signal);
-      if (signal.aborted) return false;
-      if (!current.authenticated || current.realRole !== previous.realRole) {
-        this.recoveryError = uiText("session.sameRole");
-        return false;
-      }
-      if (current.role !== previous.role)
-        current = await waitForSignal(
-          switchSessionRole(previous.role, current.csrfToken, signal),
-          signal,
-        );
+      const current = await waitForSignal(loginSession(password, signal), signal);
       if (signal.aborted) return false;
       if (
         !current.authenticated ||
@@ -285,41 +274,6 @@ export class SessionController implements ReactiveController {
     } catch (cause: unknown) {
       if (!signal.aborted) {
         this.#options.report(uiText("Sign-out failed: {0}", { "0": uiRequestError(cause) }));
-        await this.recoverAddons(signal);
-      }
-    } finally {
-      lease.release();
-    }
-  }
-
-  /** Switches a DM between the DM and player views. */
-  async switchRole(): Promise<void> {
-    const request = this.#request,
-      auth = this.auth;
-    if (
-      this.#options.busy.busy ||
-      request === undefined ||
-      auth?.authenticated !== true ||
-      auth.realRole !== "dm" ||
-      !this.#options.guard.confirmDiscard()
-    )
-      return;
-    const signal = request.signal;
-    const role = auth.role === "dm" ? "player" : "dm";
-    this.#cancelCheck();
-    const lease = this.#options.busy.acquire();
-    this.#options.report("");
-    try {
-      await this.#options.addons.stop();
-      if (signal.aborted) return;
-      const next = await waitForSignal(switchSessionRole(role, auth.csrfToken, signal), signal);
-      if (signal.aborted) return;
-      if (!next.authenticated) throw new Error("role switch ended the session");
-      this.#accept(next);
-      await this.#reloadForAuthority(signal);
-    } catch (cause: unknown) {
-      if (!signal.aborted) {
-        this.#options.report(uiText("View switch failed: {0}", { "0": uiRequestError(cause) }));
         await this.recoverAddons(signal);
       }
     } finally {

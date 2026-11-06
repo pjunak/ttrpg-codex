@@ -250,7 +250,6 @@ export class CodexApp extends LitElement {
           </section>
           <footer class="sidebar-footer">
             ${session.canManage ? html`<a href="#/dm" aria-current=${this.route.kind === "dm" ? "page" : nothing}>🛡 ${this.#ui.t("dm.title")}</a>` : nothing}
-            ${this.#viewAs()}
             <a href="#/settings" aria-current=${coreRouteActive(this.route, "settings") ? "page" : nothing}>⚙ ${this.#ui.t("shell.settings")}</a>
             <codex-account-menu .authority=${session.authority} .readiness=${session.readiness}
               .liveState=${session.liveState} .addonState=${this.#addons.state} .busy=${this.busy}
@@ -401,25 +400,6 @@ export class CodexApp extends LitElement {
     const list = (event.currentTarget as HTMLElement).closest<HTMLElement>('[role="tablist"]');
     if (list) navigateTabs(list, event);
   };
-
-  /**
-   * The way back for a DM session switched to the player view through the
-   * API. The player preview itself opens from Settings → Server access.
-   */
-  #viewAs() {
-    const auth = this.#session.auth;
-    if (
-      isPlayerPreview() ||
-      !auth?.authenticated ||
-      auth.realRole !== "dm" ||
-      auth.role !== "player"
-    )
-      return nothing;
-    return html`<button class="sidebar-footer-action" type="button"
-      @click=${() => void this.#session.switchRole()} ?disabled=${this.busy}>
-      <span aria-hidden="true">👁</span>${this.#ui.t("shell.viewAs", { role: uiText("DM") })}
-    </button>`;
-  }
 
   #campaignTemplate() {
     const state = this.#campaign.state;

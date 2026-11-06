@@ -84,7 +84,6 @@ func (s *server) registerAuthenticationRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/auth", s.authState)
 	mux.HandleFunc("POST /api/login", s.login)
 	mux.HandleFunc("POST /api/logout", s.logout)
-	mux.HandleFunc("POST /api/view-as", s.viewAs)
 	mux.HandleFunc("POST /api/player-preview", s.createPlayerPreview)
 	mux.HandleFunc("GET /api/passwords", s.passwordStatus)
 	mux.HandleFunc("POST /api/passwords", s.changePassword)
@@ -182,32 +181,6 @@ func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 		s.clearSessionCookie(w)
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-}
-
-func (s *server) viewAs(w http.ResponseWriter, r *http.Request) {
-	actor, ok := sessionauth.ActorFromContext(r.Context())
-	if !ok || actor.RealRole != sessionauth.RoleDM ||
-		!s.authentication.ValidateCSRF(sessionToken(r), r.Header.Get(csrfHeaderName)) {
-		writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "DM authorization is required")
-		return
-	}
-	var request struct {
-		Role sessionauth.Role `json:"role"`
-	}
-	if !decodeBoundedJSON(w, r, &request, maxAuthBodyBytes, "authentication") {
-		return
-	}
-	if request.Role != sessionauth.RoleDM && request.Role != sessionauth.RolePlayer {
-		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "role must be dm or player")
-		return
-	}
-	session, err := s.authentication.SwitchRole(sessionToken(r), request.Role)
-	if err != nil {
-		writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "DM authorization is required")
-		return
-	}
-	s.setSessionCookie(w, session)
-	writeJSON(w, http.StatusOK, authSessionResponse(session))
 }
 
 func authSessionResponse(session sessionauth.Session) map[string]any {

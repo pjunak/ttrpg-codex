@@ -39,21 +39,13 @@ func TestAuthenticationRoutesIssueResolveRotateAndRevokeSessions(t *testing.T) {
 		jsonStringField(t, probe.Body.Bytes(), "csrfToken") != csrf {
 		t.Fatalf("auth probe = %d, %s", probe.Code, probe.Body.String())
 	}
-	switched := serveAuthRequest(handler, http.MethodPost, "/api/view-as", `{"role":"player"}`, cookie.String(), csrf)
-	if switched.Code != http.StatusOK || !strings.Contains(switched.Body.String(), `"role":"player"`) {
-		t.Fatalf("view as player = %d, %s", switched.Code, switched.Body.String())
-	}
-	rotated := switched.Result().Cookies()[0]
-	if rotated.Value == cookie.Value {
-		t.Fatal("role transition did not rotate the session")
+	logout := serveAuthRequest(handler, http.MethodPost, "/api/logout", `{}`, cookie.String(), "")
+	if logout.Code != http.StatusOK || logout.Result().Cookies()[0].MaxAge != -1 {
+		t.Fatalf("logout = %d, cookies %+v", logout.Code, logout.Result().Cookies())
 	}
 	stale := serveAuthRequest(handler, http.MethodGet, "/api/auth", "", cookie.String(), "")
 	if !strings.Contains(stale.Body.String(), `"role":null`) {
-		t.Fatalf("stale session probe = %s", stale.Body.String())
-	}
-	logout := serveAuthRequest(handler, http.MethodPost, "/api/logout", `{}`, rotated.String(), "")
-	if logout.Code != http.StatusOK || logout.Result().Cookies()[0].MaxAge != -1 {
-		t.Fatalf("logout = %d, cookies %+v", logout.Code, logout.Result().Cookies())
+		t.Fatalf("signed-out session probe = %s", stale.Body.String())
 	}
 }
 

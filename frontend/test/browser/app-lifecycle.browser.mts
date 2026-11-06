@@ -120,7 +120,7 @@ for (const outcome of ["success", "failure"] as const) {
   );
 }
 
-for (const action of ["login", "logout", "view-as", "player-preview"] as const) {
+for (const action of ["login", "logout", "player-preview"] as const) {
   void test(
     `detaching during ${action} cancels the old action without breaking reconnect`,
     { timeout: 30_000 },
@@ -138,19 +138,6 @@ for (const action of ["login", "logout", "view-as", "player-preview"] as const) 
       const started = Promise.withResolvers<void>();
       const release = Promise.withResolvers<void>();
       const settled = Promise.withResolvers<void>();
-      if (action === "view-as") {
-        await page.route("**/api/auth", (route) =>
-          route.fulfill({
-            json: {
-              ok: true,
-              role: "player",
-              realRole: "dm",
-              csrfToken: "x".repeat(32),
-              expiresAt: "2099-01-01T00:00:00Z",
-            },
-          }),
-        );
-      }
       await page.route(`**/api/${action}`, async (route) => {
         started.resolve();
         await release.promise;
@@ -178,11 +165,6 @@ for (const action of ["login", "logout", "view-as", "player-preview"] as const) 
           await account.getByRole("button", { name: "Sign in", exact: true }).click();
         } else if (action === "logout") {
           await account.getByRole("button", { name: "Sign out", exact: true }).click();
-        } else if (action === "view-as") {
-          await page
-            .locator(".sidebar-footer")
-            .getByRole("button", { name: "View as DM", exact: true })
-            .click();
         } else {
           await page
             .locator("codex-credential-settings")

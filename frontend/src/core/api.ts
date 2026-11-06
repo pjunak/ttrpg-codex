@@ -114,27 +114,6 @@ export async function logout(signal: AbortSignal): Promise<void> {
   }
 }
 
-export async function switchRole(
-  role: "dm" | "player",
-  csrfToken: string,
-  signal: AbortSignal,
-): Promise<AuthState> {
-  if (csrfToken.length < 32) {
-    throw new BoundaryValidationError("POST /api/view-as", "CSRF token is invalid");
-  }
-  return parseAuthState(
-    await requestJSON("POST /api/view-as", "/api/view-as", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Codex-CSRF": csrfToken,
-      },
-      body: JSON.stringify({ role }),
-      signal,
-    }),
-  );
-}
-
 export async function createPlayerPreview(csrfToken: string, signal: AbortSignal): Promise<string> {
   const value = await requestJSON("POST /api/player-preview", "/api/player-preview", {
     method: "POST",

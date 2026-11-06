@@ -437,7 +437,6 @@
       "Live update was rejected: {0}": "Průběžná aktualizace byla odmítnuta: {0}",
       "Sign-in failed: {0}": "Přihlášení selhalo: {0}",
       "Sign-out failed: {0}": "Odhlášení selhalo: {0}",
-      "View switch failed: {0}": "Přepnutí pohledu selhalo: {0}",
       " Add-on recovery also failed: {0}": " Také obnovení doplňků selhalo: {0}",
       "Failed to clean up {0} browser add-on resource(s).": "Nepodařilo se uvolnit prostředky doplňků v prohlížeči: {0}.",
       "The entry could not be saved: {0}": "Záznam se nepodařilo uložit: {0}",
@@ -1171,6 +1170,7 @@
     "preview": {
       "preview.notice": "Náhled hráče — tato karta má hráčský přístup. Vaše DM karta zůstává přihlášená.",
       "preview.unavailable": "Náhled hráče není dostupný nebo vypršel. Otevřete nový náhled z DM karty.",
+      "preview.open": "Zobrazit jako hráč",
       "preview.close": "Zavřít náhled hráče",
       "preview.title": "Náhled hráče",
       "preview.intro": "Otevře kampaň v nové kartě přihlášené jako hráč, takže uvidíte přesně to, co vaši hráči. Tato karta zůstane přihlášená jako DM. Hráčská karta se odhlásí po hodině nebo když se zde odhlásíte.",
@@ -1303,7 +1303,6 @@
       "shell.signIn": "Přihlásit se",
       "shell.viewingAs": "Zobrazení jako",
       "shell.player": "hráč",
-      "shell.viewAs": "Zobrazit jako {role}",
       "shell.signOut": "Odhlásit se",
       "shell.menu": "Menu",
       "shell.signedInDm": "Přihlášení: DM",

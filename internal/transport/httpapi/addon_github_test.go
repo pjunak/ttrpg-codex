@@ -101,9 +101,4 @@ func TestGitHubRoutesRequireRealDMAndCSRFBeforeParsing(t *testing.T) {
 	if result.Code != 429 || !strings.Contains(result.Body.String(), `"kind":"GITHUB_RATE_LIMITED"`) || !strings.Contains(result.Body.String(), `"retryAt":"2026-11-03T16:59:49Z"`) {
 		t.Fatalf("rate limit was not reported with its reset time: %d %s", result.Code, result.Body.String())
 	}
-	switched := serveAuthRequest(handler, "POST", "/api/view-as", `{"role":"player"}`, cookie, csrf)
-	result = serveAuthRequest(handler, "GET", "/api/admin/addon-github", "", switched.Result().Cookies()[0].String(), "")
-	if result.Code != 403 {
-		t.Fatal("DM in player view could read GitHub settings")
-	}
 }

@@ -85,7 +85,7 @@ export class CodexCredentialSettings extends LitElement {
       <div class="settings-password-card-head"><h3 id="player-preview-title">${this.#ui.t("preview.title")}</h3></div>
       <p class="settings-hint">${this.#ui.t("preview.intro")}</p>
       <button type="button" ?disabled=${this.busy || this.saving} @click=${() => this.openPlayerPreview()}>
-        <span aria-hidden="true">👁</span> ${this.#ui.t("shell.viewAs", { role: this.#ui.t("shell.player") })}
+        <span aria-hidden="true">👁</span> ${this.#ui.t("preview.open")}
       </button>
     </section>`;
   }

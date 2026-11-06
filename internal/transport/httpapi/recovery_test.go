@@ -70,10 +70,6 @@ func TestRecoveryRequiresRealDMAndCSRF(t *testing.T) {
 	if result.Code != 200 || recovery.actor != "session:"+dm.Actor.SessionID {
 		t.Fatalf("server actor missing: %s", recovery.actor)
 	}
-	projected, _ := service.SwitchRole(dm.Token, "player")
-	if result := serveAuthRequest(handler, http.MethodGet, "/api/recovery", "", "edit_session="+projected.Token, ""); result.Code != 403 {
-		t.Fatal("player view exposed recovery")
-	}
 }
 
 func TestRecoveryErrorsAreActionableWithoutLeakingPrivateData(t *testing.T) {

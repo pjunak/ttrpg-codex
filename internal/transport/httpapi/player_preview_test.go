@@ -100,7 +100,7 @@ func TestPlayerPreviewRoutesNeverReplaceOrFallBackToDMCookie(t *testing.T) {
 	if duplicateResponse.Code != 401 {
 		t.Fatal("duplicate preview headers were accepted")
 	}
-	for _, path := range []string{"/api/view-as", "/api/login", "/api/player-preview"} {
+	for _, path := range []string{"/api/login", "/api/player-preview"} {
 		response := call("POST", path, `{"role":"dm","password":"dragon-master"}`, token, csrf, true)
 		if response.Code != 403 || len(response.Result().Cookies()) != 0 {
 			t.Fatalf("preview changed auth through %s", path)

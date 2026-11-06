@@ -255,20 +255,20 @@ func TestSessionCampaignMutationAuthorizerRequiresBoundCSRFAndUsesEffectiveRole(
 		t.Fatalf("DM twin authority = %+v, %v", twinAuthority, err)
 	}
 
-	playerView, err := service.SwitchRole(session.Token, sessionauth.RolePlayer)
+	player, err := service.Login("party-member")
 	if err != nil {
 		t.Fatal(err)
 	}
 	request = httptest.NewRequest(http.MethodPost, "/api/campaign/transactions", nil)
-	request.AddCookie(&http.Cookie{Name: sessionCookieName, Value: playerView.Token})
-	request.Header.Set(csrfHeaderName, playerView.CSRFToken)
-	request = request.WithContext(sessionauth.WithActor(request.Context(), playerView.Actor))
+	request.AddCookie(&http.Cookie{Name: sessionCookieName, Value: player.Token})
+	request.Header.Set(csrfHeaderName, player.CSRFToken)
+	request = request.WithContext(sessionauth.WithActor(request.Context(), player.Actor))
 	authority, err = authorize(request)
 	if err != nil || authority.Role != campaigndata.WritePlayer {
-		t.Fatalf("DM-as-player authority = %+v, %v", authority, err)
+		t.Fatalf("player authority = %+v, %v", authority, err)
 	}
 	if _, err := twinAuthorize(request); !errors.Is(err, errAuthorizationRequired) {
-		t.Fatalf("DM-as-player twin error = %v", err)
+		t.Fatalf("player twin error = %v", err)
 	}
 }
 

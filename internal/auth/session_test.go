@@ -54,48 +54,6 @@ func TestServiceAuthenticatesAndExpiresOpaqueSessions(t *testing.T) {
 	}
 }
 
-func TestServiceRotatesSessionAcrossDMRoleTransitions(t *testing.T) {
-	t.Parallel()
-	sequence := 0
-	service, err := New(Config{
-		DMPassword: "dragon-master",
-		GenerateToken: func() (string, error) {
-			sequence++
-			return fmt.Sprintf("token_%026d", sequence), nil
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	dm, err := service.Login("dragon-master")
-	if err != nil {
-		t.Fatal(err)
-	}
-	playerView, err := service.SwitchRole(dm.Token, RolePlayer)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if playerView.Token == dm.Token || playerView.CSRFToken == dm.CSRFToken ||
-		playerView.Actor.RealRole != RoleDM || playerView.Actor.Role != RolePlayer {
-		t.Fatalf("player view session = %+v", playerView)
-	}
-	if _, ok := service.Resolve(dm.Token); ok {
-		t.Fatal("role switch left the previous session usable")
-	}
-	restored, err := service.SwitchRole(playerView.Token, RoleDM)
-	if err != nil || restored.Actor.Role != RoleDM {
-		t.Fatalf("restored session = %+v, %v", restored, err)
-	}
-	player, err := service.Login("dragon-master")
-	if err != nil {
-		t.Fatal(err)
-	}
-	service.Revoke(player.Token)
-	if _, ok := service.Resolve(player.Token); ok {
-		t.Fatal("revoked session retained authority")
-	}
-}
-
 func TestServiceBoundsSessionCapacity(t *testing.T) {
 	t.Parallel()
 	sequence := 0
@@ -141,9 +99,6 @@ func TestSessionStoreFailuresLeaveSessionsUnchanged(t *testing.T) {
 	store.fail = true
 	if _, err := service.Login("dragon-master"); !errors.Is(err, ErrSessionUnavailable) {
 		t.Fatalf("login with failing store = %v", err)
-	}
-	if _, err := service.SwitchRole(dm.Token, RolePlayer); err == nil {
-		t.Fatal("role switch succeeded without saving")
 	}
 	if err := service.Revoke(dm.Token); err == nil {
 		t.Fatal("sign-out succeeded without saving")

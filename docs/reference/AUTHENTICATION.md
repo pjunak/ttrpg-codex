@@ -43,15 +43,14 @@ Every resolved session carries two roles:
 - `realRole` is the authenticated identity class and never increases;
 - `role` is the effective projection used for data and browser UI.
 
-A player session is always player/player. A DM may switch between DM and
-player projections. Every transition replaces both opaque tokens before the
-old session is removed, so a failed rotation preserves the current session and
-a successful rotation immediately revokes its previous authority.
+Every session currently has equal roles: a DM session is DM/DM, and player
+sessions and player previews are player/player. Authorization checks still
+name both where they require DM.
 
 `GET /api/auth` is the authoritative browser probe. Anonymous responses contain
 null roles. Authenticated responses contain the two roles, the current CSRF
-token, and the expiry time. Login, logout, and view-as responses follow the
-same shape.
+token, and the expiry time. Login and logout responses follow the same
+shape.
 
 Protected browser graph and immutable asset reads accept either authenticated
 role. Administrative reads require real and effective DM. Administrative
@@ -62,12 +61,11 @@ Campaign reading deliberately differs from those protected surfaces.
 `GET /api/campaign` is available anonymously because both current websites are
 public campaign references. Anonymous users and players receive the same
 closed public projection. Authentication can only expand that projection when
-the effective session role is DM; a DM using view-as-player receives the
-public result.
+the effective session role is DM.
 
 The shared `GET /api/events` stream follows the same projection rule.
-Anonymous callers receive only public invalidations. Player and DM-as-player
-sessions also receive the public audience, while an effective DM additionally
+Anonymous callers receive only public invalidations. Player sessions also
+receive the public audience, while an effective DM additionally
 receives DM invalidations. The browser closes and reopens its single stream
 after an authority change so an older audience is never reused.
 Closing the source also cancels work already delivered by it. Live refresh and
@@ -87,8 +85,8 @@ The browser starts its health/version diagnostic independently of session and
 campaign reads. A delayed or failed health request updates the existing host
 status without blocking the archive or account controls.
 
-Startup, sign-in, sign-out, role switching, same-role recovery and pending
-player-preview creation capture the connected application's request scope.
+Startup, sign-in, sign-out, same-role recovery and pending player-preview
+creation capture the connected application's request scope.
 Disconnect cancels their waits and clears the campaign cache; a reconnect checks
 current cookie authority before accepting another projection. Cancelled results
 cannot change authority, open streams, start add-ons, move focus or clear a newer
@@ -97,14 +95,12 @@ successfully opened preview keeps its independent lifetime.
 
 Campaign transactions accept either authenticated role and always require the
 exact CSRF value bound to the current cookie. The effective role selects DM or
-player mutation policy; a DM using view-as-player deliberately receives player
-write limits. Audit identity is derived from the resolved session and cannot
-be supplied or overridden in JSON.
+player mutation policy. Audit identity is derived from the resolved session and
+cannot be supplied or overridden in JSON.
 
 Twin create, link, and unlink are stricter because they can expose the
 existence of a hidden counterpart. They require both the real and effective
-role to be DM, as well as the exact CSRF value. A DM using view-as-player must
-leave that mode before changing twin relationships. Host-owned enum deletion
+role to be DM, as well as the exact CSRF value. Host-owned enum deletion
 uses the same stricter authority because its atomic usage rewrite spans public
 and DM-only records.
 
@@ -120,16 +116,14 @@ header; same-origin cookie policy and the strict DM check remain required.
 a separate tab. It calls `POST /api/player-preview` with the current DM CSRF
 token and an empty body.
 The response is `player-preview.v1` with `token` and `expiresAt`; it never sets
-or rotates a cookie. The existing view-as API remains available for deliberate
-session-wide transitions; the sidebar shows **View as DM** only to return an
-already-switched session to DM.
+or rotates a cookie. There is no session-wide switch to the player view.
 
 Preview sessions have independent player/player authority and CSRF tokens.
 They can perform ordinary player actions, including permitted player edits;
 they cannot sign in, become DM, create previews, or use administration APIs.
 There are at most eight active previews per issuing DM session, within the
 ordinary session capacity. They expire after one hour or the parent session's
-expiry, whichever comes first. Revoking or rotating the parent also invalidates
+expiry, whichever comes first. Revoking the parent also invalidates
 its previews. Closing a preview through its button revokes only that preview.
 Closing the browser tab directly leaves its credential to expire normally.
 
@@ -152,7 +146,7 @@ boundary removes that parameter before ordinary query validation; canonical
 stored media URLs never contain credentials. Preview logout never clears the
 shared cookie. Request diagnostics record paths, not token-bearing queries.
 
-Tests cover independent authority, parent expiry/rotation/revocation, bounded
+Tests cover independent authority, parent expiry/revocation, bounded
 capacity, concurrency, invalid-token fallback, protected routes and stream
 revocation. Installed-host browser tests cover desktop/phone popups, reload,
 same-site navigation, public live updates and media, hidden media refusal,
@@ -231,7 +225,7 @@ When the previous role is no longer available, an English/Czech sign-in form
 appears in the current page using the shared field, button and status styles.
 Core editors and unchanged add-on contributions remain mounted with their
 original values, revision bases and pending requests. Reauthentication must
-restore the same real/effective role; wrong credentials or a different role
+restore the same role; wrong credentials or a different role
 leave the draft and recovery form intact. A successful sign-in refreshes campaign
 data and renews the CSRF token used by existing host-issued data/service clients.
 It announces recovery and returns keyboard focus to the campaign content.

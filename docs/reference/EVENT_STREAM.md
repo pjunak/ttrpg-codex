@@ -46,7 +46,7 @@ Authenticated streams re-check their session after the initial cursor/replay
 read, before each replayed or live publication, and before each heartbeat.
 They also check immediately after initial output, so revocation during its
 flush closes the stream without waiting for the next notification or heartbeat.
-Password changes, logout, expiry or role rotation close the old connection;
+Password changes, logout or expiry close the old connection;
 an ordinary reconnect resolves its current authority again.
 
 The browser accepts publications and connection errors only from its current

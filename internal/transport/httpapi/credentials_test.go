@@ -43,8 +43,4 @@ func TestPasswordRoutesRequireDMReviewAndNeverReturnSecrets(t *testing.T) {
 	if _, ok := service.Resolve(dm.Token); !ok {
 		t.Fatal("reviewing session was lost")
 	}
-	projected, _ := service.SwitchRole(dm.Token, "player")
-	if result := serveAuthRequest(handler, http.MethodGet, "/api/passwords", "", "edit_session="+projected.Token, ""); result.Code != http.StatusForbidden {
-		t.Fatal("DM in player projection read password status")
-	}
 }

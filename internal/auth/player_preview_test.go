@@ -32,9 +32,6 @@ func TestPlayerPreviewKeepsDMAndBindsPlayerLifetime(t *testing.T) {
 	if _, ok := service.InspectPlayerPreview(dm.Token); ok {
 		t.Fatal("ordinary DM token accepted as preview")
 	}
-	if _, err := service.SwitchRole(preview.Token, RoleDM); !errors.Is(err, ErrRoleTransition) {
-		t.Fatal("preview became DM")
-	}
 	if _, err := service.CreatePlayerPreview(preview.Token); !errors.Is(err, ErrRoleTransition) {
 		t.Fatal("preview created another preview")
 	}
@@ -47,9 +44,9 @@ func TestPlayerPreviewKeepsDMAndBindsPlayerLifetime(t *testing.T) {
 	}
 }
 
-func TestPlayerPreviewRevocationRotationCapacityAndShortParent(t *testing.T) {
+func TestPlayerPreviewRevocationCapacityAndShortParent(t *testing.T) {
 	t.Parallel()
-	for _, transition := range []string{"revoke-preview", "revoke-parent", "rotate-parent", "expire-parent"} {
+	for _, transition := range []string{"revoke-preview", "revoke-parent", "expire-parent"} {
 		t.Run(transition, func(t *testing.T) {
 			now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
 			service, _ := New(Config{DMPassword: "dragon-master", SessionTTL: 5 * time.Minute, Now: func() time.Time { return now }})
@@ -63,10 +60,6 @@ func TestPlayerPreviewRevocationRotationCapacityAndShortParent(t *testing.T) {
 				service.Revoke(preview.Token)
 			case "revoke-parent":
 				service.Revoke(dm.Token)
-			case "rotate-parent":
-				if _, err := service.SwitchRole(dm.Token, RolePlayer); err != nil {
-					t.Fatal(err)
-				}
 			case "expire-parent":
 				now = now.Add(5 * time.Minute)
 			}
