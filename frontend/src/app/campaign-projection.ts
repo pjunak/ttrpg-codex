@@ -16,7 +16,6 @@ import {
   type CampaignPartyIdentity,
 } from "./campaign-party.js";
 import { campaignMarkdownText } from "./campaign-markdown.js";
-import { currentUiLocale } from "./ui-localization.js";
 
 export interface CampaignIdentity {
   readonly name: string;
@@ -240,7 +239,7 @@ export function projectDashboard(dataset: CampaignDataset): DashboardModel {
   const allCompanions = entitiesFor(dataset, "companions");
   const party = characters
     .filter((character) => character.raw["faction"] === "party")
-    .sort((left, right) => left.name.localeCompare(right.name, currentUiLocale()));
+    .sort((left, right) => left.name.localeCompare(right.name, "cs"));
   const partyKeys = new Set(
     campaignCollection(dataset, "characters")
       .records.filter((record) => recordValue(record)["faction"] === "party")
