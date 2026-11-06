@@ -30,7 +30,8 @@ import {
   type CampaignAppearanceSaveDetail,
   type CampaignThemeID,
 } from "./campaign-appearance.js";
-import { UiLocalizationController, availableUiLocales } from "./ui-localization.js";
+import { UiLocalizationController } from "./ui-localization.js";
+import "./codex-language-settings.js";
 import "./codex-map-settings.js";
 import "./codex-party-settings.js";
 import "./codex-branding-settings.js";
@@ -393,28 +394,8 @@ export class CodexSettings extends LitElement {
   }
 
   #languagePanel() {
-    return html`
-      <section class="settings-ledger settings-personal-panel" aria-labelledby="settings-language-title">
-        <header class="settings-ledger-heading">
-          <div>
-            <span class="settings-category-mark" aria-hidden="true">文</span>
-            <div>
-              <h2 id="settings-language-title">${this.#ui.t("settings.language")}</h2>
-              <p>${this.#ui.t("settings.languageIntro")}</p>
-            </div>
-          </div>
-        </header>
-        <label class="settings-preference-field">
-          <span>${this.#ui.t("settings.languageLabel")}</span>
-          <select @change=${this.#changeLocale}>
-            ${availableUiLocales.map(
-              (locale) => html`
-              <option value=${locale.id} ?selected=${locale.id === this.#ui.locale}>${locale.endonym}</option>`,
-            )}
-          </select>
-        </label>
-        <p class="settings-progress-note">${this.#ui.t("settings.languageProgress")}</p>
-      </section>`;
+    return html`<codex-language-settings .campaign=${this.campaign} ?canManage=${this.canManageCampaign}
+      ?busy=${this.busy}></codex-language-settings>`;
   }
 
   #appearancePanel() {
@@ -751,11 +732,6 @@ export class CodexSettings extends LitElement {
 
   readonly #markDirty = (): void => {
     this.#setDirty(true);
-  };
-
-  readonly #changeLocale = (event: Event): void => {
-    const locale = (event.currentTarget as HTMLSelectElement).value;
-    if (locale === "en" || locale === "cs") this.#ui.setLocale(locale);
   };
 
   #addStarter(category: CampaignEnumCategory, expectedRevision: number): void {

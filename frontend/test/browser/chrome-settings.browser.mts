@@ -105,6 +105,8 @@ async function fixture(
     failUpload = false,
     addon = false,
     malformed = false,
+    followSite = false,
+    language = undefined as Record<string, unknown> | undefined,
   } = {},
 ) {
   campaign = structuredClone(visualCampaign);
@@ -117,6 +119,7 @@ async function fixture(
         : { title: "Asurai", subtitle: "World atlas", logoUrl: "", extension: { keep: true } },
     },
     { key: "sidebarLayout", revision: 4, value: malformed ? [] : structuredClone(originalLayout) },
+    ...(language === undefined ? [] : [{ key: "language", revision: 1, value: language }]),
   ];
   const context = await browser.newContext({
     viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
@@ -125,7 +128,8 @@ async function fixture(
     extraHTTPHeaders: { "x-fixture-role": role, "x-fixture-addon": String(addon) },
   });
   t.after(() => context.close());
-  await context.addInitScript((locale) => localStorage.setItem("codex_lang", locale), locale);
+  if (!followSite)
+    await context.addInitScript((locale) => localStorage.setItem("codex_lang", locale), locale);
   const page = await context.newPage();
   page.setDefaultTimeout(7000);
   const writes: FixtureMutation[][] = [],
@@ -470,6 +474,74 @@ void test("settings categories are linkable, and phones open a category list wit
   await page.goBack();
   await page.locator("codex-sidebar-settings").waitFor();
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+});
+
+for (const mobile of [false, true])
+  void test(`site languages reach browsers that follow them while a personal choice wins (${mobile ? "phone" : "desktop"})`, async (t) => {
+    const { page, writes } = await fixture(t, { mobile, followSite: true });
+    await openCategory(page, "language");
+    const personal = page.locator(".settings-preference-field select");
+    assert.equal(await personal.inputValue(), "");
+    assert.deepEqual(await personal.locator("option").allTextContents(), [
+      "Follow the site (English)",
+      "English",
+      "Čeština",
+    ]);
+    const form = page.locator(".settings-site-languages");
+    await form.locator(".settings-site-default select").selectOption("cs");
+    await form.getByRole("button", { name: "Save site languages", exact: true }).click();
+    await saved(page, "language", 1);
+    assert.deepEqual(writes.at(-1), [
+      {
+        operation: "put",
+        collection: "settings",
+        key: "language",
+        expectedRevision: 0,
+        value: { defaultLocale: "cs", enabledLocales: ["en", "cs"] },
+      },
+    ]);
+    await page.waitForFunction(() => document.documentElement.lang === "cs");
+    await page.locator("#settings-language-title", { hasText: "Jazyk" }).waitFor();
+    assert.equal(await form.getByRole("status").textContent(), "Jazyky webu jsou uložené.");
+    assert.equal(
+      await form.locator('input[value="en"]').isDisabled(),
+      true,
+      "English stays enabled",
+    );
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({
+      path: `${output}/language-${mobile ? "phone" : "desktop"}.png`,
+      fullPage: true,
+    });
+    await personal.selectOption("en");
+    await page.waitForFunction(() => document.documentElement.lang === "en");
+    assert.equal(await page.evaluate(() => localStorage.getItem("codex_lang")), "en");
+    await personal.selectOption("");
+    await page.waitForFunction(() => document.documentElement.lang === "cs");
+    assert.equal(await page.evaluate(() => localStorage.getItem("codex_lang")), null);
+  });
+
+void test("players follow site language changes live and see only their own choice", async (t) => {
+  const { page } = await fixture(t, {
+    role: "player",
+    followSite: true,
+    language: { defaultLocale: "cs", enabledLocales: ["en", "cs"] },
+  });
+  await page.waitForFunction(() => document.documentElement.lang === "cs");
+  await openCategory(page, "language");
+  await page.locator(".settings-preference-field select").waitFor();
+  assert.equal(await page.locator(".settings-site-languages").count(), 0);
+  await publish(page, () => {
+    const record = setting("language");
+    record.revision = 2;
+    record.value = { defaultLocale: "en", enabledLocales: ["en"] };
+  });
+  await page.waitForFunction(() => document.documentElement.lang === "en");
+  assert.deepEqual(
+    await page.locator(".settings-preference-field select option").allTextContents(),
+    ["Follow the site (English)", "English"],
+  );
 });
 
 void test("add-on sidebar pages show by default and hide without disabling their route", async (t) => {

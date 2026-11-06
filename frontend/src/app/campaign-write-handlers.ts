@@ -16,6 +16,7 @@ import {
   prepareCampaignAppearanceSave,
 } from "./campaign-appearance.js";
 import { BrandingEditError, prepareBrandingSave } from "./campaign-branding.js";
+import { CampaignLanguageEditError, prepareCampaignLanguageSave } from "./campaign-language.js";
 import { CampaignIdentityEditError, prepareCampaignIdentitySave } from "./campaign-identity.js";
 import {
   CampaignMapEditError,
@@ -293,6 +294,31 @@ export const campaignWriteHandlers: CampaignWriteHandlers = {
           true,
         );
       return failed(uiText("Appearance could not be saved: {0}", { "0": uiRequestError(cause) }));
+    },
+  },
+  language: {
+    manage: () => true,
+    async write(context, detail) {
+      return {
+        results: await context.commit([prepareCampaignLanguageSave(context.campaign, detail)]),
+      };
+    },
+    failure(cause) {
+      if (cause instanceof CampaignLanguageEditError)
+        return cause.kind === "stale"
+          ? failed(
+              uiText("Site languages changed elsewhere. Review the current choice and save again."),
+              true,
+            )
+          : failed(uiText("The site language setting is invalid."));
+      if (conflictResponse(cause))
+        return failed(
+          uiText("Site languages changed while saving. Review the current choice and try again."),
+          true,
+        );
+      return failed(
+        uiText("Site languages could not be saved: {0}", { "0": uiRequestError(cause) }),
+      );
     },
   },
   party: {

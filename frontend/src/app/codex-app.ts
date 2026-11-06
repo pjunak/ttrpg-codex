@@ -8,6 +8,7 @@ import { isRecord } from "../core/boundary.js";
 import { LitElement, html, nothing } from "lit";
 import { CampaignController, type CampaignState } from "./campaign-controller.js";
 import { applyCampaignTheme } from "./campaign-appearance.js";
+import { applyCampaignLanguages } from "./campaign-language.js";
 import { isPlayerPreview, previewResourceURL } from "../core/player-preview.js";
 import { contributionLabel } from "../addons/contribution-label.js";
 import { listBrowserNavigation } from "../addons/navigation.js";
@@ -85,6 +86,7 @@ export class CodexApp extends LitElement {
     },
     apply: (campaign) => {
       applyCampaignTheme(campaign);
+      applyCampaignLanguages(campaign);
       applyBrandingFavicon(campaignBranding(campaign));
     },
     accepted: () => this.#addons.campaignShown(),

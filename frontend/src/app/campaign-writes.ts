@@ -6,6 +6,7 @@ import type {
 import type { CampaignAppearanceSaveDetail } from "./campaign-appearance.js";
 import type { BrandingSaveDetail } from "./campaign-branding.js";
 import type { CampaignIdentitySaveDetail } from "./campaign-identity.js";
+import type { CampaignLanguageSaveDetail } from "./campaign-language.js";
 import type { MapSaveDetail, MapUploadDetail } from "./campaign-map.js";
 import type { CampaignPartySaveDetail } from "./campaign-party.js";
 import type {
@@ -30,6 +31,7 @@ export interface CampaignWrites {
   readonly "enum-starter": CampaignEnumStarterDetail;
   readonly "enum-delete": CampaignEnumDeleteMutation;
   readonly appearance: CampaignAppearanceSaveDetail;
+  readonly language: CampaignLanguageSaveDetail;
   readonly party: CampaignPartySaveDetail;
   readonly branding: BrandingSaveDetail;
   readonly sidebar: SidebarSaveDetail;

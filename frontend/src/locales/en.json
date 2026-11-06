@@ -458,7 +458,11 @@
       "captured by": "captured by",
       "history": "history",
       "uncertain bond": "uncertain bond",
-      "negotiates": "negotiates"
+      "negotiates": "negotiates",
+      "Site languages changed elsewhere. Review the current choice and save again.": "Site languages changed elsewhere. Review the current choice and save again.",
+      "The site language setting is invalid.": "The site language setting is invalid.",
+      "Site languages changed while saving. Review the current choice and try again.": "Site languages changed while saving. Review the current choice and try again.",
+      "Site languages could not be saved: {0}": "Site languages could not be saved: {0}"
     },
     "record-workflow": {
       "browse.roster": "Characters shown",
@@ -932,7 +936,7 @@
       "settings.groupVocabulary": "Vocabulary",
       "settings.groupSystem": "Server",
       "settings.language": "Language",
-      "settings.languageIntro": "Choose the language used by this browser. It does not change campaign data or another player’s preference.",
+      "settings.languageIntro": "Choose the language this browser uses, or follow the site language the DM sets. It does not change campaign data or another player’s choice.",
       "settings.languageLabel": "Interface language",
       "settings.languageProgress": "Interface language applies to the campaign tools and first-party add-ons. Authored campaign text and reference content keep their original language.",
       "settings.appearance": "Appearance",
@@ -958,7 +962,15 @@
       "settings.partyInvalid": "The party settings are invalid. Check the name, symbol, and colors before saving.",
       "settings.partyStale": "The party settings changed. Your draft is kept; cancel to review the current values before saving.",
       "settings.partyFailed": "The party settings could not be saved. Your draft is kept; try again.",
-      "settings.saving": "Saving…"
+      "settings.saving": "Saving…",
+      "settings.languageFollowSite": "Follow the site ({language})",
+      "settings.siteLanguages": "Site languages",
+      "settings.siteLanguagesIntro": "Everyone who has not picked a language sees the default. Browsers can pick only enabled languages; English is always enabled.",
+      "settings.siteDefaultLanguage": "Default language",
+      "settings.siteEnabledLanguages": "Enabled languages",
+      "settings.languageAddonsOnly": "{language} · add-ons only",
+      "settings.siteLanguagesSave": "Save site languages",
+      "settings.siteLanguagesSaved": "Site languages saved."
     },
     "recovery": {
       "recovery.title": "Backup & recovery",
