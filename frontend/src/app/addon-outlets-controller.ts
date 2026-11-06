@@ -190,6 +190,9 @@ export class AddonOutletsController implements ReactiveController {
         });
         this.refresh();
       },
+      onCatalogError: (cause) => {
+        if (current()) browserDiagnostics.record("catalog", cause);
+      },
       onDiagnostic: (cause) => {
         if (!current()) return;
         browserDiagnostics.record("refresh", cause);
@@ -201,6 +204,7 @@ export class AddonOutletsController implements ReactiveController {
       },
       onAuthorityLost: () => {
         if (!current()) return;
+        composition.catalogs.dispose();
         this.#composition = undefined;
         this.#disposeOutlets();
         this.#set({ state: "idle" });
@@ -241,6 +245,7 @@ export class AddonOutletsController implements ReactiveController {
     const stopping = composition.session.stop();
     this.#cleanup = (async () => {
       const failures = await stopping;
+      composition.catalogs.dispose();
       for (const failure of failures) browserDiagnostics.record("disposal", failure);
       if (owner === this.#owner && failures.length > 0)
         this.#options.cleanupFailed(

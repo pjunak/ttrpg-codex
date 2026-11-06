@@ -13,6 +13,8 @@ import type { BrowserServiceAPI } from "./service-client.js";
 import { BrowserContributionEdits } from "./edit-state.js";
 import { showRuleDetails, type RuleDetails } from "./rule-details.js";
 import { enhanceControls, type UIControlsHandle } from "../ui/controls.js";
+import { BrowserCatalogStore } from "./catalog-store.js";
+import { createI18nAPI, type BrowserI18nAPI } from "./i18n.js";
 
 const customElementPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/;
 
@@ -82,6 +84,8 @@ export interface BrowserAddonContext {
   readonly content: BrowserContentAPI;
   readonly services: BrowserServiceAPI;
   readonly ui: BrowserUIAPI;
+  /** Requires ui.i18n. */
+  readonly i18n: BrowserI18nAPI;
 }
 
 export interface ActiveBrowserContribution {
@@ -140,7 +144,10 @@ export class BrowserContributionRegistry {
     createDataAPI: BrowserDataAPIFactory = () => unavailableDataAPI(),
     createContentAPI: BrowserContentAPIFactory = () => unavailableContentAPI(),
     createServiceAPI: BrowserServiceAPIFactory = () => unavailableServiceAPI(),
+    /** Every active add-on's message catalogs; labels and add-on texts translate through it. */
+    readonly catalogs: BrowserCatalogStore = new BrowserCatalogStore(),
   ) {
+    catalogs.subscribe(() => this.#changed());
     this.#onObserverError = onObserverError;
     this.#createDataAPI = createDataAPI;
     this.#createContentAPI = createContentAPI;
@@ -155,6 +162,7 @@ export class BrowserContributionRegistry {
       this.#createDataAPI(descriptor, scope.signal),
       this.#createContentAPI(descriptor, scope.signal),
       this.#createServiceAPI(descriptor, scope.signal),
+      this.catalogs,
       () => this.#changed(),
     );
     const releaseFallback = scope.add("browser SDK session", () => session.dispose());
@@ -234,6 +242,7 @@ class RegistrySession {
     data: BrowserDataAPI,
     content: BrowserContentAPI,
     services: BrowserServiceAPI,
+    catalogs: BrowserCatalogStore,
     changed: BrowserContributionListener,
   ) {
     this.#global = global;
@@ -298,6 +307,10 @@ class RegistrySession {
         },
         bind: (contributionId: string, binding: BrowserContributionBinding) =>
           this.#bind(contributionId, binding),
+      }),
+      i18n: createI18nAPI(catalogs, descriptor.addonId, signal, () => {
+        this.#assertOpen();
+        this.context.capabilities.require("ui.i18n");
       }),
     });
   }

@@ -1,6 +1,6 @@
 import type { ActiveBrowserContribution, BrowserContributionRegistry } from "./browser-sdk.js";
 import type { BrowserRole } from "./generation-manager.js";
-import { contributionLabel } from "./contribution-label.js";
+import { activeContributionLabel } from "./contribution-label.js";
 
 export interface BrowserNavigationEntry {
   readonly addonId: string;
@@ -112,7 +112,7 @@ export function listBrowserNavigation(
         addonId: active.addonId,
         generationId: active.generationId,
         contributionId: active.descriptor.id,
-        label: contributionLabel(active.descriptor, locale),
+        label: activeContributionLabel(active, locale, registry.catalogs),
         routeContributionId,
         hash: browserAddonRouteHash(route),
       }),

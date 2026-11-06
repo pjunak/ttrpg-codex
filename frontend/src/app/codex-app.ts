@@ -10,7 +10,7 @@ import { CampaignController, type CampaignState } from "./campaign-controller.js
 import { applyCampaignTheme } from "./campaign-appearance.js";
 import { applyCampaignLanguages } from "./campaign-language.js";
 import { isPlayerPreview, previewResourceURL } from "../core/player-preview.js";
-import { contributionLabel } from "../addons/contribution-label.js";
+import { activeContributionLabel } from "../addons/contribution-label.js";
 import { listBrowserNavigation } from "../addons/navigation.js";
 import { applyBrandingFavicon, campaignBranding, defaultLogo } from "./campaign-branding.js";
 import { parseAppRoute, canonicalAppHash, type AppRoute } from "./routes.js";
@@ -368,7 +368,11 @@ export class CodexApp extends LitElement {
       : [];
     const addonLabel =
       contributions.length === 1
-        ? contributionLabel(contributions[0]!.descriptor, this.#ui.locale)
+        ? activeContributionLabel(
+            contributions[0]!,
+            this.#ui.locale,
+            this.#addons.contributions?.catalogs,
+          )
         : this.#ui.t("shell.recordAddons");
     return html`<nav class="character-view-tabs record-tabs" role="tablist" aria-label=${uiText("Character view")}>
       ${(["profile", "addons"] as const).map(

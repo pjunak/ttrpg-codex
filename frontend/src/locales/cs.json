@@ -881,7 +881,8 @@
       "diagnostics.phase.dependency": "Závislost",
       "diagnostics.phase.disposal": "Uvolnění prostředků",
       "diagnostics.phase.refresh": "Obnovení",
-      "diagnostics.phase.contribution": "Zobrazení"
+      "diagnostics.phase.contribution": "Zobrazení",
+      "diagnostics.phase.catalog": "Jazykový katalog"
     },
     "disable": {
       "disable.review": "Kontrola vypnutí",

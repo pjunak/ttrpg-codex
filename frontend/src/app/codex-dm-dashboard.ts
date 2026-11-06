@@ -2,7 +2,7 @@ import { LitElement, html, nothing } from "lit";
 import { BrowserContributionOutlet } from "../addons/contribution-outlet.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import { browserAddonRouteHash } from "../addons/navigation.js";
-import { contributionLabel } from "../addons/contribution-label.js";
+import { activeContributionLabel } from "../addons/contribution-label.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import { isRecord } from "../core/boundary.js";
 import { campaignPages, collectionHash } from "./routes.js";
@@ -138,7 +138,7 @@ export class CodexDmDashboard extends LitElement {
         <h2 id="dm-tools-title">${this.#ui.t("dm.tools")}</h2>
         <nav class="dm-grid" aria-label=${this.#ui.t("dm.tools")}>${routes.map(
           (active) => html`
-          <a class="dm-count-card" href=${browserAddonRouteHash(active)}><strong>${contributionLabel(active.descriptor, this.#ui.locale)}</strong><span class="dm-count-meta">${active.addonId}</span></a>
+          <a class="dm-count-card" href=${browserAddonRouteHash(active)}><strong>${activeContributionLabel(active, this.#ui.locale, this.registry?.catalogs)}</strong><span class="dm-count-meta">${active.addonId}</span></a>
         `,
         )}</nav>
       </section>`;

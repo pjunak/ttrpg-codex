@@ -8,7 +8,7 @@ import type {
   BrowserContributionEditHandle,
   BrowserContributionEditRegistration,
 } from "./edit-state.js";
-import { contributionLabel } from "./contribution-label.js";
+import { activeContributionLabel } from "./contribution-label.js";
 import { uiTextIn } from "../app/ui-localization.js";
 
 export interface BrowserContributionElementContext {
@@ -136,7 +136,7 @@ export class BrowserContributionOutlet {
       }
       try {
         const context = this.#hostContext(active);
-        const label = contributionLabel(active.descriptor, this.#locale());
+        const label = activeContributionLabel(active, this.#locale(), this.#registry.catalogs);
         mounted.wrapper.setAttribute("aria-label", label);
         mounted.label.textContent = label;
         mounted.element.codexContribution = contributionContext(
@@ -165,7 +165,7 @@ export class BrowserContributionOutlet {
         notice.dataset["uiState"] = "unavailable";
         notice.setAttribute("role", "status");
         notice.textContent =
-          contributionLabel(handoff.active.descriptor, locale) +
+          activeContributionLabel(handoff.active, locale, this.#registry.catalogs) +
           ": " +
           uiTextIn(locale, "recordAddons.pendingRestart");
         ordered.push(notice);

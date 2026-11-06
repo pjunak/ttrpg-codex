@@ -3,7 +3,7 @@ import { BoundaryValidationError, isRecord } from "../core/boundary.js";
 import { HostRequestError } from "../core/api.js";
 
 export type BrowserDiagnosticPhase =
-  "activation" | "dependency" | "disposal" | "refresh" | "contribution";
+  "activation" | "dependency" | "disposal" | "refresh" | "contribution" | "catalog";
 export interface BrowserDiagnostic {
   readonly reference: string;
   readonly at: string;

@@ -271,7 +271,7 @@ func composeHost(
 		RuntimeFactory: runtimeFactory,
 		HostVersion:    version.Host, AddonAPIVersion: addonAPIVersion,
 		WorkerProtocolVersion: workerProtocolVersion,
-		AvailableCapabilities: []string{"data.transactions", "ui.contributions", "ui.controls.v1", "ui.markdown", "ui.markdown-editor", "ui.rule-details", "services.own", "worker.native"},
+		AvailableCapabilities: []string{"data.transactions", "ui.contributions", "ui.controls.v1", "ui.i18n", "ui.markdown", "ui.markdown-editor", "ui.rule-details", "services.own", "worker.native"},
 		EventPublisher:        eventBroker, Logger: logger,
 		Monitoring: &packagemanager.MonitoringConfig{},
 	})

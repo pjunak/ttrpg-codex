@@ -878,7 +878,8 @@
       "diagnostics.phase.dependency": "Dependency",
       "diagnostics.phase.disposal": "Cleanup",
       "diagnostics.phase.refresh": "Refresh",
-      "diagnostics.phase.contribution": "View"
+      "diagnostics.phase.contribution": "View",
+      "diagnostics.phase.catalog": "Language catalog"
     },
     "disable": {
       "disable.review": "Review disable",
