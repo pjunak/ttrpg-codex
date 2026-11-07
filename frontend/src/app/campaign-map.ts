@@ -133,6 +133,14 @@ const defaultSizes: Readonly<Record<string, number>> = Object.freeze({
   custom: 26,
 });
 
+/** The marker icons the host ships, by ID. */
+export const bundledMarkerIcons: readonly string[] = Object.freeze(Object.keys(defaultSizes));
+
+/** The URL of a bundled marker icon, or undefined when the host ships none by that ID. */
+export function bundledMarkerIcon(id: string): string | undefined {
+  return Object.hasOwn(defaultSizes, id) ? `/icons-defaults/${id}.svg` : undefined;
+}
+
 export function mapLocationRecord(
   campaign: CampaignDataset,
   key: string,
@@ -208,8 +216,7 @@ function markerFor(
       files[definition.iconConfig["strategy"] === "random" ? hash(key) % files.length : 0];
     icon = safeMediaURL(selected?.["url"]) ?? "";
   }
-  const bundled = text(definition?.defaultIconId) || type;
-  if (icon === "" && Object.hasOwn(defaultSizes, bundled)) icon = `/icons-defaults/${bundled}.svg`;
+  if (icon === "") icon = bundledMarkerIcon(text(definition?.defaultIconId) || type) ?? "";
   return {
     markerIcon: icon,
     markerGlyph: text(definition?.icon) || "📍",

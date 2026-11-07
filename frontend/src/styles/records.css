@@ -418,7 +418,7 @@ codex-record-twins {
   -webkit-line-clamp: 2;
 }
 
-.record-row-copy > .record-status {
+:is(.record-row-copy, .settings-preview) > .record-status {
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
@@ -672,19 +672,21 @@ codex-record-twins {
   text-transform: none;
 }
 
-/* A colour's picker swatch sits before its hex code. */
-.record-editor .color-field-row {
+/* A colour's picker swatch sits before its hex code, in record and settings forms. */
+.color-field-row {
   display: flex;
   gap: var(--space-2);
 }
-.record-editor input.color-field-picker {
+.color-field-row > input.color-field-picker {
   order: -1;
   flex: none;
   width: 3.25rem;
   padding: 0.25rem;
   cursor: pointer;
 }
-.record-editor input.color-field-code {
+.color-field-row > input.color-field-code {
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-mono);
 }
 
@@ -694,7 +696,7 @@ codex-record-twins {
   gap: var(--space-1);
   align-content: start;
 }
-.record-editor input.icon-field-input {
+.icon-field input.icon-field-input {
   font-size: var(--text-lg);
 }
 .icon-field-choices > summary {

@@ -82,9 +82,7 @@ export const campaignEnumDescriptors: readonly CampaignEnumDescriptor[] = Object
           Object.freeze({ value: "location", label: "Location" }),
         ]),
       }),
-      field("dirs", "Allowed directions", "directions", true, {
-        help: "Location relationships always point from the character to the location.",
-      }),
+      field("dirs", "Allowed directions", "directions", true),
     ],
   ),
   descriptor(
@@ -103,8 +101,8 @@ export const campaignEnumDescriptors: readonly CampaignEnumDescriptor[] = Object
     "Marker types a location can show on the map.",
     [
       field("label", "Display name", "text", true),
-      field("defaultIconId", "Bundled icon ID", "text", false, {
-        help: "Leave blank to use the marker type ID.",
+      field("defaultIconId", "Marker icon", "text", false, {
+        help: "The first choice uses the bundled icon named like this marker type's ID, if there is one.",
       }),
       field("size", "Default size", "integer", true, { minimum: 8, maximum: 256 }),
     ],

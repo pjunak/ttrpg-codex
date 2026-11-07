@@ -1,4 +1,3 @@
-import { cssHexColor } from "./campaign-projection.js";
 import { formText, formTextValues } from "../core/forms.js";
 import { uiText } from "./ui-localization.js";
 import { LitElement, html, nothing } from "lit";
@@ -20,6 +19,14 @@ import {
   type CampaignSettingField,
 } from "./campaign-settings.js";
 import { saveCampaign, type CampaignWriteKind, type CampaignWrites } from "./campaign-writes.js";
+import { bundledMarkerIcon, bundledMarkerIcons } from "./campaign-map.js";
+import {
+  choicesControl,
+  colorControl,
+  fewShortChoices,
+  iconControl,
+} from "./record-field-controls.js";
+import { definitionMark, definitionPreview } from "./settings-definition-preview.js";
 import { saveFailure } from "./save-failure.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 import { UiLocalizationController } from "./ui-localization.js";
@@ -124,6 +131,8 @@ export class CodexSettings extends LitElement {
   #dirty = false;
   #credentialsSaving = false;
   #editCampaign: CampaignDataset | undefined;
+  /** The open definition form's values as edited, for its preview. */
+  #draft: Readonly<Record<string, unknown>> | undefined;
   #addonSettingsShown = false;
 
   constructor() {
@@ -401,15 +410,14 @@ export class CodexSettings extends LitElement {
       descriptor.category,
       item.id,
     );
-    const color = firstColor(item.value);
+    const mark = definitionMark(descriptor.category, item.id, item.value);
     return html`
       <article class="settings-definition">
         <div class="settings-definition-identity">
           ${
-            color === undefined
+            mark === undefined
               ? html`<span class="settings-definition-glyph" aria-hidden="true">${itemIcon(item)}</span>`
-              : html`
-            <span class="settings-definition-swatch" style=${`--setting-color: ${color}`} aria-hidden="true"></span>`
+              : html`<span class="settings-definition-mark settings-preview">${mark}</span>`
           }
           <div><h3>${item.label || item.id}</h3><code>${item.id}</code></div>
         </div>
@@ -426,9 +434,11 @@ export class CodexSettings extends LitElement {
 
   #editForm(item: CampaignEnumItem | undefined, expectedRevision: number) {
     const descriptor = campaignEnumDescriptor(this.#activeEnumCategory());
-    const values = item?.value ?? newItemDefaults(descriptor.category);
+    const values = this.#draft ?? item?.value ?? newItemDefaults(descriptor.category);
+    const id = item?.id ?? text(values["id"]).trim();
+    const preview = definitionPreview(descriptor.category, id, values);
     return html`
-      <form class="settings-edit-form" @submit=${this.#save} @input=${this.#markDirty}>
+      <form class="settings-edit-form" @submit=${this.#save} @input=${this.#edited}>
         <header>
           <div>
             <h3>${item === undefined ? uiText("New {0}", { "0": descriptor.singular }) : uiText("Edit {0}", { "0": item.label || item.id })}</h3>
@@ -441,16 +451,26 @@ export class CodexSettings extends LitElement {
             }</p>
           </div>
         </header>
-        <div class="settings-edit-grid">
+        <div class="settings-edit-body">
+          <div class="settings-edit-grid">
+            ${
+              item === undefined
+                ? html`
+              <label><span>${uiText("Permanent ID")}</span><input name="id" maxlength="200" required
+                autocomplete="off" placeholder=${uiText("short-stable-id")} .value=${text(values["id"])} /></label>
+            `
+                : nothing
+            }
+            ${descriptor.fields.map((definition) => this.#settingField(definition, values, id))}
+          </div>
           ${
-            item === undefined
-              ? html`
-            <label><span>${uiText("Permanent ID")}</span><input name="id" maxlength="200" required
-              autocomplete="off" placeholder=${uiText("short-stable-id")} /></label>
-          `
-              : nothing
+            preview === nothing
+              ? nothing
+              : html`<aside class="settings-edit-preview" aria-label=${uiText("Preview")}>
+              <span class="settings-edit-preview-label">${uiText("Preview")}</span>
+              <div class="settings-preview">${preview}</div>
+            </aside>`
           }
-          ${descriptor.fields.map((definition) => this.#settingField(definition, values))}
         </div>
         ${saveFailure(this.writeError)}
         <div class="settings-edit-actions">
@@ -461,16 +481,40 @@ export class CodexSettings extends LitElement {
       </form>`;
   }
 
-  #settingField(definition: CampaignSettingField, values: Readonly<Record<string, unknown>>) {
+  #settingField(
+    definition: CampaignSettingField,
+    values: Readonly<Record<string, unknown>>,
+    id: string,
+  ) {
     const raw = values[definition.key];
+    const help = fieldHelp(definition);
+    const options = definition.options ?? [];
+    if (definition.kind === "select" && fewShortChoices(options))
+      return choicesControl(definition, options, text(raw), help, { optional: false });
+    if (definition.kind === "color")
+      return colorControl({ ...definition, pattern: hexColorPattern }, text(raw), help);
+    if (definition.key === "icon")
+      return iconControl({ ...definition, maximumLength: 16 }, text(raw), help, statusSymbols);
+    if (definition.key === "defaultIconId") return markerIconField(definition, text(raw), id);
+    if (definition.key === "strength") {
+      const strength = Number(inputValue(raw) || 1);
+      return html`<label class="settings-range-field"><span>${definition.label}</span>
+        <span class="settings-strength-row"><input name=${definition.key} type="range" min="0" max="1" step="0.05"
+          .value=${String(strength)} /><output>${Math.round(strength * 100)}%</output></span>${help}</label>`;
+    }
     if (definition.kind === "select")
       return html`
       <label><span>${definition.label}</span><select name=${definition.key} ?required=${definition.required === true}>
-        ${definition.options?.map(
+        ${options.map(
           (option) => html`
           <option value=${option.value} ?selected=${option.value === text(raw)}>${option.label}</option>`,
         )}
-      </select>${fieldHelp(definition)}</label>`;
+      </select>${help}</label>`;
+    if (definition.kind === "directions" && text(values["target"]) === "location")
+      return html`<div class="record-form-depends">
+        <input type="hidden" name=${definition.key} value="from" />
+        <p class="record-form-depends-why">↳ ${uiText("Because the target is a location, the relationship always points from the character to it.")}</p>
+      </div>`;
     if (definition.kind === "directions") {
       const selected = new Set(
         Array.isArray(raw)
@@ -483,22 +527,19 @@ export class CodexSettings extends LitElement {
             (option) => html`<label><input type="checkbox" name=${definition.key}
             value=${option.value} .checked=${selected.has(option.value)} /><span>${option.label}</span></label>`,
           )}
-          ${fieldHelp(definition)}
+          ${help}
         </fieldset>`;
     }
     const numeric = definition.kind === "integer" || definition.kind === "decimal";
-    const color = definition.kind === "color" ? cssHexColor(raw) : undefined;
     return html`
-      <label class=${definition.kind === "color" ? "settings-color-field" : ""}>
+      <label>
         <span>${definition.label}</span>
-        ${color === undefined ? nothing : html`<i style=${`--setting-color: ${color}`} aria-hidden="true"></i>`}
         <input name=${definition.key} type=${numeric ? "number" : "text"}
           step=${definition.kind === "decimal" ? "0.05" : definition.kind === "integer" ? "1" : nothing}
           min=${definition.minimum ?? nothing} max=${definition.maximum ?? nothing}
-          maxlength=${numeric ? nothing : definition.key === "icon" ? 16 : 200}
-          .value=${inputValue(raw)} ?required=${definition.required === true}
-          pattern=${definition.kind === "color" ? "#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?" : nothing} />
-        ${fieldHelp(definition)}
+          maxlength=${numeric ? nothing : 200}
+          .value=${inputValue(raw)} ?required=${definition.required === true} />
+        ${help}
       </label>`;
   }
 
@@ -572,6 +613,7 @@ export class CodexSettings extends LitElement {
 
   readonly #startCreate = (): void => {
     if (this.#locked || this.editingId !== null) return;
+    this.#draft = undefined;
     this.#editCampaign = this.campaign;
     this.deleteId = null;
     this.writeError = "";
@@ -580,6 +622,7 @@ export class CodexSettings extends LitElement {
 
   readonly #startEdit = (event: Event): void => {
     if (this.#locked || this.editingId !== null) return;
+    this.#draft = undefined;
     this.#editCampaign = this.campaign;
     this.deleteId = null;
     this.writeError = "";
@@ -690,8 +733,15 @@ export class CodexSettings extends LitElement {
     }
   };
 
-  readonly #markDirty = (): void => {
+  /** Keeps the edited values for the preview and marks the form changed. */
+  readonly #edited = (event: Event): void => {
+    const form = event.currentTarget as HTMLFormElement;
+    const data = new FormData(form);
+    const values: Record<string, unknown> = {};
+    for (const [key] of data) values[key] = key === "dirs" ? data.getAll(key) : data.get(key);
+    this.#draft = Object.freeze(values);
     this.#setDirty(true);
+    this.requestUpdate();
   };
 
   #addStarter(category: CampaignEnumCategory, expectedRevision: number): void {
@@ -797,17 +847,54 @@ function newItemDefaults(category: CampaignEnumCategory): Readonly<Record<string
   }
 }
 
-function firstColor(value: Readonly<Record<string, unknown>>): string | undefined {
-  for (const key of ["labelColor", "color", "bg"]) {
-    const color = cssHexColor(value[key]);
-    if (color !== undefined) return color;
-  }
-  return undefined;
+function itemIcon(item: CampaignEnumItem): string {
+  return (item.label || item.id)[0]?.toLocaleUpperCase() ?? "·";
 }
 
-function itemIcon(item: CampaignEnumItem): string {
-  const icon = text(item.value["icon"]);
-  return icon === "" ? ((item.label || item.id)[0]?.toLocaleUpperCase() ?? "·") : icon;
+const hexColorPattern = "#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?";
+
+/** Symbols that read well as a character's status; any other can be typed. */
+const statusSymbols: readonly string[] = Object.freeze([
+  "●",
+  "○",
+  "✝",
+  "☠",
+  "?",
+  "!",
+  "·",
+  "★",
+  "⚔",
+  "⛓",
+  "✚",
+  "❄",
+  "☾",
+  "⌛",
+  "♛",
+  "⚑",
+]);
+
+/**
+ * A marker type's bundled icon, picked from the icons the host ships. The
+ * first choice keeps the icon named like the marker type's ID; a stored ID
+ * the host does not ship stays selectable so a save keeps it.
+ */
+function markerIconField(definition: CampaignSettingField, selected: string, id: string) {
+  const choice = (value: string, icon: string | undefined, label: string) =>
+    html`<label class="marker-icon-choice" title=${label}>
+      <input type="radio" name=${definition.key} value=${value} .checked=${value === selected} />
+      ${icon === undefined ? html`<span aria-hidden="true">📍</span>` : html`<img src=${icon} alt="" />`}
+      <span>${label}</span>
+    </label>`;
+  const orphaned = selected !== "" && !bundledMarkerIcons.includes(selected);
+  return html`<fieldset class="marker-icon-field">
+      <legend>${definition.label}</legend>
+      <div class="marker-icon-grid">
+        ${choice("", bundledMarkerIcon(id), uiText("Same as its ID"))}
+        ${orphaned ? choice(selected, undefined, uiText("{0} (not in the list)", { "0": selected })) : nothing}
+        ${bundledMarkerIcons.map((icon) => choice(icon, bundledMarkerIcon(icon), icon.replaceAll("_", " ")))}
+      </div>
+      ${fieldHelp(definition)}
+    </fieldset>`;
 }
 
 function fieldHelp(field: CampaignSettingField) {

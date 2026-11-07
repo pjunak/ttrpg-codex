@@ -1,5 +1,6 @@
 import { uiText, UiLocalizationController } from "./ui-localization.js";
 import { LitElement, html, nothing } from "lit";
+import { live } from "lit/directives/live.js";
 import {
   campaignCollection,
   type CampaignDataset,
@@ -208,7 +209,7 @@ export class CampaignStructuredFieldEditor
               <div class="structured-row location-role-row">
                 <span class="structured-row-index" aria-hidden="true">${String(index + 1).padStart(2, "0")}</span>
                 <label><span>${uiText("Location")}</span><select data-row=${String(index)} data-part="locationId"
-                  @change=${this.#updateInput}>
+                  data-ui=${searchable(locations)} @change=${this.#updateInput}>
                   <option value="" ?selected=${row.locationId === ""}>${uiText("Choose a location")}</option>
                   ${locations.map(
                     (option) => html`<option value=${option.value}
@@ -448,8 +449,6 @@ export class CampaignRelationshipEditor
       setSelectValue(this, "type", row.type, index);
       setSelectValue(this, "direction", row.direction, index);
       setSelectValue(this, "target", row.target, index);
-      if (this.canManageVisibility)
-        setSelectValue(this, "visibility", row.visibility ?? "public", index);
     });
   }
 
@@ -507,7 +506,7 @@ export class CampaignRelationshipEditor
       <div class="structured-row relationship-row">
         <span class="relationship-source">${recordName(character)}</span>
         <label><span>${uiText("Relationship")}</span><select data-row=${String(index)} data-part="type"
-          @change=${this.#updateInput}>${types.map(
+          data-ui=${searchable(types)} @change=${this.#updateInput}>${types.map(
             (option) => html`
             <option value=${option.value} ?selected=${option.value === row.type}>${option.label}</option>`,
           )}</select></label>
@@ -517,16 +516,22 @@ export class CampaignRelationshipEditor
             <option value=${direction} ?selected=${direction === row.direction}>${relationshipDirectionLabel(direction)}</option>`,
           )}</select></label>
         <label><span>${uiText("Target")}</span><select data-row=${String(index)} data-part="target" required
-          @change=${this.#updateInput}><option value="" ?selected=${row.target === ""}>${uiText(type?.targetCollection === "locations" ? "Choose a location" : "Choose a character")}</option>
+          data-ui=${searchable(targets)} @change=${this.#updateInput}><option value="" ?selected=${row.target === ""}>${uiText(type?.targetCollection === "locations" ? "Choose a location" : "Choose a character")}</option>
           ${targets.map((option) => html`<option value=${option.value} ?selected=${option.value === row.target}>${option.label}</option>`)}</select></label>
         <label class="relationship-label"><span>${uiText("Custom label")}</span><input data-row=${String(index)} data-part="label" maxlength="500"
           .value=${row.label} placeholder=${type?.label ?? uiText("Relationship")} @input=${this.#updateInput} /></label>
         ${
           this.canManageVisibility
-            ? html`<label><span>${uiText("Visibility")}</span><select data-row=${String(index)} data-part="visibility"
-          @change=${this.#updateInput}><option value="public" ?selected=${row.visibility !== "dm"}>${uiText("Public")}</option>
-          <option value="dm" ?selected=${row.visibility === "dm"}>${uiText("DM only")}</option>
-        </select></label>`
+            ? html`<fieldset data-ui="choices" class="record-choices relationship-visibility">
+          <legend>${uiText("Visibility")}</legend>
+          ${(["public", "dm"] as const).map(
+            (
+              visibility,
+            ) => html`<label><input type="radio" name=${`relationship-${index}-visibility`}
+              value=${visibility} data-row=${String(index)} data-part="visibility"
+              .checked=${live((row.visibility ?? "public") === visibility)} @change=${this.#updateInput} />${uiText(visibility === "dm" ? "DM only" : "Public")}</label>`,
+          )}
+        </fieldset>`
             : nothing
         }
         ${removeButton(uiText("Remove relationship"), index, this.#removeRow)}
@@ -739,6 +744,11 @@ function textInput(
 
 function removeButton(label: string, row: number, handler: (event: Event) => void) {
   return html`<button class="structured-remove" type="button" data-row=${String(row)} @click=${handler}>${label}</button>`;
+}
+
+/** A row's list is searchable from twelve choices, like a record field's. */
+function searchable(options: readonly unknown[]) {
+  return options.length >= 12 ? "combobox" : nothing;
 }
 
 function setSelectValue(root: ParentNode, part: string, value: string, row?: number): void {

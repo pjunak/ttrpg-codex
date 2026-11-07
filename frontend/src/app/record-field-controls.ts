@@ -219,24 +219,37 @@ export function recordFieldControl(
     `;
 }
 
-/** "Not set" and up to four other choices, each short enough for a button. */
-function fewShortChoices(options: readonly CampaignEditorOption[]): boolean {
+/** What the shared field controls need to know about the field they edit. */
+export interface ControlField {
+  readonly key: string;
+  readonly label: string;
+  readonly maximumLength?: number | undefined;
+  readonly required?: boolean | undefined;
+  readonly pattern?: string | undefined;
+}
+
+/** Up to four choices, each short enough for a button. */
+export function fewShortChoices(options: readonly CampaignEditorOption[]): boolean {
   return options.length <= 4 && options.every(({ label }) => label.length <= 18);
 }
 
-/** A single choice from a few short options, as joined buttons over radios. */
-function choicesControl(
-  field: CampaignEditorField,
+/**
+ * A single choice from a few short options, as joined buttons over radios.
+ * An optional field starts with a "Not set" button.
+ */
+export function choicesControl(
+  field: ControlField,
   options: readonly CampaignEditorOption[],
   selected: string,
   help: TemplateResult | typeof nothing,
+  { optional = true }: { readonly optional?: boolean } = {},
 ) {
   const choice = (value: string, label: string) =>
     html`<label><input type="radio" name=${field.key} value=${value} .checked=${value === selected} />${label}</label>`;
-  const wide = options.length >= 3 ? " wide-field" : "";
-  return html`<fieldset data-ui="choices" data-ui-key=${field.key} class=${`record-choices${wide}`}>
+  const count = options.length + (optional ? 1 : 0);
+  return html`<fieldset data-ui="choices" data-ui-key=${field.key} class=${`record-choices${count >= 4 ? " wide-field" : ""}`}>
       <legend>${field.label}</legend>
-      ${choice("", uiText("Not set"))}
+      ${optional ? choice("", uiText("Not set")) : nothing}
       ${options.map((option) => choice(option.value, option.label))}
       ${help}
     </fieldset>`;
@@ -269,8 +282,8 @@ function pickerColor(value: string): string | undefined {
  * value, so an untouched field submits exactly what is stored, even when that
  * is empty or not a colour the picker can show.
  */
-function colorControl(
-  field: CampaignEditorField,
+export function colorControl(
+  field: ControlField,
   shown: string,
   help: TemplateResult | typeof nothing,
 ) {
@@ -286,8 +299,9 @@ function colorControl(
   return html`<label data-ui-field class="color-field">
       <span>${field.label}</span>
       <span class="color-field-row">
-        <input class="color-field-code" name=${field.key} maxlength=${field.maximumLength}
+        <input class="color-field-code" name=${field.key} maxlength=${field.maximumLength ?? nothing}
           .value=${shown} placeholder="#555555" spellcheck="false" autocomplete="off"
+          ?required=${field.required === true} pattern=${field.pattern ?? nothing}
           @input=${(event: Event) => sync(event, false)} />
         <input class="color-field-picker" type="color" aria-label=${uiText("Pick a colour")}
           .value=${pickerColor(shown) ?? "#555555"} @input=${(event: Event) => sync(event, true)} />
@@ -297,7 +311,7 @@ function colorControl(
 }
 
 /** Symbols that read well as a faction's mark; any other emoji or text can be typed. */
-const iconChoices = Object.freeze([
+export const factionIconChoices: readonly string[] = Object.freeze([
   "🛡",
   "⚔",
   "🗡",
@@ -333,10 +347,11 @@ const iconChoices = Object.freeze([
 ]);
 
 /** A short icon typed freely or chosen from a grid of common symbols. */
-function iconControl(
-  field: CampaignEditorField,
+export function iconControl(
+  field: ControlField,
   shown: string,
   help: TemplateResult | typeof nothing,
+  choices: readonly string[] = factionIconChoices,
 ) {
   const choose = (event: Event, icon: string): void => {
     const control = (event.currentTarget as HTMLElement).closest(".icon-field")!;
@@ -348,11 +363,11 @@ function iconControl(
   };
   return html`<div data-ui-field class="icon-field">
       <label><span>${field.label}</span>
-        <input class="icon-field-input" name=${field.key} maxlength=${field.maximumLength}
-          .value=${shown} autocomplete="off" /></label>
+        <input class="icon-field-input" name=${field.key} maxlength=${field.maximumLength ?? nothing}
+          .value=${shown} autocomplete="off" ?required=${field.required === true} /></label>
       <details class="icon-field-choices">
         <summary>${uiText("Choose an icon")}</summary>
-        <div class="icon-field-grid">${iconChoices.map(
+        <div class="icon-field-grid">${choices.map(
           (
             icon,
           ) => html`<button type="button" class="icon-field-choice" aria-label=${uiText("Use {0}", { "0": icon })}

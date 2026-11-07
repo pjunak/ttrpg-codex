@@ -291,6 +291,9 @@ domain) suggest the values other records already use. Fields a choice reveals
 sit in an indented "↳ Because …" group: a character's rank appears once the
 chosen faction has ranks, a party member's attitudes give way to a note, and a
 location's warning about map placement appears once its parent changes.
+Relationship and location-role rows follow the same convention: their lists
+become searchable from twelve choices, and a relationship's visibility is a
+pair of joined buttons.
 
 ## Local Markdown recovery
 

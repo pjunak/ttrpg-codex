@@ -1263,6 +1263,90 @@ void test("an empty vocabulary offers a starter set saved as one write", async (
   );
 });
 
+void test("a status definition picks its symbol and colour and previews them as edited", async (t) => {
+  const host = await campaign(t, {
+    settings: [
+      {
+        key: "characterStatuses",
+        value: [{ id: "alive", label: "Alive", icon: "●", color: "#4caf50" }],
+      },
+    ],
+  });
+  const { page } = await open(t, host, "/settings/character-statuses");
+  await editRecordOrDefinition(page);
+  const preview = page.locator(".settings-edit-preview");
+  await page.locator('[name="label"]').fill("Cursed");
+  await preview.getByText("Cursed", { exact: true }).waitFor();
+  await page.getByText("Choose an icon", { exact: true }).click();
+  await page.getByRole("button", { name: "Use ☠", exact: true }).click();
+  await page.locator(".color-field-code").fill("#7744aa");
+  await preview.locator(".definition-symbol").getByText("☠", { exact: true }).waitFor();
+  assert.equal(
+    await preview
+      .locator(".record-status")
+      .evaluate((chip) => (chip as HTMLElement).style.getPropertyValue("--status-color")),
+    "#7744aa",
+  );
+  await page.getByRole("button", { name: "Save definition", exact: true }).click();
+  await page.locator(".settings-edit-form").waitFor({ state: "detached" });
+  assert.deepEqual(await saved(host, "settings", "characterStatuses"), [
+    { id: "alive", label: "Cursed", icon: "☠", color: "#7744aa" },
+  ]);
+  await page.locator(".settings-definition .definition-symbol").getByText("☠").waitFor();
+});
+
+void test("relationship types pick their line style and target as joined buttons", async (t) => {
+  const ally = {
+    id: "ally",
+    label: "ally",
+    color: "#4caf50",
+    style: "solid",
+    target: "character",
+    dirs: ["from", "to", "both"],
+  };
+  const host = await campaign(t, { settings: [{ key: "relationshipTypes", value: [ally] }] });
+  const { page } = await open(t, host, "/settings/relationships");
+  await editRecordOrDefinition(page);
+  await page.getByRole("radio", { name: "Dashed", exact: true }).check();
+  await page.getByRole("radio", { name: "Location", exact: true }).check();
+  const line = page.locator(".settings-edit-preview .definition-relationship");
+  await line.getByText("Location", { exact: true }).waitFor();
+  await page.getByText(/always points from the character to it/u).waitFor();
+  assert.equal(await page.getByRole("checkbox").count(), 0, "a location type has one direction");
+  assert.match(required(await line.getAttribute("style")), /--line-style: dashed/u);
+  await page.getByRole("button", { name: "Save definition", exact: true }).click();
+  await page.locator(".settings-edit-form").waitFor({ state: "detached" });
+  assert.deepEqual(await saved(host, "settings", "relationshipTypes"), [
+    { ...ally, style: "dashed", target: "location", dirs: ["from"] },
+  ]);
+});
+
+void test("a map marker type picks its bundled icon by picture", async (t) => {
+  const host = await campaign(t, {
+    settings: [
+      { key: "pinTypes", value: [{ id: "keep", label: "Keep", defaultIconId: "", size: 30 }] },
+    ],
+  });
+  const { page } = await open(t, host, "/settings/map-markers");
+  await editRecordOrDefinition(page);
+  assert.equal(
+    await page.getByRole("radio", { name: "Same as its ID", exact: true }).isChecked(),
+    true,
+  );
+  await page.getByRole("radio", { name: "castle", exact: true }).check();
+  await page.waitForFunction(() =>
+    document
+      .querySelector(".settings-edit-preview img.definition-marker")
+      ?.getAttribute("src")
+      ?.endsWith("/castle.svg"),
+  );
+  await page.getByRole("button", { name: "Save definition", exact: true }).click();
+  await page.locator(".settings-edit-form").waitFor({ state: "detached" });
+  assert.deepEqual(await saved(host, "settings", "pinTypes"), [
+    { id: "keep", label: "Keep", defaultIconId: "castle", size: 30 },
+  ]);
+});
+
 void test("site theme choices save immediately against the current appearance revision", async (t) => {
   const host = await campaign(t, {
     settings: [{ key: "appearance", value: { theme: "classic" } }],
@@ -1300,6 +1384,37 @@ void test("saving an older character draft cannot delete a newly added relations
     .waitFor();
   assert.equal(writes.length, 0);
   assert.ok(await storedRecord(host, "relationships", link));
+});
+
+void test("relationship rows search long target lists and pick visibility as joined buttons", async (t) => {
+  const others = Array.from({ length: 12 }, (_, index) => ({
+    key: `npc${index}`,
+    value: { id: `npc${index}`, name: `Neighbour ${index}` },
+  }));
+  const ally = {
+    id: "ally",
+    label: "ally",
+    color: "#4caf50",
+    style: "solid",
+    target: "character",
+    dirs: ["from", "to", "both"],
+  };
+  const host = await campaign(t, {
+    characters: [character(), ...others],
+    settings: [{ key: "relationshipTypes", value: [ally] }],
+  });
+  const { page } = await open(t, host, "/characters/ryn");
+  await editRecordOrDefinition(page);
+  await page.getByRole("button", { name: "Add relationship", exact: true }).click();
+  const row = page.locator(".relationship-row");
+  const target = row.getByRole("combobox", { name: "Target", exact: true });
+  await target.fill("Neighbour 7");
+  await page.getByRole("option", { name: "Neighbour 7", exact: true }).click();
+  await row.getByRole("radio", { name: "DM only", exact: true }).check();
+  await page.getByRole("button", { name: "Save entry", exact: true }).click();
+  await page.locator(".record-save-confirmation").waitFor();
+  const link = await storedRecord(host, "relationships", relationshipKey("ryn", "npc7", "ally"));
+  assert.equal((required(link).value as { visibility?: string }).visibility, "dm");
 });
 
 void test("unrelated live changes allow saving and reopening loads the latest record", async (t) => {

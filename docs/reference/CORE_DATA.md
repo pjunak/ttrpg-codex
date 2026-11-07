@@ -294,6 +294,17 @@ priority editors consume the shared definitions. Deletion uses the explicit Go
 operation above, shows current usage, and requires an intentional reject,
 replacement, or clear policy rather than creating dangling stored IDs.
 
+Each definition's form uses the record form's controls: colours have a picker
+beside the hex code, a status symbol has a grid of common symbols, short
+choices such as line style and target are joined buttons, a marker type picks
+its bundled icon by picture, and glow strength is a slider. A location
+relationship type shows a note instead of direction checkboxes, because it
+always points from the character. Beside the fields a preview shows the
+definition as the campaign draws it (a relationship line, status chip and
+symbol, priority flag, attitude badge and glow, or map marker) and follows
+every change; the list shows the same mark for each definition.
+`settings-definition-preview.ts` draws both.
+
 The site theme and site languages are shared campaign settings changed by the
 DM through the normal optimistic settings transaction: `settings/appearance`
 holds the default `theme` and `settings/language` holds `defaultLocale` and
