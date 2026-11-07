@@ -602,13 +602,14 @@ codex-record-twins {
   margin-top: 1.3rem;
 }
 
-.record-editor label {
+.record-editor label:not(:where([data-ui="choices"] > label)) {
   display: grid;
   gap: var(--space-1);
   align-content: start;
 }
 
-.record-editor label > span {
+.record-editor label > span,
+.record-editor fieldset[data-ui="choices"] > legend {
   color: var(--text-light);
   font-size: var(--text-xs);
   font-weight: 800;
@@ -618,7 +619,7 @@ codex-record-twins {
 
 /* The chip picker's own field sits inside its bordered box, so it keeps the
    shared control's borderless style. */
-.record-editor input:not(.ui-chip-input),
+.record-editor input:not(.ui-chip-input, :where([data-ui="choices"] input)),
 .record-editor textarea,
 .record-editor select {
   width: 100%;
@@ -735,6 +736,177 @@ codex-record-twins {
 
 .record-editor .wide-field {
   grid-column: 1 / -1;
+}
+
+/* A list to pick from is raised; free text is sunken. */
+.record-form select:not([multiple]),
+.record-form .ui-combobox input {
+  background-color: var(--bg-raised);
+  box-shadow: var(--shadow-sm);
+}
+.record-form
+  :is(input:not([type]), input[type="text"], input[type="number"], textarea):not(
+    .ui-combobox input,
+    .ui-chip-input
+  ) {
+  background-color: var(--surface-sunken);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 35%);
+}
+
+/* The record form: a head with the title, status and section bar; sections
+   in the main column; the picture and Settings beside them. */
+.record-form {
+  container-type: inline-size;
+}
+.record-form > .record-form-head {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: grid;
+  gap: var(--space-2);
+  margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) 0;
+  padding: var(--space-5) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--chrome-field-border);
+  background: var(--bg-raised);
+}
+.record-form-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.record-form-title h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.record-form-chips,
+.record-form-nav,
+.record-form-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+.record-form-chip {
+  padding: 0.1rem var(--space-2);
+  border: 1px solid var(--chrome-field-border);
+  border-radius: var(--radius-pill);
+  color: var(--text-light);
+  font: 600 var(--text-xs) / 1.6 var(--font-ui);
+}
+.record-form-chip[data-tone="accent"] {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+.record-form-chip[data-tone="muted"] {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+.record-form-nav .ui-action {
+  min-height: 2rem;
+  font-size: var(--text-sm);
+}
+.record-form-legend {
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  color: var(--text-muted);
+  font: var(--text-xs) var(--font-ui);
+}
+.record-form-body {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: var(--space-4);
+}
+.record-form-main,
+.record-form-side {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+  min-width: 0;
+}
+.record-form-section,
+.record-form-panel {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  scroll-margin-top: 10rem;
+}
+.record-form-section > h3,
+.record-form-panel > h3 {
+  margin: 0;
+  color: var(--accent-gold);
+  font: 600 var(--text-md) var(--font-title);
+}
+.record-form-section > .record-editor-fields {
+  margin-top: var(--space-3);
+}
+/* A list editor's title reads as a field label inside the form's sections. */
+.record-form .structured-editor-heading h3 {
+  color: var(--text-light);
+  font: 800 var(--text-xs) / 1.5 var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.record-form .location-map-controls {
+  display: grid;
+  gap: var(--space-2);
+}
+.record-form-settings {
+  display: grid;
+  gap: var(--space-4);
+  border-color: var(--accent-gold-dim);
+  background: var(--bg-raised);
+}
+.record-form-side .portrait-editor {
+  display: grid;
+  gap: var(--space-3);
+}
+.record-form [hidden] {
+  display: none;
+}
+/* Fields shown because of a choice above them. */
+.record-form-depends {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--accent-gold-dim);
+}
+.record-form-depends-why {
+  margin: 0;
+  color: var(--accent-gold);
+  font: var(--text-sm) var(--font-ui);
+}
+.record-form-depends > campaign-structured-field > .structured-editor {
+  padding-top: 0;
+  border-top: 0;
+}
+.record-form-slot {
+  display: grid;
+}
+.record-form-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.record-form-preview-label {
+  color: var(--text-light);
+  font: 800 var(--text-xs) var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+@container (min-width: 52rem) {
+  .record-form-body {
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 19rem);
+    align-items: start;
+  }
+  .record-form-side {
+    position: sticky;
+    top: 9rem;
+  }
 }
 
 campaign-structured-field,
@@ -1425,43 +1597,19 @@ a.faction-chip:hover {
 .character-profile .record-prose > section {
   min-width: 0;
 }
-.character-editor-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: var(--space-6);
-  margin-top: var(--space-5);
-}
-.character-editor-details,
-.character-editor-description {
-  min-width: 0;
-}
-.character-editor .record-tabs button {
-  padding-inline: var(--space-3);
-}
-.character-editor [data-character-editor-panel][hidden] {
-  display: none;
-}
-.character-editor [data-character-editor-panel] {
-  align-content: start;
-}
-.character-editor .character-editor-description textarea {
-  min-height: 32rem;
-}
-
 @media (max-width: 1200px) {
-  .character-editor-layout {
-    grid-template-columns: 1fr;
-  }
-  .character-editor .character-editor-description textarea {
-    min-height: 18rem;
-  }
   .character-profile .record-prose {
     grid-template-columns: 1fr;
   }
 }
 @media (max-width: 768px) {
-  .character-editor {
+  .record-editor {
     padding: 0.8rem;
+  }
+  .record-form > .record-form-head {
+    position: static;
+    margin: -0.8rem -0.8rem 0;
+    padding: 0.8rem 0.8rem var(--space-3);
   }
   .codex-shell .record-editor-actions {
     bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));

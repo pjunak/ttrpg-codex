@@ -440,9 +440,9 @@ export class CodexMap extends LitElement {
         ${this.draft.expectedRevision === 0 ? html`<label>${this.#ui.t("map.name")}<input name="name" required maxlength="200" .value=${this.draft.name ?? ""} ?readonly=${this.#locked} /></label>` : nothing}
         <fieldset class="sc-detail-fields" ?disabled=${this.#locked}>
           <legend class="visually-hidden">${this.#ui.t("map.editLocation")}</legend>
-          ${definitions.filter((field) => field.key !== "size").map((field) => recordFieldControl(this.#detailCampaign ?? this.campaign!, field, draftValue, this.draft!.key))}
+          ${definitions.filter((field) => field.key !== "size").map((field) => recordFieldControl(this.#detailCampaign ?? this.campaign!, field, draftValue, this.draft!.key, { collection: "locations" }))}
           <details class="sc-marker-details"><summary>${this.#ui.t("map.markerDetails")}</summary>
-            ${definitions.filter((field) => field.key === "size").map((field) => recordFieldControl(this.#detailCampaign ?? this.campaign!, field, draftValue, this.draft!.key))}
+            ${definitions.filter((field) => field.key === "size").map((field) => recordFieldControl(this.#detailCampaign ?? this.campaign!, field, draftValue, this.draft!.key, { collection: "locations" }))}
           </details>
         </fieldset>
         <label>${this.#ui.t("map.x")}<input name="x" type="number" required step="any" .value=${percent(this.draft.x)} ?readonly=${this.#locked} /></label>

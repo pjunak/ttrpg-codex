@@ -1016,10 +1016,8 @@ void test("authored record and relationship values stay intact in either interfa
   await language(page, "cs");
   const form = page.locator("form.record-editor");
   await form.locator('[name="name"]').fill("Name {0} $&");
-  await page.getByRole("tab", { name: "Znalost", exact: true }).click();
   await page.getByRole("button", { name: "Přidat otázku", exact: true }).click();
   await page.locator('[data-part="text"]').fill("Untranslated authored question");
-  await page.getByRole("tab", { name: "Vazby", exact: true }).click();
   await page.getByRole("button", { name: "Přidat vztah", exact: true }).click();
   await page.locator('[data-part="target"]').selectOption("peer");
   assert.equal(await page.locator('[data-part="target"]').inputValue(), "peer");
@@ -1057,31 +1055,32 @@ void test("Czech campaign settings translate closed choices and retain authored 
   ]);
 });
 
-void test("character tabs reveal invalid fields and keep all groups in the saved draft", async (t) => {
+void test("the character form shows every section, follows the faction and saves with Ctrl+S", async (t) => {
   const host = await campaign(t, { characters: [character()] });
   const { page, writes } = await open(t, host, "/characters/ryn");
   await editRecordOrDefinition(page);
-  const details = page.getByRole("tab", { name: "Details", exact: true });
+  const sections = page.getByRole("navigation", { name: "Sections", exact: true });
+  assert.deepEqual(await sections.getByRole("button").allTextContents(), [
+    "Basics",
+    "Connections",
+    "Story",
+    "Facts and questions",
+  ]);
   await page.getByLabel("Name", { exact: true }).fill("");
-  await details.focus();
-  await page.keyboard.press("End");
-  assert.equal(
-    await page.getByRole("tab", { name: "Knowledge", exact: true }).getAttribute("aria-selected"),
-    "true",
-  );
   await page.getByRole("button", { name: "Save entry", exact: true }).click();
   await page.waitForFunction(() => document.activeElement?.getAttribute("name") === "name");
-  assert.equal(writes.length, 0, "invalid hidden required fields must not submit");
+  assert.equal(writes.length, 0, "an invalid required field must not submit");
   await page.getByLabel("Name", { exact: true }).fill("New name");
-  await details.focus();
-  await page.keyboard.press("ArrowRight");
+  await page.getByText("Unsaved changes", { exact: true }).first().waitFor();
+  const attitudes = page.locator(".record-form-slot");
+  assert.equal(await attitudes.isVisible(), true);
   await page.locator('[name="faction"]').selectOption("party");
-  await page.getByRole("tab", { name: "Connections", exact: true }).press("ArrowRight");
+  await page.getByText(/party members have no attitudes toward it/u).waitFor();
+  assert.equal(await attitudes.isVisible(), false, "a party member has no attitudes to edit");
+  await sections.getByRole("button", { name: "Facts and questions", exact: true }).click();
   await page.getByRole("button", { name: "Add question", exact: true }).click();
   await page.locator('[data-part="text"]').fill("Who sent the letter?");
-  await page.getByRole("tab", { name: "Knowledge", exact: true }).press("Home");
-  assert.equal(await page.getByLabel("Name", { exact: true }).inputValue(), "New name");
-  await page.getByRole("button", { name: "Save entry", exact: true }).click();
+  await page.keyboard.press("Control+s");
   await page.locator(".record-save-confirmation").waitFor();
   const stored = await saved(host, "characters", "ryn");
   assert.equal(stored.name, "New name");
@@ -1096,18 +1095,14 @@ for (const mobile of [false, true])
     await editRecordOrDefinition(page);
     await page.evaluate(() => document.fonts.ready);
     // Read both rectangles in one frame: smooth scrolling changes viewport coordinates.
-    const { details, description } = await page.evaluate(() => {
-      const details = document.querySelector(".character-editor-details")!.getBoundingClientRect();
-      const description = document
-        .querySelector(".character-editor-description")!
-        .getBoundingClientRect();
-      return { details: details.toJSON(), description: description.toJSON() };
+    const { main, side } = await page.evaluate(() => {
+      const main = document.querySelector(".record-form-main")!.getBoundingClientRect();
+      const side = document.querySelector(".record-form-side")!.getBoundingClientRect();
+      return { main: main.toJSON(), side: side.toJSON() };
     });
     assert.ok(
-      mobile
-        ? description.y >= details.y + details.height
-        : description.x >= details.x + details.width,
-      `Editor panes overlap: ${JSON.stringify({ mobile, details, description })}`,
+      mobile ? side.y >= main.y + main.height : side.x >= main.x + main.width,
+      `Editor columns overlap: ${JSON.stringify({ mobile, main, side })}`,
     );
     await sourceView(page);
     await page.getByRole("button", { name: "Expand writer", exact: true }).click();

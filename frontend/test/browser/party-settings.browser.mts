@@ -267,7 +267,6 @@ for (const mobile of [false, true])
     assert.ok(contrast >= 4.5, `chip text contrast ${contrast.toFixed(2)}`);
     await page.getByLabel("More actions", { exact: true }).click();
     await page.getByRole("menuitem", { name: "Edit all fields", exact: true }).click();
-    await page.getByRole("tab", { name: "Connections", exact: true }).click();
     await page.locator('[name="faction"]').waitFor();
     assert.equal(
       await page.locator('[name="faction"] option[value="party"]').textContent().then(required),

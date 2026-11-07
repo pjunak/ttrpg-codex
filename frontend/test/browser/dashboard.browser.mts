@@ -125,6 +125,13 @@ async function fixture(
   return { page, writes };
 }
 
+/** What the open record form would submit for a field, whatever control shows it. */
+async function formValue(page: Page, name: string) {
+  return page
+    .locator("form.record-editor")
+    .evaluate((form, field) => new FormData(form as HTMLFormElement).get(field), name);
+}
+
 async function publish(page: Page, name: string, change: () => void) {
   change();
   const refreshed = page.waitForResponse((response) => response.url() === `${origin}/api/campaign`);
@@ -266,7 +273,7 @@ void test("party creation uses the original defaults, survives live refresh, and
   await page.getByRole("button", { name: "＋ Add", exact: true }).click();
   await page.locator(".record-editor").waitFor();
   assert.equal(await page.locator('[name="faction"]').inputValue(), "party");
-  assert.equal(await page.locator('[name="status"]').inputValue(), "alive");
+  assert.equal(await formValue(page, "status"), "alive");
   assert.equal(await page.locator('[name="visibility"]').count(), 0);
   await page.getByLabel("Name", { exact: true }).fill("New companion");
   await publish(page, "characters", () => {
@@ -322,7 +329,7 @@ void test("party creation remains saveable without an alive status definition", 
   const { page, writes } = await fixture(t, { statuses: false });
   await page.getByRole("button", { name: "＋ Add", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill("First member");
-  assert.equal(await page.locator('[name="status"]').inputValue(), "");
+  assert.equal(await formValue(page, "status"), "");
   await page.getByRole("button", { name: "Save entry", exact: true }).click();
   await page.waitForURL(/\/characters\/first-member-/);
   assert.equal(writes[0][0].value.faction, "party");

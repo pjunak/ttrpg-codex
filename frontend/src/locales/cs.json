@@ -144,7 +144,6 @@
       "Enter a valid link.": "Zadejte platný odkaz.",
       "Character view": "Zobrazení postavy",
       "Profile": "Profil",
-      "Character details": "Údaje o postavě",
       "Connections": "Vazby",
       "Side by side": "Vedle sebe",
       "Our Party": "Naše družina",
@@ -194,7 +193,6 @@
       "Age": "Věk",
       "Status": "Stav",
       "Current circumstances": "Současné okolnosti",
-      "Knowledge": "Znalost",
       "Faction": "Frakce",
       "No faction": "Bez frakce",
       "Player party": "Družina hráčů",
@@ -1567,6 +1565,28 @@
       "controls.remove": "Odebrat {0}",
       "controls.filter": "Filtrovat…",
       "controls.menu": "Akce"
+    },
+    "form": {
+      "form.basics": "Základ",
+      "form.story": "Příběh",
+      "form.facts": "Fakta a otázky",
+      "form.whereabouts": "Kde se nachází",
+      "form.map": "Na mapě",
+      "form.look": "Vzhled",
+      "form.ranks": "Hodnosti",
+      "form.when": "Kdy",
+      "form.involved": "Kdo a kde",
+      "form.investigation": "Vyšetřování",
+      "form.settings": "Nastavení",
+      "form.sections": "Oddíly",
+      "form.preview": "Náhled",
+      "form.legendPick": "▾ výběr ze seznamu",
+      "form.legendType": "✎ volný text",
+      "form.legendDepends": "↳ zobrazeno kvůli volbě výše",
+      "form.rankBecause": "Protože frakce {faction} má hodnosti",
+      "form.partyAttitudes": "Protože patří do družiny: členové družiny k ní nemají postoje",
+      "form.parentBecause": "Protože jste zvolili jinou nadřazenou lokaci",
+      "form.saveHint": "Ctrl+S uloží"
     }
   }
 }

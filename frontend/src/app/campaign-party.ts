@@ -142,7 +142,8 @@ function boundedLine(value: unknown, limit: number): string {
     : "";
 }
 
-function hexColor(value: unknown): string | undefined {
+/** A #rgb or #rrggbb colour as lowercase #rrggbb, or undefined for anything else. */
+export function hexColor(value: unknown): string | undefined {
   if (cssHexColor(value) === undefined || typeof value !== "string") return undefined;
   return (
     value.length === 4

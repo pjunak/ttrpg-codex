@@ -144,7 +144,6 @@
       "Enter a valid link.": "Enter a valid link.",
       "Character view": "Character view",
       "Profile": "Profile",
-      "Character details": "Character details",
       "Connections": "Connections",
       "Side by side": "Side by side",
       "Our Party": "Our Party",
@@ -194,7 +193,6 @@
       "Age": "Age",
       "Status": "Status",
       "Current circumstances": "Current circumstances",
-      "Knowledge": "Knowledge",
       "Faction": "Faction",
       "No faction": "No faction",
       "Player party": "Player party",
@@ -1551,6 +1549,28 @@
       "controls.remove": "Remove {0}",
       "controls.filter": "Filter…",
       "controls.menu": "Actions"
+    },
+    "form": {
+      "form.basics": "Basics",
+      "form.story": "Story",
+      "form.facts": "Facts and questions",
+      "form.whereabouts": "Where it is",
+      "form.map": "On the map",
+      "form.look": "Look",
+      "form.ranks": "Ranks",
+      "form.when": "When",
+      "form.involved": "Who and where",
+      "form.investigation": "Investigation",
+      "form.settings": "Settings",
+      "form.sections": "Sections",
+      "form.preview": "Preview",
+      "form.legendPick": "▾ pick from a list",
+      "form.legendType": "✎ type freely",
+      "form.legendDepends": "↳ shown because of the choice above",
+      "form.rankBecause": "Because {faction} has ranks",
+      "form.partyAttitudes": "Because they are in the party: party members have no attitudes toward it",
+      "form.parentBecause": "Because you chose a different parent",
+      "form.saveHint": "Ctrl+S saves"
     }
   }
 }

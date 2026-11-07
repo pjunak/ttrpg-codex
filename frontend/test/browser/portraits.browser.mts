@@ -426,7 +426,7 @@ void test("portrait controls localize, explain creation and obey signed-in visib
   const { page } = await open(t, "access", false, "dm");
   await edit(page);
   await page.getByLabel("Choose portrait", { exact: true }).setInputFiles(await picture(page));
-  await page.locator('[name="visibility"]').selectOption("dm");
+  await page.getByRole("radio", { name: "DM only", exact: true }).check();
   await page.getByRole("button", { name: "Save entry", exact: true }).click();
   await page
     .getByText("Save visibility changes first, then replace the portrait. Your draft is kept.", {
@@ -434,7 +434,7 @@ void test("portrait controls localize, explain creation and obey signed-in visib
     })
     .waitFor();
   assert.equal((await record("access")).revision, 1);
-  await page.locator('[name="visibility"]').selectOption("public");
+  await page.getByRole("radio", { name: "Public", exact: true }).check();
   await save(page);
   await page.evaluate(() => localStorage.setItem("codex_lang", "cs"));
   await page.reload();

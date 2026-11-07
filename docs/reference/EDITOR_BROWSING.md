@@ -186,8 +186,9 @@ factions their colour and member count). Character cards and mastheads show
 status and the character's faction (the party included) as a chip: its picture
 or icon and name on the dark surface tinted with the faction's colour, so the
 name stays readable whatever colour is chosen. A faction's form has a colour
-picker beside the hex code, an icon field with a grid of common symbols, and a
-picture upload; colour and icon are edited only there.
+picker beside the hex code, an icon field with a grid of common symbols and a
+live preview of its chip, and a picture upload; colour and icon are edited only
+there.
 
 Facts edit in place on record pages, the character profile and the dashboard,
 all with one inline field. A value reads as text and shows a pencil on hover or
@@ -265,6 +266,28 @@ with both bundled and unavailable web fonts. The editor suite runs every editor
 against the real app and host, each test with its own campaign, and reads the
 stored record back after a save. The save-feedback cases cover delayed writes,
 stale failure, retained drafts and Cancel.
+
+## The record form
+
+Every collection's full form is one page with the same shell, like the
+Homebrew editor: a head with the title, status chips (unsaved changes, public
+or DM only) and a section bar that jumps to each section; the fields in
+sections (for a location: Basics, Where it is, On the map, Story, DM notes);
+and a side column with the record's portrait or picture and a **Settings**
+panel holding visibility and tags. On narrow pages the side column follows the
+sections. Ctrl+S (Cmd+S) saves, and Save and Cancel stay at the bottom of the
+screen. `record-form-layout.ts` places each collection's fields; a field it
+does not place joins the first section.
+
+Fields follow one convention, which the head's legend repeats: lists to pick
+from are raised (from twelve choices they become a searchable combobox), free
+text is sunken, and two to five short choices (visibility, a character's
+status or gender, an event's priority) are joined buttons. Free-text fields
+that collections filter by (a location's kind and region, a species, a deity's
+domain) suggest the values other records already use. Fields a choice reveals
+sit in an indented "↳ Because …" group: a character's rank appears once the
+chosen faction has ranks, a party member's attitudes give way to a note, and a
+location's warning about map placement appears once its parent changes.
 
 ## Local Markdown recovery
 
@@ -388,6 +411,7 @@ bounded. These preferences do not change campaign policy or record ordering.
 | Field definitions and canonical choices | `frontend/src/app/campaign-record-editor.ts` |
 | Inline fields, their commit modes and the drafts their page keeps | `frontend/src/app/codex-inline-field.ts`, `inline-draft.ts`, `record-inline-field.ts` |
 | The full record form: opening snapshot, dirty state, saving lock | `frontend/src/app/codex-record-form.ts` |
+| Which section or Settings panel holds each field | `frontend/src/app/record-form-layout.ts` |
 | Editor write requests and their answers | `frontend/src/app/campaign-writes.ts` |
 | Write order, read-back checks and per-kind messages | `frontend/src/app/campaign-write-controller.ts`, `campaign-write-handlers.ts` |
 | Busy leases; admin view request lifetimes | `frontend/src/app/busy-lease.ts`, `admin-request-controller.ts` |

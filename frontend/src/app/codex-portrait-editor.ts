@@ -38,6 +38,7 @@ export class CodexPortraitEditor extends LitElement {
   static override properties = {
     portrait: { attribute: false },
     noun: { attribute: false },
+    fallback: { attribute: false },
     disabled: { type: Boolean },
     creating: { type: Boolean },
     preview: { state: true },
@@ -45,6 +46,8 @@ export class CodexPortraitEditor extends LitElement {
   };
   declare portrait: unknown;
   declare noun: keyof typeof wording;
+  /** What an empty picture shows instead of the default symbol, such as a faction's icon. */
+  declare fallback: string;
   declare disabled: boolean;
   declare creating: boolean;
   declare private preview: string | undefined;
@@ -55,6 +58,7 @@ export class CodexPortraitEditor extends LitElement {
   constructor() {
     super();
     this.noun = "portrait";
+    this.fallback = "";
     this.disabled = false;
     this.creating = false;
     this.error = false;
@@ -82,7 +86,7 @@ export class CodexPortraitEditor extends LitElement {
       ${artwork({
         source: this.preview ?? previewResourceURL(image),
         className: "portrait-editor-preview portrait-editor-empty",
-        fallback: words.fallback,
+        fallback: this.fallback.trim() || words.fallback,
         label: image === undefined ? undefined : uiText(words.preview),
         unavailableLabel: uiText(words.unavailable),
       })}

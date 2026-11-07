@@ -25,6 +25,11 @@ import {
 } from "./campaign-structured-editors.js";
 import type { CampaignMarkdownContext } from "./campaign-markdown.js";
 import { recordValue, safeMediaURL, text } from "./campaign-projection.js";
+import { renderFactionChip } from "./article-context-view.js";
+import { campaignFactionIdentity, hexColor } from "./campaign-party.js";
+import { factionRankChains } from "./campaign-structured-editors.js";
+import { recordFormLayout, type RecordFormSection } from "./record-form-layout.js";
+import { recordPictureKinds } from "./record-picture.js";
 import { saveCampaign } from "./campaign-writes.js";
 import type { CodexMarkdownEditor } from "./codex-markdown-editor.js";
 import type { CodexPortraitEditor } from "./codex-portrait-editor.js";
@@ -57,14 +62,17 @@ export interface RecordFormClosedDetail {
   readonly reason: "cancel" | "deleted";
 }
 
-type CharacterTab = "details" | "connections" | "knowledge";
-
 /**
  * The full record form. It opens on a snapshot of the campaign and keeps that
  * snapshot, its own drafts and its dirty state while live updates arrive; a
  * save sends only the fields that differ from the snapshot, against the
  * snapshot's revision, so another author's change fails as a conflict. The
  * form takes no input while any write runs, its own included.
+ *
+ * Every collection shares one page: a head with the title, status chips and
+ * a section bar; the fields in sections (record-form-layout.ts); and a side
+ * column with the picture and Settings (visibility, tags). Fields a choice
+ * reveals sit in an indented "↳ Because …" group. Ctrl+S saves.
  */
 export class CodexRecordForm extends LitElement {
   static override properties = {
@@ -79,7 +87,6 @@ export class CodexRecordForm extends LitElement {
     busy: { type: Boolean },
     saving: { state: true },
     saveError: { state: true },
-    characterTab: { state: true },
   };
   /** The live campaign; the form keeps its own opening snapshot. */
   declare campaign: CampaignDataset;
@@ -95,12 +102,13 @@ export class CodexRecordForm extends LitElement {
   declare busy: boolean;
   declare private saving: boolean;
   declare private saveError: string;
-  declare private characterTab: CharacterTab;
   #opening: CampaignDataset | undefined;
   #dirty = false;
   /** Changes when the fields must reload from the saved record. */
   #generation = 0;
   #factionDraft: string | undefined;
+  /** Current values of the fields other parts of the form follow while editing. */
+  readonly #watched = new Map<string, string>();
   readonly #markdownDrafts = new Map<string, string>();
   /** Only the first long-text field explains local recovery; the others stay quiet. */
   #firstMarkdownField: string | undefined;
@@ -115,17 +123,11 @@ export class CodexRecordForm extends LitElement {
     this.busy = false;
     this.saving = false;
     this.saveError = "";
-    this.characterTab = "details";
   }
   protected override createRenderRoot() {
     return this;
   }
-  override connectedCallback(): void {
-    super.connectedCallback();
-    this.addEventListener("invalid", this.#revealInvalidField, true);
-  }
   override disconnectedCallback(): void {
-    this.removeEventListener("invalid", this.#revealInvalidField, true);
     this.#setDirty(false);
     super.disconnectedCallback();
   }
@@ -158,33 +160,67 @@ export class CodexRecordForm extends LitElement {
     const record = this.#record;
     if (this.recordKey !== undefined && record === undefined)
       return html`<p class="empty-state">${uiText("This entry is not available in the current campaign view.")}</p>`;
-    const fields = editorFieldsFor(this.page.collection, this.canManageVisibility);
+    const collection = this.page.collection;
+    const fields = editorFieldsFor(collection, this.canManageVisibility);
     this.#firstMarkdownField = fields.find((field) => field.kind === "markdown")?.key;
+    const byKey = new Map(fields.map((field) => [field.key, field]));
+    const layout = recordFormLayout(collection);
     const value = this.#openingValue(record);
     const creating = record === undefined;
-    const character = this.page.collection === "characters";
+    const sections = layout.sections.filter(
+      (section) =>
+        section.fields.some((key) => byKey.has(key)) ||
+        this.#extras(section, value, record) !== nothing,
+    );
     return html`
-      <form class=${`record-editor ${character ? "character-editor" : ""}`} @submit=${this.#submit}
-        @input=${this.#markDirty} @change=${this.#markDirty}>
-        <header>
-          <h2 id="record-editor-title">${creating ? uiText("Add {0}", { "0": this.page.singular.toLocaleLowerCase() }) : uiText("Edit {0}", { "0": text(value["name"]) || this.page.singular.toLocaleLowerCase() })}</h2>
-        </header>
-        <fieldset class="record-editor-body" ?disabled=${this.#locked}>
-        ${
-          character
-            ? this.#characterFields(fields, value, record)
-            : html`<div class="record-editor-fields">
+      <form class="record-editor record-form" data-collection=${collection} @submit=${this.#submit}
+        @input=${this.#edited} @change=${this.#edited} @keydown=${this.#shortcut}>
+        <header class="record-form-head">
+          <div class="record-form-title">
+            <h2 id="record-editor-title">${creating ? uiText("Add {0}", { "0": this.page.singular.toLocaleLowerCase() }) : uiText("Edit {0}", { "0": text(value["name"]) || this.page.singular.toLocaleLowerCase() })}</h2>
+            <span class="record-form-chips">${this.#chips(value)}</span>
+          </div>
           ${
-            this.page.collection === "factions"
-              ? html`<codex-portrait-editor class="wide-field" .noun=${"picture"} .portrait=${value["portrait"]}
-            .creating=${creating} .disabled=${this.#locked}></codex-portrait-editor>`
+            sections.length > 1
+              ? html`<nav class="record-form-nav" aria-label=${uiText("form.sections")}>${sections.map(
+                  (section) =>
+                    html`<button type="button" class="ui-action" data-ui-variant="quiet"
+                      @click=${() => this.#showSection(section.id)}>${uiText(section.label)}</button>`,
+                )}</nav>`
               : nothing
           }
-          ${fields.map((field) => this.#field(field, value, record?.key ?? ""))}
-          ${this.page.collection === "locations" ? this.#locationMapControls(record, value) : nothing}
-          ${collectionManagesVisibility(this.page.collection) && this.canManageVisibility ? this.#visibility(value) : nothing}
-        </div>`
-        }
+          <p class="record-form-legend">
+            <span>${uiText("form.legendPick")}</span><span>${uiText("form.legendType")}</span><span>${uiText("form.legendDepends")}</span>
+          </p>
+        </header>
+        <fieldset class="record-editor-body record-form-body" ?disabled=${this.#locked}>
+          <div class="record-form-main">
+            ${sections.map(
+              (section) => html`<section class="record-form-section" data-form-section=${section.id}
+                aria-labelledby=${`record-form-${section.id}`}>
+                <h3 id=${`record-form-${section.id}`}>${uiText(section.label)}</h3>
+                <div class="record-editor-fields">
+                  ${section.fields.map((key) => {
+                    const field = byKey.get(key);
+                    if (field === undefined) return nothing;
+                    const alone = section.fields.filter((other) => byKey.has(other)).length === 1;
+                    return this.#sectionField(
+                      field,
+                      value,
+                      record,
+                      alone && field.label === uiText(section.label),
+                    );
+                  })}
+                  ${this.#extras(section, value, record)}
+                </div>
+              </section>`,
+            )}
+          </div>
+          ${this.#side(
+            value,
+            record,
+            layout.settings.flatMap((key) => byKey.get(key) ?? []),
+          )}
         </fieldset>
         ${saveFailure(this.saveError)}
         <footer class="record-editor-actions">
@@ -203,12 +239,143 @@ export class CodexRecordForm extends LitElement {
                   : "save.explicit",
           )}</span>
           <button class="ui-action" type="button" @click=${this.#cancel} ?disabled=${this.#locked}>${uiText("Cancel")}</button>
-          <button class="ui-action" data-ui-variant="primary" type="submit" ?disabled=${this.#locked}>
+          <button class="ui-action" data-ui-variant="primary" type="submit" ?disabled=${this.#locked}
+            title=${uiText("form.saveHint")}>
             ${this.saving ? uiText("Saving…") : uiText("Save entry")}
           </button>
         </footer>
       </form>
     `;
+  }
+
+  /** The status chips beside the title: unsaved changes and who sees the record. */
+  #chips(value: Readonly<Record<string, unknown>>) {
+    const visibility =
+      collectionManagesVisibility(this.page.collection) && this.canManageVisibility
+        ? (this.#watched.get("visibility") ?? (value["visibility"] === "dm" ? "dm" : "public"))
+        : undefined;
+    return html`${this.#dirty ? html`<span class="record-form-chip" data-tone="accent">${uiText("save.draft")}</span>` : nothing}
+      ${
+        visibility === undefined
+          ? nothing
+          : html`<span class="record-form-chip" data-tone=${visibility === "dm" ? "muted" : "public"}>${uiText(visibility === "dm" ? "DM only" : "Public")}</span>`
+      }`;
+  }
+
+  /** One field in its section; a few follow another field's current choice. */
+  #sectionField(
+    field: CampaignEditorField,
+    value: Readonly<Record<string, unknown>>,
+    record: CampaignRecord | undefined,
+    unlabelled = false,
+  ) {
+    const key = record?.key ?? "";
+    const collection = this.page.collection;
+    const faction = this.#factionDraft ?? editorValue(value["faction"]);
+    if (collection === "characters" && field.key === "rankAssignment") {
+      const ranked = factionRankChains(this.#snapshot, faction).some(({ ranks }) => ranks.length);
+      // A stored rank stays visible, so it can be seen and cleared.
+      const stored = faction === editorValue(value["faction"]) && text(value["rankChain"]) !== "";
+      return html`<div class="record-form-depends wide-field" ?hidden=${!ranked && !stored}>
+        <p class="record-form-depends-why">↳ ${uiText("form.rankBecause", { faction: campaignFactionIdentity(this.#snapshot, faction)?.name ?? "" })}</p>
+        ${this.#field(field, value, key)}
+      </div>`;
+    }
+    if (collection === "characters" && field.key === "attitudes") {
+      // A party member's attitudes are cleared on save.
+      const party = faction === "party";
+      return html`${party ? html`<p class="record-form-depends-why wide-field">↳ ${uiText("form.partyAttitudes")}</p>` : nothing}
+        <div class="record-form-slot wide-field" ?hidden=${party}>${this.#field(field, value, key)}</div>`;
+    }
+    if (collection === "locations" && field.key === "parentId" && record !== undefined) {
+      const stored = editorValue(value["parentId"]);
+      const changed = (this.#watched.get("parentId") ?? stored) !== stored;
+      // Its help applies only once the parent changes, so it moves into the group.
+      const { help, ...quiet } = field;
+      return html`${this.#field(quiet, value, key)}
+        <div class="record-form-depends" ?hidden=${!changed}>
+          <p class="record-form-depends-why">↳ ${uiText("form.parentBecause")}</p>
+          <small class="field-help">${help}</small>
+        </div>`;
+    }
+    return this.#field(field, value, key, unlabelled);
+  }
+
+  /** What a section shows besides its fields. */
+  #extras(
+    section: RecordFormSection,
+    value: Readonly<Record<string, unknown>>,
+    record: CampaignRecord | undefined,
+  ) {
+    const collection = this.page.collection;
+    if (collection === "characters" && section.id === "connections")
+      return html`<campaign-relationship-editor
+        .campaign=${this.#snapshot} .character=${record} .canManageVisibility=${this.canManageVisibility}
+        .recordIdentity=${`${record?.key ?? "new"}:${this.#generation}`}></campaign-relationship-editor>`;
+    if (collection === "locations" && section.id === "map")
+      return this.#locationMapControls(record, value);
+    if (collection === "factions" && section.id === "look") return this.#factionPreview(value);
+    return nothing;
+  }
+
+  /** The side column: the record's picture, then its Settings. */
+  #side(
+    value: Readonly<Record<string, unknown>>,
+    record: CampaignRecord | undefined,
+    settings: readonly CampaignEditorField[],
+  ) {
+    const collection = this.page.collection;
+    const visibility = collectionManagesVisibility(collection) && this.canManageVisibility;
+    return html`<aside class="record-form-side">
+      ${
+        recordPictureKinds[collection] === undefined
+          ? nothing
+          : html`<section class="record-form-panel record-form-picture">
+          <codex-portrait-editor .noun=${collection === "factions" ? "picture" : "portrait"}
+            .fallback=${collection === "factions" ? text(value["badge"]) : ""}
+            .portrait=${value["portrait"]} .creating=${record === undefined} .disabled=${this.#locked}></codex-portrait-editor>
+        </section>`
+      }
+      ${
+        visibility || settings.length
+          ? html`<section class="record-form-panel record-form-settings" aria-labelledby="record-form-settings">
+          <h3 id="record-form-settings">${uiText("form.settings")}</h3>
+          ${visibility ? this.#visibility(value) : nothing}
+          ${settings.map((field) => this.#field(field, value, record?.key ?? ""))}
+        </section>`
+          : nothing
+      }
+    </aside>`;
+  }
+
+  /** The faction's chip as characters show it, following the form as it changes. */
+  #factionPreview(value: Readonly<Record<string, unknown>>) {
+    const current = (key: string): string => this.#watched.get(key) ?? text(value[key]);
+    return html`<div class="record-form-preview wide-field">
+      <span class="record-form-preview-label">${uiText("form.preview")}</span>
+      ${renderFactionChip(
+        {
+          name: current("name").trim() || this.page.singular,
+          icon: current("badge").trim() || "⚑",
+          color: hexColor(current("color").trim()),
+          picture: safeMediaURL(value["portrait"]),
+          href: undefined,
+        },
+        false,
+      )}
+    </div>`;
+  }
+
+  #showSection(id: string): void {
+    const section = this.querySelector<HTMLElement>(`[data-form-section="${id}"]`);
+    if (section === null) return;
+    section.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+    section
+      .querySelector<HTMLElement>("input:not([type=hidden]), select, textarea, [contenteditable]")
+      ?.focus({ preventScroll: true });
   }
 
   /** What a new record's fields start with, or the edited record's value. */
@@ -237,7 +404,7 @@ export class CodexRecordForm extends LitElement {
   ) {
     const image = safeMediaURL(value["localMap"]);
     return html`<section class="wide-field location-map-controls" aria-label=${this.#ui.t("map.locationControls")}>
-      <h3>${this.#ui.t("map.locationControls")}</h3>
+      <span class="record-form-preview-label">${this.#ui.t("map.locationControls")}</span>
       ${
         record === undefined
           ? html`<p class="field-help">${this.#ui.t("map.saveLocationFirst")}</p>`
@@ -250,77 +417,21 @@ export class CodexRecordForm extends LitElement {
   }
 
   #visibility(value: Readonly<Record<string, unknown>>) {
-    return html`<label>
-      <span>${uiText("Visibility")}</span>
-      <select name="visibility" .value=${value["visibility"] === "dm" ? "dm" : "public"}>
-        <option value="public">${uiText("Public")}</option>
-        <option value="dm">${uiText("DM only")}</option>
-      </select>
-    </label>`;
+    const dm = value["visibility"] === "dm";
+    return html`<fieldset data-ui="choices" class="record-choices">
+      <legend>${uiText("Visibility")}</legend>
+      <label><input type="radio" name="visibility" value="public" .checked=${!dm} />${uiText("Public")}</label>
+      <label><input type="radio" name="visibility" value="dm" .checked=${dm} />${uiText("DM only")}</label>
+    </fieldset>`;
   }
 
-  #characterFields(
-    fields: readonly CampaignEditorField[],
+  /** A field's control; `unlabelled` leaves out a writer's visible name where its section shows it. */
+  #field(
+    field: CampaignEditorField,
     value: Readonly<Record<string, unknown>>,
-    record: CampaignRecord | undefined,
+    currentKey: string,
+    unlabelled = false,
   ) {
-    const tabs = ["details", "connections", "knowledge"] as const;
-    const labels = {
-      details: uiText("Details"),
-      connections: uiText("Connections"),
-      knowledge: uiText("Knowledge"),
-    };
-    const connections = new Set([
-      "faction",
-      "rankAssignment",
-      "location",
-      "locationRoles",
-      "attitudes",
-    ]);
-    const knowledge = new Set(["known", "unknown"]);
-    const group = (key: string): CharacterTab =>
-      connections.has(key) ? "connections" : knowledge.has(key) ? "knowledge" : "details";
-    return html`<div class="character-editor-layout">
-      <div class="character-editor-details">
-        <div class="record-tabs" role="tablist" data-ui-tabs aria-label=${uiText("Character details")}>
-          ${tabs.map(
-            (tab) => html`<button type="button" role="tab" id=${`character-editor-tab-${tab}`}
-            aria-controls=${`character-editor-panel-${tab}`} aria-selected=${this.characterTab === tab}
-            tabindex=${this.characterTab === tab ? 0 : -1}
-            @click=${() => {
-              this.characterTab = tab;
-            }}>${labels[tab]}</button>`,
-          )}
-        </div>
-        ${tabs.map(
-          (tab) => html`<section id=${`character-editor-panel-${tab}`} class="record-editor-fields"
-          data-character-editor-panel=${tab} role="tabpanel" aria-labelledby=${`character-editor-tab-${tab}`}
-          ?hidden=${this.characterTab !== tab}>
-          ${
-            tab === "details"
-              ? html`<codex-portrait-editor class="wide-field" .portrait=${value["portrait"]}
-            .creating=${record === undefined} .disabled=${this.#locked}></codex-portrait-editor>`
-              : nothing
-          }
-          ${fields.filter((field) => field.key !== "description" && group(field.key) === tab).map((field) => this.#field(field, value, record?.key ?? ""))}
-          ${
-            tab === "connections"
-              ? html`<campaign-relationship-editor
-            .campaign=${this.#snapshot} .character=${record} .canManageVisibility=${this.canManageVisibility}
-            .recordIdentity=${`${record?.key ?? "new"}:${this.#generation}`}></campaign-relationship-editor>`
-              : nothing
-          }
-          ${tab === "details" && this.canManageVisibility ? this.#visibility(value) : nothing}
-        </section>`,
-        )}
-      </div>
-      <div class="character-editor-description">
-        ${fields.filter((field) => field.key === "description").map((field) => this.#field(field, value, record?.key ?? ""))}
-      </div>
-    </div>`;
-  }
-
-  #field(field: CampaignEditorField, value: Readonly<Record<string, unknown>>, currentKey: string) {
     if (
       field.kind === "questions" ||
       field.kind === "rank-assignment" ||
@@ -347,7 +458,7 @@ export class CodexRecordForm extends LitElement {
         ...(this.wiki === undefined ? {} : { addonWiki: this.wiki }),
         ...(currentKey === "" ? {} : { currentKey }),
       };
-      return html`<section class="markdown-editor wide-field"><span class="markdown-editor-label" aria-hidden="true">${field.label}</span><codex-markdown-editor
+      return html`<section class="markdown-editor wide-field">${unlabelled ? nothing : html`<span class="markdown-editor-label" aria-hidden="true">${field.label}</span>`}<codex-markdown-editor
         .name=${field.key} .label=${field.label} .value=${source} .identity=${currentKey + ":" + field.key + ":" + this.#generation}
         .context=${context} .disabled=${this.#locked} .maximumLength=${field.maximumLength}
         .draftContext=${
@@ -376,32 +487,16 @@ export class CodexRecordForm extends LitElement {
         }}
       ></codex-markdown-editor>${help}</section>`;
     }
-    return recordFieldControl(this.#snapshot, field, value, currentKey, this.#updateFaction);
-  }
-
-  readonly #revealInvalidField = (event: Event): void => {
-    const input = event.target;
-    if (!(
-      input instanceof HTMLInputElement ||
-      input instanceof HTMLSelectElement ||
-      input instanceof HTMLTextAreaElement
-    ))
-      return;
-    const panel = input.closest<HTMLElement>("[data-character-editor-panel]");
-    const tab = panel?.dataset["characterEditorPanel"];
-    if (!panel?.hidden || (tab !== "details" && tab !== "connections" && tab !== "knowledge"))
-      return;
-    event.preventDefault();
-    this.characterTab = tab;
-    void this.updateComplete.then(() => {
-      input.focus();
-      input.reportValidity();
+    return recordFieldControl(this.#snapshot, field, value, currentKey, {
+      collection: this.page.collection,
+      onFactionChange: this.#updateFaction,
     });
-  };
+  }
 
   readonly #updateFaction = (event: Event): void => {
     const factionID = (event.currentTarget as HTMLSelectElement).value;
     this.#factionDraft = factionID;
+    this.requestUpdate();
     this.querySelectorAll<CampaignStructuredFieldElement>("campaign-structured-field").forEach(
       (editor) => editor.setFaction(factionID),
     );
@@ -411,6 +506,29 @@ export class CodexRecordForm extends LitElement {
     if (this.#locked) return;
     this.saveError = "";
     this.#setDirty(true);
+  };
+
+  /** Marks the form changed and follows the fields other parts of the form depend on. */
+  readonly #edited = (event: Event): void => {
+    this.#markDirty();
+    const target = event.target;
+    if (
+      (target instanceof HTMLInputElement || target instanceof HTMLSelectElement) &&
+      ["name", "badge", "color", "parentId", "visibility"].includes(target.name) &&
+      this.#watched.get(target.name) !== target.value
+    ) {
+      this.#watched.set(target.name, target.value);
+      this.requestUpdate();
+    }
+  };
+
+  /** Ctrl+S (Cmd+S) saves; leaving the field first reports its change. */
+  readonly #shortcut = (event: KeyboardEvent): void => {
+    if (event.key.toLowerCase() !== "s" || !(event.ctrlKey || event.metaKey) || event.altKey)
+      return;
+    event.preventDefault();
+    if (event.target instanceof HTMLElement) event.target.blur();
+    (event.currentTarget as HTMLFormElement).requestSubmit();
   };
 
   #setDirty(dirty: boolean): void {
@@ -545,6 +663,7 @@ export class CodexRecordForm extends LitElement {
     this.#opening = result.campaign;
     this.#markdownDrafts.clear();
     this.#factionDraft = undefined;
+    this.#watched.clear();
     this.#submittedMarkdown = [];
     this.#generation++;
     this.#setDirty(false);

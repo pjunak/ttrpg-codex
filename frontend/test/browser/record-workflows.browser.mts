@@ -502,8 +502,7 @@ void test("DM location notes round-trip privately through the real editor and pu
   await dm.page.getByRole("heading", { name: "Hidden arrangement", exact: true }).waitFor();
   await dm.page.getByRole("button", { name: "Edit", exact: true }).click();
   const writer = dm.page
-    .locator(".markdown-editor")
-    .filter({ has: dm.page.getByText("DM notes", { exact: true }) })
+    .getByRole("region", { name: "DM notes", exact: true })
     .locator("codex-markdown-editor");
   await writer.getByRole("combobox", { name: "Editor view", exact: true }).selectOption("markdown");
   await writer.locator(".writer-source").fill(secret + "\n\nEdited by DM.");
@@ -1005,7 +1004,7 @@ for (const mobile of [false, true])
       await dm.page.locator('select[name="faction"]').inputValue(),
       "creation-watch-" + suffix,
     );
-    assert.equal(await dm.page.locator('select[name="visibility"]').inputValue(), "dm");
+    assert.equal(await dm.page.locator('input[name="visibility"]:checked').inputValue(), "dm");
     await dm.page
       .locator("form.record-editor")
       .getByRole("button", { name: "Save entry", exact: true })
@@ -1843,6 +1842,17 @@ void test("one unreadable local draft does not hide the others", async (t) => {
   await dm.page.getByText("Local Markdown drafts (1)", { exact: true }).waitFor();
 });
 
+/** Picks a list field's value, whether it shows as a select or, from twelve choices, a searchable combobox. */
+async function pick(page: Page, label: string, value: string, text: string) {
+  const control = page.getByRole("combobox", { name: label, exact: true });
+  if ((await control.evaluate((element) => element.tagName)) === "SELECT")
+    await control.selectOption(value);
+  else {
+    await control.fill(text);
+    await page.getByRole("option", { name: text, exact: true }).click();
+  }
+}
+
 void test("a full-form edit rewrites only changed fields and names one that cannot be saved", async (t) => {
   const stored = {
     name: "Untouched character",
@@ -1869,8 +1879,7 @@ void test("a full-form edit rewrites only changed fields and names one that cann
   );
 
   await dm.page.goto("/characters/untouched-character/edit");
-  await dm.page.getByRole("tab", { name: "Connections", exact: true }).click();
-  await dm.page.getByLabel("Current location", { exact: true }).selectOption("lost-port");
+  await pick(dm.page, "Current location", "lost-port", "Lost port");
   const port = await record("lost-port");
   await jsonResponse(
     await admin.post("/api/campaign/transactions", {

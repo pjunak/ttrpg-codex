@@ -1,8 +1,16 @@
 import { html, nothing, type TemplateResult } from "lit";
-import type { CampaignDataset } from "../core/campaign-data.js";
+import {
+  campaignCollection,
+  type CampaignCollectionName,
+  type CampaignDataset,
+} from "../core/campaign-data.js";
 import { formText, formTextValues } from "../core/forms.js";
-import { editorOptionsFor, type CampaignEditorField } from "./campaign-record-editor.js";
-import { text } from "./campaign-projection.js";
+import {
+  editorOptionsFor,
+  type CampaignEditorField,
+  type CampaignEditorOption,
+} from "./campaign-record-editor.js";
+import { recordValue, text } from "./campaign-projection.js";
 import { uiText } from "./ui-localization.js";
 
 /** A control's value in the shape its form data submits. */
@@ -85,12 +93,24 @@ export function formFieldValue(field: CampaignEditorField, submitted: FieldFormV
   return field.kind === "line" ? submitted.trim() : submitted;
 }
 
+export interface RecordFieldControlOptions {
+  /** The edited record's collection; its other records' values become typing suggestions. */
+  readonly collection?: CampaignCollectionName;
+  readonly onFactionChange?: (event: Event) => void;
+}
+
+/**
+ * A record field's form control. Each kind has one look: a list to pick from
+ * (a select, searchable from twelve choices), two to five short choices as
+ * joined buttons, or a text field to type into, which offers the values other
+ * records already use.
+ */
 export function recordFieldControl(
   campaign: CampaignDataset,
   field: CampaignEditorField,
   value: Readonly<Record<string, unknown>>,
   currentKey: string,
-  onFactionChange?: (event: Event) => void,
+  { collection, onFactionChange }: RecordFieldControlOptions = {},
 ) {
   const shown = fieldFormValue(campaign, field, value, currentKey);
   const shownText = typeof shown === "string" ? shown : "";
@@ -117,10 +137,13 @@ export function recordFieldControl(
     const options = editorOptionsFor(campaign, field, currentKey);
     const selected = shownText;
     const orphaned = selected !== "" && !options.some(({ value: option }) => option === selected);
+    if (field.kind === "enum" && !orphaned && fewShortChoices(options))
+      return choicesControl(field, options, selected, help);
     return html`
         <label data-ui-field>
           <span>${field.label}</span>
-          <select name=${field.key} @change=${field.key === "faction" ? onFactionChange : nothing}>
+          <select name=${field.key} @change=${field.key === "faction" ? onFactionChange : nothing}
+            data-ui=${options.length >= 12 ? "combobox" : nothing}>
             ${
               field.kind === "reference" || field.kind === "enum"
                 ? html`<option value="" ?selected=${selected === ""}>${uiText("Not set")}</option>`
@@ -165,11 +188,18 @@ export function recordFieldControl(
   }
   if (field.control === "color") return colorControl(field, shownText, help);
   if (field.control === "icon") return iconControl(field, shownText, help);
+  const suggestions =
+    field.kind === "line" && field.browse === true && collection !== undefined
+      ? fieldSuggestions(campaign, collection, field.key)
+      : [];
+  const list = suggestions.length ? `record-field-suggestions-${field.key}` : undefined;
   return html`
       <label data-ui-field>
         <span>${field.label}</span>
         <input
           name=${field.key}
+          list=${list ?? nothing}
+          autocomplete=${list ? "off" : nothing}
           type=${field.kind === "number" ? "number" : "text"}
           step=${field.kind === "number" ? "any" : nothing}
           min=${field.minimum ?? nothing}
@@ -179,9 +209,51 @@ export function recordFieldControl(
           placeholder=${field.placeholder ?? ""}
           ?required=${field.required === true}
         />
+        ${
+          list === undefined
+            ? nothing
+            : html`<datalist id=${list}>${suggestions.map((suggestion) => html`<option value=${suggestion}></option>`)}</datalist>`
+        }
         ${help}
       </label>
     `;
+}
+
+/** "Not set" and up to four other choices, each short enough for a button. */
+function fewShortChoices(options: readonly CampaignEditorOption[]): boolean {
+  return options.length <= 4 && options.every(({ label }) => label.length <= 18);
+}
+
+/** A single choice from a few short options, as joined buttons over radios. */
+function choicesControl(
+  field: CampaignEditorField,
+  options: readonly CampaignEditorOption[],
+  selected: string,
+  help: TemplateResult | typeof nothing,
+) {
+  const choice = (value: string, label: string) =>
+    html`<label><input type="radio" name=${field.key} value=${value} .checked=${value === selected} />${label}</label>`;
+  const wide = options.length >= 3 ? " wide-field" : "";
+  return html`<fieldset data-ui="choices" data-ui-key=${field.key} class=${`record-choices${wide}`}>
+      <legend>${field.label}</legend>
+      ${choice("", uiText("Not set"))}
+      ${options.map((option) => choice(option.value, option.label))}
+      ${help}
+    </fieldset>`;
+}
+
+/** The distinct values other records of the collection use for a free-text field. */
+export function fieldSuggestions(
+  campaign: CampaignDataset,
+  collection: CampaignCollectionName,
+  key: string,
+): readonly string[] {
+  const values = new Set<string>();
+  for (const record of campaignCollection(campaign, collection).records) {
+    const stored = recordValue(record)[key];
+    if (typeof stored === "string" && stored.trim() !== "") values.add(stored.trim());
+  }
+  return [...values].sort((left, right) => left.localeCompare(right));
 }
 
 /** A colour as the picker takes it (#rrggbb), or undefined for anything else. */
