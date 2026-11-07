@@ -169,7 +169,8 @@ export async function exerciseSettings({
   await page.goto("/settings/addons");
   const row = page.locator(`.addon-row[data-addon-id="${id}"]`),
     dropdown = page.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
-  const tab = page.getByRole("tab", { name: id, exact: true }),
+  // Tabs are labelled with the add-on's name; find them by its ID.
+  const tab = page.locator(`[role="tab"][data-addon-tab="${id}"]`),
     management = page.getByRole("tab", { name: "Management", exact: true });
   await tab.waitFor();
   assert.equal(await management.getAttribute("aria-selected"), "true");
@@ -325,8 +326,11 @@ export async function exerciseSettings({
   await player.locator(".settings-preference-field select").selectOption("cs");
   await player.goBack();
   // A single add-on settings page needs no tab strip.
-  await player.locator("#addon-settings-panel h3").getByText(id, { exact: true }).waitFor();
-  assert.equal(await player.getByRole("tab", { name: id, exact: true }).count(), 0);
+  await player
+    .locator("#addon-settings-panel h3")
+    .getByText("Settings fixture", { exact: true })
+    .waitFor();
+  assert.equal(await player.locator(`[role="tab"][data-addon-tab="${id}"]`).count(), 0);
   await playerSettings
     .locator(".addon-contribution-heading strong")
     .getByText("Sdílené předvolby", { exact: true })
@@ -436,8 +440,8 @@ export async function exerciseSettingsCardStability({
   const cards = page.locator("[data-addon-settings]"),
     first = page.locator('[data-addon-settings="settings-stable-a"]');
   const second = page.locator('[data-addon-settings="settings-stable-b"]');
-  const firstTab = page.getByRole("tab", { name: ids[0], exact: true }),
-    secondTab = page.getByRole("tab", { name: ids[1], exact: true });
+  const firstTab = page.locator(`[role="tab"][data-addon-tab="${ids[0]}"]`),
+    secondTab = page.locator(`[role="tab"][data-addon-tab="${ids[1]}"]`);
   await first.getByText("Options ready", { exact: true }).waitFor();
   await first.getByLabel("Saved option").fill("Unrelated add-on draft");
   assert.deepEqual(

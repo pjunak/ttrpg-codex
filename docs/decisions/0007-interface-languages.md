@@ -46,7 +46,10 @@ reads can be translated.
   builds from `addon.json`: the name, description, contribution labels,
   permission and dependency reasons, the ruleset name and content group labels.
   `config.labels` stays accepted but is deprecated; its `cs` text counts as the
-  Czech translation when the catalog has none.
+  Czech translation when the catalog has none. The add-on manager shows an
+  active add-on's texts from its catalogs; an activation review carries the
+  target package's translated manifest texts (`targetManifestTexts`), because
+  a package under review has no catalogs in the browser yet.
 - **The host tolerates bad catalogs; the inspector command does not.** Every
   host start re-inspects active packages, so a catalog problem becomes a
   report issue that drops that message or language instead of blocking
@@ -99,8 +102,7 @@ reads can be translated.
 - Follow-up work is in the [backlog](../BACKLOG.md): moving each add-on to the
   catalog format and keyed worker messages, language-pack ZIPs that the host
   downloads from an add-on's GitHub source when a language is enabled,
-  Compendium record translations as pack content, and translated activation
-  reviews.
+  and Compendium record translations as pack content.
 
 ## Alternatives considered
 

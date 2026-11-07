@@ -88,6 +88,10 @@ type ReviewProposal struct {
 	TargetManifest                 packageinspect.Manifest  `json:"targetManifest"`
 	Changes                        ReviewChanges            `json:"changes"`
 	Blockers                       []ReviewBlocker          `json:"blockers"`
+	// TargetManifestTexts holds the target package's translated manifest
+	// strings by language and key (manifest.name, permission reasons, ...).
+	// English is TargetManifest itself.
+	TargetManifestTexts map[string]map[string]string `json:"targetManifestTexts,omitempty"`
 }
 
 type ActivationReview struct {

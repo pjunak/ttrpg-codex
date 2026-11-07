@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"regexp"
 	"sort"
 	"strings"
@@ -43,11 +44,18 @@ type LocaleCatalog struct {
 	Sections []string `json:"sections"`
 	Issues   []string `json:"issues,omitempty"`
 	body     []byte
+	manifest map[string]string
 }
 
 // Body returns the catalog's message-catalog.v1 JSON.
 func (catalog LocaleCatalog) Body() []byte {
 	return bytes.Clone(catalog.body)
+}
+
+// ManifestTexts returns the catalog's manifest section by key, such as
+// manifest.name. Manifest messages are never plural.
+func (catalog LocaleCatalog) ManifestTexts() map[string]string {
+	return maps.Clone(catalog.manifest)
 }
 
 var (
@@ -624,9 +632,18 @@ func localeCatalog(catalog *messageCatalog, path string, issues []string) (Local
 	}
 	digest := sha256.Sum256(body)
 	sections := make([]string, 0, len(catalog.sections))
+	manifest := map[string]string{}
 	for _, section := range catalog.sections {
 		if len(section.entries) > 0 {
 			sections = append(sections, section.id)
+		}
+		if section.id != ManifestSection {
+			continue
+		}
+		for _, entry := range section.entries {
+			if !entry.message.plural() {
+				manifest[entry.key] = entry.message.text
+			}
 		}
 	}
 	bounded := make([]string, 0, min(len(issues), maxCatalogIssues))
@@ -646,5 +663,6 @@ func localeCatalog(catalog *messageCatalog, path string, issues []string) (Local
 	return LocaleCatalog{
 		Locale: catalog.locale, Path: path, SHA256: hex.EncodeToString(digest[:]),
 		Messages: catalog.messageCount(), Sections: sections, Issues: bounded, body: body,
+		manifest: manifest,
 	}, nil
 }

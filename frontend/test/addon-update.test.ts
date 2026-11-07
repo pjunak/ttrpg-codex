@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { AddonAdminClient } from "../src/core/addon-admin.js";
+import { AddonAdminClient, reviewManifestText } from "../src/core/addon-admin.js";
 
 const generation = "a".repeat(64),
   hash = "b".repeat(64);
@@ -87,4 +87,32 @@ it("rejects permission suggestions absent from the reviewed manifest", async () 
   await expect(
     new AddonAdminClient("csrf", new AbortController().signal).review("notes", generation),
   ).rejects.toThrow();
+});
+it("reads the target package's translated manifest texts, falling back to English", async () => {
+  const translated = (targetManifestTexts: unknown) =>
+    Response.json({ ...activation, proposal: { ...activation.proposal, targetManifestTexts } });
+  vi.stubGlobal(
+    "fetch",
+    vi
+      .fn()
+      .mockResolvedValueOnce(
+        translated({
+          cs: { "manifest.name": "Poznámky", "manifest.permission.core.data.read.reason": "Čte" },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json(activation))
+      .mockResolvedValueOnce(translated({ cs: { "notes.title": "Poznámky" } })),
+  );
+  const client = new AddonAdminClient("csrf", new AbortController().signal),
+    review = await client.review("notes", generation);
+  expect(reviewManifestText(review, "manifest.name", "cs")).toBe("Poznámky");
+  expect(reviewManifestText(review, "manifest.name", "cs-CZ")).toBe("Poznámky");
+  expect(reviewManifestText(review, "manifest.permission.core.data.read.reason", "cs")).toBe("Čte");
+  expect(reviewManifestText(review, "manifest.description", "cs")).toBeUndefined();
+  expect(reviewManifestText(review, "manifest.name", "en")).toBeUndefined();
+  expect(reviewManifestText(review, "manifest.name", "de")).toBeUndefined();
+  const english = await client.review("notes", generation);
+  expect(english.manifestTexts.size).toBe(0);
+  expect(reviewManifestText(english, "manifest.name", "cs")).toBeUndefined();
+  await expect(client.review("notes", generation)).rejects.toThrow("invalid server response");
 });

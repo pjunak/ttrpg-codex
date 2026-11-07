@@ -135,6 +135,42 @@ function interfacePackage(): Buffer {
   });
 }
 
+/** A headless add-on that asks for a permission and an add-on, translated into Czech. */
+function reviewedPackage(): Buffer {
+  return packageArchive({
+    "addon.json": JSON.stringify({
+      packageFormat: 1,
+      id: "lang-review",
+      name: "Language review",
+      description: "Checks translations.",
+      version: "1.0.0",
+      compatibility,
+      capabilities: { required: [], optional: [] },
+      permissions: [
+        { id: "core.data.read", resources: ["characters"], reason: "Reads characters." },
+      ],
+      dependencies: [
+        {
+          id: "lang-engine",
+          range: "^1.0.0",
+          required: true,
+          reason: "Translates engine messages.",
+        },
+      ],
+      locales: { en: "locales/en.json", cs: "locales/cs.json" },
+    }),
+    "locales/en.json": catalog("en", { main: { "main.title": "Review" } }),
+    "locales/cs.json": catalog("cs", {
+      manifest: {
+        "manifest.name": "Kontrola jazyka",
+        "manifest.description": "Kontroluje překlady.",
+        "manifest.permission.core.data.read.reason": "Čte postavy.",
+        "manifest.dependency.lang-engine.reason": "Překládá zprávy jádra.",
+      },
+    }),
+  });
+}
+
 async function open(t: TestContext, role: "dm" | "player", mobile = false): Promise<Page> {
   const context = await browser.newContext({
     baseURL: host.origin,
@@ -332,4 +368,42 @@ void test("the DM sees which add-on styles restyle shared controls", async (t) =
     0,
     "headless add-ons have no styles",
   );
+});
+
+void test("the add-on manager and its activation review read the package's translations", async (t) => {
+  const staged = await jsonResponse(
+    await host.admin.post("/api/admin/addons/generations", {
+      headers: { "X-Codex-CSRF": host.csrf, "Content-Type": "application/zip" },
+      data: reviewedPackage(),
+    }),
+  );
+  assert.equal(staged.addonId, "lang-review");
+  await setSiteLanguage("cs");
+  t.after(() => setSiteLanguage("en"));
+  const page = await open(t, "dm");
+  await page.goto("/settings/addons");
+  const row = page.locator('.addon-row[data-addon-id="lang-review"]');
+  // Not active yet, so the browser has no catalog for it and the row stays English.
+  await row.locator("h3").filter({ hasText: "Language review" }).waitFor();
+  await row.getByRole("button", { name: "Zapnout", exact: true }).click();
+
+  const review = page.locator(".addon-review");
+  await review
+    .locator("#addon-review-title")
+    .filter({ hasText: "Zkontrolovat aktivaci: Kontrola jazyka" })
+    .waitFor();
+  await review.getByText("Kontroluje překlady.", { exact: true }).waitFor();
+  const permission = review.getByRole("checkbox", { name: /core\.data\.read/u });
+  assert.match(String(await review.locator(".addon-permission").textContent()), /Čte postavy\./u);
+  assert.equal(await permission.isChecked(), true);
+  assert.equal(
+    await review.locator('[data-dependency="lang-engine"]').textContent(),
+    "Language engine ^1.0.0 · PovinnéPřekládá zprávy jádra.",
+  );
+  await review.screenshot({ path: "test-results/addon-languages/review-cs.png" });
+  await review.getByRole("button", { name: "Schválit a aktivovat", exact: true }).click();
+
+  // Active now: the name and description come from its loaded catalog.
+  await row.locator("h3").filter({ hasText: "Kontrola jazyka" }).waitFor();
+  assert.equal(await row.locator(".addon-row-description").textContent(), "Kontroluje překlady.");
 });

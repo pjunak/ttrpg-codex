@@ -3,6 +3,7 @@ import { readJSONResponse } from "./http.js";
 import { parseSchemaReview, type SchemaReview } from "./addon-schema-upgrade.js";
 import { parseWorkerDiagnostics, type WorkerDiagnostics } from "./worker-diagnostics.js";
 import { isRecord } from "./boundary.js";
+import { isLocaleTag, localeFallbacks } from "./message-catalog.js";
 import { sessionFetch } from "./player-preview.js";
 import { HostRequestError } from "./api.js";
 import {
@@ -48,7 +49,7 @@ export interface AddonSnapshot {
 }
 export interface AddonReview {
   suggested: string[];
-  dependencies: { id: string; range: string; required: boolean }[];
+  dependencies: { id: string; range: string; required: boolean; reason: string }[];
   services: { contract: string; range: string; required: boolean }[];
   rulesetName: string;
   supportedRulesets: string[];
@@ -59,9 +60,12 @@ export interface AddonReview {
   proposalSha256: string;
   status: string;
   name: string;
+  description: string;
   version: string;
   currentVersion: string;
   permissions: { id: string; reason: string; resources: string[] }[];
+  /** The target package's translated manifest texts by language, then key; English is the manifest. */
+  manifestTexts: ReadonlyMap<string, ReadonlyMap<string, string>>;
   required: string[];
   restarted: string[];
   changes: { category: string; added: string[]; changed: string[]; removed: string[] }[];
@@ -78,6 +82,40 @@ const {
   hash,
 } = responseReaders("Add-on administration");
 const strings = (value: unknown): string[] => list(value ?? []).map(text);
+
+function parseManifestTexts(value: unknown): ReadonlyMap<string, ReadonlyMap<string, string>> {
+  return new Map(
+    Object.entries(object(value ?? {})).map(([locale, texts]) => {
+      if (!isLocaleTag(locale)) fail();
+      return [
+        locale,
+        new Map(
+          Object.entries(object(texts)).map(([key, message]) => {
+            if (!key.startsWith("manifest.")) fail();
+            return [key, text(message)] as const;
+          }),
+        ),
+      ] as const;
+    }),
+  );
+}
+
+/**
+ * A review's manifest text, such as `manifest.name`, in `locale` or its base
+ * language; undefined when only the manifest's English has it.
+ */
+export function reviewManifestText(
+  review: Pick<AddonReview, "manifestTexts">,
+  key: string,
+  locale: string,
+): string | undefined {
+  for (const tag of localeFallbacks(locale)) {
+    if (tag === "en") return undefined;
+    const message = review.manifestTexts.get(tag)?.get(key);
+    if (message !== undefined) return message;
+  }
+  return undefined;
+}
 
 export function parseInstalledGeneration(value: unknown): InstalledGeneration {
   const record = object(value);
@@ -155,6 +193,8 @@ function parseAddonReview(value: unknown): AddonReview {
     proposalSha256: hash(record["proposalSha256"]),
     status: text(record["status"]),
     name: text(manifest["name"]),
+    description: optionalText(manifest["description"]),
+    manifestTexts: parseManifestTexts(proposal["targetManifestTexts"]),
     version: text(manifest["version"]),
     rulesetName:
       manifest["rules"] && object(manifest["rules"])["defines"]
@@ -177,6 +217,7 @@ function parseAddonReview(value: unknown): AddonReview {
         id: id(d["id"]),
         range: text(d["range"]),
         required: typeof d["required"] === "boolean" ? d["required"] : fail(),
+        reason: optionalText(d["reason"]),
       };
     }),
     services: list(

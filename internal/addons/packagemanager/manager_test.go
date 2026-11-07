@@ -1159,6 +1159,50 @@ func TestBrowserGraphIndexesEveryActiveAddonsCatalogs(t *testing.T) {
 	}
 }
 
+func TestActivationReviewCarriesTheStagedPackagesManifestTranslations(t *testing.T) {
+	t.Parallel()
+
+	db := testDatabase(t)
+	manager, _ := testManager(t, db, filepath.Join(t.TempDir(), "packages"), &fakeRuntimeFactory{})
+	generation, err := manager.Stage(context.Background(), writeAddonPackage(t, packageSpec{
+		ID: "planner-addon", Version: "1.0.0", Permission: true,
+		Locales: map[string]string{"en": "locales/en.json", "cs": "locales/cs.json"},
+		ExtraFiles: map[string][]byte{
+			"locales/en.json": []byte(`{"contractVersion":"message-catalog.v1","locale":"en","sections":{"main":{"main.title":"Planner"}}}`),
+			"locales/cs.json": []byte(`{"contractVersion":"message-catalog.v1","locale":"cs","sections":{
+				"manifest":{"manifest.name":"Plánovač","manifest.permission.core.data.read.reason":"Čte postavy."},
+				"main":{"main.title":"Plánovač"}}}`),
+		},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := manager.PrepareActivationReview(context.Background(), "planner-addon", generation.GenerationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]map[string]string{"cs": {
+		"manifest.name": "Plánovač", "manifest.permission.core.data.read.reason": "Čte postavy.",
+	}}
+	if !reflect.DeepEqual(review.Proposal.TargetManifestTexts, want) {
+		t.Fatalf("review manifest texts = %+v", review.Proposal.TargetManifestTexts)
+	}
+	stored, err := manager.GetActivationReview(context.Background(), review.ReviewID)
+	if err != nil || !reflect.DeepEqual(stored.Proposal.TargetManifestTexts, want) {
+		t.Fatalf("stored review = %+v, %v", stored.Proposal.TargetManifestTexts, err)
+	}
+	// The texts come from the immutable package, so approval's recheck sees the same proposal.
+	if _, err := manager.ApproveActivationReview(context.Background(), review.ReviewID, []string{"core.data.read"}); err != nil {
+		t.Fatal(err)
+	}
+
+	english := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")
+	untranslated, err := manager.PrepareActivationReview(context.Background(), "engine-addon", english.GenerationID)
+	if err != nil || untranslated.Proposal.TargetManifestTexts != nil {
+		t.Fatalf("untranslated review texts = %+v, %v", untranslated.Proposal.TargetManifestTexts, err)
+	}
+}
+
 func TestRecoveryNeverFallsBackFromCorruptActiveGeneration(t *testing.T) {
 	t.Parallel()
 

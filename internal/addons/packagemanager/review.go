@@ -224,7 +224,8 @@ func (manager *Manager) buildReviewProposal(
 		CurrentGenerationID:            state.ActiveGenerationID,
 		PreviouslyGrantedPermissionIDs: sortedStrings(state.GrantedPermissionIDs),
 		CurrentManifest:                currentManifest, TargetManifest: report.Manifest,
-		Blockers: make([]ReviewBlocker, 0),
+		TargetManifestTexts: manifestTranslations(report),
+		Blockers:            make([]ReviewBlocker, 0),
 	}
 	proposal.SuggestedPermissionIDs, proposal.RequiredPermissionIDs = reviewPermissionIDs(
 		state.GrantedPermissionIDs, report.Manifest.Permissions,
@@ -544,6 +545,21 @@ func changeSet(before, after map[string]any) ChangeSet {
 func sortedStrings(values []string) []string {
 	result := append([]string(nil), values...)
 	sort.Strings(result)
+	return result
+}
+
+// manifestTranslations collects every non-English catalog's manifest texts,
+// so a review can show a package that is not active yet in the reader's language.
+func manifestTranslations(report packageinspect.Report) map[string]map[string]string {
+	result := map[string]map[string]string{}
+	for _, catalog := range report.Locales {
+		if texts := catalog.ManifestTexts(); catalog.Locale != "en" && len(texts) != 0 {
+			result[catalog.Locale] = texts
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
 	return result
 }
 

@@ -135,6 +135,12 @@ func TestInspectFileBuildsEffectiveLocaleCatalogs(t *testing.T) {
 		"manifest.contribution.browse.sidebar.label": "Pravidla",
 		"manifest.contribution.browse.route.label":   "Procházet",
 	})
+	if texts := cs.ManifestTexts(); !reflect.DeepEqual(texts, map[string]string{
+		"manifest.contribution.browse.sidebar.label": "Pravidla",
+		"manifest.contribution.browse.route.label":   "Procházet",
+	}) {
+		t.Fatalf("Czech manifest texts = %+v", texts)
+	}
 
 	sk := report.Locales[2]
 	if sk.Path != "locales/sk.json" || sk.Messages != 0 || len(sk.Issues) != 1 ||

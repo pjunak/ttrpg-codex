@@ -6,7 +6,12 @@ import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { AddonContributionsController } from "./addon-contributions-controller.js";
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
-import { AddonAdminClient, type AddonReview, type AddonSnapshot } from "../core/addon-admin.js";
+import {
+  AddonAdminClient,
+  reviewManifestText,
+  type AddonReview,
+  type AddonSnapshot,
+} from "../core/addon-admin.js";
 import {
   UiLocalizationController,
   uiSourceLabel,
@@ -205,14 +210,21 @@ export class CodexAddonManager extends LitElement {
   }
 
   #tabs(): ConfigurationAddon[] {
-    const addons = new Map(this.configurationAddons.map((addon) => [addon.id, addon]));
+    const addons = new Map(this.configurationAddons.map((addon) => [addon.id, addon])),
+      catalogs = this.registry?.catalogs.entries() ?? [];
     for (const active of this.#contributions.list("settings")) {
       if (!addons.has(active.addonId))
-        addons.set(active.addonId, { id: active.addonId, name: active.addonId });
+        addons.set(active.addonId, {
+          id: active.addonId,
+          name:
+            catalogs.find((entry) => entry.addonId === active.addonId)?.addonName || active.addonId,
+        });
     }
     return [
       ...(this.canManage ? [{ id: "", name: this.#ui.t("addons.management") }] : []),
-      ...[...addons.values()].sort((a, b) => a.id.localeCompare(b.id)),
+      ...[...addons.values()]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((addon) => ({ ...addon, name: this.#addonName(addon.id, addon.name) })),
     ];
   }
   #selectedTab(tabs = this.#tabs()): string {
@@ -454,7 +466,18 @@ export class CodexAddonManager extends LitElement {
     const active = snapshot?.generations.find(
       (generation) => generation.generationId === snapshot.state.activeGenerationId,
     );
-    return (active ?? snapshot?.generations[0])?.name || addonId;
+    return this.#addonName(addonId, (active ?? snapshot?.generations[0])?.name || addonId);
+  }
+  /**
+   * An active add-on's manifest text, such as `manifest.description`, in the
+   * reader's language. The catalogs are the active generation's, so an
+   * inactive package's texts stay English.
+   */
+  #catalogText(addonId: string, key: string): string | undefined {
+    return this.registry?.catalogs.manifestText(addonId, key, this.#ui.locale);
+  }
+  #addonName(addonId: string, english: string): string {
+    return this.#catalogText(addonId, "manifest.name") ?? english;
   }
   /** The packages one check found. A single update is installed from the row's own button. */
   #candidates(result: GitHubDiscovery, addonId: string) {
@@ -645,6 +668,8 @@ export class CodexAddonManager extends LitElement {
     const update = found?.candidates.find((candidate) => !candidate.active);
     const version = found && update ? githubCandidateVersion(update, found.source) : "";
     const failed = snapshot.runtimeState === "failed" || Boolean(active?.lastError);
+    const description =
+      (active && this.#catalogText(state.addonId, "manifest.description")) || shown?.description;
     const settings = this.#tabs().some((tab) => tab.id && tab.id === state.addonId);
     const status = !active
       ? { tone: "off", label: t("addons.disabled") }
@@ -659,13 +684,13 @@ export class CodexAddonManager extends LitElement {
       }}>
       <header class="addon-row-head">
         <div class="addon-row-title">
-          <h3>${shown?.name || state.addonId}</h3>
+          <h3>${active ? this.#addonName(state.addonId, active.name || state.addonId) : shown?.name || state.addonId}</h3>
           <div class="addon-row-meta">
             ${shown ? html`<span class="addon-row-version">v${shown.version}</span>` : nothing}
             <span class="addon-chip" data-tone=${status.tone}>${status.label}</span>
             ${update ? html`<span class="addon-chip" data-tone="info">${t("addons.updateAvailable", { version })}</span>` : nothing}
           </div>
-          ${shown?.description ? html`<p class="addon-row-description">${shown.description}</p>` : nothing}
+          ${description ? html`<p class="addon-row-description">${description}</p>` : nothing}
           ${this.#links(state.addonId)}
           ${failed ? html`<p role="alert">${t("addons.notRunningHelp")}</p>` : nothing}
         </div>
@@ -725,18 +750,22 @@ export class CodexAddonManager extends LitElement {
           run: () => this.#prepareUninstall(addonId),
         },
       ],
-      { title: snapshot.generations[0]?.name || addonId, returnFocus: opener },
+      { title: this.#name(addonId), returnFocus: opener },
     );
   }
   #reviewPanel(review: AddonReview) {
-    const t = this.#ui.t.bind(this.#ui);
+    const t = this.#ui.t.bind(this.#ui),
+      translated = (key: string, english: string) =>
+        reviewManifestText(review, key, this.#ui.locale) ?? english,
+      description = translated("manifest.description", review.description);
     const changes = review.changes.filter(
       (change) => change.added.length + change.changed.length + change.removed.length,
     );
     const dataBlocked = review.blockers.some((blocker) => isDataBlocker(blocker.code));
     const otherBlockers = review.blockers.filter((blocker) => !isDataBlocker(blocker.code));
     return html`<section class="addon-review" aria-labelledby="addon-review-title">
-      <h3 id="addon-review-title" tabindex="-1">${t("addons.review")}: ${review.name}</h3>
+      <h3 id="addon-review-title" tabindex="-1">${t("addons.review")}: ${translated("manifest.name", review.name)}</h3>
+      ${description ? html`<p>${description}</p>` : nothing}
       <p>${review.currentVersion ? `${t("addons.current")}: ${review.currentVersion} → ` : ""}${t("addons.target")}: ${review.version}</p>
       ${review.currentVersion && this.automaticCleanup ? html`<p class="settings-hint">${t("storage.automatic")}</p>` : nothing}
       <details><summary>${t("addons.generation")}</summary><code>${review.generationId}</code></details>
@@ -750,7 +779,13 @@ export class CodexAddonManager extends LitElement {
       ${
         review.dependencies.length || review.services.length
           ? html`<ul>
-        ${review.dependencies.map((dependency) => html`<li>${dependency.id} ${dependency.range} · ${t(dependency.required ? "addons.required" : "update.optional")}</li>`)}
+        ${review.dependencies.map((dependency) => {
+          const reason = translated(
+            `manifest.dependency.${dependency.id}.reason`,
+            dependency.reason,
+          );
+          return html`<li data-dependency=${dependency.id}>${this.#name(dependency.id)} ${dependency.range} · ${t(dependency.required ? "addons.required" : "update.optional")}${reason ? html`<small>${reason}</small>` : nothing}</li>`;
+        })}
         ${review.services.map((service) => html`<li>${service.contract} ${service.range} · ${t(service.required ? "addons.required" : "update.optional")}</li>`)}
       </ul>`
           : nothing
@@ -768,7 +803,7 @@ export class CodexAddonManager extends LitElement {
               ? [...this.grants, permission.id]
               : this.grants.filter((id) => id !== permission.id);
           }}>
-          <span><strong>${permission.id}</strong> ${review.required.includes(permission.id) ? `(${t("addons.required")})` : ""}<small>${permission.resources.join(", ")}</small><span>${permission.reason}</span></span></label>`,
+          <span><strong>${permission.id}</strong> ${review.required.includes(permission.id) ? `(${t("addons.required")})` : ""}<small>${permission.resources.join(", ")}</small><span>${translated(`manifest.permission.${permission.id}.reason`, permission.reason)}</span></span></label>`,
               )
             : html`<p>${t("addons.noPermissions")}</p>`
         }
@@ -811,14 +846,14 @@ export class CodexAddonManager extends LitElement {
     const t = this.#ui.t.bind(this.#ui),
       restarting = review.restarted;
     return html`<section class="addon-review addon-disable-review" aria-labelledby="addon-review-title">
-      <h3 id="addon-review-title" tabindex="-1">${t("disable.review")}: ${review.name}</h3>
+      <h3 id="addon-review-title" tabindex="-1">${t("disable.review")}: ${this.#addonName(review.addonId, review.name)}</h3>
       <p>${review.addonId} · ${review.version}</p><p>${t("disable.help")}</p><p>${t("disable.keep")}</p>
       ${[true, false].map((disabled) => {
         const effects = review.effects.filter((effect) => effect.disabled === disabled);
         return effects.length
           ? html`<h4>${t(disabled ? "disable.required" : "disable.remaining")}</h4>
           ${!disabled ? html`<p>${t("disable.reconnect")}</p>` : nothing}
-          <ul>${effects.map((effect) => html`<li>${effect.name}${effect.name !== effect.addonId ? ` (${effect.addonId})` : ""}<small>${effect.reasons.join(", ")}</small></li>`)}</ul>`
+          <ul>${effects.map((effect) => this.#effect(effect))}</ul>`
           : nothing;
       })}
       ${review.stopped.length ? html`<p>${t("disable.stop", { addons: review.stopped.join(", ") })}</p>` : nothing}
@@ -838,14 +873,14 @@ export class CodexAddonManager extends LitElement {
         !review.effects.some((effect) => effect.addonId === id && effect.disabled),
     );
     return html`<section class="addon-review addon-uninstall-review" aria-labelledby="addon-review-title">
-      <h3 id="addon-review-title" tabindex="-1">${t("addons.uninstallReview")}: ${review.name}</h3>
+      <h3 id="addon-review-title" tabindex="-1">${t("addons.uninstallReview")}: ${this.#addonName(review.addonId, review.name)}</h3>
       <p>${review.addonId} · ${review.version}</p><p>${t("addons.uninstallHelp")}</p><p>${t("addons.uninstallKeep")}</p>
       ${review.rulesetName ? html`<p>${t("addons.uninstallRules", { ruleset: review.rulesetName })}</p>` : nothing}
       ${review.unlinksSource ? html`<p>${t("addons.uninstallSource")}</p>` : nothing}
       ${[true, false].map((disabled) => {
         const effects = review.effects.filter((effect) => effect.disabled === disabled);
         return effects.length
-          ? html`<h4>${t(disabled ? "addons.uninstallDisable" : "addons.uninstallOptional")}</h4>${!disabled ? html`<p>${t("addons.uninstallReconnect")}</p>` : nothing}<ul>${effects.map((effect) => html`<li>${effect.name}${effect.name !== effect.addonId ? ` (${effect.addonId})` : ""}<small>${effect.reasons.join(", ")}</small></li>`)}</ul>`
+          ? html`<h4>${t(disabled ? "addons.uninstallDisable" : "addons.uninstallOptional")}</h4>${!disabled ? html`<p>${t("addons.uninstallReconnect")}</p>` : nothing}<ul>${effects.map((effect) => this.#effect(effect))}</ul>`
           : nothing;
       })}
       ${review.stopped.length ? html`<p>${t("addons.uninstallStop", { addons: review.stopped.join(", ") })}</p>` : nothing}
@@ -855,6 +890,11 @@ export class CodexAddonManager extends LitElement {
         this.removal = undefined;
       }}>${t("addons.cancel")}</button></div>
     </section>`;
+  }
+  /** One add-on a disable or uninstall affects, named in the reader's language. */
+  #effect(effect: { addonId: string; name: string; reasons: readonly string[] }) {
+    const name = this.#addonName(effect.addonId, effect.name);
+    return html`<li>${name}${name !== effect.addonId ? ` (${effect.addonId})` : ""}<small>${effect.reasons.join(", ")}</small></li>`;
   }
   #prepareDisable(addonId: string): void {
     this.#disableOpener =
