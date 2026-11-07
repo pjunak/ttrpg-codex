@@ -508,7 +508,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     await page.getByText("Details saved.", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Enter this canvas", exact: true }).click();
     await page
-      .locator(".dm-planner-breadcrumbs .active")
+      .locator(".dm-planner-breadcrumbs :is([aria-current], .active)")
       .filter({ hasText: "Northern trail" })
       .waitFor();
     const questURL = page.url();
@@ -592,14 +592,14 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     assert.equal(await page.getByLabel("Title", { exact: true }).inputValue(), "Unsaved draft");
     await openInPlace(page, questURL);
     await page
-      .locator(".dm-planner-breadcrumbs .active")
+      .locator(".dm-planner-breadcrumbs :is([aria-current], .active)")
       .filter({ hasText: "Northern trail" })
       .waitFor();
     await page.getByRole("button", { name: "Campaign", exact: true }).click();
     await page.locator(".dm-plan-card h3").filter({ hasText: "Northern trail" }).waitFor();
     await page.goBack();
     await page
-      .locator(".dm-planner-breadcrumbs .active")
+      .locator(".dm-planner-breadcrumbs :is([aria-current], .active)")
       .filter({ hasText: "Northern trail" })
       .waitFor();
     await openInPlace(page, "/addons/dm-tools/planner?item=quest-missing");
