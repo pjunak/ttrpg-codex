@@ -139,7 +139,6 @@ before(async () => {
               y: 0.5,
               pinType: "town",
               visibility: "public",
-              knowledge: 4,
             },
           },
         ],

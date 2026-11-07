@@ -174,7 +174,6 @@ try {
           name: `Place ${index}`,
           description: prose,
           visibility: "public",
-          knowledge: 4,
           x: (index % 20) / 19,
           y: Math.floor(index / 20) / 19,
           pinType: "town",

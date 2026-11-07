@@ -290,11 +290,6 @@
             "type": "string"
           }
         },
-        "knowledge": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 4
-        },
         "parentId": {
           "$ref": "#/$defs/reference"
         },

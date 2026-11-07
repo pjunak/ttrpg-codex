@@ -114,7 +114,6 @@ and ranks need the exact IDs of a faction's rank chain.
 | `size` | Marker size, 14–64 |
 | `mapNotes` | Notes shown with the map marker and on the location page |
 | `attitudes`, `tags` | As for characters |
-| `knowledge` | A number 0–4; stored, but the host does not use it ([undecided](../design/knowledge-and-investigation.md)) |
 
 Leave out `status`, which the location editor does not use. The schema does not
 include a location's private DM notes; put private material in a DM-visibility

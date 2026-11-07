@@ -604,13 +604,6 @@ const editorFields: Readonly<
       },
     }),
     field("region", "Region", { browse: true }),
-    field("knowledge", "Knowledge", {
-      kind: "number",
-      maximumLength: 1,
-      minimum: 0,
-      maximum: 4,
-      browse: true,
-    }),
     field("parentId", "Contained in", {
       kind: "reference",
       referenceCollection: "locations",

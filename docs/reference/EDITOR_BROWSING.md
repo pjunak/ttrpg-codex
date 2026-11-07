@@ -163,7 +163,7 @@ Long lists are searchable submenus; current values show as check marks or a
 trailing detail. Writes go through the in-place patch path (one field, current
 revision, conflicts reported) and confirm with a short notice. While another
 edit is open or saving, write actions are disabled with the reason. The menu
-leaves clues, location knowledge and questions alone while that model is
+leaves clues and questions alone while that model is
 [undecided](../design/knowledge-and-investigation.md).
 
 ## Compact reading and save feedback

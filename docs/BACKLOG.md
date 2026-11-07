@@ -159,11 +159,11 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 > decision is recorded here or as an [ADR](decisions/). Bug fixes that keep
 > current behaviour are fine.
 
-- **Knowledge and investigation model** `ttrpg-codex` — Location knowledge
-  (stored but unused), mystery clues (many are bare event keys), and
-  characters' *open questions* / *what is known* (also shown in Mind Palace and
-  the unanswered-questions list). Current behaviour, known problems and the
-  questions to answer are in the [design note](design/knowledge-and-investigation.md).
+- **Knowledge and investigation model** `ttrpg-codex` — Mystery clues (many
+  are bare event keys) and characters' *open questions* / *what is known* (also
+  shown in Mind Palace and the unanswered-questions list). Current behaviour,
+  known problems and the questions to answer are in the
+  [design note](design/knowledge-and-investigation.md).
 - **Previous add-on build after updates** `ttrpg-codex` — Cleanup removes the
   old build and its recovery data right after an update, so only a full backup
   can undo damage done by the new version. Decide whether to keep one previous

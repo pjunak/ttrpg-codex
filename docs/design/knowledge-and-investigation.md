@@ -5,21 +5,20 @@ area. Do not redesign its UI or change its stored data until a decision is
 recorded as an [ADR](../decisions/) and the work moves to the
 [backlog](../BACKLOG.md). Bug fixes that keep current behaviour are fine.
 
-**Last reviewed:** 2026-11-02
+**Last reviewed:** 2026-11-07
 
 This note collects how the area works today, what feels wrong, and the
 questions a decision has to answer. Add observations as they come up.
 
 ## What exists today
 
-### Knowledge levels
+### No knowledge levels
 
-- **Characters** have no knowledge level: the owner decided to remove it
-  because it was rarely used. Every reader sees the whole profile of a
-  character visible to them; secrecy uses record visibility and DM/player
-  twins ([core data](../reference/CORE_DATA.md#twin-reading-and-management)).
-- **Locations** store `knowledge` 0–4 (editable, filterable), but nothing in
-  the host reads it.
+No record has a knowledge level: the owner removed it from characters and
+then from locations, because it was rarely used and locations never used it.
+Every reader sees the whole of a record visible to them; secrecy uses record
+visibility and DM/player twins
+([core data](../reference/CORE_DATA.md#twin-reading-and-management)).
 
 ### Facts, questions and clues
 
@@ -44,7 +43,6 @@ its first question only
 
 ## What feels wrong
 
-- Location knowledge is stored and edited but has no effect.
 - Clues mix prose and record references in one list, and event keys only
   become links by coincidence of matching an event key.
 - Characters and mysteries each have their own way to hold facts and open
@@ -57,13 +55,12 @@ its first question only
 
 ## Questions to answer
 
-1. Should location knowledge go as well, or gain a meaning?
-2. Are clues references to records (events, locations, characters), prose, or
+1. Are clues references to records (events, locations, characters), prose, or
    typed entries that can be either?
-3. Should character facts and questions stay on characters, move to mysteries,
+2. Should character facts and questions stay on characters, move to mysteries,
    or become their own linked records?
-4. How should Mind Palace and the questions list present an investigation?
-5. How do existing records migrate without losing anything (event-key clues,
+3. How should Mind Palace and the questions list present an investigation?
+4. How do existing records migrate without losing anything (event-key clues,
    answered questions, unknown fields), and what does the reviewed migration
    look like?
 
