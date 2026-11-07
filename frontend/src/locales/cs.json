@@ -1172,7 +1172,9 @@
       "addons.locales": "Jazyky",
       "addons.current": "Současná verze",
       "addons.target": "Vybraná verze",
-      "addons.noChanges": "Žádné změny deklarací."
+      "addons.noChanges": "Žádné změny deklarací.",
+      "importAdapter.campaignBundle.label": "Balíček kampaně",
+      "importAdapter.campaignBundle.description": "Zkontrolované postavy, místa a vztahy, volitelně s příspěvky doplňků v jejich rozsahu."
     },
     "dm": {
       "dm.title": "DM panel",

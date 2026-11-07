@@ -77,7 +77,8 @@ reads can be translated.
   `ui.i18n`) gives the language, `t`, `plural`, `message` and change
   notifications, with catalogs loaded before an add-on mounts. `message`
   translates a `LocalizedText` (`{text, key?, args?, addon?}`) through any
-  active add-on's catalog, so a consumer can show its provider's messages.
+  active add-on's catalog, so a consumer can show its provider's messages;
+  `addon: "codex-core"` names the host's catalog, for the host's own services.
   `host.locale` becomes a BCP 47 string.
 - **Workers stay English and may attach a key.** A worker issue can carry
   `issueKey` and `issueArgs` next to its English `issue`; the browser

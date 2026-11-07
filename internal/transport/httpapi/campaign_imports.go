@@ -75,7 +75,13 @@ func (services *campaignImportServices) CallBrowserService(ctx context.Context, 
 		if !decodeImportCall(call.Params, &empty) {
 			return nil, servicebroker.ErrInvalidCall
 		}
-		result = map[string]any{"contractVersion": "import-adapter-description.v1", "id": "campaign-bundle", "label": "Campaign bundle", "description": "Reviewed characters, locations and relationships, with optional scoped add-on contributions.", "formats": []string{campaignimport.Format}, "features": []string{"receipt-status", "cancel", "record-views"}}
+		// The keys are in the host's catalog, which browsers reach through the
+		// coreImportProvider ID (frontend/src/addons/i18n.ts).
+		result = map[string]any{"contractVersion": "import-adapter-description.v1", "id": "campaign-bundle",
+			"label": "Campaign bundle", "labelKey": "importAdapter.campaignBundle.label",
+			"description":    "Reviewed characters, locations and relationships, with optional scoped add-on contributions.",
+			"descriptionKey": "importAdapter.campaignBundle.description",
+			"formats":        []string{campaignimport.Format}, "features": []string{"receipt-status", "cancel", "record-views"}}
 	case "preview":
 		var input struct {
 			ContractVersion string          `json:"contractVersion"`

@@ -531,6 +531,13 @@ void test(
     assert.equal(refused.status, "invalid");
     assert.ok(refused.message.length > 0);
     assert.equal(refused.revision, current.revision);
+    // The refusal keeps the Engine's catalog key so the sheet can translate it.
+    assert.deepEqual(refused.messageText, {
+      text: refused.message,
+      key: "Current HP cannot exceed the effective maximum ({0}).",
+      args: { "0": String(max) },
+      addon: current.state.rules.engineId,
+    });
   },
 );
 

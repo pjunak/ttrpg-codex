@@ -1164,7 +1164,9 @@
       "addons.locales": "Languages",
       "addons.current": "Current version",
       "addons.target": "Selected version",
-      "addons.noChanges": "No declaration changes."
+      "addons.noChanges": "No declaration changes.",
+      "importAdapter.campaignBundle.label": "Campaign bundle",
+      "importAdapter.campaignBundle.description": "Reviewed characters, locations and relationships, with optional scoped add-on contributions."
     },
     "dm": {
       "dm.title": "DM panel",

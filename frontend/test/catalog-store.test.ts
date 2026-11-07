@@ -180,6 +180,14 @@ describe("ui.i18n", () => {
       "Fallback",
     );
     expect(() => context.i18n.message({ text: "x", addon: "Not An Id" })).toThrow(TypeError);
+    // The host's own services key their texts in the host's catalog.
+    expect(
+      context.i18n.message({
+        text: "Campaign bundle",
+        key: "importAdapter.campaignBundle.label",
+        addon: "codex-core",
+      }),
+    ).toBe("Balíček kampaně");
   });
 
   it("notifies until the generation stops and requires the capability", async () => {

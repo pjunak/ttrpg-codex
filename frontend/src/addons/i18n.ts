@@ -2,6 +2,7 @@ import { currentUiLocale } from "../app/ui-localization.js";
 import { isRecord } from "../core/boundary.js";
 import { interpolate, selectPluralForm, type CatalogMessage } from "../core/message-catalog.js";
 import { addonIdPattern } from "../core/validators.js";
+import { hostMessage } from "../locales/index.js";
 import type { BrowserCatalogStore } from "./catalog-store.js";
 
 /** English text with an optional catalog key; workers send these for user-facing messages. */
@@ -14,6 +15,12 @@ export interface LocalizedText {
 }
 
 export type MessageArguments = Readonly<Record<string, string | number>>;
+
+/**
+ * The provider ID of the host's own services, such as its campaign-bundle
+ * import adapter. A LocalizedText naming it is keyed in the host's catalog.
+ */
+export const hostCatalogAddon = "codex-core";
 
 /** ui.i18n: the reader's language and the add-on's own message catalogs. */
 export interface BrowserI18nAPI {
@@ -36,7 +43,9 @@ export function createI18nAPI(
   assertAvailable: () => void,
 ): BrowserI18nAPI {
   const lookup = (owner: string, key: string): CatalogMessage | undefined =>
-    store.message(owner, key, currentUiLocale());
+    owner === hostCatalogAddon
+      ? hostMessage(currentUiLocale(), key)
+      : store.message(owner, key, currentUiLocale());
   return Object.freeze({
     get locale(): string {
       return currentUiLocale();

@@ -1480,6 +1480,14 @@ services and calls `describe` for exact supported JSON `format` strings.
 Unknown or multiply claimed formats are blocked before preview. There is no
 confidence-based probing or live-object `open(File)` contract.
 
+The description's `label` and `description` and the preview's `warnings` are
+English. To make them translatable, a provider adds optional `labelKey` and
+`descriptionKey` (keys in its message catalog) and `warningTexts`: the same
+warnings, in order, as `LocalizedText` without `addon`. The Import Center
+shows them, and a rejected preview's `ServiceError.issueText`, with
+`i18n.message` naming the provider. The host's adapter keys its texts in the
+host's catalog under the provider ID `codex-core`.
+
 The planning worker supports `dm-tools-planning`. It normalizes the candidate,
 retains exact guarded mutations behind a bounded 15-minute, generation-local
 token, and commits them in one host add-on transaction. Commit consumes the
@@ -1601,7 +1609,8 @@ falls back through base languages (`pt-BR`, `pt`) to English and then to the
 key itself. `plural` fills `{n}` with `count` and picks the form with
 `Intl.PluralRules`. `message` translates another add-on's text too, such as a
 provider's `ServiceError.issueText` or a `LocalizedText` it returns in a
-service document. `onChange` fires after the language changes or more catalogs
+service document; `addon: "codex-core"` names the host's own catalog, which
+the host's services (the campaign-bundle import adapter) use. `onChange` fires after the language changes or more catalogs
 arrive, and stops with the generation; re-render then. The language itself
 follows the site: the DM sets a default and the enabled languages, and each
 browser may choose another enabled one.

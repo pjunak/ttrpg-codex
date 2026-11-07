@@ -644,6 +644,25 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     }
   });
 
+if (process.env.CODEX_DM_TOOLS_ZIP)
+  void test("the Import Center shows each provider's label in the reader's language", async (t) => {
+    const archive = await readFile(resolve(required(process.env.CODEX_DM_TOOLS_ZIP)));
+    await installReviewedPackage(admin, csrf, "dm-tools", archive, dmToolsPermissions);
+    t.after(() => disable("dm-tools"));
+    const page = await open(t);
+    await page
+      .locator(".dm-panel")
+      .getByRole("link", { name: /Import Center/ })
+      .click();
+    await page.getByRole("heading", { name: "Campaign bundle", exact: true }).waitFor();
+    // Providers key their labels in their own catalogs; the host's
+    // campaign-bundle adapter uses the host's.
+    await page.evaluate(() => localStorage.setItem("codex_lang", "cs"));
+    await page.reload();
+    await page.getByRole("heading", { name: "Plánování DM Tools", exact: true }).waitFor();
+    await page.getByRole("heading", { name: "Balíček kampaně", exact: true }).waitFor();
+  });
+
 void test(`installed edit state protects navigation and expires with its mounted view`, async (t) => {
   const id = "dm-edits";
   await installDmPackage(admin, csrf, { id, slot: false, edits: true });

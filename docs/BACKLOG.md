@@ -66,17 +66,6 @@ not obvious. Move an entry between sections instead of duplicating it.
   flagged feature/feat/subclass scope (classes, species, spells, rules,
   monsters, magic items), and the PHB wizard-subclass table lists
   Bladesinger, which is neither a 2024 PHB subclass nor in the repository.
-- **Keyed Engine and worker messages** `addon-dnd-engine`,
-  `addon-dnd-character-sheets`, `addon-dm-tools`, `addon-dnd-homebrew` —
-  The add-ons use message catalogs and `ui.i18n` with complete Czech, but
-  Sheets still translates the Engine's English messages, explanation labels
-  and formulas by exact wording and regex templates (`character-feedback.ts`).
-  The Engine should key them (`LocalizedText`, also on explanation terms) and
-  ship their texts in its catalog so Sheets shows them with `i18n.message`.
-  DM Tools and Homebrew workers should key their issues and import warnings,
-  and `codex.import-adapter` should carry keys for adapter labels,
-  descriptions and warnings (the host's campaign-bundle adapter included) so
-  the Import Center translates them.
 - **Language packs** `ttrpg-codex`, first-party add-ons — Downloadable
   translations ([ADR-0007](decisions/0007-interface-languages.md)): a
   data-only pack ZIP holds one language's catalog (and later content
