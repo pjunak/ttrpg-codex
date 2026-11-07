@@ -112,8 +112,16 @@ export async function exercisePlannerActions({
   const dialog = page.getByRole("dialog", { name: "Edit planning item", exact: true }),
     title = dialog.getByLabel("Title", { exact: true });
   assert.equal(await unloadBlocked(page), true);
-  assert.equal(await dialog.getByRole("tab", { name: "Links", exact: true }).isDisabled(), true);
-  assert.equal(await dialog.getByRole("tab", { name: "Notes", exact: true }).isDisabled(), true);
+  await dialog
+    .locator('[data-form-section="links"][aria-disabled="true"]')
+    .getByText("Save the item first to add story flow, references and consequences.", {
+      exact: true,
+    })
+    .waitFor();
+  await dialog
+    .locator('[data-form-section="notes"][aria-disabled="true"]')
+    .getByText("Save the item first to add DM notes.", { exact: true })
+    .waitFor();
   await title.fill("Cancel this new event");
   await page.screenshot({ path: resolve(output, `planner-create-${suffix}.png`) });
   await dialog.getByRole("button", { name: "Cancel creation", exact: true }).click();

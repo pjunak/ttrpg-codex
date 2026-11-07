@@ -22,12 +22,14 @@ export async function closePlannerEditor(page: Page, locale = "en") {
       .click();
 }
 
-export async function plannerTab(page: Page, name: string) {
+/** Jumps to a section of the one-page item editor through its section bar. */
+export async function plannerSection(page: Page, name: string) {
   await page.locator(".dm-planner-dialog").waitFor();
   if (await page.locator(".dm-planning-reader").count())
     await page.getByRole("button", { name: "Edit item", exact: true }).click();
   await page
     .getByRole("dialog", { name: "Edit planning item", exact: true })
-    .getByRole("tab", { name, exact: true })
+    .getByRole("navigation", { name: "Sections", exact: true })
+    .getByRole("button", { name, exact: true })
     .click();
 }

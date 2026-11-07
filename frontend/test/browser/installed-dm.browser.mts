@@ -10,7 +10,7 @@ import type { AddressInfo } from "node:net";
 import type { ChildProcessByStdio } from "node:child_process";
 import type { Readable } from "node:stream";
 import type { FixtureCollection, FixtureRecord } from "./fixture-types.mts";
-import { plannerTab } from "./installed-planner-dialog-fixture.mts";
+import { plannerSection } from "./installed-planner-dialog-fixture.mts";
 import { exercisePlannerActions } from "./installed-planner-actions-fixture.mts";
 import { exerciseCampaignBundle } from "./installed-campaign-bundle-fixture.mts";
 import { exerciseImportCenter } from "./installed-import-center-fixture.mts";
@@ -516,7 +516,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     await page.getByLabel("Title", { exact: true }).fill("Hidden meeting");
     await page.getByRole("button", { name: "Save details", exact: true }).click();
     await page.getByText("Details saved.", { exact: true }).waitFor();
-    await plannerTab(page, "Notes");
+    await plannerSection(page, "Notes");
     await page.getByRole("button", { name: "Add DM note", exact: true }).click();
     await page.getByText("DM note added.", { exact: true }).waitFor();
     await page.goto("/dm");
