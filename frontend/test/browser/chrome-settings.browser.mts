@@ -282,7 +282,7 @@ for (const mobile of [false, true])
     });
     assert.equal(uploads.length, 0, "the selected file is saved with the reviewed form");
     assert.equal(
-      await page.locator('.settings-theme-form input[value="moonlit"]').isDisabled(),
+      await page.locator('.settings-site-theme input[value="moonlit"]').isDisabled(),
       false,
       "a branding draft does not lock the theme",
     );
@@ -368,7 +368,7 @@ void test("branding drafts survive live refresh, category navigation and theme s
   assert.equal(await name.inputValue(), "Remote");
   // A theme applies at once and leaves the separate branding draft alone.
   await name.fill("Kept through a theme save");
-  await page.locator('.settings-theme-form input[value="moonlit"]').check();
+  await page.locator('.settings-site-theme input[value="moonlit"]').check();
   await saved(page, "appearance", 1);
   assert.equal(await name.inputValue(), "Kept through a theme save");
   assert.equal(await name.isDisabled(), false);
@@ -542,6 +542,38 @@ void test("players follow site language changes live and see only their own choi
     await page.locator(".settings-preference-field select option").allTextContents(),
     ["Follow the site (English)", "English"],
   );
+});
+
+void test("players pick their own theme and otherwise follow the site default live", async (t) => {
+  const { page, writes } = await fixture(t, { role: "player" });
+  await openCategory(page, "appearance");
+  const choice = (value: string) => page.locator(`.settings-theme-form input[value="${value}"]`);
+  const theme = () => page.evaluate(() => document.documentElement.dataset["theme"]);
+  await choice("").waitFor();
+  assert.equal(await choice("").isChecked(), true);
+  assert.equal(await theme(), "classic");
+  assert.equal(await page.locator(".settings-site-theme, codex-branding-settings").count(), 0);
+  assert.equal(await page.locator("codex-interface-consistency").count(), 0);
+  await publish(page, () =>
+    collection("settings").records.push({
+      key: "appearance",
+      revision: 1,
+      value: { theme: "moonlit" },
+    }),
+  );
+  await page.waitForFunction(() => document.documentElement.dataset["theme"] === "moonlit");
+  await choice("moonlit").check();
+  await publish(page, () => {
+    setting("appearance").revision = 2;
+    setting("appearance").value = { theme: "classic" };
+  });
+  assert.equal(await theme(), "moonlit", "the browser's own theme wins over the site default");
+  await page.getByText("Use the site’s default theme, now Classic archive.").waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem("codex_personal_theme")), "moonlit");
+  await choice("").check();
+  await page.waitForFunction(() => document.documentElement.dataset["theme"] === "classic");
+  assert.equal(await page.evaluate(() => localStorage.getItem("codex_personal_theme")), null);
+  assert.equal(writes.length, 0);
 });
 
 void test("add-on sidebar pages show by default and hide without disabling their route", async (t) => {

@@ -7,9 +7,11 @@ comboboxes, tab navigation and modal focus. Domain code owns records, query
 semantics, save policy, authorization and specialized layouts.
 
 This preserves the original reusable-UI direction. A new skin overrides semantic
-tokens; it does not copy keyboard or lifecycle code. Classic and Moonlit remain
-the DM-owned, revisioned campaign themes. External theme-package registration is
-a separate feature and is not required to style these controls.
+tokens; it does not copy keyboard or lifecycle code. Classic and Moonlit are
+the built-in themes: the DM sets the site default (a revisioned campaign
+setting) and each browser may pick its own in Settings → Appearance. External
+theme-package registration is a separate feature and is not required to style
+these controls.
 
 ## Researched choices
 

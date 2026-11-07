@@ -1269,21 +1269,26 @@ void test("an empty vocabulary offers a starter set saved as one write", async (
   );
 });
 
-void test("theme choices save immediately against the current appearance revision", async (t) => {
+void test("site theme choices save immediately against the current appearance revision", async (t) => {
   const host = await campaign(t, {
     settings: [{ key: "appearance", value: { theme: "classic" } }],
   });
   const { page, writes } = await open(t, host, "#/settings/appearance");
-  await page.locator('[name="theme"][value="moonlit"]').check();
+  await page.locator('[name="siteTheme"][value="moonlit"]').check();
   await until(() => writes.length === 1, "the theme saves when picked");
   await page.waitForFunction(() => document.documentElement.dataset["theme"] === "moonlit");
-  await page.getByText("A theme changes for everyone as soon as you pick it.").waitFor();
+  await page.getByText("Site default theme saved.").waitFor();
   assert.equal(required(writes[0]).mutations[0]?.expectedRevision, 1);
   assert.deepEqual(await saved(host, "settings", "appearance"), { theme: "moonlit" });
-  assert.equal(await page.locator('[name="theme"][value="moonlit"]').isChecked(), true);
-  await page.locator('[name="theme"][value="classic"]').check();
+  assert.equal(await page.locator('[name="siteTheme"][value="moonlit"]').isChecked(), true);
+  assert.equal(await page.locator('[name="theme"][value=""]').isChecked(), true);
+  await page.locator('[name="siteTheme"][value="classic"]').check();
   await page.waitForFunction(() => document.documentElement.dataset["theme"] === "classic");
   assert.equal(required(writes[1]).mutations[0]?.expectedRevision, 2);
+  // The DM's own browser theme is local and never written.
+  await page.locator('[name="theme"][value="moonlit"]').check();
+  await page.waitForFunction(() => document.documentElement.dataset["theme"] === "moonlit");
+  assert.equal(writes.length, 2);
 });
 
 void test("saving an older character draft cannot delete a newly added relationship", async (t) => {

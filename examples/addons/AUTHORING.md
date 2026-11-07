@@ -91,7 +91,7 @@ your own subset; it drifts from what the host actually provides.
   `context.ui.enhance(ownRoot)`; the [shared UI contract](../../docs/reference/UI_FOUNDATIONS.md)
   covers markers, skin tokens and cleanup. Keep domain behaviour in your add-on.
 - Style with the host's [design tokens](API_V3.md#package-format) so your pages
-  follow the campaign theme: colours, type sizes (never below `--text-xs`),
+  follow the active theme: colours, type sizes (never below `--text-xs`),
   spacing, radii, motion and stacking layers. Keep copies of
   `contracts/addons/v3/design-tokens.json` and `style-check.mts` with your
   tools and run the check on your sources in CI.

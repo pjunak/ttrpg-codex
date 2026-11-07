@@ -2,7 +2,6 @@ import { cssHexColor } from "./campaign-projection.js";
 import { formText, formTextValues } from "../core/forms.js";
 import { uiText } from "./ui-localization.js";
 import { LitElement, html, nothing } from "lit";
-import { live } from "lit/directives/live.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import type {
   CampaignEnumCategory,
@@ -23,18 +22,11 @@ import {
 import { saveCampaign, type CampaignWriteKind, type CampaignWrites } from "./campaign-writes.js";
 import { saveFailure } from "./save-failure.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
-import {
-  campaignAppearanceRecord,
-  campaignTheme,
-  campaignThemes,
-  type CampaignAppearanceSaveDetail,
-  type CampaignThemeID,
-} from "./campaign-appearance.js";
 import { UiLocalizationController } from "./ui-localization.js";
+import "./codex-appearance-settings.js";
 import "./codex-language-settings.js";
 import "./codex-map-settings.js";
 import "./codex-party-settings.js";
-import "./codex-branding-settings.js";
 import "./codex-sidebar-settings.js";
 import "./codex-addon-manager.js";
 import "./codex-credential-settings.js";
@@ -110,7 +102,7 @@ export class CodexSettings extends LitElement {
   /** The app is saving or otherwise busy, so no write may start. */
   declare busy: boolean;
   declare private activeCategory: SettingsCategory;
-  /** This view's own definition or theme save is running. */
+  /** This view's own definition save is running. */
   declare private writing: boolean;
   declare private writeError: string;
   declare private editingId: string | null;
@@ -131,8 +123,6 @@ export class CodexSettings extends LitElement {
   readonly #ui = new UiLocalizationController(this);
   #dirty = false;
   #credentialsSaving = false;
-  /** The theme being saved, shown until that save finishes or fails. */
-  #pendingTheme: CampaignThemeID | undefined;
   #editCampaign: CampaignDataset | undefined;
   #addonSettingsShown = false;
 
@@ -182,7 +172,7 @@ export class CodexSettings extends LitElement {
       const next = this.#visibleCategory(requested) ? requested : "language";
       if (next !== this.activeCategory) {
         this.activeCategory = next;
-        this.#editCampaign = next === "appearance" ? this.campaign : undefined;
+        this.#editCampaign = undefined;
         this.editingId = null;
         this.deleteId = null;
         this.writeError = "";
@@ -193,6 +183,7 @@ export class CodexSettings extends LitElement {
       changed.has("canManageCampaign") &&
       !this.canManageCampaign &&
       this.activeCategory !== "language" &&
+      this.activeCategory !== "appearance" &&
       this.activeCategory !== "addons"
     ) {
       this.activeCategory = "language";
@@ -289,6 +280,7 @@ export class CodexSettings extends LitElement {
       readonly group: Group;
     }[] = [
       { id: "language", label: this.#ui.t("settings.language"), icon: "文", group: "personal" },
+      { id: "appearance", label: this.#ui.t("settings.appearance"), icon: "◐", group: "personal" },
       ...(!this.canManageCampaign &&
       (this.#contributions.list("settings").length > 0 || this.activeCategory === "addons")
         ? [
@@ -302,12 +294,6 @@ export class CodexSettings extends LitElement {
         : []),
       ...(this.canManageCampaign
         ? [
-            {
-              id: "appearance" as const,
-              label: this.#ui.t("settings.appearance"),
-              icon: "◐",
-              group: "campaign" as const,
-            },
             {
               id: "maps" as const,
               label: this.#ui.t("map.settings"),
@@ -404,39 +390,8 @@ export class CodexSettings extends LitElement {
   }
 
   #appearancePanel() {
-    if (this.campaign === undefined || !this.canManageCampaign) return nothing;
-    const current = this.#pendingTheme ?? campaignTheme(this.campaign);
-    return html`
-      <section class="settings-ledger settings-personal-panel" aria-labelledby="settings-appearance-title">
-        <header class="settings-ledger-heading">
-          <div>
-            <span class="settings-category-mark" aria-hidden="true">◐</span>
-            <div>
-              <h2 id="settings-appearance-title">${this.#ui.t("settings.appearance")}</h2>
-              <p>${this.#ui.t("settings.appearanceIntro")}</p>
-            </div>
-          </div>
-        </header>
-        <form class="settings-theme-form" @submit=${(event: Event) => event.preventDefault()}>
-          <fieldset ?disabled=${this.#locked}>
-            <legend>${this.#ui.t("settings.appearanceLabel")}</legend>
-            <div class="settings-theme-list">
-              ${campaignThemes.map(
-                (theme) => html`
-                <label class="settings-theme-choice">
-                  <input type="radio" name="theme" value=${theme.id} .checked=${live(theme.id === current)}
-                    @change=${() => void this.#applyTheme(theme.id)} />
-                  <span class="settings-theme-sample" data-theme-sample=${theme.id} aria-hidden="true"><i></i><b></b><em></em></span>
-                  <span><strong>${this.#ui.t(theme.labelKey)}</strong><small>${this.#ui.t(theme.hintKey)}</small></span>
-                </label>`,
-              )}
-            </div>
-          </fieldset>
-          <p class="settings-hint" role="status">${this.writing ? this.#ui.t("settings.saving") : this.#ui.t("settings.themeApplies")}</p>
-          ${saveFailure(this.writeError)}
-        </form>
-        <codex-branding-settings .campaign=${this.campaign} .busy=${this.busy}></codex-branding-settings>
-      </section>`;
+    return html`<codex-appearance-settings .campaign=${this.campaign} ?canManage=${this.canManageCampaign}
+      ?busy=${this.busy}></codex-appearance-settings>`;
   }
 
   #definitionRow(item: CampaignEnumItem, revision: number, items: readonly CampaignEnumItem[]) {
@@ -744,27 +699,13 @@ export class CodexSettings extends LitElement {
     void this.#write("enum-starter", Object.freeze({ category, expectedRevision }));
   }
 
-  /** A theme is a reversible shared choice, so it saves as soon as it is picked. */
-  async #applyTheme(theme: CampaignThemeID): Promise<void> {
-    if (this.#locked || this.campaign === undefined || !this.canManageCampaign) return;
-    if (theme === campaignTheme(this.campaign)) return;
-    this.#pendingTheme = theme;
-    const detail: CampaignAppearanceSaveDetail = Object.freeze({
-      theme,
-      expectedRevision: campaignAppearanceRecord(this.campaign)?.revision ?? 0,
-    });
-    await this.#write("appearance", detail);
-    this.#pendingTheme = undefined;
-    this.requestUpdate();
-  }
-
   #visibleCategory(category: SettingsCategory): boolean {
     return (
       category === "language" ||
+      category === "appearance" ||
       (category === "addons" && this.#contributions.list("settings").length > 0) ||
       (this.canManageCampaign &&
-        (category === "appearance" ||
-          category === "maps" ||
+        (category === "maps" ||
           category === "playerParty" ||
           category === "sidebar" ||
           category === "addons" ||

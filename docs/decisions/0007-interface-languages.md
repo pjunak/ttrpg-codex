@@ -60,7 +60,7 @@ reads can be translated.
   language packs will add their catalogs there without browser changes.
 - **The site language is a campaign setting.** `settings/language` holds
   `defaultLocale` and `enabledLocales` (English always enabled). Like the
-  theme, only the DM can change it, writes use revisions, and open browsers
+  site theme, only the DM can change it, writes use revisions, and open browsers
   update live; the browser caches it to avoid a flash and to choose the
   sign-in page's language. A language the DM can enable is one the host ships
   or one any active add-on ships.

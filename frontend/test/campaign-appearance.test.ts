@@ -1,8 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
+  activeTheme,
+  applyCampaignTheme,
+  applySiteTheme,
   campaignTheme,
   campaignThemes,
+  onThemeChange,
+  personalTheme,
   prepareCampaignAppearanceSave,
+  setPersonalTheme,
+  siteTheme,
 } from "../src/app/campaign-appearance.js";
 import type {
   CampaignCollection,
@@ -61,6 +68,47 @@ describe("campaign appearance", () => {
         theme: "sepia" as never,
       }),
     ).toThrow("campaign appearance edit is invalid");
+  });
+});
+
+describe("browser and site themes", () => {
+  afterEach(() => {
+    setPersonalTheme(undefined);
+    applySiteTheme("classic");
+  });
+
+  it("follows the site default until the browser picks its own theme", () => {
+    expect(activeTheme()).toBe("classic");
+    applyCampaignTheme(dataset([{ key: "appearance", revision: 1, value: { theme: "moonlit" } }]));
+    expect(siteTheme()).toBe("moonlit");
+    expect(activeTheme()).toBe("moonlit");
+    setPersonalTheme("classic");
+    expect(personalTheme()).toBe("classic");
+    expect(activeTheme()).toBe("classic");
+    // A site change does not override this browser's own choice.
+    applySiteTheme("moonlit");
+    applySiteTheme("classic");
+    applySiteTheme("moonlit");
+    expect(activeTheme()).toBe("classic");
+    setPersonalTheme(undefined);
+    expect(activeTheme()).toBe("moonlit");
+  });
+
+  it("ignores unknown themes and notifies only on change", () => {
+    let changes = 0;
+    const stop = onThemeChange(() => changes++);
+    setPersonalTheme("sepia" as never);
+    applySiteTheme("sepia" as never);
+    expect(personalTheme()).toBeUndefined();
+    expect(siteTheme()).toBe("classic");
+    applySiteTheme("classic");
+    expect(changes).toBe(0);
+    setPersonalTheme("moonlit");
+    applySiteTheme("moonlit");
+    expect(changes).toBe(2);
+    stop();
+    setPersonalTheme(undefined);
+    expect(changes).toBe(2);
   });
 });
 

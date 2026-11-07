@@ -214,6 +214,7 @@ codex-sidebar-settings {
 }
 .settings-branding .settings-hint,
 .settings-site-languages .settings-hint,
+.settings-site-theme .settings-hint,
 .settings-theme-form .settings-hint,
 .settings-sidebar-panel .settings-hint {
   color: var(--text-muted);
@@ -1522,10 +1523,20 @@ codex-addon-settings {
   margin-top: var(--space-5);
 }
 
-.settings-site-languages h3 {
+.settings-site-languages h3,
+.settings-site-theme h3 {
   margin: 0;
   font-family: var(--font-title);
   font-size: var(--text-base);
+}
+
+.settings-site-theme {
+  max-width: 45rem;
+  margin-top: var(--space-6);
+}
+
+.settings-site-theme fieldset {
+  margin-top: var(--space-3);
 }
 
 .settings-site-languages fieldset {

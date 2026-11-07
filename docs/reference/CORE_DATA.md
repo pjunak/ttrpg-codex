@@ -217,7 +217,7 @@ location/faction glyphs use silhouette filters on the glyph alone. Both use
 the original 10px outer and 4px inner glow. The shared glow helper also provides
 the size-dependent segmented map rendering described in [MAPS.md](MAPS.md).
 
-An open record, enum, or appearance form retains the campaign snapshot and
+An open record or enum form retains the campaign snapshot and
 revisions it was opened against. Live refresh still updates the shell's
 authoritative dataset, but cannot replace form inputs, remove a draft after a
 remote deletion, or silently advance the revision used by save/delete.
@@ -294,16 +294,17 @@ priority editors consume the shared definitions. Deletion uses the explicit Go
 operation above, shows current usage, and requires an intentional reject,
 replacement, or clear policy rather than creating dangling stored IDs.
 
-Appearance and site languages are shared campaign settings changed by the DM
-through the normal optimistic settings transaction: `settings/appearance`
-holds the theme and `settings/language` holds `defaultLocale` and
+The site theme and site languages are shared campaign settings changed by the
+DM through the normal optimistic settings transaction: `settings/appearance`
+holds the default `theme` and `settings/language` holds `defaultLocale` and
 `enabledLocales` (English is always enabled; unknown fields survive edits).
-Each browser may also keep a personal language, stored outside campaign data
-in `localStorage`, so one reader never changes another reader's language. A
-personal choice applies while the site still enables that language; otherwise
-the browser follows the site default
-([ADR-0007](../decisions/0007-interface-languages.md)). The browser caches the
-last accepted theme and site languages to avoid a flash of the defaults during
+Each browser may also keep a personal theme (`codex_personal_theme`) and
+language (`codex_lang`), stored outside campaign data in `localStorage`, so one
+reader never changes another reader's view. A personal theme always applies; a
+personal language applies while the site still enables it
+([ADR-0007](../decisions/0007-interface-languages.md)). Otherwise the browser
+follows the site default. The browser caches the last accepted site theme
+(`codex_theme`) and site languages to avoid a flash of the defaults during
 startup, including on the sign-in page; the campaign records remain
 authoritative and replace those caches as soon as they load.
 
