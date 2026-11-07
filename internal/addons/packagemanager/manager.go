@@ -100,6 +100,9 @@ type Manager struct {
 	runtimes        map[string]activeRuntime
 	contentRevision int64
 	contentCache    map[string]*contentcontract.Registry
+	// manifestTexts caches translated manifest texts by generation ID;
+	// generations are immutable.
+	manifestTexts map[string]map[string]map[string]string
 }
 
 func New(config Config) (*Manager, error) {
@@ -180,6 +183,7 @@ func New(config Config) (*Manager, error) {
 		logger:                config.Logger,
 		eventPublisher:        config.EventPublisher,
 		runtimes:              make(map[string]activeRuntime),
+		manifestTexts:         make(map[string]map[string]map[string]string),
 	}, nil
 }
 
@@ -478,6 +482,10 @@ func (manager *Manager) Snapshot(ctx context.Context, addonID string, eventLimit
 	if err != nil {
 		return Snapshot{}, err
 	}
+	for index := range snapshot.Generations {
+		generation := &snapshot.Generations[index]
+		generation.ManifestTexts = manager.generationManifestTextsLocked(ctx, addonID, generation.GenerationID)
+	}
 	if active, exists := manager.runtimes[addonID]; exists && active.runtime != nil {
 		runtimeSnapshot := active.runtime.Snapshot()
 		snapshot.Runtime = &runtimeSnapshot
@@ -498,6 +506,31 @@ func (manager *Manager) Snapshot(ctx context.Context, addonID string, eventLimit
 		snapshot.Runtime = &value
 	}
 	return snapshot, nil
+}
+
+// generationManifestTextsLocked returns one generation's translated manifest
+// texts, from the running report or else from the stored archive. A failed
+// read leaves the generation in English and is logged, not cached.
+func (manager *Manager) generationManifestTextsLocked(ctx context.Context, addonID, generationID string) map[string]map[string]string {
+	if texts, cached := manager.manifestTexts[generationID]; cached {
+		return texts
+	}
+	var texts map[string]map[string]string
+	if active, running := manager.runtimes[addonID]; running && active.generation.GenerationID == generationID {
+		texts = packageinspect.ManifestTranslations(active.report.Locales)
+	} else {
+		archive := filepath.Join(manager.generationDirectory(addonID, generationID), "package.zip")
+		read, err := manager.inspector.ManifestTranslationsFile(ctx, archive)
+		if err != nil {
+			if ctx.Err() == nil {
+				manager.logger.Warn("read add-on manifest translations", "addon", addonID, "generation", generationID, "error", err)
+			}
+			return nil
+		}
+		texts = read
+	}
+	manager.manifestTexts[generationID] = texts
+	return texts
 }
 
 // InstalledAddonIDs includes disabled and staged-only packages, unlike the active browser graph.

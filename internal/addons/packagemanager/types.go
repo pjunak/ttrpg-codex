@@ -121,6 +121,9 @@ type Generation struct {
 	// Name and Description come from the package manifest.
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	// ManifestTexts holds the package's translated manifest strings by
+	// language and key; only add-on snapshots fill it.
+	ManifestTexts map[string]map[string]string `json:"manifestTexts,omitempty"`
 }
 
 type State struct {

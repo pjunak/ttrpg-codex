@@ -30,6 +30,9 @@ export class AddonAdminRequestError extends HostRequestError {
   }
 }
 
+/** Translated manifest texts (`manifest.name`, permission reasons, ...) by language, then key. */
+export type ManifestTexts = ReadonlyMap<string, ReadonlyMap<string, string>>;
+
 export interface InstalledGeneration {
   addonId: string;
   generationId: string;
@@ -39,6 +42,8 @@ export interface InstalledGeneration {
   /** The package manifest's display name and description. */
   name: string;
   description: string;
+  /** The package's translated manifest texts by language, then key; English is the manifest. */
+  manifestTexts: ManifestTexts;
 }
 export interface AddonSnapshot {
   state: { addonId: string; revision: number; activeGenerationId: string };
@@ -65,7 +70,7 @@ export interface AddonReview {
   currentVersion: string;
   permissions: { id: string; reason: string; resources: string[] }[];
   /** The target package's translated manifest texts by language, then key; English is the manifest. */
-  manifestTexts: ReadonlyMap<string, ReadonlyMap<string, string>>;
+  manifestTexts: ManifestTexts;
   required: string[];
   restarted: string[];
   changes: { category: string; added: string[]; changed: string[]; removed: string[] }[];
@@ -83,7 +88,7 @@ const {
 } = responseReaders("Add-on administration");
 const strings = (value: unknown): string[] => list(value ?? []).map(text);
 
-function parseManifestTexts(value: unknown): ReadonlyMap<string, ReadonlyMap<string, string>> {
+function parseManifestTexts(value: unknown): ManifestTexts {
   return new Map(
     Object.entries(object(value ?? {})).map(([locale, texts]) => {
       if (!isLocaleTag(locale)) fail();
@@ -101,17 +106,17 @@ function parseManifestTexts(value: unknown): ReadonlyMap<string, ReadonlyMap<str
 }
 
 /**
- * A review's manifest text, such as `manifest.name`, in `locale` or its base
- * language; undefined when only the manifest's English has it.
+ * A manifest text, such as `manifest.name`, in `locale` or its base language;
+ * undefined when only the manifest's English has it.
  */
-export function reviewManifestText(
-  review: Pick<AddonReview, "manifestTexts">,
+export function localizedManifestText(
+  texts: ManifestTexts,
   key: string,
   locale: string,
 ): string | undefined {
   for (const tag of localeFallbacks(locale)) {
     if (tag === "en") return undefined;
-    const message = review.manifestTexts.get(tag)?.get(key);
+    const message = texts.get(tag)?.get(key);
     if (message !== undefined) return message;
   }
   return undefined;
@@ -127,6 +132,7 @@ export function parseInstalledGeneration(value: unknown): InstalledGeneration {
     lastError: optionalText(record["lastError"]),
     name: optionalText(record["name"]),
     description: optionalText(record["description"]),
+    manifestTexts: parseManifestTexts(record["manifestTexts"]),
   };
 }
 function parseAddonSnapshot(value: unknown): AddonSnapshot {

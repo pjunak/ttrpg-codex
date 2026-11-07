@@ -58,6 +58,54 @@ func (catalog LocaleCatalog) ManifestTexts() map[string]string {
 	return maps.Clone(catalog.manifest)
 }
 
+// ManifestTranslations collects every non-English catalog's manifest texts by
+// language and key; nil when the package translates none. English is the
+// manifest itself.
+func ManifestTranslations(locales []LocaleCatalog) map[string]map[string]string {
+	result := map[string]map[string]string{}
+	for _, catalog := range locales {
+		if texts := catalog.ManifestTexts(); catalog.Locale != "en" && len(texts) != 0 {
+			result[catalog.Locale] = texts
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// ManifestTranslationsFile reads the translated manifest texts of a package
+// the host has already inspected and stored. It opens only the manifest and
+// the catalogs instead of verifying every file again.
+func (i *Inspector) ManifestTranslationsFile(ctx context.Context, filename string) (map[string]map[string]string, error) {
+	archive, err := zip.OpenReader(filename)
+	if err != nil {
+		return nil, fmt.Errorf("open package zip: %w", err)
+	}
+	defer archive.Close()
+	entries, _, _, err := i.indexEntries(archive.File)
+	if err != nil {
+		return nil, err
+	}
+	manifestEntry, ok := entries[manifestFilename]
+	if !ok {
+		return nil, inspectionError(CodeMissingFile, manifestFilename, errors.New("required package manifest is missing"))
+	}
+	body, err := readEntry(ctx, manifestEntry, i.limits.MaxManifestBytes)
+	if err != nil {
+		return nil, inspectionError(CodeInvalidManifest, manifestFilename, err)
+	}
+	manifest, err := i.parseManifest(body)
+	if err != nil {
+		return nil, err
+	}
+	locales, err := i.localeCatalogs(ctx, manifest, entries)
+	if err != nil {
+		return nil, err
+	}
+	return ManifestTranslations(locales), nil
+}
+
 var (
 	placeholderPattern = regexp.MustCompile(`\{([A-Za-z0-9_]+)\}`)
 	pluralFormOrder    = []string{"zero", "one", "two", "few", "many", "other"}

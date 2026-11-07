@@ -35,6 +35,7 @@ export class CodexAddonConfiguration extends LitElement {
     addonId: { attribute: false },
     csrfToken: { attribute: false },
     inventoryRevision: { attribute: false },
+    manifestText: { attribute: false },
     disabled: { type: Boolean },
     policy: { state: true },
     services: { state: true },
@@ -45,6 +46,8 @@ export class CodexAddonConfiguration extends LitElement {
   declare addonId: string;
   declare csrfToken: string;
   declare inventoryRevision: string;
+  /** An add-on's manifest text in the reader's language; undefined means the English. */
+  declare manifestText: ((addonId: string, key: string) => string | undefined) | undefined;
   declare disabled: boolean;
   declare private policy: RulesPolicy | undefined;
   declare private services: ServiceSelections | undefined;
@@ -132,12 +135,16 @@ export class CodexAddonConfiguration extends LitElement {
     );
   }
   #addonName(addonId: string): string {
-    return (
+    return this.#translatedName(
+      addonId,
       this.policy?.sources.find((source) => source.addonId === addonId)?.addonName ??
-      this.services?.services.find((row) => row.requirement.consumerAddonId === addonId)
-        ?.consumerName ??
-      addonId
+        this.services?.services.find((row) => row.requirement.consumerAddonId === addonId)
+          ?.consumerName ??
+        addonId,
     );
+  }
+  #translatedName(addonId: string, english: string): string {
+    return this.manifestText?.(addonId, "manifest.name") ?? english;
   }
   #sourceEnabled(source: SourceTarget & { enabled: boolean }): boolean {
     return this.#selected?.has(sourceKey(source)) ?? source.enabled;
@@ -179,7 +186,7 @@ export class CodexAddonConfiguration extends LitElement {
       ${
         policy && sources.length
           ? html`
-      <p class="configuration-ruleset">${policy.ruleset ? html`${t("configuration.rulesetLabel")} <strong>${policy.ruleset.name}</strong> · ${t("configuration.definedBy", { addon: this.#addonName(policy.ruleset.addonId) })}` : t("configuration.noRules")}</p>
+      <p class="configuration-ruleset">${policy.ruleset ? html`${t("configuration.rulesetLabel")} <strong>${this.manifestText?.(policy.ruleset.addonId, "manifest.rules.name") ?? policy.ruleset.name}</strong> · ${t("configuration.definedBy", { addon: this.#addonName(policy.ruleset.addonId) })}` : t("configuration.noRules")}</p>
       ${pending ? html`<p class="configuration-pending" role="status">${this.#ui.plural("configuration.pendingBooks", pending)}</p>` : nothing}
       <fieldset ?disabled=${this.#blocked || !!this.review}><legend>${t("configuration.books")}</legend><p>${t("configuration.booksHelp")}</p>
         ${
@@ -224,15 +231,13 @@ export class CodexAddonConfiguration extends LitElement {
       sources = this.policy?.sources.filter((source) => source.addonId === this.addonId) ?? [];
     if (!sources.length) return html`<p>${t("configuration.noBooks")}</p>`;
     const visible = sources.filter((source) =>
-      `${source.name} ${source.addonName} ${source.id}`
+      `${source.name} ${this.#translatedName(source.addonId, source.addonName)} ${source.addonName} ${source.id}`
         .toLocaleLowerCase()
         .includes(this.search.toLocaleLowerCase().trim()),
     );
     if (!visible.length) return html`<p role="status">${t("configuration.noMatches")}</p>`;
     return [...new Set(visible.map((source) => source.addonId))].map(
-      (
-        id,
-      ) => html`<fieldset class="configuration-books"><legend>${visible.find((source) => source.addonId === id)?.addonName}</legend>
+      (id) => html`<fieldset class="configuration-books"><legend>${this.#addonName(id)}</legend>
       ${visible
         .filter((source) => source.addonId === id)
         .sort(
@@ -256,7 +261,7 @@ export class CodexAddonConfiguration extends LitElement {
       operator = row.requirement.selection === "operator";
     const inputId = `configuration-provider-${row.requirement.consumerAddonId}-${row.generationId}-${row.requirement.contract}`;
     return html`<fieldset class="configuration-service" data-service=${serviceKey(row)} ?disabled=${this.#blocked || !!this.review}>
-      <legend>${row.consumerName} · ${row.version}${row.active ? "" : ` · ${t("configuration.staged")}`}</legend>
+      <legend>${this.#translatedName(row.requirement.consumerAddonId, row.consumerName)} · ${row.version}${row.active ? "" : ` · ${t("configuration.staged")}`}</legend>
       <p class="configuration-status">${row.resolution.status === "resolved" ? t("configuration.current", { providers: row.resolution.providers.map((id) => this.#addonName(id)).join(", ") }) : row.resolution.status === "ambiguous" ? t("configuration.ambiguous") : row.resolution.status === "unavailable" ? t("configuration.missing") : t("configuration.unresolved")}</p>
       <p class="configuration-contract"><code>${row.requirement.contract} ${row.requirement.range}</code>${row.requirement.required ? "" : ` · ${t("configuration.optional")}`}</p>
       ${row.resolution.staleTargets.length ? html`<p role="status">${t("configuration.stale", { providers: row.resolution.staleTargets.join(", ") })}</p>` : nothing}
@@ -300,7 +305,7 @@ export class CodexAddonConfiguration extends LitElement {
     const t = this.#ui.t.bind(this.#ui);
     return html`<section class="configuration-review" aria-label=${t("configuration.review")}>
       <h4 tabindex="-1">${t("configuration.review")}</h4>
-      ${review.kind === "sources" ? html`<ul>${this.policy?.sources.filter((source) => this.#sourceEnabled(source) !== source.enabled || source.pending).map((source) => html`<li>${this.#sourceEnabled(source) ? t("configuration.enabling") : t("configuration.disabling")}: ${source.name} · ${source.addonName}</li>`)}</ul><p>${t("configuration.acknowledge")}</p>` : html`<p>${review.service.consumerName} · ${review.service.requirement.contract}: <strong>${review.choice.automatic ? t("configuration.automatic") : review.choice.ids.join(", ")}</strong></p>`}
+      ${review.kind === "sources" ? html`<ul>${this.policy?.sources.filter((source) => this.#sourceEnabled(source) !== source.enabled || source.pending).map((source) => html`<li>${this.#sourceEnabled(source) ? t("configuration.enabling") : t("configuration.disabling")}: ${source.name} · ${this.#translatedName(source.addonId, source.addonName)}</li>`)}</ul><p>${t("configuration.acknowledge")}</p>` : html`<p>${this.#translatedName(review.service.requirement.consumerAddonId, review.service.consumerName)} · ${review.service.requirement.contract}: <strong>${review.choice.automatic ? t("configuration.automatic") : review.choice.ids.join(", ")}</strong></p>`}
       <p>${t("configuration.retained")}</p><p>${review.snapshot.restartedAddonIds.length ? t("configuration.restart", { addons: review.snapshot.restartedAddonIds.join(", ") }) : t("configuration.noRestart")}</p>
       <div class="addon-actions"><button ?disabled=${this.#blocked} @click=${() => this.#apply(review)}>${t("configuration.apply")}</button><button ?disabled=${this.#blocked} @click=${() => {
         this.review = undefined;

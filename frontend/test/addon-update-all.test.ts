@@ -73,6 +73,7 @@ function site(reviews: (addonId: string, active: ReadonlySet<string>) => AddonRe
         lastError: "",
         name: addonId,
         description: "",
+        manifestTexts: new Map(),
       };
     },
     review: async (addonId, generationId) => ({ ...reviews(addonId, active), generationId }),

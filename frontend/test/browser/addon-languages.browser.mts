@@ -383,8 +383,8 @@ void test("the add-on manager and its activation review read the package's trans
   const page = await open(t, "dm");
   await page.goto("/settings/addons");
   const row = page.locator('.addon-row[data-addon-id="lang-review"]');
-  // Not active yet, so the browser has no catalog for it and the row stays English.
-  await row.locator("h3").filter({ hasText: "Language review" }).waitFor();
+  // Not active yet: the inventory carries the staged package's translations.
+  await row.locator("h3").filter({ hasText: "Kontrola jazyka" }).waitFor();
   await row.getByRole("button", { name: "Zapnout", exact: true }).click();
 
   const review = page.locator(".addon-review");
@@ -403,7 +403,93 @@ void test("the add-on manager and its activation review read the package's trans
   await review.screenshot({ path: "test-results/addon-languages/review-cs.png" });
   await review.getByRole("button", { name: "Schválit a aktivovat", exact: true }).click();
 
-  // Active now: the name and description come from its loaded catalog.
-  await row.locator("h3").filter({ hasText: "Kontrola jazyka" }).waitFor();
+  await page.locator(".addon-install-dialog").waitFor({ state: "detached" });
+  await row.locator('.addon-chip[data-tone="ok"]').waitFor();
+  assert.equal(await row.locator("h3").textContent(), "Kontrola jazyka");
   assert.equal(await row.locator(".addon-row-description").textContent(), "Kontroluje překlady.");
+});
+
+/** A small headless package named in English and Czech. */
+function namedPackage(
+  id: string,
+  english: string,
+  czech: string,
+  manifest: Record<string, unknown> = {},
+): Buffer {
+  return packageArchive({
+    "addon.json": JSON.stringify({
+      packageFormat: 1,
+      id,
+      name: english,
+      description: `${english} fixture.`,
+      version: "1.0.0",
+      compatibility,
+      capabilities: { required: [], optional: [] },
+      permissions: [],
+      locales: { en: "locales/en.json", cs: "locales/cs.json" },
+      ...manifest,
+    }),
+    "locales/en.json": catalog("en", { main: { "main.title": english } }),
+    "locales/cs.json": catalog("cs", {
+      manifest: { "manifest.name": czech, "manifest.description": `Ukázka: ${czech}.` },
+    }),
+  });
+}
+
+void test("disabled add-ons and the configuration panel read installed packages' translations", async (t) => {
+  const headers = { "X-Codex-CSRF": host.csrf };
+  await installReviewedPackage(
+    host.admin,
+    host.csrf,
+    "lang-switch",
+    namedPackage("lang-switch", "Language switch", "Jazykový přepínač"),
+    [],
+  );
+  const installed = await jsonResponse(await host.admin.get("/api/admin/addons/lang-switch"));
+  await jsonResponse(
+    await host.admin.post("/api/admin/addons/lang-switch/disable", {
+      headers,
+      data: { expectedStateRevision: installed.state.revision },
+    }),
+  );
+  // A staged consumer of a service nobody provides needs the DM's configuration.
+  await jsonResponse(
+    await host.admin.post("/api/admin/addons/generations", {
+      headers: { ...headers, "Content-Type": "application/zip" },
+      data: namedPackage("lang-config", "Language configuration", "Nastavení jazyka", {
+        services: {
+          consumes: [
+            {
+              contract: "lang.missing",
+              range: "^1.0.0",
+              cardinality: "one",
+              selection: "operator",
+              required: true,
+            },
+          ],
+        },
+      }),
+    }),
+  );
+  await setSiteLanguage("cs");
+  t.after(() => setSiteLanguage("en"));
+  const page = await open(t, "dm");
+  await page.goto("/settings/addons");
+
+  const disabled = page.locator('.addon-row[data-addon-id="lang-switch"]');
+  await disabled.locator('.addon-chip[data-tone="off"]').waitFor();
+  assert.equal(await disabled.locator("h3").textContent(), "Jazykový přepínač");
+  assert.equal(
+    await disabled.locator(".addon-row-description").textContent(),
+    "Ukázka: Jazykový přepínač.",
+  );
+
+  const tab = page.locator('[role="tab"][data-addon-tab="lang-config"]');
+  await tab.filter({ hasText: "Nastavení jazyka" }).waitFor();
+  await tab.click();
+  await page
+    .locator(".configuration-service legend")
+    .filter({ hasText: "Nastavení jazyka · 1.0.0 · Připravený balíček" })
+    .waitFor();
+  assert.equal(await page.locator("#addon-settings-panel > h3").textContent(), "Nastavení jazyka");
 });

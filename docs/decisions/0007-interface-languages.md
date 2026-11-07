@@ -46,10 +46,12 @@ reads can be translated.
   builds from `addon.json`: the name, description, contribution labels,
   permission and dependency reasons, the ruleset name and content group labels.
   `config.labels` stays accepted but is deprecated; its `cs` text counts as the
-  Czech translation when the catalog has none. The add-on manager shows an
-  active add-on's texts from its catalogs; an activation review carries the
-  target package's translated manifest texts (`targetManifestTexts`), because
-  a package under review has no catalogs in the browser yet.
+  Czech translation when the catalog has none. Packages that are not active
+  have no catalogs in the browser, so the server sends their translated
+  manifest texts: an add-on snapshot gives each installed generation's
+  (`manifestTexts`, read from the stored package's catalogs) and an activation
+  review the target package's (`targetManifestTexts`). The add-on manager and
+  its configuration panel show those, falling back to the manifest's English.
 - **The host tolerates bad catalogs; the inspector command does not.** Every
   host start re-inspects active packages, so a catalog problem becomes a
   report issue that drops that message or language instead of blocking

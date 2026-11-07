@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { AddonAdminClient, reviewManifestText } from "../src/core/addon-admin.js";
+import { AddonAdminClient, localizedManifestText } from "../src/core/addon-admin.js";
 
 const generation = "a".repeat(64),
   hash = "b".repeat(64);
@@ -105,14 +105,16 @@ it("reads the target package's translated manifest texts, falling back to Englis
   );
   const client = new AddonAdminClient("csrf", new AbortController().signal),
     review = await client.review("notes", generation);
-  expect(reviewManifestText(review, "manifest.name", "cs")).toBe("Poznámky");
-  expect(reviewManifestText(review, "manifest.name", "cs-CZ")).toBe("Poznámky");
-  expect(reviewManifestText(review, "manifest.permission.core.data.read.reason", "cs")).toBe("Čte");
-  expect(reviewManifestText(review, "manifest.description", "cs")).toBeUndefined();
-  expect(reviewManifestText(review, "manifest.name", "en")).toBeUndefined();
-  expect(reviewManifestText(review, "manifest.name", "de")).toBeUndefined();
+  expect(localizedManifestText(review.manifestTexts, "manifest.name", "cs")).toBe("Poznámky");
+  expect(localizedManifestText(review.manifestTexts, "manifest.name", "cs-CZ")).toBe("Poznámky");
+  expect(
+    localizedManifestText(review.manifestTexts, "manifest.permission.core.data.read.reason", "cs"),
+  ).toBe("Čte");
+  expect(localizedManifestText(review.manifestTexts, "manifest.description", "cs")).toBeUndefined();
+  expect(localizedManifestText(review.manifestTexts, "manifest.name", "en")).toBeUndefined();
+  expect(localizedManifestText(review.manifestTexts, "manifest.name", "de")).toBeUndefined();
   const english = await client.review("notes", generation);
   expect(english.manifestTexts.size).toBe(0);
-  expect(reviewManifestText(english, "manifest.name", "cs")).toBeUndefined();
+  expect(localizedManifestText(english.manifestTexts, "manifest.name", "cs")).toBeUndefined();
   await expect(client.review("notes", generation)).rejects.toThrow("invalid server response");
 });

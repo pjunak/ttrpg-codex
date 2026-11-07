@@ -1159,7 +1159,7 @@ func TestBrowserGraphIndexesEveryActiveAddonsCatalogs(t *testing.T) {
 	}
 }
 
-func TestActivationReviewCarriesTheStagedPackagesManifestTranslations(t *testing.T) {
+func TestStagedPackagesManifestTranslationsReachReviewAndSnapshot(t *testing.T) {
 	t.Parallel()
 
 	db := testDatabase(t)
@@ -1191,9 +1191,22 @@ func TestActivationReviewCarriesTheStagedPackagesManifestTranslations(t *testing
 	if err != nil || !reflect.DeepEqual(stored.Proposal.TargetManifestTexts, want) {
 		t.Fatalf("stored review = %+v, %v", stored.Proposal.TargetManifestTexts, err)
 	}
+	// An inactive generation's texts come from its stored archive.
+	snapshot, err := manager.Snapshot(context.Background(), "planner-addon", 0)
+	if err != nil || len(snapshot.Generations) != 1 || !reflect.DeepEqual(snapshot.Generations[0].ManifestTexts, want) {
+		t.Fatalf("inactive snapshot = %+v, %v", snapshot.Generations, err)
+	}
 	// The texts come from the immutable package, so approval's recheck sees the same proposal.
 	if _, err := manager.ApproveActivationReview(context.Background(), review.ReviewID, []string{"core.data.read"}); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := manager.ActivateReviewed(context.Background(), review.ReviewID); err != nil {
+		t.Fatal(err)
+	}
+	manager.manifestTexts = map[string]map[string]map[string]string{}
+	snapshot, err = manager.Snapshot(context.Background(), "planner-addon", 0)
+	if err != nil || !reflect.DeepEqual(snapshot.Generations[0].ManifestTexts, want) {
+		t.Fatalf("active snapshot = %+v, %v", snapshot.Generations, err)
 	}
 
 	english := stageServicePackage(t, manager, "engine-addon", "1.0.0", "3.1.0")

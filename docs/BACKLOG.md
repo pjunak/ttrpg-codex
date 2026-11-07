@@ -206,11 +206,6 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
   its own Markdown renderer because the host's Markdown component shows add-on
   references only as rule-detail popovers, never as in-place links. Lend a
   reference-resolver hook through the SDK.
-- **Translated names of inactive add-ons** `ttrpg-codex` — The add-on manager
-  translates active add-ons and the package under review, but a disabled
-  add-on's row and the configuration panel's ruleset, book and service owner
-  names stay English: the inventory and configuration responses carry only the
-  manifest's English.
 
 ## Ideas
 

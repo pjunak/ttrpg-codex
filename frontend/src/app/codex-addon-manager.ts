@@ -8,7 +8,7 @@ import { AddonContributionsController } from "./addon-contributions-controller.j
 import { confirmDiscardUnsavedEdit } from "./unsaved-edit.js";
 import {
   AddonAdminClient,
-  reviewManifestText,
+  localizedManifestText,
   type AddonReview,
   type AddonSnapshot,
 } from "../core/addon-admin.js";
@@ -294,7 +294,7 @@ export class CodexAddonManager extends LitElement {
         ${selected ? html`<h3>${tabs.find((tab) => tab.id === selected)?.name}</h3>` : nothing}
         ${
           this.canManage
-            ? html`<codex-addon-configuration .csrfToken=${this.csrfToken} .addonId=${selected} .disabled=${this.#requests.pending || this.#github.pending || this.#installBusy}
+            ? html`<codex-addon-configuration .csrfToken=${this.csrfToken} .addonId=${selected} .manifestText=${this.#translate} .disabled=${this.#requests.pending || this.#github.pending || this.#installBusy}
           @addon-configuration-error=${(event: CustomEvent<string>) => {
             this.configurationError = event.detail;
           }}
@@ -462,22 +462,31 @@ export class CodexAddonManager extends LitElement {
     </p>`;
   }
   #name(addonId: string): string {
+    return this.#addonName(addonId, this.#shown(addonId)?.name || addonId);
+  }
+  /** The generation an add-on's row shows: the active one, else the newest. */
+  #shown(addonId: string) {
     const snapshot = this.snapshots.find((item) => item.state.addonId === addonId);
     const active = snapshot?.generations.find(
       (generation) => generation.generationId === snapshot.state.activeGenerationId,
     );
-    return this.#addonName(addonId, (active ?? snapshot?.generations[0])?.name || addonId);
+    return active ?? snapshot?.generations[0];
   }
   /**
-   * An active add-on's manifest text, such as `manifest.description`, in the
-   * reader's language. The catalogs are the active generation's, so an
-   * inactive package's texts stay English.
+   * An add-on's manifest text, such as `manifest.description`, in the reader's
+   * language: from the generation its row shows, or, for a reader who cannot
+   * manage add-ons and so has no inventory, from the active add-on's catalog.
+   * Undefined means the manifest's English.
    */
-  #catalogText(addonId: string, key: string): string | undefined {
-    return this.registry?.catalogs.manifestText(addonId, key, this.#ui.locale);
+  #manifestText(addonId: string, key: string): string | undefined {
+    const shown = this.#shown(addonId);
+    return shown
+      ? localizedManifestText(shown.manifestTexts, key, this.#ui.locale)
+      : this.registry?.catalogs.manifestText(addonId, key, this.#ui.locale);
   }
+  readonly #translate = (addonId: string, key: string) => this.#manifestText(addonId, key);
   #addonName(addonId: string, english: string): string {
-    return this.#catalogText(addonId, "manifest.name") ?? english;
+    return this.#manifestText(addonId, "manifest.name") ?? english;
   }
   /** The packages one check found. A single update is installed from the row's own button. */
   #candidates(result: GitHubDiscovery, addonId: string) {
@@ -669,7 +678,7 @@ export class CodexAddonManager extends LitElement {
     const version = found && update ? githubCandidateVersion(update, found.source) : "";
     const failed = snapshot.runtimeState === "failed" || Boolean(active?.lastError);
     const description =
-      (active && this.#catalogText(state.addonId, "manifest.description")) || shown?.description;
+      this.#manifestText(state.addonId, "manifest.description") ?? shown?.description;
     const settings = this.#tabs().some((tab) => tab.id && tab.id === state.addonId);
     const status = !active
       ? { tone: "off", label: t("addons.disabled") }
@@ -684,7 +693,7 @@ export class CodexAddonManager extends LitElement {
       }}>
       <header class="addon-row-head">
         <div class="addon-row-title">
-          <h3>${active ? this.#addonName(state.addonId, active.name || state.addonId) : shown?.name || state.addonId}</h3>
+          <h3>${this.#name(state.addonId)}</h3>
           <div class="addon-row-meta">
             ${shown ? html`<span class="addon-row-version">v${shown.version}</span>` : nothing}
             <span class="addon-chip" data-tone=${status.tone}>${status.label}</span>
@@ -756,7 +765,7 @@ export class CodexAddonManager extends LitElement {
   #reviewPanel(review: AddonReview) {
     const t = this.#ui.t.bind(this.#ui),
       translated = (key: string, english: string) =>
-        reviewManifestText(review, key, this.#ui.locale) ?? english,
+        localizedManifestText(review.manifestTexts, key, this.#ui.locale) ?? english,
       description = translated("manifest.description", review.description);
     const changes = review.changes.filter(
       (change) => change.added.length + change.changed.length + change.removed.length,
@@ -769,7 +778,7 @@ export class CodexAddonManager extends LitElement {
       <p>${review.currentVersion ? `${t("addons.current")}: ${review.currentVersion} → ` : ""}${t("addons.target")}: ${review.version}</p>
       ${review.currentVersion && this.automaticCleanup ? html`<p class="settings-hint">${t("storage.automatic")}</p>` : nothing}
       <details><summary>${t("addons.generation")}</summary><code>${review.generationId}</code></details>
-      ${review.rulesetName ? html`<p>${t("configuration.defines", { ruleset: review.rulesetName })}</p>` : review.supportedRulesets.length ? html`<p>${t("configuration.supports", { rulesets: review.supportedRulesets.join(", ") })}</p>` : nothing}
+      ${review.rulesetName ? html`<p>${t("configuration.defines", { ruleset: translated("manifest.rules.name", review.rulesetName) })}</p>` : review.supportedRulesets.length ? html`<p>${t("configuration.supports", { rulesets: review.supportedRulesets.join(", ") })}</p>` : nothing}
       ${review.disabledSources.length ? html`<p>${t("configuration.initialOff", { books: review.disabledSources.join(", ") })}</p>` : nothing}
       <h4>${t("addons.changes")}</h4>${review.runtimeChanged ? html`<p>${t("addons.runtimeChanged")}</p>` : nothing}
       ${!changes.length && !review.runtimeChanged ? html`<p>${t("addons.noChanges")}</p>` : nothing}
@@ -875,7 +884,7 @@ export class CodexAddonManager extends LitElement {
     return html`<section class="addon-review addon-uninstall-review" aria-labelledby="addon-review-title">
       <h3 id="addon-review-title" tabindex="-1">${t("addons.uninstallReview")}: ${this.#addonName(review.addonId, review.name)}</h3>
       <p>${review.addonId} · ${review.version}</p><p>${t("addons.uninstallHelp")}</p><p>${t("addons.uninstallKeep")}</p>
-      ${review.rulesetName ? html`<p>${t("addons.uninstallRules", { ruleset: review.rulesetName })}</p>` : nothing}
+      ${review.rulesetName ? html`<p>${t("addons.uninstallRules", { ruleset: this.#manifestText(review.addonId, "manifest.rules.name") ?? review.rulesetName })}</p>` : nothing}
       ${review.unlinksSource ? html`<p>${t("addons.uninstallSource")}</p>` : nothing}
       ${[true, false].map((disabled) => {
         const effects = review.effects.filter((effect) => effect.disabled === disabled);
