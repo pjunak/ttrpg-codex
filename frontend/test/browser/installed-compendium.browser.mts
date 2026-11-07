@@ -153,7 +153,7 @@ async function fits(page: Page) {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 }
 async function go(page: Page, query: string) {
-  await page.goto(`/${route}${query}`);
+  await page.goto(`${route}${query}`);
   await page.locator(".comp-reading-pane h1").waitFor();
 }
 
