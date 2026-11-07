@@ -174,8 +174,11 @@ from) and, for places, through the places containing them; on a phone only the
 nearest one stays, as a back link. The actions sit in the top-right corner of
 the screen: save feedback, the DM/player version switch, **Edit** on record pages,
 and More actions (on characters **Edit wiki**, **Edit all fields**, Portrait and
-Visibility; for linked versions **Unlink versions**). Menus and notes they open
-float below them, so the bar never pushes the article down. Record, collection, search and settings pages share one centred
+Visibility; on other records Picture for factions and Visibility; for linked
+versions **Unlink versions**). Menus and notes they open float below them, so
+the bar never pushes the article down. Portrait, picture and visibility panels
+open under the masthead, and a faction's emblem carries its own pencil, like a
+character's portrait. Record, collection, search and settings pages share one centred
 frame.
 
 Missing artwork uses a compact identity mark in article mastheads. Character
@@ -412,6 +415,7 @@ bounded. These preferences do not change campaign policy or record ordering.
 | Inline fields, their commit modes and the drafts their page keeps | `frontend/src/app/codex-inline-field.ts`, `inline-draft.ts`, `record-inline-field.ts` |
 | The full record form: opening snapshot, dirty state, saving lock | `frontend/src/app/codex-record-form.ts` |
 | Which section or Settings panel holds each field | `frontend/src/app/record-form-layout.ts` |
+| A record page's picture and visibility panels | `frontend/src/app/codex-record-panel.ts` |
 | Editor write requests and their answers | `frontend/src/app/campaign-writes.ts` |
 | Write order, read-back checks and per-kind messages | `frontend/src/app/campaign-write-controller.ts`, `campaign-write-handlers.ts` |
 | Busy leases; admin view request lifetimes | `frontend/src/app/busy-lease.ts`, `admin-request-controller.ts` |

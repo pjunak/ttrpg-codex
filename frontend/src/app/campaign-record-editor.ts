@@ -134,7 +134,10 @@ export function prepareCharacterPatch(
     : editorFieldsFor(collection, canManageVisibility);
   const selected = fields.filter((field) => Object.hasOwn(patch.fields, field.key));
   if (selected.length !== Object.keys(patch.fields).length) throw invalidEdit();
-  if (!character && (patch.portrait !== undefined || patch.relationships !== undefined))
+  if (
+    (patch.portrait !== undefined && recordPictureKinds[collection] === undefined) ||
+    (!character && patch.relationships !== undefined)
+  )
     throw invalidEdit();
   for (const key of patchKeys(patch)) {
     if (!sameCampaignValue(baseline[key], value[key]))

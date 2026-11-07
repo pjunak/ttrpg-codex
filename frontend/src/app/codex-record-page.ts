@@ -17,6 +17,10 @@ import { artwork } from "../ui/artwork.js";
 import { versionMenuItems } from "./codex-record-twins.js";
 import { recordPageBar, type Crumb } from "./record-chrome.js";
 import "./codex-record-form.js";
+import "./codex-record-panel.js";
+import type { CodexRecordPanel, RecordPanelKind } from "./codex-record-panel.js";
+import { pencilIcon } from "./edit-icon.js";
+import { recordPictureKinds } from "./record-picture.js";
 import { CodexCharacterProfile } from "./codex-character-profile.js";
 import { previewResourceURL } from "../core/player-preview.js";
 import { LitElement, html, nothing, type TemplateResult } from "lit";
@@ -27,7 +31,11 @@ import {
   type CampaignDataset,
   type CampaignRecord,
 } from "../core/campaign-data.js";
-import { editorFieldsFor, type CampaignEditorField } from "./campaign-record-editor.js";
+import {
+  collectionManagesVisibility,
+  editorFieldsFor,
+  type CampaignEditorField,
+} from "./campaign-record-editor.js";
 import { campaignEnumColor, campaignEnumDisplayLabel } from "./campaign-settings.js";
 import { factionRankChains } from "./campaign-structured-editors.js";
 import {
@@ -59,7 +67,7 @@ import {
 } from "./routes.js";
 import { eventMapParent, hasEventPin, locationMarker } from "./campaign-map.js";
 import { UiLocalizationController } from "./ui-localization.js";
-import { reportEditState, type EditState } from "./unsaved-edit.js";
+import { confirmDiscardUnsavedEdit, reportEditState, type EditState } from "./unsaved-edit.js";
 import { InlineDraftController } from "./inline-draft.js";
 import { inlineFieldKinds, recordInlineField } from "./record-inline-field.js";
 import { locationPlacementLinks } from "./record-map-links.js";
@@ -101,6 +109,7 @@ export class CodexRecordPage extends LitElement {
     viewStorageUnavailable: { state: true },
     editor: { state: true },
     coreSaved: { state: true },
+    panel: { state: true },
   };
 
   declare campaign: CampaignDataset | undefined;
@@ -120,6 +129,8 @@ export class CodexRecordPage extends LitElement {
   declare private editor: "closed" | "create" | "edit";
   /** The core entry saved while add-on sections of the open form still have edits. */
   declare private coreSaved: boolean;
+  /** The small edit panel open under the masthead, if any. */
+  declare private panel: RecordPanelKind | "";
   /** One per opened form, so each form starts from its own snapshot. */
   #session = 0;
   /** The creation's source entry was already gone when the form would have opened. */
@@ -142,6 +153,7 @@ export class CodexRecordPage extends LitElement {
     this.collectionView = defaultCollectionView;
     this.viewStorageUnavailable = false;
     this.editor = "closed";
+    this.panel = "";
   }
 
   override connectedCallback(): void {
@@ -177,7 +189,10 @@ export class CodexRecordPage extends LitElement {
         this.route?.kind === "record" &&
         previous.page.id === this.route.page.id &&
         previous.key === this.route.key;
-      if (!sameRecord) this.#inline.discardAll();
+      if (!sameRecord) {
+        this.#inline.discardAll();
+        this.panel = "";
+      }
     }
     if ((changed.has("route") || changed.has("actorRole")) && this.route?.kind === "collection") {
       const roleChanged = changed.has("actorRole") && changed.get("actorRole") !== undefined;
@@ -475,10 +490,26 @@ export class CodexRecordPage extends LitElement {
                 }</h1>
                 ${entity.title === "" ? nothing : html`<p>${entity.title}</p>`}
               </div>
-              <div class="record-masthead-art">${recordArtwork(entity, route.page.icon, `record-portrait${entity.portrait ? "" : " record-portrait-placeholder"}`, "eager", route.page.collection === "locations" ? dataset : undefined)}</div>
+              <div class="record-masthead-art">${recordArtwork(entity, route.page.icon, `record-portrait${entity.portrait ? "" : " record-portrait-placeholder"}`, "eager", route.page.collection === "locations" ? dataset : undefined)}${
+                this.canEdit && recordPictureKinds[route.page.collection] !== undefined
+                  ? html`<button type="button" class="inline-edit-button record-portrait-edit" aria-label=${uiText("form.changePicture")}
+                  title=${uiText("form.changePicture")} ?disabled=${this.busy} @click=${() => this.#openPanel("picture")}>${pencilIcon()}</button>`
+                  : nothing
+              }</div>
               ${renderRecordBadges(entity, { status: true, tags: true })}
               ${this.#mastheadActions(route, record, value)}
             </header>
+            ${
+              this.panel && this.canEdit
+                ? keyed(
+                    this.panel,
+                    html`<codex-record-panel .record=${record} .collection=${route.page.collection} .kind=${this.panel}
+                  @record-panel-closed=${() => {
+                    this.panel = "";
+                  }}></codex-record-panel>`,
+                  )
+                : nothing
+            }
             ${
               facts.length === 0
                 ? nothing
@@ -632,11 +663,31 @@ export class CodexRecordPage extends LitElement {
     return [...crumbs, { label: name }];
   }
 
-  /** The rarer record actions; only the DM manages versions. */
+  /** The rarer record actions: picture, visibility and, for the DM, versions. */
   #moreActions(record: CampaignRecord) {
-    return this.canManageVisibility && this.actorRole === "dm"
-      ? versionMenuItems(this, record)
-      : [];
+    const collection = this.route?.kind === "record" ? this.route.page.collection : undefined;
+    if (!this.canEdit || collection === undefined) return [];
+    return [
+      ...(recordPictureKinds[collection] === undefined
+        ? []
+        : [{ label: uiText("form.picture"), run: () => this.#openPanel("picture") }]),
+      ...(this.canManageVisibility && collectionManagesVisibility(collection)
+        ? [{ label: uiText("Visibility"), run: () => this.#openPanel("visibility") }]
+        : []),
+      ...(this.canManageVisibility && this.actorRole === "dm"
+        ? versionMenuItems(this, record).map((item, index) =>
+            index === 0 ? { ...item, separator: true } : item,
+          )
+        : []),
+    ];
+  }
+
+  #openPanel(panel: RecordPanelKind): void {
+    if (this.busy || this.panel === panel) return;
+    const open = this.querySelector<CodexRecordPanel>("codex-record-panel");
+    if (!confirmDiscardUnsavedEdit(open?.dirty === true, (message) => window.confirm(message)))
+      return;
+    this.panel = panel;
   }
 
   #contextCreationLinks(route: Extract<RecordRoute, { kind: "record" }>) {

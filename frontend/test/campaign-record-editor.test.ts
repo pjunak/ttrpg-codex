@@ -69,6 +69,36 @@ describe("in-place record patches", () => {
       ),
     ).toThrow();
   });
+
+  it("changes a faction's picture and visibility in place", () => {
+    const base = {
+      key: "watch",
+      revision: 2,
+      value: { name: "Watch", portrait: "/api/media/m_1", visibility: "public", keep: true },
+    };
+    const campaign = dataset({ factions: [base] });
+    expect(
+      prepareCharacterPatch(
+        campaign,
+        { collection: "factions", base, fields: {}, portrait: null },
+        true,
+      ).mutations[0],
+    ).toMatchObject({
+      operation: "put",
+      collection: "factions",
+      key: "watch",
+      expectedRevision: 2,
+    });
+    const hidden = prepareCharacterPatch(
+      campaign,
+      { collection: "factions", base, fields: {}, visibility: "dm" },
+      true,
+    ).mutations[0];
+    expect(hidden?.operation === "put" && hidden.value).toEqual({
+      ...base.value,
+      visibility: "dm",
+    });
+  });
 });
 
 describe("campaign record editing", () => {

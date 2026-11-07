@@ -1570,7 +1570,9 @@
       "form.rankBecause": "Because {faction} has ranks",
       "form.partyAttitudes": "Because they are in the party: party members have no attitudes toward it",
       "form.parentBecause": "Because you chose a different parent",
-      "form.saveHint": "Ctrl+S saves"
+      "form.saveHint": "Ctrl+S saves",
+      "form.picture": "Picture",
+      "form.changePicture": "Change picture"
     }
   }
 }
