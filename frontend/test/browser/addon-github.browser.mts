@@ -346,13 +346,15 @@ for (const mobile of [false, true])
     // A new commit remains an update even when the package version is unchanged.
     target = "b".repeat(64);
     await check.click();
-    await sourceRow.getByRole("button", { name: "Update", exact: true }).click();
+    // An Actions build is named by its short commit.
+    const updateButton = sourceRow.getByRole("button", { name: "Update to bbbbbbb", exact: true });
+    await updateButton.click();
     await reviewPanel.getByRole("heading", { name: "Review activation: GitHub test" }).waitFor();
     assert.equal(active, "a".repeat(64));
     await reviewPanel.getByRole("button", { name: "Cancel review" }).click();
     assert.equal(active, "a".repeat(64));
     await check.click();
-    await sourceRow.getByRole("button", { name: "Update", exact: true }).click();
+    await updateButton.click();
     await reviewPanel.getByRole("button", { name: "Approve and activate" }).click();
     await dialog.waitFor({ state: "detached" });
     await manager.getByText("Add-on state updated.", { exact: true }).waitFor();
@@ -366,7 +368,11 @@ for (const mobile of [false, true])
     failDiscovery = false;
     await check.click();
     await sourceRow.getByText("Up to date", { exact: true }).waitFor();
-    await sourceRow.getByText("Build #1234 · attempt 2", { exact: true }).waitFor();
+    // Build provenance waits behind the package's technical details.
+    const build = sourceRow.getByText("Build #1234 · attempt 2", { exact: true });
+    assert.equal(await build.isVisible(), false);
+    await sourceRow.locator(".github-candidate-technical > summary").click();
+    await build.waitFor();
     assert.equal(
       await sourceRow.getByRole("link", { name: "Open build on GitHub" }).getAttribute("href"),
       "https://github.com/owner/private/actions/runs/1234",
@@ -441,11 +447,27 @@ for (const mobile of [false, true])
     );
   });
 
-/** Two linked add-ons, each with one newer release; returns the fixture state. */
-async function routeTwoUpdates(page: Page) {
-  const ids = ["first", "second"];
-  const active: Record<string, string> = { first: "a".repeat(64), second: "b".repeat(64) };
-  const target: Record<string, string> = { first: "c".repeat(64), second: "d".repeat(64) };
+/**
+ * Linked add-ons, each with one newer release; returns the fixture state.
+ * `asks` gives an update new required permissions; each add-on in `failStage`
+ * fails its first download.
+ */
+async function routeUpdates(
+  page: Page,
+  {
+    ids = ["first", "second"],
+    asks = {},
+    failStage = [],
+  }: { ids?: string[]; asks?: Record<string, string[]>; failStage?: string[] } = {},
+) {
+  const active: Record<string, string> = Object.fromEntries(
+    ids.map((id, index) => [id, "abcd"[index]!.repeat(64)]),
+  );
+  const target: Record<string, string> = Object.fromEntries(
+    ids.map((id, index) => [id, "1234"[index]!.repeat(64)]),
+  );
+  const failing = new Set(failStage);
+  const grants: Record<string, unknown> = {};
   const generations = new Map(
     ids.map((addonId) => [
       addonId,
@@ -474,10 +496,22 @@ async function routeTwoUpdates(page: Page) {
     proposal: {
       addonId,
       generationId: target[addonId],
-      targetManifest: { id: addonId, name: addonId, version: "2.0.0", permissions: [] },
+      targetManifest: {
+        id: addonId,
+        name: addonId,
+        version: "2.0.0",
+        permissions: (asks[addonId] ?? []).map((id) => ({
+          id,
+          reason: "Save homebrew items",
+          resources: ["items"],
+        })),
+      },
       currentManifest: { version: "1.0.0" },
-      changes: { runtimeChanged: true },
-      requiredPermissionIds: [],
+      changes: {
+        runtimeChanged: true,
+        permissions: { added: asks[addonId] ?? [], changed: [], removed: [] },
+      },
+      requiredPermissionIds: asks[addonId] ?? [],
       restartedAddonIds: [],
       blockers: [],
     },
@@ -505,6 +539,10 @@ async function routeTwoUpdates(page: Page) {
     } else if (path.endsWith("/addon-github/stage")) {
       const id = String(body.addonId);
       assert.equal(body.candidateId, target[id]);
+      if (failing.delete(id)) {
+        await route.fulfill({ status: 502, json: { error: { kind: "GITHUB_UNAVAILABLE" } } });
+        return;
+      }
       const generation = {
         addonId: id,
         generationId: target[id]!,
@@ -518,8 +556,10 @@ async function routeTwoUpdates(page: Page) {
       value = { contractVersion: "addon-inventory.v1", addonIds: ids };
     else if (path.endsWith("/activation-reviews")) value = review(addonId);
     else if (path.endsWith("/update/cancel")) value = { cancelled: true };
-    else if (path.endsWith("/approval")) value = review(addonId, "approved");
-    else if (path.endsWith("/activation")) {
+    else if (path.endsWith("/approval")) {
+      grants[addonId] = body.grantedPermissionIds;
+      value = review(addonId, "approved");
+    } else if (path.endsWith("/activation")) {
       active[addonId] = target[addonId]!;
       value = { state: { addonId, activeGenerationId: active[addonId] } };
     } else if (ids.includes(addonId))
@@ -534,7 +574,7 @@ async function routeTwoUpdates(page: Page) {
     }
     await route.fulfill({ json: value });
   });
-  return { ids, active, target, checked };
+  return { ids, active, target, checked, grants };
 }
 
 for (const mobile of [false, true])
@@ -550,7 +590,7 @@ for (const mobile of [false, true])
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     t.after(() => assert.deepEqual(errors, []));
-    const { ids, active, target, checked } = await routeTwoUpdates(page);
+    const { ids, active, target, checked } = await routeUpdates(page);
     await page.goto(`${origin}/settings`);
     await page.locator('[data-category="addons"]').click();
     const manager = page.locator("codex-addon-manager"),
@@ -558,7 +598,7 @@ for (const mobile of [false, true])
     const first = manager.locator('[data-github-addon="first"]'),
       second = manager.locator('[data-github-addon="second"]');
     const download = (row: typeof first) =>
-      row.getByRole("button", { name: "Update", exact: true });
+      row.getByRole("button", { name: "Update to 2.0.0", exact: true });
     await manager.getByRole("button", { name: "Check for updates", exact: true }).click();
     await download(second).waitFor();
     assert.deepEqual(checked, ids);
@@ -598,7 +638,7 @@ for (const mobile of [false, true])
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     t.after(() => assert.deepEqual(errors, []));
-    const { active, target } = await routeTwoUpdates(page);
+    const { active, target } = await routeUpdates(page);
     await page.goto(`${origin}/settings`);
     await page.locator('[data-category="addons"]').click();
     const manager = page.locator("codex-addon-manager");
@@ -609,7 +649,71 @@ for (const mobile of [false, true])
     await manager.getByText("Updated: first, second.", { exact: true }).waitFor();
     assert.deepEqual(active, target);
     assert.equal(await updateAll.count(), 0, "updated add-ons no longer offer their packages");
+    assert.equal(await manager.locator("[data-update-attention]").count(), 0);
     await page.screenshot({ path: `${output}update-all-${mobile ? "phone" : "desktop"}.png` });
+  });
+
+for (const mobile of [false, true])
+  void test(`update all lists each update that needs a decision (${mobile ? "phone" : "desktop"})`, async (t) => {
+    const context = await browser.newContext({
+      viewport: mobile ? { width: 390, height: 844 } : { width: 1400, height: 1000 },
+      extraHTTPHeaders: { "X-Fixture-Role": "dm" },
+    });
+    t.after(() => context.close());
+    const page = await context.newPage();
+    page.setDefaultTimeout(7000);
+    await page.addInitScript(() => localStorage.setItem("codex_lang", "en"));
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    t.after(() => assert.deepEqual(errors, []));
+    const { active, target, grants } = await routeUpdates(page, {
+      ids: ["first", "second", "third"],
+      asks: { second: ["core.data.write"] },
+      failStage: ["third"],
+    });
+    const before = { ...active };
+    await page.goto(`${origin}/settings`);
+    await page.locator('[data-category="addons"]').click();
+    const manager = page.locator("codex-addon-manager"),
+      dialog = manager.getByRole("dialog"),
+      summary = manager.locator(".addon-update-summary");
+    await manager.getByRole("button", { name: "Check for updates", exact: true }).click();
+    await manager.getByRole("button", { name: "Update all", exact: true }).click();
+    await summary.getByText("Updated: first.", { exact: true }).waitFor();
+    assert.equal(
+      await page
+        .locator("#addon-update-summary-title")
+        .evaluate((el) => el === document.activeElement),
+      true,
+      "the summary takes focus so the remaining updates are not missed",
+    );
+    assert.deepEqual(active, { ...before, first: target.first });
+    const second = summary.locator('[data-update-attention="second"]'),
+      third = summary.locator('[data-update-attention="third"]');
+    await second.getByText("Asks for new permissions: core.data.write.", { exact: true }).waitFor();
+    await third.getByText(/^The update failed\. GitHub could not be reached/u).waitFor();
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      true,
+    );
+    await page.screenshot({
+      path: `${output}update-all-attention-${mobile ? "phone" : "desktop"}.png`,
+      fullPage: true,
+    });
+    await second.getByRole("button", { name: "Review update", exact: true }).click();
+    await dialog.getByRole("heading", { name: "Review activation: second" }).waitFor();
+    await dialog.getByRole("button", { name: "Approve and activate" }).click();
+    await dialog.waitFor({ state: "detached" });
+    assert.deepEqual(grants.second, ["core.data.write"]);
+    await summary.getByText("Updated: first, second.", { exact: true }).waitFor();
+    assert.equal(await second.count(), 0);
+    await third.getByRole("button", { name: "Try again", exact: true }).click();
+    await dialog.getByRole("button", { name: "Approve and activate" }).click();
+    await dialog.waitFor({ state: "detached" });
+    await summary.getByText("Updated: first, second, third.", { exact: true }).waitFor();
+    assert.deepEqual(active, target);
+    await summary.getByRole("button", { name: "Dismiss", exact: true }).click();
+    assert.equal(await summary.count(), 0);
   });
 
 for (const mobile of [false, true])
@@ -788,12 +892,27 @@ for (const mobile of [false, true])
       });
       await check.click();
       await row.getByText(mobile ? "Aktuální verze" : "Up to date", { exact: true }).waitFor();
+      const technical = row.locator(".github-candidate-technical > summary");
+      await technical.click();
       await row.getByText(active.slice(0, 40), { exact: true }).waitFor();
       assert.equal(downloads, 0);
       target = next;
       await check.click();
+      // The package file and commit stay behind the technical details.
+      await row
+        .getByText(mobile ? "Dostupná aktualizace" : "Update available", { exact: true })
+        .waitFor();
+      const line = row.locator(".github-candidate-summary");
+      assert.match(
+        await line.innerText(),
+        mobile
+          ? /^Dostupná aktualizace · v1\.0\.0 · Publikováno /u
+          : /^Update available · v1\.0\.0 · Published /u,
+      );
+      assert.equal(await row.getByText(next.slice(0, 40), { exact: true }).isVisible(), false);
+      await technical.click();
       await row.getByText(next.slice(0, 40), { exact: true }).waitFor();
-      await row.getByText("example.zip · v1.0.0", { exact: true }).waitFor();
+      await row.locator("code").filter({ hasText: "example.zip" }).waitFor();
       const summary = row
         .locator("summary")
         .filter({ hasText: mobile ? "Změny ve vydání" : "Release changes" });
@@ -820,7 +939,10 @@ for (const mobile of [false, true])
         path: output + "/release-" + (mobile ? "phone-cs" : "desktop-en") + ".png",
       });
       await row
-        .getByRole("button", { name: mobile ? "Aktualizovat" : "Update", exact: true })
+        .getByRole("button", {
+          name: mobile ? "Aktualizovat na v1.0.0" : "Update to v1.0.0",
+          exact: true,
+        })
         .click();
       const dialog = manager.getByRole("dialog");
       await dialog.locator(".addon-blocker-reason").filter({ hasText: reason }).waitFor();

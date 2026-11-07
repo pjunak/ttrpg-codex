@@ -58,13 +58,20 @@ GitHub downloads
 enter the same inert staging and exact permission-review flow as ZIP uploads;
 they never activate without an explicit action or compile repository source.
 
+Each checked package shows its version and publication date; release notes and
+the package file, commit, build and identity sit behind disclosures.
+
 After a check, **Update all** appears when more than one linked add-on has a
-single new package. It downloads each one, prepares its ordinary activation
-review and approves it with the existing grants only when the review has no
-blockers and no new or changed permissions; it tries blocked add-ons once more
-after the others, so a consumer can follow its provider. Anything else, such as
-saved data that needs a decision, stays for the usual one-by-one review, and
-the result message names it. `addon-update-all.ts` owns that decision.
+new package. It downloads each add-on that has a single new package, prepares
+its ordinary activation review and approves it with the grants the active
+version already has, only when the add-on is enabled and the review has no
+blockers and no new or changed permissions. Blocked add-ons are reviewed
+again while other updates succeed, so a consumer can follow its provider; one
+failed download does not stop the rest. The run ends with a
+summary that stays until dismissed: what was updated, and every add-on that
+still needs the DM (new permissions, saved data, a blocker, a disabled add-on,
+a failure, several packages or a failed check) with its reason and a button
+that opens its review or retries it. `addon-update-all.ts` owns that decision.
 
 Two sources are supported:
 

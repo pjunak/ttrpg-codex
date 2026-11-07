@@ -159,7 +159,7 @@ export class CodexAddonInstall extends LitElement {
       <ul>${this.discovery.candidates.map(
         (
           candidate,
-        ) => html`<li><div class="github-candidate-info">${githubCandidateDetails(candidate, this.discovery!.source, t, this.#ui.locale)}</div>
+        ) => html`<li><div class="github-candidate-info">${githubCandidateDetails(candidate, this.discovery!.source, t, this.#ui.locale, { showName: this.discovery!.candidates.length > 1 })}</div>
         <button ?disabled=${this.#busy} @click=${() => this.#stage(candidate.id)}>${t("github.download")}</button></li>`,
       )}</ul></section>`
         : nothing

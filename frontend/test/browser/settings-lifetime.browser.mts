@@ -262,7 +262,7 @@ void test(
       await read.release();
       await settle(page);
       assert.ok(
-        (await page.locator("#fixture-wizard .github-candidates").innerText()).includes(
+        (await page.locator("#fixture-wizard .github-candidates").textContent())?.includes(
           "Current package",
         ),
       );

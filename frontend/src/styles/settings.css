@@ -506,7 +506,8 @@ codex-addon-manager {
   gap: var(--space-3);
 }
 .addon-row,
-.addon-review {
+.addon-review,
+.addon-update-summary {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   background: var(--bg-surface);
@@ -585,13 +586,15 @@ codex-addon-manager {
 .addon-row-id {
   color: var(--text-muted);
 }
-.addon-row-section h4 {
+.addon-row-section h4,
+.addon-update-summary h4 {
   margin: var(--space-3) 0 0;
   color: var(--text-light);
   font: 600 var(--text-sm) var(--font-ui);
 }
 .addon-row h3,
-.addon-review h3 {
+.addon-review h3,
+.addon-update-summary h3 {
   margin: 0;
   color: var(--accent-gold);
   font: var(--text-base) var(--font-title);
@@ -631,9 +634,23 @@ codex-addon-manager {
   word-break: break-all;
   font-size: var(--text-xs);
 }
-.addon-review {
+.addon-review,
+.addon-update-summary {
   margin: var(--space-4) 0;
   border-color: var(--accent-gold);
+}
+.addon-update-summary > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.addon-update-summary li > div {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1 1 16rem;
 }
 .addon-review fieldset {
   min-width: 0;
@@ -752,6 +769,23 @@ codex-addon-settings {
 }
 .github-candidate-info p {
   margin: 0.4rem 0;
+}
+.github-candidate-info .github-candidate-summary {
+  margin: 0;
+}
+/* The disclosures sit side by side; an open one takes the whole line. */
+.github-candidate-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  column-gap: var(--space-4);
+  min-width: 0;
+}
+.github-candidate-more > details {
+  min-width: 0;
+}
+.github-candidate-more > details[open] {
+  flex-basis: 100%;
 }
 .github-release-notes {
   white-space: pre-wrap;

@@ -17,11 +17,19 @@ import { uiRequestError } from "./ui-errors.js";
 import "./codex-addon-install.js";
 import "./codex-addon-schema-upgrade.js";
 import "./codex-package-storage.js";
-import { AddonGitHubController } from "./addon-github-controller.js";
+import { AddonGitHubController, githubError } from "./addon-github-controller.js";
 import { AddonGitHubClient, type GitHubDiscovery } from "../core/addon-github.js";
-import { updateAll, updateTargets } from "./addon-update-all.js";
+import {
+  availableUpdates,
+  isDataBlocker,
+  updateAll,
+  updatePlan,
+  type UpdateAllResult,
+  type UpdateAttention,
+  type UpdateIssue,
+} from "./addon-update-all.js";
 import { githubTokenHelp } from "./github-access.js";
-import { githubCandidateDetails } from "./github-candidate-details.js";
+import { githubCandidateDetails, githubCandidateVersion } from "./github-candidate-details.js";
 import {
   type CodexAddonConfiguration,
   type ConfigurationAddon,
@@ -58,6 +66,7 @@ export class CodexAddonManager extends LitElement {
     configurationError: { state: true },
     services: { state: true },
     automaticCleanup: { state: true },
+    updateSummary: { state: true },
   };
   declare csrfToken: string;
   declare registry: BrowserContributionRegistry | undefined;
@@ -86,6 +95,10 @@ export class CodexAddonManager extends LitElement {
   declare private installOpen: boolean;
   declare private installTarget: string;
   declare private staged: InstalledGeneration | undefined;
+  /** The last Update all run: what it updated and what still needs the DM. */
+  declare private updateSummary: UpdateAllResult | undefined;
+  #focusSummary = false;
+  #updatingAll = false;
   #opener: HTMLElement | null = null;
   #installBusy = false;
   #configurationBusy = false;
@@ -131,6 +144,7 @@ export class CodexAddonManager extends LitElement {
     this.review = undefined;
     this.removal = undefined;
     this.disabling = undefined;
+    this.updateSummary = undefined;
     super.disconnectedCallback();
   }
   protected override willUpdate(changed: Map<PropertyKey, unknown>): void {
@@ -146,6 +160,7 @@ export class CodexAddonManager extends LitElement {
       this.removal = undefined;
       this.disabling = undefined;
       this.#github.reset();
+      this.updateSummary = undefined;
       this.#installBusy = false;
       this.installOpen = false;
       this.staged = undefined;
@@ -182,6 +197,10 @@ export class CodexAddonManager extends LitElement {
     ) {
       this.querySelector(".addon-review")?.scrollIntoView({ block: "start" });
       this.querySelector<HTMLElement>("#addon-review-title")?.focus({ preventScroll: true });
+    }
+    if (changed.has("updateSummary") && this.updateSummary && this.#focusSummary) {
+      this.#focusSummary = false;
+      this.querySelector<HTMLElement>("#addon-update-summary-title")?.focus();
     }
   }
 
@@ -238,8 +257,9 @@ export class CodexAddonManager extends LitElement {
         this.canManage
           ? html`<div id="addon-management-panel" role=${tabbed ? "tabpanel" : nothing} aria-labelledby=${tabbed ? "addon-tab-management" : nothing} tabindex=${tabbed ? 0 : nothing} ?hidden=${selected !== ""}>
         <div class="addon-actions addon-toolbar"><button ?disabled=${this.#busy} @click=${() => this.#checkUpdates()}>${t(this.#github.pending ? "github.checking" : "github.check")}</button>
-          ${updateTargets(this.#github.results).length > 1 ? html`<button ?disabled=${this.#busy} @click=${() => this.#updateAll()}>${t(this.#requests.pending ? "github.updatingAll" : "github.updateAll")}</button>` : nothing}
+          ${availableUpdates(this.#github.results).length > 1 ? html`<button ?disabled=${this.#busy} @click=${() => this.#updateAll()}>${t(this.#updatingAll ? "github.updatingAll" : "github.updateAll")}</button>` : nothing}
           <button data-ui-variant="primary" ?disabled=${this.#busy} @click=${() => this.#openInstall()}>${t("github.add")}</button></div>
+        ${this.updateSummary ? this.#updateSummaryPanel(this.updateSummary) : nothing}
         ${this.installOpen ? this.#installDialog() : nothing}
         ${this.removal ? this.#uninstallPanel(this.removal) : nothing}
         ${this.disabling ? this.#disablePanel(this.disabling) : nothing}
@@ -381,6 +401,7 @@ export class CodexAddonManager extends LitElement {
   }
   #checkUpdates(): void {
     void this.#run(async (client) => {
+      this.updateSummary = undefined;
       this.snapshots = await client.inventory();
       await this.#github.checkAll();
     }, false);
@@ -435,13 +456,24 @@ export class CodexAddonManager extends LitElement {
     );
     return (active ?? snapshot?.generations[0])?.name || addonId;
   }
+  /** The packages one check found. A single update is installed from the row's own button. */
   #candidates(result: GitHubDiscovery, addonId: string) {
-    const t = this.#ui.t.bind(this.#ui);
+    const t = this.#ui.t.bind(this.#ui),
+      several = result.candidates.length > 1;
     return html`<div class="github-candidates">${!result.candidates.length ? html`<p role="status">${t("github.noPackage")}</p>` : nothing}
       <ul>${result.candidates.map(
         (candidate) =>
-          html`<li><div class="github-candidate-info"><strong>${t(candidate.active ? "github.current" : "github.available")}</strong>${githubCandidateDetails(candidate, result.source, t, this.#ui.locale)}</div>${
-            candidate.active
+          html`<li><div class="github-candidate-info">${githubCandidateDetails(
+            candidate,
+            result.source,
+            t,
+            this.#ui.locale,
+            {
+              label: t(candidate.active ? "github.current" : "github.available"),
+              showName: several,
+            },
+          )}</div>${
+            candidate.active || !several
               ? nothing
               : html`
         <button ?disabled=${this.#busy} @click=${() => this.#stageCandidate(result, candidate.id, addonId)}>${t("update.action")}</button>`
@@ -461,39 +493,110 @@ export class CodexAddonManager extends LitElement {
       this.grants = [...new Set([...this.review.required, ...this.review.suggested])];
     });
   }
-  /** Updates every checked add-on that asks for nothing new; the rest keep their review. */
+  /**
+   * Updates every checked add-on that asks for nothing new, then lists each
+   * one that still needs the DM (new permissions, saved data, a blocker or a
+   * failure) with the action that continues it.
+   */
   #updateAll(): void {
-    const targets = updateTargets(this.#github.results);
-    if (!targets.length || !this.#confirmLifecycle()) return;
+    const plan = updatePlan(this.#github.results);
+    if (!this.#confirmLifecycle()) return;
+    this.#updatingAll = true;
     void this.#run(async (client) => {
+      this.updateSummary = undefined;
       const github = new AddonGitHubClient(this.csrfToken, client.signal);
-      const result = await updateAll(targets, {
-        stage: (target) =>
-          github.stage(target.discovery.source, target.candidateId, target.addonId),
-        review: (addonId, generationId) => client.review(addonId, generationId),
-        activate: (review, grants) => client.activate(review, grants),
-      });
+      const result = await updateAll(
+        plan.targets,
+        {
+          stage: (target) =>
+            github.stage(target.discovery.source, target.candidateId, target.addonId),
+          review: (addonId, generationId) => client.review(addonId, generationId),
+          activate: (review, grants) => client.activate(review, grants),
+        },
+        client.signal,
+      );
       for (const addonId of result.updated) this.#github.clear(addonId);
-      this.snapshots = await client.inventory();
-      const name = (addonId: string) => {
-        const snapshot = this.snapshots.find((item) => item.state.addonId === addonId);
-        const active = snapshot?.generations.find(
-          (generation) => generation.generationId === snapshot.state.activeGenerationId,
-        );
-        return active?.name || addonId;
+      this.#focusSummary = true;
+      this.updateSummary = {
+        updated: result.updated,
+        attention: [...result.attention, ...plan.attention],
       };
-      const t = this.#ui.t.bind(this.#ui);
-      this.message = [
-        result.updated.length
-          ? t("github.updatedAll", { names: result.updated.map(name).join(", ") })
-          : t("github.nothingUpdated"),
-        result.needsReview.length
-          ? t("github.updateNeedsReview", { names: result.needsReview.map(name).join(", ") })
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" ");
+      this.snapshots = await client.inventory();
+    }).finally(() => {
+      this.#updatingAll = false;
+      this.requestUpdate();
     });
+  }
+  #updateSummaryPanel(summary: UpdateAllResult) {
+    const t = this.#ui.t.bind(this.#ui);
+    return html`<section class="addon-update-summary" aria-labelledby="addon-update-summary-title">
+      <header><h3 id="addon-update-summary-title" tabindex="-1">${t("github.summaryTitle")}</h3>
+        <button @click=${() => {
+          this.updateSummary = undefined;
+        }}>${t("github.summaryDismiss")}</button></header>
+      <p>${summary.updated.length ? t("github.updatedAll", { names: summary.updated.map((id) => this.#name(id)).join(", ") }) : t("github.nothingUpdated")}</p>
+      ${
+        summary.attention.length
+          ? html`<h4>${t("github.needsAttention")}</h4><ul>${summary.attention.map(
+              (item) => html`<li data-update-attention=${item.addonId}>
+            <div><strong>${this.#name(item.addonId)}</strong><span>${this.#issueText(item.issue)}</span></div>${this.#issueAction(item)}</li>`,
+            )}</ul>`
+          : nothing
+      }
+    </section>`;
+  }
+  #issueText(issue: UpdateIssue): string {
+    const t = this.#ui.t.bind(this.#ui);
+    switch (issue.kind) {
+      case "permissions":
+        return t("github.issuePermissions", { permissions: issue.permissions.join(", ") });
+      case "data":
+        return t("github.issueData");
+      case "blocked":
+        return [...new Set(issue.codes.map(blockerMessage))].join(" ");
+      case "disabled":
+        return t("github.issueDisabled");
+      case "failed":
+        return `${t("github.issueFailed")} ${githubError(issue.error, t)}`;
+      case "choose":
+        return t("github.issueChoose");
+      case "unchecked":
+        return `${t("github.issueUnchecked")} ${issue.message}`;
+    }
+  }
+  /** Continues one update from the summary: its review, a retry or its package list. */
+  #issueAction(item: UpdateAttention) {
+    const t = this.#ui.t.bind(this.#ui),
+      discovery = this.#github.results[item.addonId],
+      found = discovery && typeof discovery !== "string" ? discovery : undefined,
+      update = found?.candidates.find((candidate) => !candidate.active),
+      staged = this.snapshots
+        .find((snapshot) => snapshot.state.addonId === item.addonId)
+        ?.generations.some((generation) => generation.generationId === item.generationId);
+    if (item.generationId && staged)
+      return html`<button data-ui-variant="primary" ?disabled=${this.#busy} @click=${() => this.#prepare(item.addonId, item.generationId!)}>${t("addons.reviewUpdate")}</button>`;
+    if (item.issue.kind === "choose")
+      return html`<button ?disabled=${this.#busy} @click=${() => this.#showPackages(item.addonId)}>${t("github.showPackages")}</button>`;
+    if (found && update && found.candidates.length === 1)
+      return html`<button ?disabled=${this.#busy} @click=${() => this.#stageCandidate(found, update.id, item.addonId)}>${t(item.issue.kind === "failed" ? "github.retry" : "addons.reviewUpdate")}</button>`;
+    return nothing;
+  }
+  #showPackages(addonId: string): void {
+    const row = this.querySelector<HTMLElement>(`[data-addon-id="${CSS.escape(addonId)}"]`);
+    row?.scrollIntoView({ block: "start" });
+    row?.querySelector<HTMLElement>(".github-candidates button")?.focus({ preventScroll: true });
+  }
+  /** A reviewed update the summary was waiting for is now active. */
+  #settled(review: AddonReview): void {
+    const summary = this.updateSummary;
+    const waiting = (item: UpdateAttention) =>
+      item.addonId === review.addonId &&
+      (!item.generationId || item.generationId === review.generationId);
+    if (!summary?.attention.some(waiting)) return;
+    this.updateSummary = {
+      updated: [...summary.updated, review.addonId],
+      attention: summary.attention.filter((item) => item.addonId !== review.addonId),
+    };
   }
   #tokens() {
     const status = this.#github.status,
@@ -540,6 +643,7 @@ export class CodexAddonManager extends LitElement {
     const discovery = this.#github.results[state.addonId];
     const found = discovery && typeof discovery !== "string" ? discovery : undefined;
     const update = found?.candidates.find((candidate) => !candidate.active);
+    const version = found && update ? githubCandidateVersion(update, found.source) : "";
     const failed = snapshot.runtimeState === "failed" || Boolean(active?.lastError);
     const settings = this.#tabs().some((tab) => tab.id && tab.id === state.addonId);
     const status = !active
@@ -559,14 +663,14 @@ export class CodexAddonManager extends LitElement {
           <div class="addon-row-meta">
             ${shown ? html`<span class="addon-row-version">v${shown.version}</span>` : nothing}
             <span class="addon-chip" data-tone=${status.tone}>${status.label}</span>
-            ${update ? html`<span class="addon-chip" data-tone="info">${t("addons.updateAvailable", { version: update.version })}</span>` : nothing}
+            ${update ? html`<span class="addon-chip" data-tone="info">${t("addons.updateAvailable", { version })}</span>` : nothing}
           </div>
           ${shown?.description ? html`<p class="addon-row-description">${shown.description}</p>` : nothing}
           ${this.#links(state.addonId)}
           ${failed ? html`<p role="alert">${t("addons.notRunningHelp")}</p>` : nothing}
         </div>
         <div class="addon-actions">
-          ${found && update ? html`<button data-ui-variant="primary" ?disabled=${this.#busy} @click=${() => this.#stageCandidate(found, update.id, state.addonId)}>${t("addons.updateTo", { version: update.version })}</button>` : nothing}
+          ${found && update ? html`<button data-ui-variant="primary" ?disabled=${this.#busy} @click=${() => this.#stageCandidate(found, update.id, state.addonId)}>${t("addons.updateTo", { version })}</button>` : nothing}
           ${settings ? html`<button ?disabled=${this.#busy} @click=${() => this.#selectTab(state.addonId)}>${t("addons.settings")}</button>` : nothing}
           ${
             active
@@ -686,6 +790,7 @@ export class CodexAddonManager extends LitElement {
         @addon-update-refresh=${() => this.#loadReview()}
         @addon-update-applied=${() => {
           this.#github.clear(review.addonId);
+          this.#settled(review);
           this.#closeInstall(true);
           void this.#run(async (client) => {
             this.snapshots = await client.inventory();
@@ -824,6 +929,7 @@ export class CodexAddonManager extends LitElement {
     void this.#run(async (client) => {
       this.#github.clear(review.addonId);
       await client.activate(review, this.grants);
+      this.#settled(review);
       this.#closeInstall(true);
       this.snapshots = await client.inventory();
       this.message = this.#ui.t("addons.done");
@@ -875,15 +981,6 @@ export class CodexAddonManager extends LitElement {
   }
 }
 customElements.define("codex-addon-manager", CodexAddonManager);
-
-function isDataBlocker(code: string): boolean {
-  return [
-    "DATA_MIGRATION_REQUIRED",
-    "INVALID_STORED_DOCUMENT",
-    "DATA_DEFINITION_REMOVED",
-    "UNIQUE_INDEX_CONFLICT",
-  ].includes(code);
-}
 
 function blockerMessage(code: string): string {
   switch (code) {
