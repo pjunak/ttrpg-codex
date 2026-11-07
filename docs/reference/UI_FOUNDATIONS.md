@@ -273,6 +273,12 @@ such as inline-edit values, record actions and the writer toolbar keep their
 own look on enhanced controls. Fine pointers get compact 2.25rem controls;
 coarse pointers keep 2.75rem touch targets.
 
+`data-ui-form` on a form or its container separates picking from typing: a
+single select or combobox is raised and free text (text, number and multiline
+fields) is sunken. The record form uses it, and add-on forms that follow the
+record form use it instead of their own field backgrounds. It sits outside the
+cascade layer so it wins over a feature's generic field rules.
+
 `data-ui-tone="paper"` is a supported reading-surface variant. The dark/default
 variant inherits Classic/Moonlit. Typography and spacing use relative units.
 Interface text is never smaller than `--text-xs` (12px at default size); only

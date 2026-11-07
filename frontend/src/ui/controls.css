@@ -718,3 +718,19 @@
     }
   }
 }
+
+/* A form that separates picking from typing (data-ui-form on the form or its
+   container): a list to pick from is raised, free text is sunken. It sits
+   outside the layer so it wins over a feature's own field background. */
+[data-ui-form] :is(select:not([multiple]), .ui-combobox > input) {
+  background-color: var(--bg-raised);
+  box-shadow: var(--shadow-sm);
+}
+[data-ui-form]
+  :is(input:not([type]), input[type="text"], input[type="number"], textarea):not(
+    .ui-combobox > input,
+    .ui-chip-input
+  ) {
+  background-color: var(--surface-sunken);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 35%);
+}

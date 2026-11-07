@@ -173,7 +173,7 @@ export class CodexRecordForm extends LitElement {
         this.#extras(section, value, record) !== nothing,
     );
     return html`
-      <form class="record-editor record-form" data-collection=${collection} @submit=${this.#submit}
+      <form class="record-editor record-form" data-ui-form data-collection=${collection} @submit=${this.#submit}
         @input=${this.#edited} @change=${this.#edited} @keydown=${this.#shortcut}>
         <header class="record-form-head">
           <div class="record-form-title">
