@@ -249,9 +249,12 @@ much it adds on top of the shared controls. It reads the add-on stylesheets
 the page has loaded (`link[data-codex-addon]`), so it needs no package access,
 and counts style rules, the add-on's own class names, rules whose selector
 targets a native `button`, `input`, `textarea` or `select` or a host `ui`
-primitive (`.ui-*`, `[data-ui…]`), and padding, margin and gap declarations
-written as lengths instead of `--space-*` tokens. Each add-on expands to the
-list of those selectors and declarations, the place to start unifying.
+primitive (`.ui-*`, `[data-ui…]`) outside `:not()` and that set more than its
+placement, and padding, margin and gap declarations written as lengths instead
+of `--space-*` tokens. Placement is what feature styles may set: display,
+position, margins, size, flex and grid placement, alignment and gaps. Each
+add-on expands to the list of those selectors and declarations, the place to
+start unifying.
 `frontend/src/app/style-coverage.ts` holds the rules; tokens are not counted
 because the style check already enforces them.
 

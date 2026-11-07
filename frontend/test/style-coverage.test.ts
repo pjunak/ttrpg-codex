@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseDeclarations, styleCoverage, type StyleRule } from "../src/app/style-coverage.js";
 
-function rule(selector: string, cssText = ""): StyleRule {
+function rule(selector: string, cssText = "color: inherit;"): StyleRule {
   return { selector, declarations: parseDeclarations(cssText) };
 }
 
@@ -26,6 +26,24 @@ describe("style coverage", () => {
       { kind: "primitives", selector: '.dm-tabs [data-ui-tabs] > [aria-selected="true"]' },
       { kind: "primitives", selector: ".dm-card .ui-action" },
       { kind: "buttons", selector: ".dm-toolbar > button.ui-button" },
+    ]);
+  });
+
+  it("does not count rules that only place a shared control or name it in :not()", () => {
+    const coverage = styleCoverage([
+      rule(".dm-row > button", "margin-inline-start: auto; flex: 1 1 auto; min-width: 0;"),
+      rule(".dm-grid > [data-ui-actions]", "grid-column: 2; justify-content: end; gap: 0.4rem;"),
+      rule(".dm-form [data-ui-field][hidden]", "display: none;"),
+      rule(".dm-form .ui-combobox"),
+      rule(".dm-bar button", "margin: 0; text-align: start;"),
+      rule(".dm-empty select", ""),
+      rule('.dm-form label:not([data-ui="choices"] > label, :has(> button))'),
+      rule(".dm-form :is(input, textarea):not(.ui-combobox input)"),
+    ]);
+    expect(coverage.overrides).toEqual([
+      { kind: "primitives", selector: ".dm-form .ui-combobox" },
+      { kind: "buttons", selector: ".dm-bar button" },
+      { kind: "fields", selector: ".dm-form :is(input, textarea):not(.ui-combobox input)" },
     ]);
   });
 

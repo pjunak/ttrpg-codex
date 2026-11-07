@@ -117,7 +117,8 @@ function interfacePackage(): Buffer {
     "web/index.js": entry,
     "web/index.css": `.lang-fixture { padding: var(--space-2) 6px; }
 .lang-fixture button { color: var(--accent-gold); }
-@media (min-width: 40rem) { .lang-fixture select { gap: var(--space-2); } }
+.lang-fixture button + button { margin-inline-start: auto; }
+@media (min-width: 40rem) { .lang-fixture select { border-color: var(--accent-gold); } }
 `,
     "locales/en.json": catalog("en", {
       main: {
@@ -351,7 +352,7 @@ void test("the DM sees which add-on styles restyle shared controls", async (t) =
     .waitFor();
   assert.match(
     await addon.locator("summary").textContent().then(String),
-    /Style rules: 3 · Own parts: 1 · Fixed spacing: 1/u,
+    /Style rules: 4 · Own parts: 1 · Fixed spacing: 1/u,
   );
   await addon.locator("summary").click();
   assert.deepEqual(await addon.locator('[data-kind="buttons"] li').allTextContents(), [

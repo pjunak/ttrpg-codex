@@ -35,7 +35,10 @@ export interface StyleCoverage {
   readonly rules: number;
   /** Distinct class names the add-on styles, excluding the host's `ui-*` classes. */
   readonly ownClasses: readonly string[];
-  /** Rules that restyle a shared control, each counted once under its first kind. */
+  /**
+   * Rules that restyle a shared control, each counted once under its first kind.
+   * A rule that only places or sizes the control in its layout does not count.
+   */
   readonly overrides: readonly StyleOverride[];
   /** Spacing declarations with a length literal instead of a `--space-*` token. */
   readonly spacingLiterals: readonly SpacingLiteral[];
@@ -48,6 +51,9 @@ const kindPatterns: Readonly<Record<StyleOverrideKind, RegExp>> = Object.freeze(
   fields: typeSelector("input|textarea"),
 });
 const kindOrder: readonly StyleOverrideKind[] = ["buttons", "selects", "fields", "primitives"];
+/** Layout a feature style may set on a shared control without changing its look. */
+const placementProperty =
+  /^(?:display|position|inset(?:-.+)?|top|right|bottom|left|z-index|order|flex(?:-.+)?|grid(?:-.+)?|(?:align|justify|place)-(?:self|items|content)|(?:min-|max-)?(?:width|height|inline-size|block-size)|margin(?:-.+)?|(?:row-|column-)?gap)$/;
 const spacingProperty =
   /^(?:(?:padding|margin)(?:-(?:top|right|bottom|left|inline|block)(?:-(?:start|end))?)?|(?:row-|column-)?gap)$/;
 const lengthLiteral =
@@ -63,8 +69,13 @@ export function styleCoverage(rules: readonly StyleRule[]): StyleCoverage {
       const name = match[1]!;
       if (!name.startsWith("ui-")) ownClasses.add(name);
     }
-    const kind = kindOrder.find((candidate) => kindPatterns[candidate].test(selector));
-    if (kind !== undefined) overrides.push({ kind, selector: rule.selector });
+    const targets = withoutNegations(selector);
+    const kind = kindOrder.find((candidate) => kindPatterns[candidate].test(targets));
+    if (
+      kind !== undefined &&
+      rule.declarations.some(({ property }) => !placementProperty.test(property))
+    )
+      overrides.push({ kind, selector: rule.selector });
     for (const { property, value } of rule.declarations) {
       if (spacingProperty.test(property) && hasLengthLiteral(value))
         spacingLiterals.push({ selector: rule.selector, property, value });
@@ -123,6 +134,22 @@ function typeSelector(names: string): RegExp {
 
 function withoutStrings(selector: string): string {
   return selector.replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, '""');
+}
+
+/** Drops `:not(…)` arguments: a control named only there is excluded, not targeted. */
+function withoutNegations(selector: string): string {
+  let result = "",
+    depth = 0;
+  for (let index = 0; index < selector.length; index++) {
+    if (depth === 0 && selector.startsWith(":not(", index)) {
+      depth = 1;
+      index += 4;
+    } else if (depth > 0) {
+      if (selector[index] === "(") depth++;
+      else if (selector[index] === ")") depth--;
+    } else result += selector[index];
+  }
+  return result;
 }
 
 function withoutAttributes(selector: string): string {
