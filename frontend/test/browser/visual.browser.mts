@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { preview } from "vite";
 import { visualCampaign, visualFixturePlugin } from "./visual-fixture.mts";
+import { openInPlace, pageAddress } from "./app-address.mts";
 
 let server: PreviewServer, browser: Browser, origin: string;
 const artifacts = fileURLToPath(new URL("../../test-results/visual/", import.meta.url));
@@ -235,7 +236,7 @@ for (const [name, viewport] of Object.entries({
       fullPage: true,
     });
 
-    await page.goto(`${origin}/#/characters`);
+    await page.goto(`${origin}/characters`);
     await page.locator(".record-row").first().waitFor();
     await expectDesign(page, design, ".record-row");
     await expectDesign(page, design, ".record-row-copy strong");
@@ -292,25 +293,25 @@ void test("mobile drawer stays accessible and preserves dirty record edits", asy
     true,
   );
   await page.locator("[data-menu-toggle]").click();
-  await page.locator('.core-navigation a[href="#/characters"]').click();
+  await page.locator('.core-navigation a[href="/characters"]').click();
   await page.locator(".record-row").first().waitFor();
   assert.equal(await page.locator("[data-menu-toggle]").getAttribute("aria-expanded"), "false");
-  await page.locator('.record-row[href="#/characters/ryn"]').click();
+  await page.locator('.record-row[href="/characters/ryn"]').click();
   await page.getByLabel("More actions", { exact: true }).click();
   await page.getByRole("menuitem", { name: "Edit all fields", exact: true }).click();
   await page.locator('[name="name"]').fill("Keep this draft");
   await page.locator("[data-menu-toggle]").click();
   page.once("dialog", (dialog) => dialog.dismiss());
-  await page.locator('.core-navigation a[href="#/"]').click();
-  await page.waitForURL(/#\/characters\/ryn$/);
-  assert.match(page.url(), /#\/characters\/ryn$/);
+  await page.locator('.core-navigation a[href="/"]').click();
+  await page.waitForURL(/\/characters\/ryn$/);
+  assert.match(page.url(), /\/characters\/ryn$/);
   assert.equal(await page.locator('[name="name"]').inputValue(), "Keep this draft");
   await page.keyboard.press("Escape");
   await page.keyboard.press("Control+k");
   await page.getByRole("dialog", { name: "Quick search" }).waitFor();
   await page.keyboard.press("Escape");
-  await page.waitForURL(/#\/characters\/ryn$/);
-  assert.match(page.url(), /#\/characters\/ryn$/);
+  await page.waitForURL(/\/characters\/ryn$/);
+  assert.match(page.url(), /\/characters\/ryn$/);
   assert.equal(await page.locator('[name="name"]').inputValue(), "Keep this draft");
   await fits(page);
   await page.screenshot({
@@ -322,7 +323,7 @@ void test("mobile drawer stays accessible and preserves dirty record edits", asy
 
 void test("quick search preserves the mounted editor and guards destination navigation", async (t) => {
   const page = await fixture(t, { width: 1440, height: 1000 }, "dm");
-  await page.goto(`${origin}/#/characters/ryn`);
+  await page.goto(`${origin}/characters/ryn`);
   await page.getByLabel("More actions", { exact: true }).click();
   await page.getByRole("menuitem", { name: "Edit all fields", exact: true }).click();
   const name = page.locator('[name="name"]');
@@ -333,13 +334,13 @@ void test("quick search preserves the mounted editor and guards destination navi
   await page.keyboard.press("Control+k");
   const dialog = page.getByRole("dialog", { name: "Quick search" });
   await dialog.waitFor();
-  assert.match(page.url(), /#\/characters\/ryn$/);
+  assert.match(page.url(), /\/characters\/ryn$/);
   await dialog.locator("input").fill("Kael");
   await page.keyboard.press("ArrowDown");
   assert.match(await page.evaluate(() => document.activeElement?.textContent ?? ""), /Kael/);
   page.once("dialog", (prompt) => prompt.dismiss());
   await page.keyboard.press("Enter");
-  await page.waitForURL(/#\/characters\/ryn$/);
+  await page.waitForURL(/\/characters\/ryn$/);
   assert.equal(await dialog.isVisible(), true);
   assert.equal(await name.inputValue(), "Unsaved Ryn");
   await page.keyboard.press("Escape");
@@ -350,13 +351,14 @@ void test("quick search preserves the mounted editor and guards destination navi
   await dialog.locator("input").fill("Kael");
   page.once("dialog", (prompt) => prompt.accept());
   await page.keyboard.press("Enter");
-  await page.waitForURL(/#\/characters\/kael$/);
+  await page.waitForURL(/\/characters\/kael$/);
   await dialog.waitFor({ state: "detached" });
 });
 
 void test("phone quick search supports focus containment, recent records and full search", async (t) => {
   const page = await fixture(t, { width: 390, height: 844 });
-  await page.goto(`${origin}/#/characters/ryn`);
+  // Opening the record in place records it as a recent visit.
+  await openInPlace(page, "/characters/ryn");
   await page.locator("#record-title").waitFor();
   await page.locator("[data-menu-toggle]").click();
   await page.locator(".sidebar-search").click();
@@ -374,7 +376,7 @@ void test("phone quick search supports focus containment, recent records and ful
   await page.screenshot({ path: `${artifacts}mobile-quick-search.png`, fullPage: true });
   await fits(page);
   await dialog.getByRole("link", { name: "Open full search" }).click();
-  await page.waitForURL(/#\/search\?q=Ryn$/);
+  await page.waitForURL(/\/search\?q=Ryn$/);
   await page.locator(".campaign-search-field input").waitFor();
   assert.equal(await page.locator(".campaign-search-field input").inputValue(), "Ryn");
   await page.keyboard.press("Control+k");
@@ -395,7 +397,7 @@ void test("desktop sidebar, phone menu and settings remain usable across resize"
     () => document.querySelector<HTMLElement>(".campaign-sidebar")!.getBoundingClientRect().x === 0,
   );
   await page.screenshot({ animations: "disabled", path: `${artifacts}mobile-menu.png` });
-  await page.locator('.sidebar-footer a[href="#/settings"]').click();
+  await page.locator('.sidebar-footer a[href="/settings"]').click();
   await page.locator(".settings-page").waitFor();
   await fits(page);
   await page.screenshot({
@@ -455,7 +457,14 @@ void test("record pages centre their frame and keep the trail and actions on one
     [390, 844, false],
   ] as const) {
     const page = await fixture(t, { width, height }, "dm");
-    await page.evaluate(() => (location.hash = "#/characters/ryn"));
+    await page.evaluate(() =>
+      window.dispatchEvent(
+        new CustomEvent("codex-navigate", {
+          cancelable: true,
+          detail: { href: "/characters/ryn" },
+        }),
+      ),
+    );
     await page
       .locator(".record-toolbar")
       .getByRole("button", { name: "More actions", exact: true })
@@ -491,7 +500,11 @@ void test("record pages centre their frame and keep the trail and actions on one
 
 void test("the version switch colours the version on screen and marks a missing one", async (t) => {
   const page = await fixture(t, { width: 1440, height: 1000 }, "dm");
-  await page.evaluate(() => (location.hash = "#/characters/ryn"));
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new CustomEvent("codex-navigate", { cancelable: true, detail: { href: "/characters/ryn" } }),
+    ),
+  );
   await page.getByTitle("Showing the player version", { exact: true }).waitFor();
   const missing = page.getByRole("button", { name: "Add a DM version", exact: true });
   const look = await page.evaluate(() => {
@@ -538,6 +551,7 @@ void test("skip link moves focus into the campaign without changing its route", 
     true,
   );
   assert.equal(new URL(page.url()).hash, "");
+  assert.equal(pageAddress(page.url()), "/");
   assert.equal(await page.locator("#campaign-title").textContent().then(required), "Asurai");
 });
 
@@ -639,7 +653,7 @@ for (const scenario of [
       path: artifacts + `entity-party-${scenario.width}-${scenario.theme}.png`,
     });
     for (const [route] of collections) {
-      await page.goto(origin + "/#/" + route);
+      await page.goto(origin + "/" + route);
       const cards = page.locator(".record-row-shell");
       await cards.nth(1).waitFor();
       const image = page.locator('.record-row-mark[data-ui-artwork-state="ready"] img'),
@@ -674,7 +688,7 @@ for (const scenario of [
       await page.locator(".record-editor").waitFor();
       assert.match(page.url(), /edit/);
     }
-    await page.goto(origin + "/#/characters");
+    await page.goto(origin + "/characters");
     await page.locator(".record-row-shell").nth(1).waitFor();
     await page.addStyleTag({ content: "html { font-size: 200%; }" });
     for (const card of await page.locator(".record-row-shell").all())
@@ -686,7 +700,7 @@ void test("card editing retains existing public and player permissions", async (
   for (const role of ["", "player"]) {
     const page = await fixture(t, { width: 390, height: 844 }, role);
     for (const route of ["/", "/party", "/characters", "/companions"]) {
-      await page.goto(origin + "/#" + route);
+      await page.goto(origin + route);
       await page
         .locator(
           route.includes("characters") || route.includes("companions")

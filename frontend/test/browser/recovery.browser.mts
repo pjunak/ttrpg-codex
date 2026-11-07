@@ -122,7 +122,7 @@ async function open(t: TestContext, mobile = false, role: string | null = "dm") 
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, []));
-  await page.goto("/#/settings");
+  await page.goto("/settings");
   await page.locator(".settings-page").waitFor();
   if (mobile) {
     // Phones open settings as a category list.
@@ -225,7 +225,7 @@ for (const mobile of [false, true])
     await panel(page).getByRole("alert").waitFor();
     await refresh(page, mobile);
     const observer = await context.newPage();
-    await observer.goto(`/#/characters/${key}`);
+    await observer.goto(`/characters/${key}`);
     await observer.getByRole("heading", { name: "Changed campaign", exact: true }).waitFor();
     await page.locator(`[data-point-id="${id}"] .settings-btn-edit`).click();
     const restored = await jsonResponse(await mutation(page, confirm, "/api/recovery/restore"));

@@ -139,11 +139,11 @@ describe("investigation reading", () => {
     ).toHaveLength(1);
     const player = investigationQueue(dataset({ mysteries: [publicCase], characters }));
     expect(player.map((item) => item.route)).toEqual([
-      "#/characters/known",
-      "#/mysteries/case%2F%252F",
+      "/characters/known",
+      "/mysteries/case%2F%252F",
     ]);
     expect(player.find((item) => item.kind === "mysteries")?.editRoute).toBe(
-      "#/mysteries/case%2F%252F/edit?return=%23%2Fmysteries",
+      "/mysteries/case%2F%252F/edit?return=%2Fmysteries",
     );
   });
 });

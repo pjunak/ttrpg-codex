@@ -37,7 +37,7 @@ questions a decision has to answer. Add observations as they come up.
 
 ### Mind Palace
 
-`#/graph/factions`, `#/graph/relationships` and `#/graph/mysteries`. The
+`/graph/factions`, `/graph/relationships` and `/graph/mysteries`. The
 mystery mode links mysteries to their characters and labels a mystery card with
 its first question only
 ([core data](../reference/CORE_DATA.md)).

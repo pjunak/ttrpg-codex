@@ -10,11 +10,11 @@ import { eventMapParent, hasEventPin, mapCoordinate, mapParent } from "./campaig
 import { projectEntity, recordValue, stringList, text } from "./campaign-projection.js";
 import {
   campaignPages,
-  contextualCreateHash,
-  eventMapHash,
-  locationMapHash,
-  recordEditHash,
-  recordHash,
+  contextualCreateHref,
+  eventMapHref,
+  locationMapHref,
+  recordEditHref,
+  recordHref,
   type CampaignPageDefinition,
 } from "./routes.js";
 import { uiText } from "./ui-localization.js";
@@ -26,8 +26,8 @@ export interface RecordMenuActions {
   readonly current?: boolean;
   /** Why writes are unavailable right now (an open editor or a save in progress). */
   readonly writeBlocked: string;
-  navigate(hash: string): void;
-  openInNewTab(hash: string): void;
+  navigate(href: string): void;
+  openInNewTab(href: string): void;
   copy(text: string, done: string): void;
   patch(
     collection: CampaignCollectionName,
@@ -58,7 +58,7 @@ export function recordContextMenu(
   if (!record) return undefined;
   const entity = projectEntity(campaign, record, page);
   const value = recordValue(record);
-  const route = recordHash(page, key);
+  const route = recordHref(page, key);
   const blocked = actions.writeBlocked || false;
   const items: ContextMenuItem[] = [
     ...(actions.current
@@ -81,7 +81,7 @@ export function recordContextMenu(
     label: uiText("Edit"),
     icon: "✎",
     separator: true,
-    run: () => actions.navigate(recordEditHash(page, key)),
+    run: () => actions.navigate(recordEditHref(page, key)),
   });
   const field = (name: string) =>
     editorFieldsFor(page.collection).find((candidate) => candidate.key === name);
@@ -209,15 +209,15 @@ export function recordContextMenu(
           children: [
             {
               label: uiText("creation.character"),
-              run: () => actions.navigate(contextualCreateHash("character-here", key)),
+              run: () => actions.navigate(contextualCreateHref("character-here", key)),
             },
             {
               label: uiText("creation.event"),
-              run: () => actions.navigate(contextualCreateHash("event-here", key)),
+              run: () => actions.navigate(contextualCreateHref("event-here", key)),
             },
             {
               label: uiText("creation.child"),
-              run: () => actions.navigate(contextualCreateHash("sub-location", key)),
+              run: () => actions.navigate(contextualCreateHref("sub-location", key)),
             },
           ],
         },
@@ -225,7 +225,7 @@ export function recordContextMenu(
           label: uiText(placed ? "menu.showOnMap" : "menu.placeOnMap"),
           icon: "⌖",
           run: () =>
-            actions.navigate(locationMapHash(mapParent(value), key, placed ? "show" : "place")),
+            actions.navigate(locationMapHref(mapParent(value), key, placed ? "show" : "place")),
         },
         choose("parentId", "⤒"),
         toggle("connections", "⇄"),
@@ -267,7 +267,7 @@ export function recordContextMenu(
       more.push({
         label: uiText("creation.member"),
         icon: "+",
-        run: () => actions.navigate(contextualCreateHash("faction-member", key)),
+        run: () => actions.navigate(contextualCreateHref("faction-member", key)),
       });
       break;
     case "events":
@@ -276,7 +276,7 @@ export function recordContextMenu(
         icon: "⌖",
         run: () =>
           actions.navigate(
-            eventMapHash(eventMapParent(value), key, hasEventPin(value) ? "show" : "place"),
+            eventMapHref(eventMapParent(value), key, hasEventPin(value) ? "show" : "place"),
           ),
       });
       break;

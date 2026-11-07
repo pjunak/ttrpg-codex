@@ -5,15 +5,15 @@ role projections, localization, design tokens and record mutation path.
 
 ## Core URLs
 
-Each list, article, party, settings, timeline (`#/timeline`), map (`#/map/...`)
-and Mind Palace view (`#/graph/...`) has exactly one route. Unknown or malformed
+Each list, article, party, settings, timeline (`/timeline`), map (`/map/...`)
+and Mind Palace view (`/graph/...`) has exactly one route. Unknown or malformed
 paths reach the not-found view. Leaving an open editor passes the normal
 dirty/saving guard first. IDs are decoded once, preserving encoded slashes,
 percent signs and exact twin identity.
 
-`#/create/<collection-page>` opens the record form. Anonymous visitors can sign
+`/create/<collection-page>` opens the record form. Anonymous visitors can sign
 in and continue at that destination; Cancel returns to its collection and
-creates no record. The record route `#/characters/new` addresses a record whose
+creates no record. The record route `/characters/new` addresses a record whose
 key is `new`. Route unit tests and real-host record-workflow tests cover
 malformed paths, Back, sign-in, cancellation and retained dirty values.
 
@@ -367,7 +367,7 @@ choices reuse the editor's canonical options and translated labels. All values,
 reference names, counts, and results come from the latest role-projected
 dataset, even when a separate open editor retains an older save snapshot.
 
-The applied view is encoded in the collection hash query for bookmarking and
+The applied view is encoded in the collection page's query for bookmarking and
 return navigation. Applying replaces the current history entry rather than
 creating an entry per filter adjustment. Per-role, per-collection localStorage
 preferences restore the last view when navigating from an article or sidebar;

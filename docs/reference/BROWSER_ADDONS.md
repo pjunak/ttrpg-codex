@@ -398,7 +398,7 @@ The real planner/overview cases also cover automatic refresh, draft conflicts,
 typing during a pending read, and retry after failed reads.
 
 The [DM dashboard contract](../../examples/addons/API_V3.md#dm-dashboard)
-uses `codex-dm-dashboard` at `#/dm`. Only DM sessions mount its exact
+uses `codex-dm-dashboard` at `/dm`. Only DM sessions mount its exact
 `dm:dashboard` slots. Core hidden-content counts and browser lifecycle status
 always follow the contributions, with reload while an add-on is not ready.
 Empty, failed, and disabled
@@ -501,13 +501,15 @@ separate checks.
 The browser shell projects a sidebar declaration only while its exact
 same-generation route binding is active and visible to the current role.
 Route paths are canonical manifest metadata, but the host owns the complete
-hash namespace and creates the anchors. Selecting a page filters the route
+`/addons/` path namespace and creates the anchors. Selecting a page filters the route
 outlet to one exact contribution; stale, disabled, role-hidden, and malformed
-targets cannot leave the previous route mounted. Direct route hashes remain
-usable even when a valid route intentionally has no sidebar declaration.
+targets cannot leave the previous route mounted. Direct route addresses
+remain usable even when a valid route intentionally has no sidebar declaration.
 
-Route selection ignores the bounded query suffix only after validating the
-whole hash with `parseBrowserAddonLocation`. The public
+Route selection ignores the bounded query only after validating the whole
+address with `parseBrowserAddonLocation`. `ui.navigate` dispatches the same
+navigation request the host's own views use, so the guard asks about open
+edits; with `replace` it only rewrites the query of the shown add-on route. The public
 `addon-route-context.v1` carries decoded ordered pairs and the selected locale
 to mounted elements. Duplicate keys remain visible to the
 consumer. Query and locale changes update the mounted contribution instead of
@@ -517,7 +519,7 @@ guarded DM slot; neither context includes campaign bodies.
 Route context optionally includes `recordReferences`, projected by
 `route-record-references.ts` from the role-visible campaign snapshot and the
 generation's approved `core.data.read` collection grants. The catalog contains
-only collection/key identities, bounded labels and host-built hash links. Its
+only collection/key identities, bounded labels and host-built page links. Its
 ready/truncated flags distinguish unavailable snapshots and omitted records;
 the exact limits are in the public API guide. Campaign refresh updates the
 mounted route context without resetting its local draft.

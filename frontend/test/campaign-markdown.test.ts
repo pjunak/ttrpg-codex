@@ -18,7 +18,7 @@ describe("campaign markdown", () => {
   it("reduces Markdown to one line of readable words for excerpts", () => {
     expect(
       campaignMarkdownText(
-        "## Motivace\n\nChce **ochránit** [[Anežka|characters]] a [Radov](#/locations/radov).\n\n- jedna\n- dvě",
+        "## Motivace\n\nChce **ochránit** [[Anežka|characters]] a [Radov](/locations/radov).\n\n- jedna\n- dvě",
       ),
     ).toBe("Motivace Chce ochránit Anežka a Radov. jedna dvě");
     expect(campaignMarkdownText("Plain text stays as it is.")).toBe("Plain text stays as it is.");
@@ -26,7 +26,7 @@ describe("campaign markdown", () => {
   it("offers only unresolved visible wiki references to the add-on resolver", () => {
     const addonWiki = vi.fn(() => ({
       status: "resolved" as const,
-      href: "#/addons/library/page?kind=spell&id=shield",
+      href: "/addons/library/page?kind=spell&id=shield",
     }));
     const rendered = renderCampaignMarkdown(
       parseCampaignMarkdown(
@@ -103,9 +103,9 @@ describe("campaign markdown", () => {
         },
         "Ryn",
       ),
-    ).toMatchObject({ href: "#/characters/ryn-public", key: "ryn-public" });
+    ).toMatchObject({ href: "/characters/ryn-public", key: "ryn-public" });
     expect(resolveCampaignWikiLink({ dataset: campaign }, "Watch", "faction:watch")).toMatchObject({
-      href: "#/factions/watch",
+      href: "/factions/watch",
       key: "watch",
     });
     expect(
@@ -117,8 +117,8 @@ describe("campaign markdown", () => {
   });
 
   it("allows campaign and ordinary web links but rejects active-content schemes", () => {
-    expect(safeCampaignMarkdownLink("#/characters/ryn")).toEqual({
-      href: "#/characters/ryn",
+    expect(safeCampaignMarkdownLink("/characters/ryn")).toEqual({
+      href: "/characters/ryn",
       external: false,
     });
     expect(safeCampaignMarkdownLink("/api/media/portrait.webp")).toEqual({
@@ -132,6 +132,10 @@ describe("campaign markdown", () => {
     expect(safeCampaignMarkdownLink("javascript:alert(1)")).toBeUndefined();
     expect(safeCampaignMarkdownLink("data:text/html,boom")).toBeUndefined();
     expect(safeCampaignMarkdownLink("//example.com/implicit")).toBeUndefined();
+    // Browsers read a backslash as a slash, so this names another host.
+    expect(safeCampaignMarkdownLink("/\\example.com/implicit")).toBeUndefined();
+    // App pages are paths; a fragment names no page.
+    expect(safeCampaignMarkdownLink("#/characters/ryn")).toBeUndefined();
   });
 });
 

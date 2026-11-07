@@ -1,7 +1,7 @@
 import type { CampaignCollectionName } from "../core/campaign-data.js";
 import { uiCollectionLabel } from "./ui-localization.js";
-import { isBrowserAddonRouteHash } from "../addons/navigation.js";
-import { parseAddonGraphHash, type GraphSelection } from "./campaign-addon-graph.js";
+import { isBrowserAddonRouteHref } from "../addons/navigation.js";
+import { parseAddonGraphHref, type GraphSelection } from "./campaign-addon-graph.js";
 
 export interface CampaignPageDefinition {
   readonly id: string;
@@ -69,28 +69,34 @@ export type AppRoute =
   | { readonly kind: "addon" }
   | { readonly kind: "not-found"; readonly path: string };
 
-export function canonicalAppHash(hash: string): string {
-  return hash === "" ? "#/" : hash;
+/**
+ * The app's own spelling of an address: its path and query, as the URL parser
+ * writes them. Compare addresses only in this form, because the parser encodes
+ * some query characters (such as `'`) that `encodeURIComponent` leaves alone.
+ */
+export function canonicalAppHref(href: string): string {
+  const url = new URL(href || "/", "http://codex.invalid");
+  return `${url.pathname}${url.search}`;
 }
 
-export function createReturnHash(route: Extract<AppRoute, { kind: "create" }>): string {
+export function createReturnHref(route: Extract<AppRoute, { kind: "create" }>): string {
   if (route.context)
-    return recordHash(
+    return recordHref(
       campaignPages.find(
         (page) => page.collection === contextCreationActions[route.context!.action].source,
       )!,
       route.context.key,
     );
   return route.preset === "party"
-    ? "#/party"
+    ? "/party"
     : route.preset === "event"
-      ? "#/timeline"
-      : collectionHash(route.page);
+      ? "/timeline"
+      : collectionHref(route.page);
 }
 
-export function parseAppRoute(hash: string): AppRoute {
-  hash = canonicalAppHash(hash);
-  const contextual = /^#\/create\/([a-z-]+)\/([^/?]+)$/u.exec(hash);
+export function parseAppRoute(href: string): AppRoute {
+  href = canonicalAppHref(href);
+  const contextual = /^\/create\/([a-z-]+)\/([^/?]+)$/u.exec(href);
   if (contextual && Object.hasOwn(contextCreationActions, contextual[1]!)) {
     try {
       const key = decodeURIComponent(contextual[2]!);
@@ -108,9 +114,9 @@ export function parseAppRoute(hash: string): AppRoute {
     } catch {
       /* Malformed links remain unavailable. */
     }
-    return { kind: "not-found", path: hash };
+    return { kind: "not-found", path: href };
   }
-  const edit = /^#\/([^/?]+)\/([^/?]+)\/edit(?:\?([^#]*))?$/u.exec(hash);
+  const edit = /^\/([^/?]+)\/([^/?]+)\/edit(?:\?(.*))?$/u.exec(href);
   if (edit) {
     try {
       const page = campaignPages.find((page) => page.id === edit[1]),
@@ -123,28 +129,28 @@ export function parseAppRoute(hash: string): AppRoute {
         !/\p{Cc}/u.test(key) &&
         [...params.keys()].every((key) => key === "return") &&
         params.getAll("return").length <= 1 &&
-        (returnTo === undefined || validEditorReturnHash(returnTo))
+        (returnTo === undefined || validEditorReturnHref(returnTo))
       ) {
         return { kind: "record", page, key, editing: true, ...(returnTo ? { returnTo } : {}) };
       }
     } catch {
       /* Malformed links remain unavailable. */
     }
-    return { kind: "not-found", path: hash };
+    return { kind: "not-found", path: href };
   }
-  const create = /^#\/create\/([^/]+)$/u.exec(hash);
+  const create = /^\/create\/([^/]+)$/u.exec(href);
   if (create) {
     const page = campaignPages.find((page) => page.id === create[1]);
     if (page) return { kind: "create", page, preset: "blank" };
   }
-  if (hash === "#/dm") return { kind: "dm" };
-  const addonGraph = parseAddonGraphHash(hash);
+  if (href === "/dm") return { kind: "dm" };
+  const addonGraph = parseAddonGraphHref(href);
   if (addonGraph) return { kind: "campaign-graph", mode: addonGraph };
-  if (hash === "#/graph/relationships") return { kind: "campaign-graph", mode: "relationships" };
-  if (hash === "#/graph/factions") return { kind: "campaign-graph", mode: "factions" };
-  if (hash === "#/graph/mysteries") return { kind: "campaign-graph", mode: "mysteries" };
-  if (hash === "#/timeline") return { kind: "timeline" };
-  const newEvent = /^#\/timeline\/new\/([1-9]\d*)$/u.exec(hash);
+  if (href === "/graph/relationships") return { kind: "campaign-graph", mode: "relationships" };
+  if (href === "/graph/factions") return { kind: "campaign-graph", mode: "factions" };
+  if (href === "/graph/mysteries") return { kind: "campaign-graph", mode: "mysteries" };
+  if (href === "/timeline") return { kind: "timeline" };
+  const newEvent = /^\/timeline\/new\/([1-9]\d*)$/u.exec(href);
   if (newEvent !== null && Number.isSafeInteger(Number(newEvent[1]))) {
     return {
       kind: "create",
@@ -153,39 +159,39 @@ export function parseAppRoute(hash: string): AppRoute {
       page: campaignPages.find((page) => page.id === "events")!,
     };
   }
-  if (hash === "" || hash === "#" || hash === "#/" || hash === "#/dashboard") {
+  if (href === "/" || href === "/dashboard") {
     return { kind: "dashboard" };
   }
-  if (hash === "#/party") {
+  if (href === "/party") {
     return { kind: "party" };
   }
-  if (hash === "#/party/new") {
+  if (href === "/party/new") {
     return {
       kind: "create",
       page: campaignPages.find(({ id }) => id === "characters")!,
       preset: "party",
     };
   }
-  if (hash === "#/search") {
+  if (href === "/search") {
     return { kind: "search" };
   }
-  if (hash.startsWith("#/search?") && hash.length <= 4_096) {
+  if (href.startsWith("/search?") && href.length <= 4_096) {
     return {
       kind: "search",
-      query: (new URLSearchParams(hash.slice(9)).get("q") ?? "").slice(0, 200),
+      query: (new URLSearchParams(href.slice("/search?".length)).get("q") ?? "").slice(0, 200),
     };
   }
-  if (hash === "#/settings") {
+  if (href === "/settings") {
     return { kind: "settings" };
   }
-  const settingsCategory = /^#\/settings\/([a-z-]+)$/u.exec(hash)?.[1];
+  const settingsCategory = /^\/settings\/([a-z-]+)$/u.exec(href)?.[1];
   if (isSettingsSlug(settingsCategory)) return { kind: "settings", category: settingsCategory };
-  if (hash === "#/settings/addons") return { kind: "settings", addonId: null };
-  const addonSettings = /^#\/settings\/addons\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)$/u.exec(hash);
+  if (href === "/settings/addons") return { kind: "settings", addonId: null };
+  const addonSettings = /^\/settings\/addons\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)$/u.exec(href);
   if (addonSettings && addonSettings[1]!.length <= 100)
     return { kind: "settings", addonId: addonSettings[1]! };
-  if (hash === "#/settings/maps") return { kind: "settings", mapParentId: null };
-  const mapSettings = /^#\/settings\/maps\/local\/([^/]+)$/u.exec(hash);
+  if (href === "/settings/maps") return { kind: "settings", mapParentId: null };
+  const mapSettings = /^\/settings\/maps\/local\/([^/]+)$/u.exec(href);
   if (mapSettings !== null) {
     try {
       const mapParentId = decodeURIComponent(mapSettings[1]!);
@@ -193,10 +199,10 @@ export function parseAppRoute(hash: string): AppRoute {
     } catch {
       /* Malformed paths use the ordinary not-found route. */
     }
-    return { kind: "not-found", path: hash };
+    return { kind: "not-found", path: href };
   }
   const map =
-    /^#\/map\/(?:world|local\/([^/]+))(?:\/(event|location)\/([^/]+)\/(show|place))?$/u.exec(hash);
+    /^\/map\/(?:world|local\/([^/]+))(?:\/(event|location)\/([^/]+)\/(show|place))?$/u.exec(href);
   if (map !== null) {
     try {
       const parentId = map[1] === undefined ? null : decodeURIComponent(map[1]);
@@ -214,17 +220,17 @@ export function parseAppRoute(hash: string): AppRoute {
     } catch {
       /* Malformed paths use the ordinary not-found route. */
     }
-    return { kind: "not-found", path: hash };
+    return { kind: "not-found", path: href };
   }
-  if (isBrowserAddonRouteHash(hash)) {
+  if (isBrowserAddonRouteHref(href)) {
     return { kind: "addon" };
   }
-  const collectionView = /^#\/([^/?]+)\?([^#]*)$/u.exec(hash);
+  const collectionView = /^\/([^/?]+)\?(.*)$/u.exec(href);
   if (collectionView && collectionView[2]!.length <= 64_000) {
     const page = campaignPages.find((page) => page.id === collectionView[1]);
     if (page) return { kind: "collection", page, view: collectionView[2]! };
   }
-  const path = hash.startsWith("#/") ? hash.slice(2) : hash;
+  const path = href.slice(1);
   const [pageID, encodedKey, ...rest] = path.split("/");
   const definition = campaignPages.find((candidate) => candidate.id === pageID);
   if (definition === undefined || rest.length > 0) {
@@ -262,56 +268,56 @@ export type SettingsSlug = (typeof settingsSlugs)[number];
 function isSettingsSlug(value: string | undefined): value is SettingsSlug {
   return settingsSlugs.includes(value as SettingsSlug);
 }
-export function settingsHash(category: SettingsSlug): string {
-  return `#/settings/${category}`;
+export function settingsHref(category: SettingsSlug): string {
+  return `/settings/${category}`;
 }
 
-export function addonSettingsHash(addonId: string): string {
-  return `#/settings/addons/${encodeURIComponent(addonId)}`;
+export function addonSettingsHref(addonId: string): string {
+  return `/settings/addons/${encodeURIComponent(addonId)}`;
 }
 
-export function collectionHash(page: CampaignPageDefinition): string {
-  return `#/${page.id}`;
+export function collectionHref(page: CampaignPageDefinition): string {
+  return `/${page.id}`;
 }
 
-export function mapHash(parentId: string | null): string {
-  return parentId === null ? "#/map/world" : `#/map/local/${encodeURIComponent(parentId)}`;
+export function mapHref(parentId: string | null): string {
+  return parentId === null ? "/map/world" : `/map/local/${encodeURIComponent(parentId)}`;
 }
-export function eventMapHash(parentId: string | null, key: string, mode: "show" | "place"): string {
-  return `${mapHash(parentId)}/event/${encodeURIComponent(key)}/${mode}`;
+export function eventMapHref(parentId: string | null, key: string, mode: "show" | "place"): string {
+  return `${mapHref(parentId)}/event/${encodeURIComponent(key)}/${mode}`;
 }
-export function locationMapHash(
+export function locationMapHref(
   parentId: string | null,
   key: string,
   mode: "show" | "place",
 ): string {
-  return `${mapHash(parentId)}/location/${encodeURIComponent(key)}/${mode}`;
+  return `${mapHref(parentId)}/location/${encodeURIComponent(key)}/${mode}`;
 }
-export function mapSettingsHash(parentId: string | null): string {
+export function mapSettingsHref(parentId: string | null): string {
   return parentId === null
-    ? "#/settings/maps"
-    : `#/settings/maps/local/${encodeURIComponent(parentId)}`;
+    ? "/settings/maps"
+    : `/settings/maps/local/${encodeURIComponent(parentId)}`;
 }
 
-export function contextualCreateHash(action: ContextCreationAction, key: string): string {
-  return `#/create/${action}/${encodeURIComponent(key)}`;
+export function contextualCreateHref(action: ContextCreationAction, key: string): string {
+  return `/create/${action}/${encodeURIComponent(key)}`;
 }
-export function recordEditHash(
+export function recordEditHref(
   page: CampaignPageDefinition,
   key: string,
   returnTo?: string,
 ): string {
-  return `${recordHash(page, key)}/edit${returnTo && validEditorReturnHash(returnTo) ? "?return=" + encodeURIComponent(returnTo) : ""}`;
+  return `${recordHref(page, key)}/edit${returnTo && validEditorReturnHref(returnTo) ? "?return=" + encodeURIComponent(returnTo) : ""}`;
 }
-function validEditorReturnHash(hash: string): boolean {
-  if (["#/", "#/party", "#/timeline"].includes(hash)) return true;
-  if (hash.length > 64_000) return false;
-  const match = /^#\/([^/?]+)(?:\?[^#]*)?$/u.exec(hash);
+function validEditorReturnHref(href: string): boolean {
+  if (["/", "/party", "/timeline"].includes(href)) return true;
+  if (href.length > 64_000) return false;
+  const match = /^\/([^/?]+)(?:\?.*)?$/u.exec(href);
   return !!match && campaignPages.some((page) => page.id === match[1]);
 }
 
-export function recordHash(page: CampaignPageDefinition, key: string): string {
-  return `${collectionHash(page)}/${encodeURIComponent(key)}`;
+export function recordHref(page: CampaignPageDefinition, key: string): string {
+  return `${collectionHref(page)}/${encodeURIComponent(key)}`;
 }
 
 function page(

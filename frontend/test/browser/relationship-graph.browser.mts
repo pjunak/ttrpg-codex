@@ -223,7 +223,7 @@ async function fixture(
     assert.deepEqual(errors, []);
     assert.deepEqual(writes, [], "graph gestures must never mutate campaign content");
   });
-  await page.goto(`${origin}/#/graph/relationships`);
+  await page.goto(`${origin}/graph/relationships`);
   await node(page, "ryn").waitFor();
   await page.waitForFunction(() => document.querySelector<HTMLElement>(".live-connected"));
   await page
@@ -324,7 +324,7 @@ void test("pointer and keyboard moves persist saved centers and never modify cam
     () => JSON.parse(localStorage.getItem("codex-graph:relationships:positions")!).ryn.x === -200,
   );
   assert.deepEqual((await positions(page)).ryn, { x: -200, y: -105 });
-  assert.match(page.url(), /#\/graph\/relationships$/);
+  assert.match(page.url(), /\/graph\/relationships$/);
   await node(page, "ryn").focus();
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("Shift+ArrowDown");
@@ -346,7 +346,7 @@ void test("click, keyboard and context actions navigate to exact character detai
   await page.keyboard.press("Shift+F10");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
-  assert.match(page.url(), /#\/graph\/relationships$/);
+  assert.match(page.url(), /\/graph\/relationships$/);
   assert.match(
     await node(page, "talia").locator(".cm-cloud").getAttribute("class").then(required),
     /cm-vfilter-dim/,
@@ -354,11 +354,11 @@ void test("click, keyboard and context actions navigate to exact character detai
   await page.getByRole("button", { name: "Clear filters", exact: true }).click();
   await node(page, "ryn").focus();
   await page.keyboard.press("Enter");
-  await page.waitForURL(/#\/characters\/ryn$/);
+  await page.waitForURL(/\/characters\/ryn$/);
   await page.goBack();
   await node(page, "mira").waitFor();
   await node(page, "mira").click();
-  await page.waitForURL(/#\/characters\/mira$/);
+  await page.waitForURL(/\/characters\/mira$/);
 });
 
 void test("chip filters, relationship toggles, focus depth and faction hiding survive reload", async (t) => {
@@ -479,7 +479,7 @@ void test("storage failures keep the local arrangement for retry and malformed p
 void test("another tab interrupts an active drag without overwriting its saved arrangement", async (t) => {
   const { page, context } = await fixture(t);
   const second = await context.newPage();
-  await second.goto(`${origin}/#/graph/relationships`);
+  await second.goto(`${origin}/graph/relationships`);
   await node(second, "ryn").waitFor();
   const rect = await node(page, "ryn").boundingBox().then(required);
   await page.mouse.move(rect.x + 20, rect.y + 20);
@@ -504,7 +504,7 @@ void test("another tab interrupts an active drag without overwriting its saved a
 
 void test("anonymous Czech readers can arrange the read-only graph", async (t) => {
   const { page } = await fixture(t, { role: "", locale: "cs" });
-  await page.goto(`${origin}/#/graph/relationships`);
+  await page.goto(`${origin}/graph/relationships`);
   await node(page, "ryn").waitFor();
   await page.getByRole("heading", { name: /Myšlenkový palác/ }).waitFor();
   await node(page, "ryn").focus();
@@ -517,7 +517,7 @@ void test("anonymous Czech readers can arrange the read-only graph", async (t) =
 });
 
 async function switchMode(page: Page, mode: string) {
-  await page.locator(`.map-mode-btn[href="#/graph/${mode}"]`).click();
+  await page.locator(`.map-mode-btn[href="/graph/${mode}"]`).click();
   await page.waitForFunction(
     (mode) => document.querySelector("codex-campaign-graph")?.mode === mode,
     mode,
@@ -538,7 +538,7 @@ for (const mode of ["factions", "mysteries"])
       assert.equal(await page.locator(".map-mode-btn").count(), 3);
       assert.equal(
         await page.locator('.map-mode-btn[aria-current="page"]').getAttribute("href"),
-        `#/graph/${mode}`,
+        `/graph/${mode}`,
       );
       assert.equal(await page.locator(".cm-node").count(), mode === "factions" ? 8 : 6);
       if (mode === "factions") {
@@ -552,7 +552,7 @@ for (const mode of ["factions", "mysteries"])
         assert.deepEqual(style, { width: 210, radius: "999px", font: "15px" });
         assert.equal(
           await typedNode(page, "location", "gate").getAttribute("href"),
-          "#/locations/gate",
+          "/locations/gate",
         );
         assert.match(
           await typedNode(page, "character", "mira").textContent().then(required),
@@ -565,7 +565,7 @@ for (const mode of ["factions", "mysteries"])
         assert.equal(await page.locator('[data-edge-type="mysteryLink"]').count(), 4);
         assert.equal(
           await typedNode(page, "mystery", "gate").getAttribute("href"),
-          "#/mysteries/gate",
+          "/mysteries/gate",
         );
         assert.match(
           await typedNode(page, "character", "ryn").textContent().then(required),
@@ -610,7 +610,7 @@ for (const mode of ["factions", "mysteries"])
             : typedNode(page, "mystery", "gate");
         await target.focus();
         await page.keyboard.press("Enter");
-        await page.waitForURL(mode === "factions" ? /#\/factions\/watch$/ : /#\/mysteries\/gate$/);
+        await page.waitForURL(mode === "factions" ? /\/factions\/watch$/ : /\/mysteries\/gate$/);
       }
     });
 
@@ -666,7 +666,7 @@ void test("shared places and mysteries follow faction visibility and return with
   await typedNode(page, "mystery", "gate").focus();
   await page.keyboard.press("Shift+F10");
   await page.getByRole("menuitem", { name: "↗ Open detail", exact: true }).click();
-  await page.waitForURL(/#\/mysteries\/gate$/);
+  await page.waitForURL(/\/mysteries\/gate$/);
 });
 
 void test("same IDs in different collections keep separate cards, links and saved positions", async (t) => {
@@ -698,7 +698,7 @@ void test("same IDs in different collections keep separate cards, links and save
   });
   await character.focus();
   await page.keyboard.press("Enter");
-  await page.waitForURL(/#\/characters\/gate$/);
+  await page.waitForURL(/\/characters\/gate$/);
 });
 
 void test("route changes and live removal cancel a mixed graph drag without saving it into another mode", async (t) => {
@@ -712,7 +712,9 @@ void test("route changes and live removal cancel a mixed graph drag without savi
   await page.mouse.down();
   await page.mouse.move(rect.x + 80, rect.y + 80, { steps: 4 });
   await page.evaluate(() => {
-    location.hash = "#/graph/mysteries";
+    window.dispatchEvent(
+      new CustomEvent("codex-navigate", { cancelable: true, detail: { href: "/graph/mysteries" } }),
+    );
   });
   await typedNode(page, "mystery", "gate").waitFor();
   await page.mouse.up();
@@ -762,13 +764,13 @@ for (const reducedMotion of ["reduce", "no-preference"] as const)
     const after = await typedPosition(page, "character", "mira");
     assert.ok(Math.abs(after.x - before.x - 25 / zoom) < 1);
     assert.ok(Math.abs(after.y - before.y - 30 / zoom) < 1);
-    assert.match(page.url(), /#\/graph\/factions$/);
+    assert.match(page.url(), /\/graph\/factions$/);
   });
 
 void test("anonymous Czech readers can open each Mind Palace view", async (t) => {
   const { page } = await fixture(t, { mixed: true, role: "", locale: "cs" });
   for (const mode of ["factions", "mysteries"]) {
-    await page.goto(`${origin}/#/graph/${mode}`);
+    await page.goto(`${origin}/graph/${mode}`);
     await page.waitForFunction(
       (mode) => document.querySelector("codex-campaign-graph")?.mode === mode,
       mode,
@@ -892,7 +894,9 @@ void test("a completed drop survives an immediate mode change without writing in
   await holdDrag(page, typedKey("character", "ryn"), 70, 50);
   await page.mouse.up();
   await page.evaluate(() => {
-    location.hash = "#/graph/mysteries";
+    window.dispatchEvent(
+      new CustomEvent("codex-navigate", { cancelable: true, detail: { href: "/graph/mysteries" } }),
+    );
   });
   await typedNode(page, "mystery", "gate").waitFor();
   await waitForRest(page);
@@ -928,7 +932,7 @@ void test("live projection changes discard an active motion draft and remove its
 void test("another tab wins over post-release settling without a delayed overwrite", async (t) => {
   const { page, context } = await fixture(t, { reducedMotion: "no-preference" });
   const second = await context.newPage();
-  await second.goto(`${origin}/#/graph/relationships`);
+  await second.goto(`${origin}/graph/relationships`);
   await node(second, "ryn").waitFor();
   await holdDrag(page, "ryn", 330, 0);
   await page.mouse.up();
@@ -1020,7 +1024,9 @@ void test("leaving during settling saves the drop and does not recreate observer
   await holdDrag(page, "ryn", 330, 0);
   await page.mouse.up();
   await page.evaluate(() => {
-    location.hash = "#/characters/mira";
+    window.dispatchEvent(
+      new CustomEvent("codex-navigate", { cancelable: true, detail: { href: "/characters/mira" } }),
+    );
   });
   await page.locator(".record-article").waitFor();
   await page.evaluate(() => window.departedGraph.updateComplete);

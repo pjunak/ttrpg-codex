@@ -18,7 +18,7 @@ it("accepts the cleanup status and rejects anything else", () => {
 });
 
 it("no longer routes reviews of individual stored builds", () => {
-  expect(parseAppRoute(`#/settings/addons/example/packages/${"a".repeat(64)}`).kind).toBe(
+  expect(parseAppRoute(`/settings/addons/example/packages/${"a".repeat(64)}`).kind).toBe(
     "not-found",
   );
 });

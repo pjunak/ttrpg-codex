@@ -120,9 +120,12 @@ its previews. Closing a preview through its button revokes only that preview.
 Closing the browser tab directly leaves its credential to expire normally.
 
 The new tab has no opener. Its bootstrap credential travels in the URL fragment
-and is immediately replaced with a non-secret `playerPreview=1` marker before
-the app starts. The token is held in tab-local session storage; same-site
-navigation and reload retain the preview. Missing, blocked, or malformed tab
+and is immediately replaced with a non-secret `#player-preview` fragment marker,
+on the overview page, before the app starts. The token is held in tab-local
+session storage; same-site navigation and reload retain the preview, and the
+preview tab opens ctrl- and middle-clicked links in a new tab that inherits its
+session storage. The browser's own "Open link in new tab" menu bypasses this
+and opens the signed-in view. Missing, blocked, or malformed tab
 storage with an explicit marker keeps invalid preview mode instead of using
 the shared DM cookie.
 

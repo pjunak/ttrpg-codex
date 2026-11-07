@@ -166,7 +166,7 @@ export async function exerciseSettings({
     await startupHeld;
     await route.continue();
   });
-  await page.goto("/#/settings/addons");
+  await page.goto("/settings/addons");
   const row = page.locator(`.addon-row[data-addon-id="${id}"]`),
     dropdown = page.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
   const tab = page.getByRole("tab", { name: id, exact: true }),
@@ -229,7 +229,7 @@ export async function exerciseSettings({
         errors,
         state: () =>
           page.evaluate(() => ({
-            hash: location.hash,
+            address: location.pathname + location.search,
             edits: document
               .querySelector<SettingsElement>("codex-settings")
               ?.registry?.edits.state(),
@@ -258,7 +258,7 @@ export async function exerciseSettings({
   assert.equal(await tab.getAttribute("aria-selected"), "true");
   await view.getByRole("button", { name: "Save option", exact: true }).click();
   await view.getByText("Option saved", { exact: true }).waitFor();
-  await page.goto(`/#/settings/addons/${id}`);
+  await page.goto(`/settings/addons/${id}`);
   await page.reload();
   await view.getByText("Options ready", { exact: true }).waitFor();
   assert.equal(await view.getByLabel("Saved option").inputValue(), "Keep this draft");
@@ -302,7 +302,7 @@ export async function exerciseSettings({
   player.on("request", (request) => {
     if (request.url().includes("/api/admin/")) adminRequests.push(request.url());
   });
-  await player.goto(`/#/settings/addons/${id}`);
+  await player.goto(`/settings/addons/${id}`);
   // Opened directly, the page renders before the add-on has registered its settings.
   await player.reload();
   const playerSettings = player.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
@@ -373,7 +373,7 @@ export async function exerciseSettingsFailure({
     );
   });
   const page = await open(t);
-  await page.goto(`/#/settings/addons/${id}`);
+  await page.goto(`/settings/addons/${id}`);
   const dropdown = page.locator(`[data-addon-settings="${id}"] codex-addon-settings`);
   await dropdown.getByRole("alert").waitFor();
   assert.equal((await dropdown.textContent())!.includes("Private settings failure"), false);
@@ -432,7 +432,7 @@ export async function exerciseSettingsCardStability({
     });
   }
   const page = await open(t, "player");
-  await page.goto("/#/settings/addons/settings-stable-a");
+  await page.goto("/settings/addons/settings-stable-a");
   const cards = page.locator("[data-addon-settings]"),
     first = page.locator('[data-addon-settings="settings-stable-a"]');
   const second = page.locator('[data-addon-settings="settings-stable-b"]');

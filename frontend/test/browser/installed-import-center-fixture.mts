@@ -125,7 +125,7 @@ export async function exerciseImportCenter({
   await installReviewedPackage(admin, csrf, "dm-tools", archive, dmToolsPermissions);
   consumer = true;
   const page = await open(t, "dm", mobile);
-  await page.goto("/#/addons/dm-tools/imports");
+  await page.goto("/addons/dm-tools/imports");
   const file = page.locator('.dm-tools-import input[type="file"]');
   const choose = (value: unknown, name = "notes.json") =>
     file.setInputFiles({
@@ -261,7 +261,9 @@ export async function exerciseImportCenter({
   await page.getByRole("button", { name: "Commit reviewed import", exact: true }).click();
   await pending;
   await page.evaluate(() => {
-    location.hash = "#/dm";
+    window.dispatchEvent(
+      new CustomEvent("codex-navigate", { cancelable: true, detail: { href: "/dm" } }),
+    );
   });
   await page.getByText("Committing the exact reviewed plan…", { exact: true }).waitFor();
   assert.match(page.url(), /\/imports$/u);

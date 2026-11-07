@@ -101,7 +101,7 @@ async function open(t: TestContext, mobile = false) {
       body: fixtureModule,
     }),
   );
-  await page.goto("/#/addons/visual-fixture/tools", { waitUntil: "domcontentloaded" });
+  await page.goto("/addons/visual-fixture/tools", { waitUntil: "domcontentloaded" });
   await page.getByLabel("Recovery draft", { exact: true }).waitFor();
   return page;
 }
@@ -189,7 +189,7 @@ for (const state of ["dirty", "saving"] as const) {
 
 void test("campaign restore honors a pending core edit flag while refreshing", async (t) => {
   const page = await open(t);
-  await page.goto("/#/characters/ryn", { waitUntil: "domcontentloaded" });
+  await page.goto("/characters/ryn", { waitUntil: "domcontentloaded" });
   await page.locator("#record-title").waitFor();
   await page.route("**/api/campaign", (route) => route.fulfill({ json: restoredCampaign() }));
   const read = await holdCoreWrite(page, "/api/campaign", "headers");

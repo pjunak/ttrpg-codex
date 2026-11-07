@@ -36,7 +36,7 @@ import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { AddonContributionsController } from "./addon-contributions-controller.js";
 import { UIControlsController } from "../ui/controller.js";
-import { mapSettingsHash, settingsHash, type SettingsSlug } from "./routes.js";
+import { mapSettingsHref, settingsHref, type SettingsSlug } from "./routes.js";
 
 type SettingsCategory =
   | "language"
@@ -64,10 +64,10 @@ const categorySlugs: Record<Exclude<SettingsCategory, "addons" | "maps">, Settin
   backup: "backup",
 };
 
-function categoryHash(category: SettingsCategory): string {
-  if (category === "addons") return "#/settings/addons";
-  if (category === "maps") return mapSettingsHash(null);
-  return settingsHash(categorySlugs[category]);
+function categoryHref(category: SettingsCategory): string {
+  if (category === "addons") return "/settings/addons";
+  if (category === "maps") return mapSettingsHref(null);
+  return settingsHref(categorySlugs[category]);
 }
 
 function slugCategory(slug: SettingsSlug): SettingsCategory {
@@ -358,7 +358,7 @@ export class CodexSettings extends LitElement {
           <h1>${this.#ui.t("settings.title")}</h1>
           <p>${this.#ui.t(this.canManageCampaign ? "settings.intro" : "settings.introPlayer")}</p>
         </header>
-        <a class="settings-back" href="#/settings">← ${this.#ui.t("settings.allSettings")}</a>
+        <a class="settings-back" href="/settings">← ${this.#ui.t("settings.allSettings")}</a>
         <div class="settings-workspace">
           <nav class="settings-index" aria-label=${this.#ui.t("settings.categories")}>
             ${groups.map(
@@ -366,7 +366,7 @@ export class CodexSettings extends LitElement {
               ${groups.length > 1 ? html`<p class="settings-index-group" aria-hidden="true">${this.#ui.t(groupLabels[group])}</p>` : nothing}
               ${items.map(
                 (category) => html`
-                <a href=${categoryHash(category.id)} data-category=${category.id}
+                <a href=${categoryHref(category.id)} data-category=${category.id}
                   aria-current=${category.id === this.activeCategory ? "page" : nothing}
                   aria-disabled=${busy ? "true" : nothing}
                   @click=${(event: Event) => {

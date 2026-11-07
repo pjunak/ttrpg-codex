@@ -265,7 +265,7 @@ async function fixture(
       },
     });
   });
-  await page.goto(`${origin}/#/map/world`);
+  await page.goto(`${origin}/map/world`);
   await page.getByRole("button", { name: "Zoom in", exact: true }).waitFor();
   return { page, writes, uploads, mediaReads };
 }
@@ -453,16 +453,16 @@ for (const mobile of [false, true]) {
       value: [{ id: "town", label: "Town", size: 28 }],
     });
     await changed(page, "settings");
-    await page.goto(`${origin}/#/locations/gate`);
+    await page.goto(`${origin}/locations/gate`);
     const show = page.getByRole("link", { name: "Show on map", exact: true });
     assert.match(
       await show.getAttribute("href").then(required),
-      /#\/map\/world\/location\/gate\/show$/,
+      /\/map\/world\/location\/gate\/show$/,
     );
     await show.click();
     await page.getByRole("complementary", { name: "Map location", exact: true }).waitFor();
     assert.equal(writes.length, 0);
-    await page.goto(`${origin}/#/locations/gate`);
+    await page.goto(`${origin}/locations/gate`);
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     const form = page.locator(".record-editor");
     await form.locator('[name="pinType"]').selectOption("town");
@@ -496,7 +496,7 @@ for (const mobile of [false, true]) {
     const place = page.getByRole("link", { name: "Place location pin", exact: true });
     assert.match(
       await place.getAttribute("href").then(required),
-      /#\/map\/local\/inn\/location\/gate\/place$/,
+      /\/map\/local\/inn\/location\/gate\/place$/,
     );
     await place.click();
     await page.getByRole("complementary", { name: "Map location", exact: true }).waitFor();
@@ -511,13 +511,13 @@ for (const mobile of [false, true]) {
     const pin = marker(page, "Northern Gate");
     await pin.waitFor();
     assert.equal(await pin.evaluate((node) => node.style.width), "42px");
-    await page.goto(`${origin}/#/locations/gate`);
+    await page.goto(`${origin}/locations/gate`);
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await page
       .locator(".record-editor")
       .getByRole("link", { name: "Local map", exact: true })
       .click();
-    await page.waitForURL(/#\/map\/local\/gate$/);
+    await page.waitForURL(/\/map\/local\/gate$/);
     await page.getByRole("button", { name: "Edit map", exact: false }).click();
     await page
       .getByLabel("Upload map image")
@@ -582,7 +582,7 @@ for (const mobile of [false, true]) {
           )
       ).every((level) => level <= 3),
     );
-    await page.goto(`${origin}/#/map/local/gate`);
+    await page.goto(`${origin}/map/local/gate`);
     await marker(page, "Upper Room").waitFor();
     assert.equal(await page.locator(".leaflet-image-layer").count(), 0);
     record("gate").value.localMap = uploadedURL;
@@ -665,7 +665,7 @@ for (const mobile of [false, true]) {
     await marker(page, "Northern Gate").focus();
     await page.keyboard.press("Enter");
     await page.getByRole("heading", { name: "Northern Gate", exact: true }).waitFor();
-    await page.goto(`${origin}/#/map/local/gate`);
+    await page.goto(`${origin}/map/local/gate`);
     const local = marker(page, "Upper Room");
     await local.locator(".sc-pin-icon").waitFor();
     assert.equal(await local.locator('[class$="-segment"]').count(), 0);
@@ -712,7 +712,7 @@ for (const mobile of [false, true]) {
     const { page, writes } = await fixture(t, { mobile });
     await page.getByRole("button", { name: "Edit map", exact: false }).click();
     await page.getByRole("link", { name: "Maps", exact: false }).click();
-    await page.waitForURL(/#\/settings\/maps$/);
+    await page.waitForURL(/\/settings\/maps$/);
     await page.getByAltText("Map image preview", { exact: true }).waitFor();
     await setScale(page, 1);
     await page.screenshot({
@@ -757,7 +757,7 @@ for (const mobile of [false, true]) {
       min,
       "zoom-out is bounded by the image fit",
     );
-    await page.goto(`${origin}/#/map/local/gate`);
+    await page.goto(`${origin}/map/local/gate`);
     await marker(page, "Upper Room").waitFor();
     await page.getByRole("button", { name: "Actual image size", exact: true }).click();
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
@@ -774,7 +774,7 @@ for (const mobile of [false, true]) {
     );
     await page.getByRole("button", { name: "Edit map", exact: false }).click();
     await page.getByRole("link", { name: "Maps", exact: false }).click();
-    await page.waitForURL(/#\/settings\/maps\/local\/gate$/);
+    await page.waitForURL(/\/settings\/maps\/local\/gate$/);
     assert.equal(
       await page.getByRole("slider", { name: "Marker scaling with zoom" }).inputValue(),
       "0.5",
@@ -783,9 +783,9 @@ for (const mobile of [false, true]) {
   });
   void test(`event articles place, edit and remove pins without losing event data (${mobile ? "phone" : "desktop"})`, async (t) => {
     const { page, writes } = await fixture(t, { role: "player", mobile });
-    await page.goto(`${origin}/#/events/past`);
+    await page.goto(`${origin}/events/past`);
     await page.getByRole("link", { name: "Place event pin", exact: true }).click();
-    await page.waitForURL(/#\/map\/world\/event\/past\/place$/);
+    await page.waitForURL(/\/map\/world\/event\/past\/place$/);
     await page.getByRole("complementary", { name: "Event map position", exact: true }).waitFor();
     assert.equal(writes.length, 0);
     await chooseEventPoint(page, mobile);
@@ -806,7 +806,7 @@ for (const mobile of [false, true]) {
     assert.equal(eventRecord("past").value.mapParentId, null);
     assert.deepEqual(eventRecord("past").value.locations, ["gate"]);
     assert.deepEqual(eventRecord("past").value.extension, { keep: true });
-    await page.goto(`${origin}/#/events/past`);
+    await page.goto(`${origin}/events/past`);
     await page.getByRole("link", { name: "Show on map", exact: true }).click();
     const pin = eventMarker(page, "The old gate");
     await pin.waitFor();
@@ -895,7 +895,7 @@ for (const mobile of [false, true]) {
 for (const change of ["edit", "move", "delete"]) {
   void test(`location placement retains the opening revision before a remote ${change}`, async (t) => {
     const { page, writes } = await fixture(t, { role: "player" });
-    await page.goto(`${origin}/#/map/world/location/unplaced/place`);
+    await page.goto(`${origin}/map/world/location/unplaced/place`);
     await page.getByRole("complementary", { name: "Map location", exact: true }).waitFor();
     if (change === "delete")
       collection("locations").records = collection("locations").records.filter(
@@ -916,16 +916,16 @@ for (const change of ["edit", "move", "delete"]) {
 
 void test("location map actions respect scope and anonymous access", async (t) => {
   const { page, writes } = await fixture(t, { role: "" });
-  await page.goto(`${origin}/#/locations/gate`);
+  await page.goto(`${origin}/locations/gate`);
   await page.getByRole("link", { name: "Show on map", exact: true }).click();
   await page.getByRole("complementary", { name: "Map location", exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: "Move location pin", exact: true }).count(), 0);
-  await page.goto(`${origin}/#/map/world/location/gate/place`);
+  await page.goto(`${origin}/map/world/location/gate/place`);
   await marker(page, "Northern Gate").waitFor();
   assert.equal(await page.getByRole("button", { name: /Edit map/ }).count(), 0);
   assert.equal(await page.getByLabel("Horizontal position (%)").count(), 0);
   for (const target of ["room", "missing", "unplaced"]) {
-    await page.goto(`${origin}/#/map/world/location/${target}/show`);
+    await page.goto(`${origin}/map/world/location/${target}/show`);
     await page
       .locator(".sc-message")
       .filter({ hasText: "This location or its pin is unavailable" })
@@ -958,8 +958,8 @@ void test("card and article glows surround portraits and follow icon silhouettes
   record("gate").value.attitudes = [{ id: "ally" }, { id: "danger" }];
   await changed(page, "settings");
   await marker(page, "Northern Gate").locator(".sc-pin-icon-segment").nth(1).waitFor();
-  await page.goto(`${origin}/#/characters`);
-  const card = page.locator('.record-row[href="#/characters/ryn"] .record-row-mark');
+  await page.goto(`${origin}/characters`);
+  const card = page.locator('.record-row[href="/characters/ryn"] .record-row-mark');
   await card.waitFor();
   const ring = await card.evaluate((node) => getComputedStyle(node).boxShadow);
   assert.match(ring, /rgba\(64, 208, 128, 0.7\) 0px 0px 10px 1px/);
@@ -968,7 +968,7 @@ void test("card and article glows surround portraits and follow icon silhouettes
     await card.locator(".record-visual-glyph").evaluate((node) => getComputedStyle(node).filter),
     "none",
   );
-  await page.goto(`${origin}/#/characters/ryn`);
+  await page.goto(`${origin}/characters/ryn`);
   await page.locator(".record-portrait").waitFor();
   assert.equal(
     await page.locator(".record-portrait").evaluate((node) => getComputedStyle(node).boxShadow),
@@ -986,8 +986,8 @@ void test("card and article glows surround portraits and follow icon silhouettes
     await page.locator(".record-portrait").evaluate((node) => getComputedStyle(node).filter),
     "none",
   );
-  await page.goto(`${origin}/#/locations`);
-  const location = page.locator('.record-row[href="#/locations/gate"] .record-row-mark');
+  await page.goto(`${origin}/locations`);
+  const location = page.locator('.record-row[href="/locations/gate"] .record-row-mark');
   await location.waitFor();
   assert.equal(
     await location.evaluate((node) => getComputedStyle(node).filter),
@@ -999,7 +999,7 @@ void test("card and article glows surround portraits and follow icon silhouettes
     .evaluate((node) => getComputedStyle(node).filter);
   assert.match(iconGlow, /rgba\(64, 208, 128, 0.7\) 0px 0px 10px/);
   assert.match(iconGlow, /rgb\(237, 66, 100\) 0px 0px 4px/);
-  await page.goto(`${origin}/#/locations/gate`);
+  await page.goto(`${origin}/locations/gate`);
   await page.locator(".record-portrait-placeholder").waitFor();
   assert.equal(
     await page
@@ -1036,7 +1036,7 @@ void test("event dragging keeps its opening revision during live refresh and rem
   assert.equal(writes.length, 0);
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.getByRole("link", { name: "Open event article", exact: true }).click();
-  await page.waitForURL(/#\/map\/world$/);
+  await page.waitForURL(/\/map\/world$/);
   collection("events").records = collection("events").records.filter(
     (record) => record.key !== "arrival",
   );
@@ -1048,7 +1048,7 @@ void test("event dragging keeps its opening revision during live refresh and rem
 
 void test("local event placement captures its revision before the map click and protects other map scopes", async (t) => {
   const { page, writes } = await fixture(t, { role: "player" });
-  await page.goto(`${origin}/#/map/local/gate`);
+  await page.goto(`${origin}/map/local/gate`);
   await marker(page, "Upper Room").waitFor();
   await page.getByRole("button", { name: "Edit map", exact: false }).click();
   const picker = page.getByLabel("Place an event", { exact: true });
@@ -1074,13 +1074,13 @@ void test("local event placement captures its revision before the map click and 
     .waitFor({ state: "detached" });
   assert.equal(writes[0][0].expectedRevision, 2);
   assert.equal(eventRecord("past").value.mapParentId, "gate");
-  await page.goto(`${origin}/#/events/past`);
+  await page.goto(`${origin}/events/past`);
   assert.match(
     await page
       .getByRole("link", { name: "Show on map", exact: true })
       .getAttribute("href")
       .then(required),
-    /#\/map\/local\/gate\/event\/past\/show$/,
+    /\/map\/local\/gate\/event\/past\/show$/,
   );
   await page.getByRole("link", { name: "Move event pin", exact: true }).click();
   await page.getByRole("complementary", { name: "Event map position", exact: true }).waitFor();
@@ -1089,24 +1089,24 @@ void test("local event placement captures its revision before the map click and 
 
 void test("anonymous and missing-event map links cannot start edits", async (t) => {
   const { page, writes } = await fixture(t, { role: "" });
-  await page.goto(`${origin}/#/events/arrival`);
+  await page.goto(`${origin}/events/arrival`);
   assert.equal(await page.getByRole("link", { name: "Move event pin", exact: true }).count(), 0);
   await page.getByRole("link", { name: "Show on map", exact: true }).click();
   await eventMarker(page, "Camp by the river").waitFor();
-  await page.goto(`${origin}/#/map/world/event/arrival/place`);
+  await page.goto(`${origin}/map/world/event/arrival/place`);
   await eventMarker(page, "Camp by the river").waitFor();
   assert.equal(
     await page.getByRole("complementary", { name: "Event map position", exact: true }).count(),
     0,
   );
-  await page.goto(`${origin}/#/map/world/event/missing/place`);
+  await page.goto(`${origin}/map/world/event/missing/place`);
   await page.locator(".sc-message").filter({ hasText: "unavailable on this map" }).waitFor();
   assert.equal(writes.length, 0);
 });
 
 void test("map setting drafts survive live updates and protect category and map changes", async (t) => {
   const { page, writes } = await fixture(t);
-  await page.goto(`${origin}/#/settings/maps`);
+  await page.goto(`${origin}/settings/maps`);
   await setScale(page, 0.6);
   const leaving = answerNextDialog(page, "dismiss");
   await page.locator('[data-category="appearance"]').click();
@@ -1167,7 +1167,7 @@ void test("map setting drafts survive live updates and protect category and map 
 
 void test("map settings handle world/local image uploads and malformed configuration without data loss", async (t) => {
   const { page, writes, uploads } = await fixture(t);
-  await page.goto(`${origin}/#/settings/maps`);
+  await page.goto(`${origin}/settings/maps`);
   await setScale(page, 0.4);
   // A new image leaves the unsaved marker scaling alone.
   const file = { name: "map.svg", mimeType: "image/svg+xml", buffer: Buffer.from(svg) };
@@ -1255,7 +1255,7 @@ void test("player sessions cannot open shared map configuration", async (t) => {
   const { page, writes } = await fixture(t, { role: "player" });
   await page.getByRole("button", { name: "Edit map", exact: false }).click();
   assert.equal(await page.getByRole("link", { name: "Maps", exact: false }).count(), 0);
-  await page.goto(`${origin}/#/settings/maps/local/gate`);
+  await page.goto(`${origin}/settings/maps/local/gate`);
   await page.locator('[data-category="language"]').waitFor();
   assert.equal(await page.locator('[data-category="maps"]').count(), 0);
   assert.equal(await page.getByRole("slider", { name: "Marker scaling with zoom" }).count(), 0);
@@ -1278,7 +1278,7 @@ void test("coordinate drafts survive live refresh and stale saves without changi
   await page.keyboard.press("Control+k");
   await page.getByRole("dialog", { name: "Quick search" }).waitFor();
   await page.keyboard.press("Escape");
-  await page.waitForURL(/#\/map\/world$/);
+  await page.waitForURL(/\/map\/world$/);
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await marker(page, "Northern Gate").click();
@@ -1343,7 +1343,7 @@ void test("saved views and local map upload use the existing optimistic records 
   await page.getByRole("button", { name: "📍 Northern coast", exact: true }).waitFor();
   assert.equal(writes[0][0].expectedRevision, 4);
   assert.equal((writes[0][0].value as unknown as { extension: boolean }[])[0].extension, true);
-  await page.goto(`${origin}/#/map/local/unplaced`);
+  await page.goto(`${origin}/map/local/unplaced`);
   // A map without an image offers its upload directly instead of tools that need an image.
   await page.locator(".sc-map-state").getByLabel("Upload map image").waitFor();
   assert.equal(await page.getByRole("searchbox", { name: "Find a place…" }).count(), 0);
@@ -1424,9 +1424,9 @@ for (const mobile of [false, true]) {
     await toggle.click();
     await pin.focus();
     await page.keyboard.press("Enter");
-    await page.waitForURL(/#\/events\/arrival$/);
+    await page.waitForURL(/\/events\/arrival$/);
     await page.locator(".leaflet-container").waitFor({ state: "detached" });
-    await page.goto(`${origin}/#/map/local/gate`);
+    await page.goto(`${origin}/map/local/gate`);
     await marker(page, "Upper Room").waitFor();
     await page.getByRole("button", { name: "Event paths", exact: false }).click();
     await page.locator(".sc-event-pin").first().waitFor();
@@ -1442,7 +1442,7 @@ for (const mobile of [false, true]) {
 
   void test(`saved-view drafts preserve revisions, extension fields and other map scopes (${mobile ? "phone" : "desktop"})`, async (t) => {
     const { page, writes } = await fixture(t, { mobile });
-    await page.goto(`${origin}/#/map/local/gate`);
+    await page.goto(`${origin}/map/local/gate`);
     await marker(page, "Upper Room").waitFor();
     await page.getByRole("button", { name: "Edit map", exact: false }).click();
     await page.getByRole("button", { name: "Edit view: Gate interior", exact: true }).click();
@@ -1453,7 +1453,7 @@ for (const mobile of [false, true]) {
     await page.keyboard.press("Control+k");
     await page.getByRole("dialog", { name: "Quick search" }).waitFor();
     await page.keyboard.press("Escape");
-    await page.waitForURL(/#\/map\/local\/gate$/);
+    await page.waitForURL(/\/map\/local\/gate$/);
     assert.equal(await page.getByLabel("Name this map view").inputValue(), "Upper floor");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({

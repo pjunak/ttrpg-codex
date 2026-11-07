@@ -230,7 +230,7 @@ for (const mobile of [false, true])
       }
       await route.fulfill({ json: value });
     });
-    await page.goto(`${origin}/#/settings`);
+    await page.goto(`${origin}/settings`);
     await page.locator('[data-category="addons"]').click();
     const manager = page.locator("codex-addon-manager"),
       add = manager.getByRole("button", { name: "Add add-on", exact: true });
@@ -551,7 +551,7 @@ for (const mobile of [false, true])
     page.on("pageerror", (error) => errors.push(error.message));
     t.after(() => assert.deepEqual(errors, []));
     const { ids, active, target, checked } = await routeTwoUpdates(page);
-    await page.goto(`${origin}/#/settings`);
+    await page.goto(`${origin}/settings`);
     await page.locator('[data-category="addons"]').click();
     const manager = page.locator("codex-addon-manager"),
       dialog = manager.getByRole("dialog");
@@ -599,7 +599,7 @@ for (const mobile of [false, true])
     page.on("pageerror", (error) => errors.push(error.message));
     t.after(() => assert.deepEqual(errors, []));
     const { active, target } = await routeTwoUpdates(page);
-    await page.goto(`${origin}/#/settings`);
+    await page.goto(`${origin}/settings`);
     await page.locator('[data-category="addons"]').click();
     const manager = page.locator("codex-addon-manager");
     const updateAll = manager.getByRole("button", { name: "Update all", exact: true });
@@ -652,7 +652,7 @@ for (const mobile of [false, true])
       }
       await route.fulfill({ json: value });
     });
-    await page.goto(`${origin}/#/settings/addons`);
+    await page.goto(`${origin}/settings/addons`);
     const storage = page.locator("codex-addon-manager codex-package-storage");
     await storage.getByRole("alert").waitFor();
     await storage.getByRole("button", { name: "Try again", exact: true }).click();
@@ -778,7 +778,7 @@ for (const mobile of [false, true])
         }
         await route.fulfill({ json: value });
       });
-      await page.goto(origin + "/#/settings");
+      await page.goto(origin + "/settings");
       await page.locator('[data-category="addons"]').click();
       const manager = page.locator("codex-addon-manager"),
         row = manager.locator('[data-github-addon="example"]');

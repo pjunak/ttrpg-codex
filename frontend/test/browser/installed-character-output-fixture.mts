@@ -408,7 +408,7 @@ export function registerCharacterOutputTests(enabled: boolean, fixture: () => Fi
         if (body?.method === "load") connection = { url: request.url(), body };
         if (body?.method === "preview") previews++;
       });
-      await page.goto(f.origin + "/#/characters/" + key);
+      await page.goto(f.origin + "/characters/" + key);
       await page.locator("#character-view-addons").click();
       const sheet = page.locator(".addon-dnd-character");
       await sheet.locator("#dnd-tab-tools").click();

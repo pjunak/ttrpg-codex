@@ -169,7 +169,7 @@ export async function exerciseConfiguration({
       return route.fulfill({ status: 503, json: { error: "unavailable" } });
     await route.continue();
   });
-  await page.goto("/#/settings");
+  await page.goto("/settings");
   await page.locator('[data-category="addons"]').click();
   await page
     .locator(".addon-manager")
@@ -279,7 +279,7 @@ export async function exerciseConfiguration({
     path: resolve(output, `configuration-${mobile ? "phone" : "desktop"}.png`),
     fullPage: true,
   });
-  await page.goto(`/#/settings/addons/${consumer}`);
+  await page.goto(`/settings/addons/${consumer}`);
   await page.reload();
   await provider.getByLabel("Provider", { exact: true }).waitFor();
   assert.equal(

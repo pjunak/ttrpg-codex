@@ -6,7 +6,7 @@ import {
 } from "../core/campaign-data.js";
 import type { CampaignTwinMutation } from "../core/campaign-mutations.js";
 import { openContextMenu, type ContextMenuItem } from "../ui/context-menu.js";
-import { recordHash, type CampaignPageDefinition } from "./routes.js";
+import { recordHref, type CampaignPageDefinition } from "./routes.js";
 import { recordValue, text } from "./campaign-projection.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
 import { saveCampaign } from "./campaign-writes.js";
@@ -75,7 +75,7 @@ export class CodexRecordTwins extends LitElement {
       }
       if (twin) {
         const open = uiText(kind === "dm" ? "twins.openDM" : "twins.openPublic");
-        return html`<a class="record-version" data-version=${kind} href=${recordHash(this.page, twin.key)} aria-label=${open} title=${open}>${icon}</a>`;
+        return html`<a class="record-version" data-version=${kind} href=${recordHref(this.page, twin.key)} aria-label=${open} title=${open}>${icon}</a>`;
       }
       if (twinKey)
         return html`<span class="record-version is-unavailable" data-version=${kind} title=${uiText("twins.unavailable")}>${icon}<span class="visually-hidden">${uiText("twins.unavailable")}</span></span>`;

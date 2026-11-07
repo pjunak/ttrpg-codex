@@ -1,32 +1,37 @@
 import { waitForSignal } from "./abort-signal.js";
 
 const storageKey = "codex_player_preview";
-const marker = "playerPreview";
+/** The fragment a preview tab keeps on every address it shows. */
+export const playerPreviewMarker = "#player-preview";
+const bootstrapPrefix = `${playerPreviewMarker}=`;
 const header = "X-Codex-Player-Preview";
 const tokenPattern = /^[A-Za-z0-9_-]{32,512}$/u;
 let token: string | undefined;
 
 // Keep a non-secret URL marker so cleared/unavailable tab storage fails closed.
-// Bootstrap credentials travel in the fragment, never in an HTTP request URL.
+// The marker and the bootstrap credential travel in the fragment, so neither
+// reaches an HTTP request URL nor mixes with the page's own query.
 export function initializePlayerPreview(
   scope: Pick<Window, "location" | "history" | "sessionStorage"> = window,
 ): void {
   token = undefined;
   const url = new URL(scope.location.href);
-  const bootstrap = url.hash.startsWith("#player-preview=");
+  const bootstrap = url.hash.startsWith(bootstrapPrefix);
+  const marked = url.hash === playerPreviewMarker;
   let stored: string | null = null;
   try {
     stored = scope.sessionStorage.getItem(storageKey);
   } catch {
     /* The URL marker preserves preview mode without storage. */
   }
-  if (!bootstrap && !url.searchParams.has(marker) && stored === null) return;
+  if (!bootstrap && !marked && stored === null) return;
   token = "";
   if (bootstrap) {
-    const supplied = url.hash.slice("#player-preview=".length);
+    const supplied = url.hash.slice(bootstrapPrefix.length);
     token = tokenPattern.test(supplied) ? supplied : "";
-    url.hash = "#/";
-    url.searchParams.set(marker, "1");
+    url.pathname = "/";
+    url.search = "";
+    url.hash = playerPreviewMarker;
     scope.history.replaceState(null, "", url.href);
     try {
       scope.sessionStorage.setItem(storageKey, token);
@@ -35,8 +40,8 @@ export function initializePlayerPreview(
     }
   } else {
     token = stored !== null && tokenPattern.test(stored) ? stored : "";
-    if (!url.searchParams.has(marker)) {
-      url.searchParams.set(marker, "1");
+    if (!marked) {
+      url.hash = playerPreviewMarker;
       scope.history.replaceState(null, "", url.href);
     }
   }
@@ -49,8 +54,9 @@ export function isPlayerPreview(): boolean {
 export function playerPreviewURL(previewToken: string, source = window.location.href): string {
   if (!tokenPattern.test(previewToken)) throw new Error("Invalid player preview token");
   const url = new URL(source);
+  url.pathname = "/";
   url.search = "";
-  url.hash = `player-preview=${previewToken}`;
+  url.hash = `${bootstrapPrefix.slice(1)}${previewToken}`;
   return url.href;
 }
 

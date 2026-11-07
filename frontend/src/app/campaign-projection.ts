@@ -6,7 +6,7 @@ import {
   type CampaignDataset,
   type CampaignRecord,
 } from "../core/campaign-data.js";
-import { campaignPages, recordHash, type CampaignPageDefinition } from "./routes.js";
+import { campaignPages, recordHref, type CampaignPageDefinition } from "./routes.js";
 import { campaignEnumDisplayLabel } from "./campaign-settings.js";
 import { attitudeRing, attitudeFilter } from "./campaign-attitude-glow.js";
 import {
@@ -108,7 +108,7 @@ export function recentCampaignActivity(
         a.entity.route.localeCompare(b.entity.route),
     )
     .filter(({ page, entity }) => {
-      const key = recordHash(page, representatives.get(page.id)!.get(entity.key)!);
+      const key = recordHref(page, representatives.get(page.id)!.get(entity.key)!);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -182,7 +182,7 @@ function projectEntityWithContext(
     attitudes,
     attitudeRing: attitudeRing(attitudes),
     attitudeFilter: attitudeFilter(attitudes),
-    route: recordHash(page, record.key),
+    route: recordHref(page, record.key),
     updatedAt: timestamp(value["updatedAt"]),
     raw: Object.freeze({ ...value }),
   });

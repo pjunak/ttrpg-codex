@@ -7,7 +7,7 @@ import {
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import { editorFieldsFor } from "./campaign-record-editor.js";
 import { recordValue, text } from "./campaign-projection.js";
-import { recordHash, type CampaignPageDefinition } from "./routes.js";
+import { recordHref, type CampaignPageDefinition } from "./routes.js";
 import { UiLocalizationController, uiText } from "./ui-localization.js";
 
 export class CodexLocalDrafts extends LitElement {
@@ -133,7 +133,7 @@ export class CodexLocalDrafts extends LitElement {
       identity[3];
     return html`<details class="collection-local-draft"><summary>${label} · ${field} · ${new Date(draft.savedAt).toLocaleString(this.#ui.locale)}</summary>
       <pre tabindex="0">${draft.value}</pre><div class="writer-recovery-actions">
-        ${record ? html`<a class="ui-action" href=${recordHash(this.page, record.key)}>${uiText("draft.openEntry")}</a>` : nothing}
+        ${record ? html`<a class="ui-action" href=${recordHref(this.page, record.key)}>${uiText("draft.openEntry")}</a>` : nothing}
         <a class="ui-action" download="draft.md" href=${`data:text/markdown;charset=utf-8,${encodeURIComponent(draft.value)}`}>${uiText("draft.download")}</a>
         <button class="ui-action" type="button" ?disabled=${this.loading} @click=${async () => {
           if (!window.confirm(uiText("draft.deleteConfirm"))) return;

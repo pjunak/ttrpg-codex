@@ -47,7 +47,7 @@ void test(
         },
       }),
     );
-    await page.goto("/#/settings/access", { waitUntil: "domcontentloaded" });
+    await page.goto("/settings/access", { waitUntil: "domcontentloaded" });
     const button = page
       .locator("codex-credential-settings")
       .getByRole("button", { name: "View as player", exact: true });
@@ -98,7 +98,7 @@ for (const outcome of ["success", "failure"] as const) {
         );
       });
       try {
-        await page.goto("/#/characters", { waitUntil: "domcontentloaded" });
+        await page.goto("/characters", { waitUntil: "domcontentloaded" });
         await started.promise;
         await page.getByText("Ryn", { exact: true }).waitFor();
         await page.locator(".account-menu > summary").click();
@@ -154,7 +154,7 @@ for (const action of ["login", "logout", "player-preview"] as const) {
           ? page.getByRole("heading", { name: "Player preview", exact: true }).waitFor()
           : page.getByText("Ryn", { exact: true }).waitFor();
       try {
-        await page.goto(preview ? "/#/settings/access" : "/#/characters", {
+        await page.goto(preview ? "/settings/access" : "/characters", {
           waitUntil: "domcontentloaded",
         });
         await ready();
@@ -243,7 +243,7 @@ void test(
       }),
     );
     try {
-      await page.goto("/#/addons/visual-fixture/tools", { waitUntil: "domcontentloaded" });
+      await page.goto("/addons/visual-fixture/tools", { waitUntil: "domcontentloaded" });
       await page.getByText("Synthetic add-on page", { exact: true }).waitFor();
       const app = await page.locator("codex-app").elementHandle();
       assert.ok(app);

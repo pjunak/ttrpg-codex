@@ -35,7 +35,7 @@ export function articleReference(
   key: string,
 ): ArticleReference {
   if (collection === "factions" && key === "party")
-    return { label: campaignPartyIdentity(campaign).name, href: "#/party" };
+    return { label: campaignPartyIdentity(campaign).name, href: "/party" };
   const page = campaignPages.find((page) => page.collection === collection);
   const record =
     page &&

@@ -182,7 +182,7 @@ async function setSiteLanguage(defaultLocale: string): Promise<void> {
 void test("add-on texts, labels and provider messages follow the site language live", async (t) => {
   await setSiteLanguage("en");
   const page = await open(t, "player");
-  await page.goto("/#/addons/lang-ui/language-page");
+  await page.goto("/addons/lang-ui/language-page");
   const view = page.locator('[data-codex-addon="lang-ui"]');
   await view
     .filter({
@@ -238,7 +238,7 @@ for (const mobile of [false, true])
   void test(`the DM sees what each add-on translates, compares and exports it (${mobile ? "phone" : "desktop"})`, async (t) => {
     await setSiteLanguage("en");
     const page = await open(t, "dm", mobile);
-    await page.goto("/#/settings/language");
+    await page.goto("/settings/language");
     const coverage = page.locator("codex-language-coverage");
     const fixture = coverage.locator('[data-source="lang-ui"]');
     await fixture.locator(".language-coverage-figure").waitFor();
@@ -306,7 +306,7 @@ for (const mobile of [false, true])
 
 void test("the DM sees which add-on styles restyle shared controls", async (t) => {
   const page = await open(t, "dm");
-  await page.goto("/#/settings/appearance");
+  await page.goto("/settings/appearance");
   const map = page.locator("codex-interface-consistency");
   const addon = map.locator('[data-addon="lang-ui"]');
   await addon

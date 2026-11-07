@@ -431,5 +431,5 @@ function inline(tokens: readonly Token[], marks: readonly Mark[] = []): RichNode
 
 function safeImage(src: string): boolean {
   const safe = safeCampaignMarkdownLink(src);
-  return safe !== undefined && !safe.href.startsWith("mailto:") && !safe.href.startsWith("#/");
+  return safe !== undefined && !safe.href.startsWith("mailto:");
 }

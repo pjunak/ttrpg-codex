@@ -169,7 +169,7 @@ void test("stream hello reconciles campaign changes before initial connection an
     await gate;
     await route.continue();
   });
-  await page.goto(origin + "/#/dm");
+  await page.goto(origin + "/dm");
   const hidden = page.locator('[data-dm-collection="events"] .dm-count-numbers strong');
   await hidden.filter({ hasText: /^1$/ }).waitFor();
   // This write precedes the stream's cursor and therefore has no live publication.
@@ -227,7 +227,7 @@ void test("live identity changes retain the original draft and block stale write
   await page.keyboard.press("Control+k");
   await page.getByRole("dialog", { name: "Quick search" }).waitFor();
   await page.keyboard.press("Escape");
-  assert.ok([origin + "/", origin + "/#/"].includes(page.url()));
+  assert.ok([origin + "/", origin + "/"].includes(page.url()));
   assert.equal(await input.inputValue(), "My campaign draft");
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -274,7 +274,7 @@ void test("party creation uses the original defaults, survives live refresh, and
   });
   assert.equal(await page.getByLabel("Name", { exact: true }).inputValue(), "New companion");
   await page.getByRole("button", { name: "Save entry", exact: true }).click();
-  await page.waitForURL(/#\/characters\/new-companion-/).catch(async (error) => {
+  await page.waitForURL(/\/characters\/new-companion-/).catch(async (error) => {
     t.diagnostic(
       JSON.stringify({
         url: page.url(),
@@ -300,20 +300,20 @@ void test("party creation uses the original defaults, survives live refresh, and
       status: "alive",
     },
   );
-  await page.goto(`${origin}/#/party`);
-  await page.locator(`.party-member[href="#/characters/${writes[0][0].key}"]`).waitFor();
+  await page.goto(`${origin}/party`);
+  await page.locator(`.party-member[href="/characters/${writes[0][0].key}"]`).waitFor();
 });
 
 void test("party creation cancellation protects notes and returns to the roster without writing", async (t) => {
   const { page, writes } = await fixture(t);
-  await page.goto(`${origin}/#/party/new`);
+  await page.goto(`${origin}/party/new`);
   await page.getByLabel("Name", { exact: true }).fill("Unsaved member");
   page.once("dialog", (dialog) => dialog.dismiss());
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal(await page.getByLabel("Name", { exact: true }).inputValue(), "Unsaved member");
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.waitForURL(/#\/party$/);
+  await page.waitForURL(/\/party$/);
   await page.getByRole("heading", { name: "The party", exact: true }).waitFor();
   assert.equal(writes.length, 0);
 });
@@ -324,7 +324,7 @@ void test("party creation remains saveable without an alive status definition", 
   await page.getByLabel("Name", { exact: true }).fill("First member");
   assert.equal(await page.locator('[name="status"]').inputValue(), "");
   await page.getByRole("button", { name: "Save entry", exact: true }).click();
-  await page.waitForURL(/#\/characters\/first-member-/);
+  await page.waitForURL(/\/characters\/first-member-/);
   assert.equal(writes[0][0].value.faction, "party");
   assert.equal(writes[0][0].value.status, "");
 });

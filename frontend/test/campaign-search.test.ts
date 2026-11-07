@@ -70,8 +70,8 @@ describe("campaign search", () => {
         record("public", { name: "Visible name" }),
       ],
     });
-    rememberRecentRecord(campaign, parseAppRoute("#/characters/secret"), "dm");
-    rememberRecentRecord(campaign, parseAppRoute("#/characters/public"), "player");
+    rememberRecentRecord(campaign, parseAppRoute("/characters/secret"), "dm");
+    rememberRecentRecord(campaign, parseAppRoute("/characters/public"), "player");
     expect([...values.values()].join()).not.toContain("Private name");
     expect(recentSearchResults(campaign, "dm").map((entity) => entity.key)).toEqual(["secret"]);
     expect(recentSearchResults(campaign, "player").map((entity) => entity.key)).toEqual(["public"]);
@@ -94,7 +94,7 @@ describe("campaign search", () => {
         record(String(index), { name: `Entry ${index}`, updatedAt: 1_000 + index }),
       ),
     });
-    rememberRecentRecord(campaign, parseAppRoute("#/characters/1"), "dm");
+    rememberRecentRecord(campaign, parseAppRoute("/characters/1"), "dm");
     expect(recentSearchResults(campaign, "dm")).toHaveLength(12);
     expect(recentSearchResults(campaign, "dm")[0]?.key).toBe("19");
   });

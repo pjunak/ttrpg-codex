@@ -1,7 +1,7 @@
 import type { ActiveBrowserContribution } from "../addons/browser-sdk.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import { isRecord } from "../core/boundary.js";
-import { campaignPages, recordHash } from "./routes.js";
+import { campaignPages, recordHref } from "./routes.js";
 
 /** Labels and routes from the role-projected dataset, limited to approved grants. */
 export function routeRecordReferences(
@@ -29,7 +29,7 @@ export function routeRecordReferences(
         collection: page.collection,
         id: record.key,
         label: (typeof name === "string" && name.trim() ? name : record.key).slice(0, 200),
-        href: recordHash(page, record.key),
+        href: recordHref(page, record.key),
       };
       const size = encoder.encode(JSON.stringify(reference)).length;
       // Keep the catalog small; route context is copied into every contribution.

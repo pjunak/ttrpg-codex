@@ -5,7 +5,7 @@ import type {
   BrowserContributionRegistry,
 } from "../addons/browser-sdk.js";
 import type { BrowserRole, BrowserPermissionGrant } from "../addons/generation-manager.js";
-import { browserAddonRouteHash } from "../addons/navigation.js";
+import { browserAddonRouteHref } from "../addons/navigation.js";
 import {
   graphColor,
   graphSearch,
@@ -21,11 +21,11 @@ export type GraphSelection = GraphMode | `addon:${string}:${string}`;
 export const isCoreGraph = (view: GraphSelection): view is GraphMode => !view.startsWith("addon:");
 export const addonGraphId = (active: ActiveBrowserContribution): GraphSelection =>
   `addon:${active.addonId}:${active.descriptor.id}`;
-export const addonGraphHash = (view: GraphSelection): string =>
-  `#/graph/addons/${view.slice(6).replace(":", "/")}`;
+export const addonGraphHref = (view: GraphSelection): string =>
+  `/graph/addons/${view.slice(6).replace(":", "/")}`;
 const localId = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/u;
-export const parseAddonGraphHash = (hash: string): GraphSelection | undefined => {
-  const parts = /^#\/graph\/addons\/([^/]+)\/([^/]+)$/u.exec(hash);
+export const parseAddonGraphHref = (href: string): GraphSelection | undefined => {
+  const parts = /^\/graph\/addons\/([^/]+)\/([^/]+)$/u.exec(href);
   return parts && localId.test(parts[1]!) && localId.test(parts[2]!)
     ? `addon:${parts[1]}:${parts[2]}`
     : undefined;
@@ -154,7 +154,7 @@ export function parseAddonGraphModel(
       );
       if (!target)
         throw new TypeError("Graph detail requires an active route in the same generation");
-      route = browserAddonRouteHash(target);
+      route = browserAddonRouteHref(target);
     }
     if (node["position"] !== undefined) {
       const point = object(node["position"], ["x", "y"]);

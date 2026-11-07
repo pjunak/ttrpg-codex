@@ -70,7 +70,7 @@ export async function exerciseDisable({
   page.on("pageerror", (error) => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, []));
   await page.evaluate((cs) => localStorage.setItem("codex_lang", cs ? "cs" : "en"), mobile);
-  await page.goto("/#/settings");
+  await page.goto("/settings");
   await page.reload();
   await page.locator('[data-category="addons"]').click();
   const manager = page.locator("codex-addon-manager"),

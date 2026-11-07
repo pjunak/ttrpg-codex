@@ -1,6 +1,6 @@
 import { requestModel } from "./model-request.js";
 import { isRecord } from "../core/boundary.js";
-import { browserAddonRouteHash, parseBrowserAddonLocation } from "./navigation.js";
+import { browserAddonRouteHref, parseBrowserAddonLocation } from "./navigation.js";
 import type { ActiveBrowserContribution, BrowserContributionRegistry } from "./browser-sdk.js";
 import type { BrowserRole } from "./generation-manager.js";
 
@@ -103,7 +103,7 @@ export function parseWikiMatches(
         throw new TypeError("Invalid wiki target query");
       query.append(text(pair[0], 64, true), text(pair[1], 1024));
     }
-    const href = browserAddonRouteHash(route) + (query.size ? `?${query}` : "");
+    const href = browserAddonRouteHref(route) + (query.size ? `?${query}` : "");
     if (!parseBrowserAddonLocation(href)) throw new TypeError("Invalid wiki target route");
     return {
       index,

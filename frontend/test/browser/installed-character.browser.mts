@@ -216,7 +216,7 @@ void test(
     const page = await context.newPage(),
       errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto(origin + "/#/characters/new-hero");
+    await page.goto(origin + "/characters/new-hero");
     await page.locator("#character-view-addons").click();
     const sheet = page.locator(".addon-dnd-character");
     try {
@@ -544,7 +544,7 @@ void test(
     });
     await trackBrowserContext(t, context);
     const page = await context.newPage();
-    await page.goto(origin + "/#/characters/new-hero");
+    await page.goto(origin + "/characters/new-hero");
     await page.locator("#character-view-addons").click();
     const sheet = page.locator(".addon-dnd-character");
     await inventoryView(sheet);

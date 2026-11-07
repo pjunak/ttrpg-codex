@@ -166,7 +166,7 @@ async function fixture(t: TestContext, { role = "player", mobile = false, locale
     });
   });
   try {
-    await page.goto(`${origin}/#/timeline`);
+    await page.goto(`${origin}/timeline`);
     await page.locator(".tl-board").waitFor();
     await page.waitForFunction(() => document.querySelector<HTMLElement>(".live-connected"));
   } catch (cause) {
@@ -243,7 +243,7 @@ for (const mobile of [false, true]) {
     }
     await card(page, "event-0").locator(".tl-card-open").focus();
     await page.keyboard.press("Enter");
-    await page.waitForURL(/#\/events\/event-0$/);
+    await page.waitForURL(/\/events\/event-0$/);
     await page
       .getByRole("navigation", { name: "Breadcrumbs" })
       .getByRole("link", { name: "Timeline", exact: true })
@@ -315,8 +315,8 @@ void test("live changes and failed saves keep the draft and navigation guard", a
   await page.getByRole("button", { name: "Move Event 0 down", exact: true }).click();
   page.once("dialog", (dialog) => dialog.dismiss());
   await card(page, "event-1").locator(".tl-card-open").click();
-  await page.waitForURL(/#\/timeline$/);
-  assert.match(page.url(), /#\/timeline$/);
+  await page.waitForURL(/\/timeline$/);
+  assert.match(page.url(), /\/timeline$/);
   failNext(503);
   await page.getByRole("button", { name: "Save order", exact: true }).click();
   await page.locator(".tl-message").filter({ hasText: "could not be saved" }).waitFor();
@@ -371,7 +371,7 @@ void test("timeline creates, edits and deletes events with the common revision-p
   await page.locator(".record-article").getByRole("button", { name: "Edit", exact: true }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await form.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.waitForURL(/#\/timeline$/);
+  await page.waitForURL(/\/timeline$/);
   await page.locator(".tl-board").waitFor();
   assert.equal(findEvent("event-0"), undefined);
   assert.equal(writes.at(-1)![0].expectedRevision, 4);
@@ -385,7 +385,7 @@ void test("a new event is listed last in its session, and the toolbar adds to th
       .locator(".tl-toolbar")
       .getByRole("link", { name: "New event", exact: false })
       .getAttribute("href"),
-    "#/timeline/new/3",
+    "/timeline/new/3",
   );
   await column(page, 1).getByRole("link", { name: "New event", exact: false }).click();
   const form = page.locator(".record-editor");
@@ -454,7 +454,7 @@ void test("empty timelines keep an initial session and a way to create the first
     await column(page, 1)
       .getByRole("link", { name: "New event", exact: false })
       .getAttribute("href"),
-    "#/timeline/new/1",
+    "/timeline/new/1",
   );
   await page.getByRole("button", { name: "Edit timeline" }).click();
   assert.equal(await page.locator(".tl-col").count(), 1, "no second session beside an empty first");
@@ -463,13 +463,13 @@ void test("empty timelines keep an initial session and a way to create the first
       .locator(".tl-toolbar")
       .getByRole("link", { name: "New event", exact: false })
       .getAttribute("href"),
-    "#/timeline/new/1",
+    "/timeline/new/1",
   );
   await column(page, 1).getByRole("link", { name: "New event", exact: false }).click();
   await page.locator(".record-editor").waitFor();
   assert.equal(await page.locator('[name="sitting"]').inputValue(), "1");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.waitForURL(/#\/timeline$/);
+  await page.waitForURL(/\/timeline$/);
   assert.equal(writes.length, 0);
 });
 
@@ -482,7 +482,7 @@ void test("anonymous timeline remains read-only; clean data refreshes", async (t
     event("later").revision++;
   });
   await card(page, "later").getByText("A changed arrival", { exact: true }).waitFor();
-  await page.goto(`${origin}/#/timeline`);
+  await page.goto(`${origin}/timeline`);
   await page.locator(".tl-board").waitFor();
   assert.equal(writes.length, 0);
 });

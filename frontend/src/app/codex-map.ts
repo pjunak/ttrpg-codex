@@ -1,4 +1,5 @@
 import { uiText } from "./ui-localization.js";
+import { requestNavigation } from "./address.js";
 import { previewResourceURL } from "../core/player-preview.js";
 import { LitElement, html, nothing } from "lit";
 import { markerGlowLayers } from "./campaign-attitude-glow.js";
@@ -40,7 +41,7 @@ import {
   type MapEventPoint,
 } from "./campaign-map.js";
 import { campaignCollection } from "../core/campaign-data.js";
-import { mapHash, mapSettingsHash, recordHash, type AppRoute } from "./routes.js";
+import { mapHref, mapSettingsHref, recordHref, type AppRoute } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 import { saveCampaign, type CampaignWriteKind, type CampaignWrites } from "./campaign-writes.js";
@@ -272,7 +273,7 @@ export class CodexMap extends LitElement {
     return html`<section class="sc-shell" aria-label=${this.#ui.t("map.world")}>
       <header class="sc-toolbar">
         <h1 class="sc-title">🗺 ${parent === undefined ? this.#ui.t("map.world") : text(recordValue(parent)["name"])}</h1>
-        ${parent === undefined ? nothing : html`<a class="ui-action" href=${mapHash(null)}>↩ ${this.#ui.t("map.world")}</a>`}
+        ${parent === undefined ? nothing : html`<a class="ui-action" href=${mapHref(null)}>↩ ${this.#ui.t("map.world")}</a>`}
         ${imageless ? nothing : this.#navigationTools(results, mapViews(this.campaign, this.route.parentId))}
         ${
           this.editing
@@ -303,7 +304,7 @@ export class CodexMap extends LitElement {
           </select>`
           }
           ${this.canManageCampaign ? html`<button class="ui-action" ?disabled=${this.#locked || this.status !== "ready"} @click=${() => this.#openView()}>✚ ${this.#ui.t("map.saveView")}</button>` : nothing}
-          ${this.canManageCampaign ? html`<a class="ui-action" href=${mapSettingsHash(this.route.parentId)}>⚙ ${this.#ui.t("map.settings")}</a>` : nothing}
+          ${this.canManageCampaign ? html`<a class="ui-action" href=${mapSettingsHref(this.route.parentId)}>⚙ ${this.#ui.t("map.settings")}</a>` : nothing}
         `
             : nothing
         }
@@ -357,7 +358,7 @@ export class CodexMap extends LitElement {
     return html`<aside class="sc-panel" aria-label=${this.#ui.t("map.eventPosition")}>
       <button class="sc-panel-close" aria-label=${this.#ui.t("map.close")} @click=${this.#closePanel} ?disabled=${this.#locked}>✕</button>
       <h2>${draft.name}</h2>
-      <a class="ui-action" href=${recordHash(eventPage, draft.key)}>${this.#ui.t("map.eventArticle")}</a>
+      <a class="ui-action" href=${recordHref(eventPage, draft.key)}>${this.#ui.t("map.eventArticle")}</a>
       ${
         draft.x === null
           ? html`<p>${this.#ui.t("map.placeHint")}</p>`
@@ -424,8 +425,8 @@ export class CodexMap extends LitElement {
           ${markerType ? html`<p class="sc-marker-type">${typeField.label}: ${markerType}</p>` : nothing}
           ${attitudes.length ? html`<p class="sc-marker-attitudes">${attitudes.map((attitude) => html`<span class="attitude-badge" style=${`--attitude-color: ${attitude.color}`}>${attitude.label}</span>`)}</p>` : nothing}
           <p>${text(value["mapNotes"])}</p>
-          <a class="ui-action" href=${recordHash(locationPage, record.key)}>${this.#ui.t("map.article")}</a>
-          ${safeMediaURL(value["localMap"]) === undefined ? nothing : html`<a class="ui-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>`}
+          <a class="ui-action" href=${recordHref(locationPage, record.key)}>${this.#ui.t("map.article")}</a>
+          ${safeMediaURL(value["localMap"]) === undefined ? nothing : html`<a class="ui-action" href=${mapHref(record.key)}>${this.#ui.t("map.local")}</a>`}
           ${this.editing ? html`<button class="ui-action" @click=${() => this.#editSelected()}>${this.#ui.t("map.editLocation")}</button>` : nothing}
           <codex-record-contributions .registry=${this.registry} .actorRole=${this.actorRole} .record=${record}
             .collection=${"locations"} .mode=${"map"}></codex-record-contributions>
@@ -760,7 +761,7 @@ export class CodexMap extends LitElement {
       marker.bindTooltip(tooltip);
       bindMarkerAction(marker, () => {
         if (this.editing && this.canEdit) this.#openEvent(point.key, false, point);
-        else window.location.hash = recordHash(eventPage, point.key);
+        else requestNavigation(recordHref(eventPage, point.key));
       });
       marker.on("dragstart", () => {
         this.#dragging = true;

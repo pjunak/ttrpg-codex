@@ -27,7 +27,7 @@ import { GraphMotion } from "./campaign-graph-motion.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import {
-  addonGraphHash,
+  addonGraphHref,
   addonGraphId,
   graphProviders,
   graphViews,
@@ -367,13 +367,13 @@ export class CodexCampaignGraph extends LitElement {
         ${graphModes.map(
           (
             mode,
-          ) => html`<a class=${`map-mode-btn${this.mode === mode ? " active" : ""}`} href=${`#/graph/${mode}`}
+          ) => html`<a class=${`map-mode-btn${this.mode === mode ? " active" : ""}`} href=${`/graph/${mode}`}
           aria-current=${this.mode === mode ? "page" : nothing}>${this.#ui.t(`graph.${mode}`)}</a>`,
         )}
         ${views.map(
           (
             view,
-          ) => html`<a class=${`map-mode-btn${this.mode === addonGraphId(view) ? " active" : ""}`} href=${addonGraphHash(addonGraphId(view))}
+          ) => html`<a class=${`map-mode-btn${this.mode === addonGraphId(view) ? " active" : ""}`} href=${addonGraphHref(addonGraphId(view))}
           aria-current=${this.mode === addonGraphId(view) ? "page" : nothing}>${view.descriptor.label}</a>`,
         )}
         <span class="map-hint">${this.#ui.t("graph.hint")}</span>

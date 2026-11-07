@@ -19,6 +19,7 @@ import { jsonResponse } from "./installed-graph-fixture.mts";
 import { holdCoreWrite } from "./core-write-lifetime-fixture.mts";
 import { trackBrowserContext } from "./browser-diagnostics.mts";
 import { addVersion, editWiki, menuEntry, recordAction } from "./record-actions.mts";
+import { openInPlace, pageAddress } from "./app-address.mts";
 type LifetimeApp = HTMLElement & {
   busy: boolean;
   recordSaved: boolean;
@@ -147,7 +148,7 @@ async function open(
   await preparePage?.(page);
   page.setDefaultTimeout(12_000);
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/#/");
+  await page.goto("/");
   await page.locator(".session-section").waitFor();
   return { page, client: context.request, token: auth?.csrfToken };
 }
@@ -213,7 +214,7 @@ for (const scenario of [
     const key = `write-lifetime-${scenario.phase}-${scenario.outcome}`;
     await put(admin, csrf, key, { name: "Original place", description: "Keep these notes" });
     const { page } = await open(t, "dm", scenario.mobile);
-    await page.goto(`/#/locations/${key}/edit`);
+    await page.goto(`/locations/${key}/edit`);
     await page.getByLabel("Name", { exact: true }).fill("Interrupted save");
     const first = await holdCoreWrite(
       page,
@@ -248,7 +249,7 @@ for (const scenario of [
       await first.release();
       assert.equal(await app.evaluate((node) => (node as LifetimeApp).busy), true);
       assert.equal(await app.evaluate((node) => (node as LifetimeApp).recordSaved), false);
-      assert.equal(new URL(page.url()).hash, `#/locations/${key}/edit`);
+      assert.equal(pageAddress(page.url()), `/locations/${key}/edit`);
       assert.equal(await page.locator(".application-alert").count(), 0);
       assert.equal(await page.locator(".record-save-confirmation").count(), 0);
       secondRelease.resolve();
@@ -267,7 +268,7 @@ void test("detaching during core save readback cannot publish an obsolete comple
   const key = "write-lifetime-readback";
   await put(admin, csrf, key, { name: "Before readback" });
   const { page } = await open(t, "dm");
-  await page.goto(`/#/locations/${key}/edit`);
+  await page.goto(`/locations/${key}/edit`);
   await page.getByLabel("Name", { exact: true }).fill("Saved before disconnect");
   const readback = await holdCoreWrite(page, "/api/campaign", "body");
   const app = await page.$("codex-app");
@@ -279,7 +280,7 @@ void test("detaching during core save readback cannot publish an obsolete comple
     await app.evaluate((node) => node.remove());
     await readback.release();
     assert.equal(await app.evaluate((node) => (node as LifetimeApp).recordSaved), false);
-    assert.equal(new URL(page.url()).hash, `#/locations/${key}/edit`);
+    assert.equal(pageAddress(page.url()), `/locations/${key}/edit`);
     await app.evaluate((node) => document.body.append(node));
     await page.getByLabel("Name", { exact: true }).waitFor();
     assert.equal(
@@ -296,7 +297,7 @@ void test("an interrupted core deletion stays deleted without changing a newer r
   const key = "write-lifetime-delete";
   await put(admin, csrf, key, { name: "Delete this place" });
   const { page } = await open(t, "dm");
-  await page.goto(`/#/locations/${key}`);
+  await page.goto(`/locations/${key}`);
   await page.getByRole("heading", { name: "Delete this place", exact: true }).waitFor();
   const receipt = await holdCoreWrite(page, "/api/campaign/transactions", "headers");
   const app = await page.$("codex-app");
@@ -323,13 +324,12 @@ void test("an interrupted core deletion stays deleted without changing a newer r
     await receipt.started();
     assert.equal(await record(key), undefined);
     await app.evaluate((node) => node.remove());
-    await page.evaluate(() => {
-      window.location.hash = "#/characters";
-    });
+    // The address moves on while the app is detached; it shows it on return.
+    await page.evaluate(() => history.pushState(null, "", "/characters"));
     await app.evaluate((node) => document.body.append(node));
     await page.locator(".collection-page").waitFor();
     await receipt.release();
-    assert.equal(new URL(page.url()).hash, "#/characters");
+    assert.equal(pageAddress(page.url()), "/characters");
     assert.deepEqual(await page.evaluate(() => window.coreDeleteReply), { calls: 1, ok: false });
     assert.equal(await page.evaluate(() => window.coreWriteHold.calls), 1);
     assert.equal(await record(key), undefined);
@@ -343,7 +343,7 @@ void test("a cancelled twin request settles its callback once before a late rece
   const key = "write-lifetime-twin";
   await put(admin, csrf, key, { name: "Preserve these twins", visibility: "public" });
   const { page } = await open(t, "dm");
-  await page.goto(`/#/locations/${key}`);
+  await page.goto(`/locations/${key}`);
   await page.getByRole("heading", { name: "Preserve these twins", exact: true }).waitFor();
   const receipt = await holdCoreWrite(page, "/api/campaign/twins", "headers");
   try {
@@ -402,7 +402,7 @@ for (const scenario of [
     };
     await put(admin, csrf, key, value);
     const editing = await open(t, scenario.role, scenario.mobile);
-    await editing.page.goto("/#/locations/" + key);
+    await editing.page.goto("/locations/" + key);
     await editing.page.getByRole("button", { name: "Edit", exact: true }).click();
     const name = editing.page.getByLabel("Name", { exact: true });
     await name.fill("Unsaved recovery name");
@@ -473,7 +473,7 @@ void test("live session loss preserves a private core draft before any save atte
   const key = "session-live-private";
   await put(admin, csrf, key, { name: "Private session place", visibility: "dm" });
   const editing = await open(t, "dm", true);
-  await editing.page.goto("/#/locations/" + key);
+  await editing.page.goto("/locations/" + key);
   await editing.page.getByRole("button", { name: "Edit", exact: true }).click();
   const name = editing.page.getByLabel("Name", { exact: true });
   await name.fill("Unsaved after live loss");
@@ -497,7 +497,7 @@ void test("DM location notes round-trip privately through the real editor and pu
   });
   const dm = await open(t, "dm"),
     player = await open(t, "player");
-  await dm.page.goto("/#/locations/private-notes-town");
+  await dm.page.goto("/locations/private-notes-town");
   await dm.page.getByRole("heading", { name: "DM notes", exact: true }).waitFor();
   await dm.page.getByRole("heading", { name: "Hidden arrangement", exact: true }).waitFor();
   await dm.page.getByRole("button", { name: "Edit", exact: true }).click();
@@ -512,7 +512,7 @@ void test("DM location notes round-trip privately through the real editor and pu
   await dm.page.reload();
   await dm.page.getByRole("heading", { name: "Hidden arrangement", exact: true }).waitFor();
   assert.equal((await record("private-notes-town")).value.notes, secret + "\n\nEdited by DM.");
-  await player.page.goto("/#/locations/private-notes-town");
+  await player.page.goto("/locations/private-notes-town");
   await player.page.getByRole("heading", { name: "Private notes town", exact: true }).waitFor();
   assert.equal(
     await player.page.getByRole("heading", { name: "DM notes", exact: true }).count(),
@@ -534,7 +534,7 @@ void test("DM twins create, navigate, unlink and link without losing exact recor
   await put(admin, csrf, "twin-town", { name: "Twin town", description: "Public town" }, 0);
   const dm = await open(t, "dm"),
     player = await open(t, "player");
-  await dm.page.goto("/#/locations/twin-town");
+  await dm.page.goto("/locations/twin-town");
   // The player version is lit; the missing DM version offers to create one.
   await dm.page.getByTitle("Showing the player version", { exact: true }).waitFor();
   await addVersion(dm.page, "DM", "Create DM version");
@@ -548,12 +548,12 @@ void test("DM twins create, navigate, unlink and link without losing exact recor
   await dmLink.waitFor();
   await dmLink.click();
   await dm.page.getByRole("link", { name: "Open player version", exact: true }).waitFor();
-  assert.equal(new URL(dm.page.url()).hash, "#/locations/" + encodeURIComponent(privateKey));
+  assert.equal(pageAddress(dm.page.url()), "/locations/" + encodeURIComponent(privateKey));
   await dm.page.getByRole("link", { name: "Open player version", exact: true }).click();
   await dm.page.getByRole("heading", { name: "Twin town", exact: true }).waitFor();
-  await dm.page.goto("/#/locations");
+  await dm.page.goto("/locations");
   assert.equal(await dm.page.locator("a.record-row").filter({ hasText: "Twin town" }).count(), 1);
-  await player.page.goto("/#/locations/twin-town");
+  await player.page.goto("/locations/twin-town");
   await player.page.getByRole("heading", { name: "Twin town", exact: true }).waitFor();
   assert.equal(await player.page.locator("codex-record-twins").count(), 0);
   assert.ok(
@@ -561,7 +561,7 @@ void test("DM twins create, navigate, unlink and link without losing exact recor
       privateKey,
     ),
   );
-  await dm.page.goto("/#/locations/twin-town");
+  await dm.page.goto("/locations/twin-town");
   await recordAction(dm.page, "Unlink versions");
   await dm.page.getByText("Versions updated.", { exact: true }).waitFor();
   assert.equal((await record("twin-town")).value.linkedTwinId, undefined);
@@ -575,7 +575,7 @@ void test("DM twins create, navigate, unlink and link without losing exact recor
 void test("stale twin review rejects without losing a draft or repeating an uncertain write", async (t) => {
   await put(admin, csrf, "stale-twin", { name: "Stale twin" }, 0);
   const dm = await open(t, "dm");
-  await dm.page.goto("/#/locations/stale-twin");
+  await dm.page.goto("/locations/stale-twin");
   // The menu acts on the record as it was when the menu opened.
   await dm.page.getByRole("button", { name: "Add a DM version", exact: true }).click();
   const initial = await record("stale-twin");
@@ -598,7 +598,7 @@ void test("stale twin review rejects without losing a draft or repeating an unce
 void test("an uncertain twin response is refreshed without replaying the write", async (t) => {
   await put(admin, csrf, "uncertain-twin", { name: "Uncertain twin" });
   const dm = await open(t, "dm");
-  await dm.page.goto("/#/locations/uncertain-twin");
+  await dm.page.goto("/locations/uncertain-twin");
   let writes = 0;
   await dm.page.route("**/api/campaign/twins", async (route) => {
     writes++;
@@ -631,7 +631,7 @@ for (const mobile of [false, true])
       "characters",
     );
     const dm = await open(t, "dm", mobile);
-    await dm.page.goto("/#/characters/" + key);
+    await dm.page.goto("/characters/" + key);
     await dm.page.getByRole("heading", { name: "Draft keeper", exact: true }).waitFor();
     await editWiki(dm.page);
     const writer = dm.page.locator(".character-wiki codex-markdown-editor");
@@ -672,27 +672,28 @@ for (const mobile of [false, true])
 void test("encoded record URLs retain Back and dirty-edit guards", async (t) => {
   await put(admin, csrf, "encoded/gate%2F", { name: "Encoded gate" });
   const dm = await open(t, "dm");
-  await dm.page.goto("/#/locations");
+  await dm.page.goto("/locations");
   const before = await dm.page.evaluate(() => history.length);
-  await dm.page.goto("/#/locations/encoded%2Fgate%252F");
+  await dm.page.goto("/locations/encoded%2Fgate%252F");
   await dm.page.getByRole("heading", { name: "Encoded gate", exact: true }).waitFor();
   assert.equal(await dm.page.evaluate(() => history.length), before + 1);
   await dm.page.goBack();
   await dm.page.getByRole("heading", { name: "Locations", exact: true }).waitFor();
-  await dm.page.goto("/#/locations/encoded%2Fgate%252F");
+  await dm.page.goto("/locations/encoded%2Fgate%252F");
   await dm.page.getByRole("button", { name: "Edit", exact: true }).click();
   const name = dm.page.locator('form.record-editor input[name="name"]');
   await name.fill("Unsaved edit");
   dm.page.once("dialog", (dialog) => dialog.dismiss());
-  await dm.page.goto("/#/characters");
-  await dm.page.waitForURL("**/#/locations/encoded%2Fgate%252F");
+  assert.equal(await openInPlace(dm.page, "/characters"), false);
+  assert.equal(pageAddress(dm.page.url()), "/locations/encoded%2Fgate%252F");
   assert.equal(await name.inputValue(), "Unsaved edit");
   dm.page.once("dialog", (dialog) => dialog.accept());
-  await dm.page.goto("/#/characters");
+  assert.equal(await openInPlace(dm.page, "/characters"), true);
   await dm.page.getByRole("heading", { name: "Characters", exact: true }).waitFor();
-  assert.equal(new URL(dm.page.url()).hash, "#/characters");
-  for (const hash of ["#/locations/%E0%A4%A", "#/misto/encoded%2Fgate%252F"]) {
-    await dm.page.goto(`/${hash}`);
+  assert.equal(pageAddress(dm.page.url()), "/characters");
+  // Percent escapes that decode to invalid UTF-8 reach the app, which refuses them.
+  for (const href of ["/locations/%E0%A4", "/misto/encoded%2Fgate%252F"]) {
+    await dm.page.goto(href);
     await dm.page.getByText("This page is not in the index", { exact: false }).waitFor();
   }
 });
@@ -702,12 +703,17 @@ void test("another page opens at its top", async (t) => {
   await put(admin, csrf, "long-read", { name: "Long read", description });
   await put(admin, csrf, "long-sequel", { name: "Long sequel", description });
   const dm = await open(t, "dm", true);
-  await dm.page.goto("/#/locations/long-read");
+  await dm.page.goto("/locations/long-read");
   await dm.page.getByRole("heading", { name: "Long read", exact: true }).waitFor();
   await dm.page.evaluate(() => window.scrollTo(0, 4_000));
   assert.ok(await dm.page.evaluate(() => window.scrollY > 0));
   await dm.page.evaluate(() => {
-    location.hash = "#/locations/long-sequel";
+    window.dispatchEvent(
+      new CustomEvent("codex-navigate", {
+        cancelable: true,
+        detail: { href: "/locations/long-sequel" },
+      }),
+    );
   });
   await dm.page.getByRole("heading", { name: "Long sequel", exact: true }).waitFor();
   await dm.page.evaluate(() => new Promise(requestAnimationFrame));
@@ -720,7 +726,7 @@ void test("another page opens at its top", async (t) => {
 
 void test("a new form keeps focus off the text toolbar", async (t) => {
   const dm = await open(t, "dm", true);
-  await dm.page.goto("/#/locations");
+  await dm.page.goto("/locations");
   await dm.page.getByRole("button", { name: "Add location", exact: true }).click();
   await dm.page.locator("form.record-editor .writer-inline").first().waitFor();
   assert.equal(
@@ -731,7 +737,7 @@ void test("a new form keeps focus off the text toolbar", async (t) => {
 
 void test("saved creation URLs survive sign-in and cancel without creating records", async (t) => {
   const visitor = await open(t);
-  await visitor.page.goto("/#/create/locations");
+  await visitor.page.goto("/create/locations");
   await visitor.page
     .locator(".editor-article")
     .getByRole("button", { name: "Sign in", exact: true })
@@ -740,7 +746,7 @@ void test("saved creation URLs survive sign-in and cancel without creating recor
   await account.locator('input[name="password"]').fill("local-record-workflows-player");
   await account.getByRole("button", { name: "Sign in", exact: true }).click();
   await visitor.page.locator('form.record-editor input[name="name"]').fill("Cancelled location");
-  assert.equal(new URL(visitor.page.url()).hash, "#/create/locations");
+  assert.equal(pageAddress(visitor.page.url()), "/create/locations");
   visitor.page.once("dialog", (dialog) => dialog.accept());
   await visitor.page
     .locator("form.record-editor")
@@ -848,7 +854,7 @@ for (const mobile of [false, true])
     );
     const dm = await open(t, "dm", mobile),
       player = await open(t, "player", mobile);
-    await player.page.goto("/#/events/" + key("event"));
+    await player.page.goto("/events/" + key("event"));
     await player.page
       .locator(".record-facts")
       .getByRole("link", { name: "Context captain", exact: true })
@@ -885,7 +891,7 @@ for (const mobile of [false, true])
       .locator(".record-facts")
       .getByRole("link", { name: "Context watch", exact: true })
       .waitFor();
-    await player.page.goto("/#/locations/" + key("gate"));
+    await player.page.goto("/locations/" + key("gate"));
     await player.page
       .locator('[data-context="ancestors"]')
       .getByRole("link", { name: "Context world", exact: true })
@@ -906,12 +912,12 @@ for (const mobile of [false, true])
       await player.page.getByText("Private context resident", { exact: true }).count(),
       0,
     );
-    await dm.page.goto("/#/locations/" + key("gate"));
+    await dm.page.goto("/locations/" + key("gate"));
     await dm.page
       .locator('[data-context="residents"]')
       .getByRole("link", { name: "Private context resident", exact: true })
       .waitFor();
-    await dm.page.goto("/#/characters/" + key("captain"));
+    await dm.page.goto("/characters/" + key("captain"));
     await dm.page.getByRole("button", { name: /^Edit Name, / }).click();
     const draft = dm.page.getByRole("textbox", { name: "Name", exact: true });
     await draft.fill("Unsubmitted context name");
@@ -956,7 +962,7 @@ for (const mobile of [false, true])
       ["Event here", "Created event", "events", "locations"],
       ["Sub-location", "Created child", "locations", "parentId"],
     ]) {
-      await dm.page.goto("/#/locations/" + encodeURIComponent(source));
+      await dm.page.goto("/locations/" + encodeURIComponent(source));
       if (process.env["CODEX_UI_SCREENSHOTS"] === "1" && action === "Character here")
         await dm.page.screenshot({
           path: resolve(output, `creation-actions-${suffix}.png`),
@@ -976,7 +982,7 @@ for (const mobile of [false, true])
         .getByRole("button", { name: "Save entry", exact: true })
         .click();
       await dm.page.getByRole("heading", { name: "Creation source", exact: true }).waitFor();
-      assert.equal(new URL(dm.page.url()).hash, "#/locations/" + encodeURIComponent(source));
+      assert.equal(pageAddress(dm.page.url()), "/locations/" + encodeURIComponent(source));
       const data = await jsonResponse(await admin.get("/api/campaign"));
       const created = data.collections
         .find((item: FixtureCollection) => item.name === collection)
@@ -992,7 +998,7 @@ for (const mobile of [false, true])
       0,
       "factions",
     );
-    await dm.page.goto("/#/factions/creation-watch-" + suffix);
+    await dm.page.goto("/factions/creation-watch-" + suffix);
     await dm.page.getByRole("link", { name: "New faction member", exact: true }).click();
     await dm.page.locator('form.record-editor input[name="name"]').fill("Created member " + suffix);
     assert.equal(
@@ -1009,7 +1015,7 @@ for (const mobile of [false, true])
       .locator('[data-context="members"]')
       .getByRole("link", { name: "Created member " + suffix, exact: true })
       .waitFor();
-    await dm.page.goto("/#/locations/" + encodeURIComponent(source));
+    await dm.page.goto("/locations/" + encodeURIComponent(source));
     await dm.page.getByRole("link", { name: "Sub-location", exact: true }).click();
     await dm.page.goBack();
     await dm.page.getByRole("heading", { name: "Creation source", exact: true }).waitFor();
@@ -1056,14 +1062,14 @@ for (const mobile of [false, true])
     await dm.page.getByRole("heading", { name: "Locations", exact: true }).waitFor();
     await dm.page.evaluate(() => localStorage.setItem("codex_lang", "cs"));
     await dm.page.reload();
-    await dm.page.goto("/#/factions/creation-watch-" + suffix);
+    await dm.page.goto("/factions/creation-watch-" + suffix);
     await dm.page.getByRole("link", { name: "Nový člen frakce", exact: true }).waitFor();
   });
 
 void test("contextual creation retains its source through sign-in", async (t) => {
   await put(admin, csrf, "signin-source", { name: "Sign-in source" });
   const visitor = await open(t);
-  await visitor.page.goto("/#/locations/signin-source");
+  await visitor.page.goto("/locations/signin-source");
   await visitor.page.getByRole("link", { name: "Character here", exact: true }).click();
   await visitor.page
     .locator(".editor-article")
@@ -1079,7 +1085,7 @@ void test("contextual creation retains its source through sign-in", async (t) =>
     .getByRole("button", { name: "Cancel", exact: true })
     .click();
   await visitor.page.getByRole("heading", { name: "Sign-in source", exact: true }).waitFor();
-  await visitor.page.goto("/#/create/character-here/missing-source");
+  await visitor.page.goto("/create/character-here/missing-source");
   await visitor.page.getByRole("heading", { name: "Add character", exact: true }).waitFor();
   assert.equal(await visitor.page.locator("form.record-editor").count(), 0);
 });
@@ -1119,7 +1125,7 @@ for (const scenario of [
         };
       }, scenario.language);
     });
-    await dm.page.goto(`/#/${scenario.collection}/${key}/edit`);
+    await dm.page.goto(`/${scenario.collection}/${key}/edit`);
     const name = dm.page.locator('form.record-editor input[name="name"]');
     await name.fill("Preserve this draft");
     const opening = await record(key, scenario.collection);
@@ -1162,7 +1168,7 @@ for (const scenario of [
         )
         .waitFor();
       assert.equal(await name.inputValue(), "Preserve this draft");
-      assert.equal(new URL(dm.page.url()).hash, `#/${scenario.collection}/${key}/edit`);
+      assert.equal(pageAddress(dm.page.url()), `/${scenario.collection}/${key}/edit`);
       const saved = await record(key, scenario.collection);
       assert.equal(saved.revision, opening.revision + 1);
       assert.deepEqual(saved, remote);
@@ -1183,8 +1189,8 @@ void test("direct card editing keeps collection views, party return paths and st
     "characters",
   );
   const dm = await open(t, "dm");
-  const view = "#/locations?q=Direct&sort=name";
-  await dm.page.goto("/" + view);
+  const view = "/locations?q=Direct&sort=name";
+  await dm.page.goto(view);
   await dm.page.getByRole("link", { name: /^Edit Direct editing town(, |$)/ }).waitFor();
   if (process.env["CODEX_UI_SCREENSHOTS"] === "1") {
     await dm.page.setViewportSize({ width: 390, height: 844 });
@@ -1208,7 +1214,7 @@ void test("direct card editing keeps collection views, party return paths and st
     .getByRole("button", { name: "Save entry", exact: true })
     .click();
   await dm.page.getByRole("heading", { name: "Locations", exact: true }).waitFor();
-  assert.equal(new URL(dm.page.url()).hash, view);
+  assert.equal(pageAddress(dm.page.url()), view);
   await dm.page.getByRole("link", { name: /^Edit Direct renamed town(, |$)/ }).click();
   await name.fill("Stale direct draft");
   const current = await record("direct-edit");
@@ -1230,14 +1236,14 @@ void test("direct card editing keeps collection views, party return paths and st
     .locator("form.record-editor")
     .getByRole("button", { name: "Cancel", exact: true })
     .click();
-  await dm.page.goto("/#/party");
+  await dm.page.goto("/party");
   await dm.page.getByRole("link", { name: /^Edit Direct party member(, |$)/ }).click();
   await dm.page
     .locator("form.record-editor")
     .getByRole("button", { name: "Cancel", exact: true })
     .click();
   await dm.page.locator("#party-title").waitFor();
-  assert.equal(new URL(dm.page.url()).hash, "#/party");
+  assert.equal(pageAddress(dm.page.url()), "/party");
   assert.equal(
     await dm.page.getByText("The entry or its relationships changed.", { exact: false }).count(),
     0,
@@ -1313,21 +1319,21 @@ for (const mobile of [false, true])
     );
     const dm = await open(t, "dm", mobile),
       player = await open(t, "player", mobile);
-    await dm.page.goto("/#/mysteries/" + key);
+    await dm.page.goto("/mysteries/" + key);
     const reading = dm.page.locator(".investigation-reading");
     assert.equal(await reading.locator(".investigation-badge").textContent(), "Solved");
     assert.match((await reading.textContent()) ?? "", /0 open \/ 1 questions/);
     await reading.locator("summary").click();
     await reading.getByText("Strážce se vrátil.", { exact: true }).waitFor();
     assert.equal((await record(key, "mysteries")).value.solved, false);
-    await dm.page.goto("/#/mysteries");
-    const solvedCard = dm.page.locator('a.record-row[href="#/mysteries/' + key + '"]');
+    await dm.page.goto("/mysteries");
+    const solvedCard = dm.page.locator('a.record-row[href="/mysteries/' + key + '"]');
     await solvedCard.locator(".is-solved").waitFor();
     const queue = dm.page.locator("codex-investigation-queue");
     await queue.getByRole("searchbox").fill("character question " + suffix);
     await queue.getByText("Character question " + suffix + "?", { exact: true }).waitFor();
     const source = queue.getByRole("link", { name: "Žofie " + suffix, exact: true });
-    assert.equal(await source.getAttribute("href"), "#/characters/" + key + "-character");
+    assert.equal(await source.getAttribute("href"), "/characters/" + key + "-character");
     await queue.getByRole("link", { name: "Edit Žofie " + suffix, exact: true }).click();
     await dm.page.getByLabel("Name", { exact: true }).waitFor();
     await dm.page.getByRole("button", { name: "Cancel", exact: true }).last().click();
@@ -1338,7 +1344,7 @@ for (const mobile of [false, true])
     assert.ok((await queue.getByText("Strážce se vrátil.", { exact: true }).count()) >= 1);
     if (process.env["CODEX_UI_SCREENSHOTS"] === "1")
       await queue.screenshot({ path: resolve(output, "investigation-queue-" + suffix + ".png") });
-    await player.page.goto("/#/mysteries");
+    await player.page.goto("/mysteries");
     const playerQueue = player.page.locator("codex-investigation-queue");
     await playerQueue.getByRole("searchbox").waitFor();
     assert.ok(!(await playerQueue.textContent())?.includes("Private question " + suffix));
@@ -1350,10 +1356,10 @@ for (const mobile of [false, true])
     await value.press("ArrowDown");
     await value.press("Enter");
     assert.equal(
-      await player.page.locator('a.record-row[href="#/mysteries/' + key + '-open"]').count(),
+      await player.page.locator('a.record-row[href="/mysteries/' + key + '-open"]').count(),
       0,
     );
-    await player.page.locator('a.record-row[href="#/mysteries/' + key + '"]').waitFor();
+    await player.page.locator('a.record-row[href="/mysteries/' + key + '"]').waitFor();
     await player.page.evaluate(() => localStorage.setItem("codex_lang", "cs"));
     await player.page.reload();
     await player.page.locator("codex-investigation-queue").getByRole("searchbox").fill("STRAZCE");
@@ -1364,7 +1370,7 @@ for (const mobile of [false, true])
     );
     assert.ok(
       await player.page
-        .locator('a.record-row[href="#/mysteries/' + key + '"]')
+        .locator('a.record-row[href="/mysteries/' + key + '"]')
         .getByText("Vyřešeno", { exact: true })
         .count(),
     );
@@ -1464,7 +1470,7 @@ for (const mobile of [false, true])
             }),
           );
           await dm.page.evaluate((locale) => localStorage.setItem("codex_lang", locale), locale);
-          await dm.page.goto("/#/characters/" + key);
+          await dm.page.goto("/characters/" + key);
           await dm.page.reload();
           await dm.page.locator("#record-title").waitFor();
           assert.equal(await dm.page.locator("html").getAttribute("data-theme"), theme);
@@ -1489,15 +1495,15 @@ for (const mobile of [false, true])
             await dm.page.screenshot({
               path: resolve(output, "compact-profile-" + suffix + ".png"),
             });
-          await dm.page.goto("/#/characters/" + key + "-rich");
+          await dm.page.goto("/characters/" + key + "-rich");
           await dm.page.locator(".record-portrait img").waitFor();
           const art = await dm.page.locator(".record-portrait img").boundingBox();
           assert.ok(art && Math.abs(art.width / art.height - 0.75) < 0.02);
-          await dm.page.goto("/#/factions/" + key + "-faction");
+          await dm.page.goto("/factions/" + key + "-faction");
           await dm.page.locator("#record-title").waitFor();
           const emblem = await dm.page.locator(".record-portrait-placeholder").boundingBox();
           assert.ok(emblem && emblem.height <= 48);
-          await dm.page.goto("/#/characters?q=" + encodeURIComponent(suffix));
+          await dm.page.goto("/characters?q=" + encodeURIComponent(suffix));
           const list = dm.page.locator("codex-collection-browser");
           const roster = list.locator(".collection-quick");
           await roster.waitFor();
@@ -1531,7 +1537,7 @@ for (const mobile of [false, true])
             exact: true,
           });
           await sort.selectOption("updatedAt");
-          await dm.page.waitForFunction(() => location.hash.includes("sort=updatedAt"));
+          await dm.page.waitForFunction(() => location.search.includes("sort=updatedAt"));
           await dm.page.reload();
           await sort.waitFor();
           assert.equal(await sort.inputValue(), "updatedAt");
@@ -1543,10 +1549,10 @@ for (const mobile of [false, true])
           // CSS zoom only magnifies elements and can disappear on full navigation.
           for (const width of [720, 320]) {
             await dm.page.setViewportSize({ width, height: 800 });
-            await dm.page.goto("/#/characters?q=" + encodeURIComponent(suffix));
+            await dm.page.goto("/characters?q=" + encodeURIComponent(suffix));
             await list.locator("a.record-row").first().waitFor();
             await assertViewportReflow(dm.page, "collection", width);
-            await dm.page.goto("/#/characters/" + key);
+            await dm.page.goto("/characters/" + key);
             await dm.page.locator("#record-title").waitFor();
             await assertViewportReflow(dm.page, "profile", width);
           }
@@ -1556,7 +1562,7 @@ for (const mobile of [false, true])
 void test("campaign save feedback distinguishes dirty, pending, confirmed and failed edits", async (t) => {
   await put(admin, csrf, "feedback-town", { name: "Feedback town" });
   const dm = await open(t, "dm");
-  await dm.page.goto("/#/locations/feedback-town");
+  await dm.page.goto("/locations/feedback-town");
   await dm.page.getByRole("button", { name: "Edit", exact: true }).click();
   await dm.page.getByLabel("Name", { exact: true }).fill("Feedback saved");
   await dm.page
@@ -1620,7 +1626,7 @@ void test("empty profile fields keep keyboard focus when saved or cancelled", as
     "characters",
   );
   const dm = await open(t, "dm", true);
-  await dm.page.goto("/#/characters/focus-character");
+  await dm.page.goto("/characters/focus-character");
   await dm.page.locator(".character-empty-details > summary").click();
   await dm.page.getByRole("button", { name: /^Edit Age, / }).click();
   const age = dm.page.getByRole("textbox", { name: "Age", exact: true });
@@ -1650,7 +1656,7 @@ void test("empty profile fields keep keyboard focus when saved or cancelled", as
 void test("a rejected inline field save keeps the draft and shows why", async (t) => {
   await put(admin, csrf, "inline-conflict-town", { name: "Inline conflict town" });
   const dm = await open(t, "dm");
-  await dm.page.goto("/#/locations/inline-conflict-town");
+  await dm.page.goto("/locations/inline-conflict-town");
   await dm.page.getByRole("button", { name: /^Edit Name, / }).click();
   const draft = dm.page.getByRole("textbox", { name: "Name", exact: true });
   await draft.fill("Inline draft name");
@@ -1677,7 +1683,7 @@ void test("a rejected inline field save keeps the draft and shows why", async (t
 void test("the full form takes no input while it saves and keeps the draft after a failure", async (t) => {
   await put(admin, csrf, "locked-town", { name: "Locked town", region: "North" });
   const dm = await open(t, "dm");
-  await dm.page.goto("/#/locations/locked-town");
+  await dm.page.goto("/locations/locked-town");
   await dm.page.getByRole("button", { name: "Edit", exact: true }).click();
   const name = dm.page.getByLabel("Name", { exact: true });
   const region = dm.page.getByLabel("Region", { exact: true });
@@ -1717,7 +1723,7 @@ void test("the full form takes no input while it saves and keeps the draft after
 void test("a rejected inline draft stays open and editable while another field saves", async (t) => {
   await put(admin, csrf, "kept-draft-town", { name: "Kept draft town", region: "North" });
   const dm = await open(t, "dm");
-  await dm.page.goto("/#/locations/kept-draft-town");
+  await dm.page.goto("/locations/kept-draft-town");
   await dm.page.getByRole("button", { name: /^Edit Name, / }).click();
   const name = dm.page.getByRole("textbox", { name: "Name", exact: true });
   await name.fill("Rejected name draft");
@@ -1770,7 +1776,7 @@ void test("the discard prompt follows the interface language", async (t) => {
   const dm = await open(t, "dm", false, false, async (page) => {
     await page.addInitScript(() => localStorage.setItem("codex_lang", "cs"));
   });
-  await dm.page.goto("/#/locations/discard-town");
+  await dm.page.goto("/locations/discard-town");
   await dm.page.getByRole("button", { name: "Upravit", exact: true }).click();
   await dm.page.locator('form.record-editor input[name="name"]').fill("Neuložený název");
   const prompt = new Promise<string>((resolve) =>
@@ -1825,7 +1831,7 @@ void test("one unreadable local draft does not hide the others", async (t) => {
       revision: current.revision,
     },
   );
-  await dm.page.goto("/#/locations/draft-town");
+  await dm.page.goto("/locations/draft-town");
   await dm.page.getByRole("button", { name: "Edit", exact: true }).click();
   await dm.page.getByText("Local drafts available (1)", { exact: true }).waitFor();
   assert.equal(
@@ -1833,7 +1839,7 @@ void test("one unreadable local draft does not hide the others", async (t) => {
     0,
   );
   await dm.page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await dm.page.goto("/#/locations");
+  await dm.page.goto("/locations");
   await dm.page.getByText("Local Markdown drafts (1)", { exact: true }).waitFor();
 });
 
@@ -1848,7 +1854,7 @@ void test("a full-form edit rewrites only changed fields and names one that cann
   await put(admin, csrf, "untouched-character", stored, 0, "characters");
   await put(admin, csrf, "lost-port", { name: "Lost port" });
   const dm = await open(t, "dm");
-  await dm.page.goto("/#/characters/untouched-character/edit");
+  await dm.page.goto("/characters/untouched-character/edit");
   await dm.page.locator('form.record-editor input[name="name"]').fill("Renamed character");
   await dm.page.getByRole("button", { name: "Save entry", exact: true }).last().click();
   await dm.page
@@ -1862,7 +1868,7 @@ void test("a full-form edit rewrites only changed fields and names one that cann
     [stored.title, stored.tags, stored.known],
   );
 
-  await dm.page.goto("/#/characters/untouched-character/edit");
+  await dm.page.goto("/characters/untouched-character/edit");
   await dm.page.getByRole("tab", { name: "Connections", exact: true }).click();
   await dm.page.getByLabel("Current location", { exact: true }).selectOption("lost-port");
   const port = await record("lost-port");
@@ -1908,7 +1914,7 @@ void test("a full-form edit rewrites only changed fields and names one that cann
 void test("an inline save changed again before its readback says that it was saved", async (t) => {
   await put(admin, csrf, "overwritten-town", { name: "Overwritten town" });
   const dm = await open(t, "dm");
-  await dm.page.goto("/#/locations/overwritten-town");
+  await dm.page.goto("/locations/overwritten-town");
   await dm.page.getByRole("button", { name: /^Edit Name, / }).click();
   const held = await holdCoreWrite(dm.page, "/api/campaign/transactions", "headers");
   const name = dm.page.getByRole("textbox", { name: "Name", exact: true });

@@ -113,7 +113,7 @@ describe("relationship graph projection and local arrangement", () => {
         ...data.collections.slice(1),
       ],
     });
-    expect(projected.nodes[0]?.route).toBe("#/characters/key%2Fwith%20%3F%23");
+    expect(projected.nodes[0]?.route).toBe("/characters/key%2Fwith%20%3F%23");
     expect(projected.edges).toEqual([]);
   });
   it("retains valid saved centers and ignores malformed or extreme coordinates", () => {

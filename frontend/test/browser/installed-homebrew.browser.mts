@@ -1110,10 +1110,10 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
       await page.getByRole("button", { name }).click();
     };
     await page.goto(
-      `${(await dm.get("/api/health")).url().replace("/api/health", "")}/#/addons/dnd-homebrew/homebrew`,
+      `${(await dm.get("/api/health")).url().replace("/api/health", "")}/addons/dnd-homebrew/homebrew`,
     );
     await page.getByRole("heading", { name: "Homebrew", exact: true }).waitFor();
-    assert.equal(await page.locator('a[href="#/addons/dnd-homebrew/homebrew"]').count(), 1);
+    assert.equal(await page.locator('a[href="/addons/dnd-homebrew/homebrew"]').count(), 1);
     await openRecord(/^Ward/u);
     await page.locator(".hb-effect-row").first().waitFor();
     if (shots) await page.screenshot({ path: `${shots}/ui-editor.png`, fullPage: true });
@@ -1177,14 +1177,14 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
     ).newPage();
     playerPage.on("pageerror", (error) => errors.push(error.message));
     const origin = (await player.get("/api/health")).url().replace("/api/health", "");
-    await playerPage.goto(`${origin}/#/addons/dnd-homebrew/homebrew-gallery`);
+    await playerPage.goto(`${origin}/addons/dnd-homebrew/homebrew-gallery`);
     await playerPage.getByText("No items have been revealed yet.").waitFor();
     assert.equal(
-      await playerPage.locator('a[href="#/addons/dnd-homebrew/homebrew-gallery"]').count(),
+      await playerPage.locator('a[href="/addons/dnd-homebrew/homebrew-gallery"]').count(),
       1,
     );
-    assert.equal(await playerPage.locator('a[href="#/addons/dnd-homebrew/homebrew"]').count(), 0);
-    await playerPage.goto(`${origin}/#/addons/dnd-homebrew/homebrew-gallery?id=hb.ward`);
+    assert.equal(await playerPage.locator('a[href="/addons/dnd-homebrew/homebrew"]').count(), 0);
+    await playerPage.goto(`${origin}/addons/dnd-homebrew/homebrew-gallery?id=hb.ward`);
     await playerPage.locator(".hb-card.focused").getByText("Runestone: Ward").waitFor();
     if (shots) await playerPage.screenshot({ path: `${shots}/ui-gallery.png`, fullPage: true });
     // A new draft named like a deleted one gets the next free id automatically.
@@ -1298,7 +1298,7 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
           viewport: { width: 390, height: 844 },
         })
       ).newPage();
-      await narrow.goto(`${origin}/#/addons/dnd-homebrew/homebrew`);
+      await narrow.goto(`${origin}/addons/dnd-homebrew/homebrew`);
       await narrow.getByRole("button", { name: /^Banner Warden/u }).click();
       await narrow.locator("fieldset.hb-feature").first().waitFor();
       await narrow.screenshot({ path: `${shots}/ui-subclass-narrow.png`, fullPage: true });
@@ -1310,7 +1310,7 @@ void test("the real UI edits, publishes and shows the gallery", { skip: !enabled
       );
     }
 
-    await playerPage.goto(`${origin}/#/addons/dnd-homebrew/homebrew`);
+    await playerPage.goto(`${origin}/addons/dnd-homebrew/homebrew`);
     await playerPage.waitForTimeout(500);
     assert.equal(
       await playerPage.locator(".hb-tree").count(),

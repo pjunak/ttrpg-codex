@@ -7,7 +7,7 @@ import {
   type CampaignDataset,
 } from "../core/campaign-data.js";
 import { isRecord } from "../core/boundary.js";
-import { campaignPages, recordHash, type CampaignPageDefinition } from "./routes.js";
+import { campaignPages, recordHref, type CampaignPageDefinition } from "./routes.js";
 import type { AddonLinkState } from "./addon-links-controller.js";
 import { uiText } from "./ui-localization.js";
 import { parseMarkdownFormat, markdownFormatClose } from "./markdown-formats.js";
@@ -150,7 +150,7 @@ export function resolveCampaignWikiLink(
     );
     return record === undefined
       ? undefined
-      : Object.freeze({ href: recordHash(page, record.key), page, key: record.key });
+      : Object.freeze({ href: recordHref(page, record.key), page, key: record.key });
   }
 
   const scopedPage = hint === "" ? undefined : pageForScope(hint);
@@ -166,7 +166,7 @@ export function resolveCampaignWikiLink(
     if (matches.length === 0) continue;
     const record = preferredWikiMatch(context, matches) ?? matches[0];
     if (record !== undefined) {
-      return Object.freeze({ href: recordHash(page, record.key), page, key: record.key });
+      return Object.freeze({ href: recordHref(page, record.key), page, key: record.key });
     }
   }
   return undefined;
@@ -202,9 +202,13 @@ export function searchCampaignWikiRecords(
 
 export function safeCampaignMarkdownLink(href: string): SafeMarkdownLink | undefined {
   const normalized = href.trim();
-  if (normalized.startsWith("#/")) return { href: normalized, external: false };
-  if (normalized.startsWith("/") && !normalized.startsWith("//")) {
-    return { href: normalized, external: false };
+  if (normalized.startsWith("/")) {
+    // Parse against a fixed origin: spellings such as `//host` or `/\host`
+    // name another site and are refused.
+    const url = new URL(normalized, "http://codex.invalid");
+    return url.origin === "http://codex.invalid"
+      ? { href: `${url.pathname}${url.search}${url.hash}`, external: false }
+      : undefined;
   }
   try {
     const url = new URL(normalized);
@@ -417,7 +421,7 @@ function renderInlineToken(token: Token, context: CampaignMarkdownContext): Mark
     case "image": {
       const image = token as Tokens.Image;
       const safe = safeCampaignMarkdownLink(image.href);
-      return safe === undefined || safe.href.startsWith("mailto:") || safe.href.startsWith("#/")
+      return safe === undefined || safe.href.startsWith("mailto:")
         ? html`<span class="markdown-image-rejected">${image.text}</span>`
         : html`<img src=${previewResourceURL(safe.href)} alt=${image.text} title=${image.title ?? nothing} loading="lazy" />`;
     }

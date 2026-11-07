@@ -19,6 +19,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { chromium, request as playwrightRequest } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
 import { installTimelinePackage } from "./installed-timeline-fixture.mts";
+import { pageAddress } from "./app-address.mts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const output = resolve(root, "frontend/test-results/installed-timeline");
@@ -161,7 +162,7 @@ async function open(t: TestContext, role = "dm", mobile = false) {
   );
   await context.addInitScript(() => localStorage.setItem("codex_lang", "en"));
   const page = await context.newPage();
-  await page.goto("/#/timeline");
+  await page.goto("/timeline");
   await page.locator('.tl-card[data-key="arrival"]').waitFor();
   return page;
 }
@@ -233,7 +234,7 @@ for (const mobile of [false, true])
     assert.equal((await details(extra)).connections, 1);
     await extra.getByRole("button", { name: "Widget action" }).click();
     assert.equal(await extra.getByLabel("Widget draft").inputValue(), "Action ran");
-    assert.equal(new URL(page.url()).hash, "#/timeline");
+    assert.equal(pageAddress(page.url()), "/timeline");
     const header = widget(page, id, "timeline:column:header");
     await header.locator("output").waitFor();
     assert.ok(
@@ -249,7 +250,7 @@ for (const mobile of [false, true])
       ["arrival", "dinner"],
     );
     assert.equal(await player.locator('[data-timeline-slot="timeline:column:footer"]').count(), 0);
-    await player.goto("/#/");
+    await player.goto("/");
     assert.equal(await player.locator(`[data-addon-slot] [data-addon-id="${id}"]`).count(), 0);
     await disable(id);
     await page.waitForFunction(() => document.querySelectorAll("codex-timeline-slot").length === 0);

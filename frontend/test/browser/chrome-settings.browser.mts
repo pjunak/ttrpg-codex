@@ -217,7 +217,7 @@ async function fixture(
     });
   });
   try {
-    await page.goto(`${origin}/#/settings`);
+    await page.goto(`${origin}/settings`);
     await page.locator(".settings-page").waitFor();
     await page.waitForFunction(() => document.querySelector<HTMLElement>(".live-connected"));
   } catch (cause) {
@@ -381,13 +381,13 @@ for (const mobile of [false, true])
     await showMenu(page, mobile);
     const nav = page.locator(".core-navigation");
     assert.equal(await nav.locator('[data-navigation-section="private"]').count(), 0);
-    assert.equal(await nav.locator('a[href="#/factions"]').count(), 0);
-    assert.equal(await nav.locator('a[href="#/map/world"]').isVisible(), true);
+    assert.equal(await nav.locator('a[href="/factions"]').count(), 0);
+    assert.equal(await nav.locator('a[href="/map/world"]').isVisible(), true);
     const toggle = nav.getByRole("button", { name: /World notes/ });
     assert.equal(await toggle.getAttribute("aria-expanded"), "false");
-    assert.equal(await nav.locator('a[href="#/characters"]').isVisible(), false);
+    assert.equal(await nav.locator('a[href="/characters"]').isVisible(), false);
     await toggle.click();
-    assert.equal(await nav.locator('a[href="#/characters"]').isVisible(), true);
+    assert.equal(await nav.locator('a[href="/characters"]').isVisible(), true);
     await page.reload();
     await page.locator(".settings-page").waitFor();
     await showMenu(page, mobile);
@@ -415,9 +415,9 @@ void test("sidebar editing preserves original route names and extensions through
   assert.deepEqual(setting("sidebarLayout").value.extension, { keep: true });
   assert.deepEqual(setting("sidebarLayout").value.sections[1].extension, { keep: true });
   assert.ok(setting("sidebarLayout").value.hidden.includes("/timeline"));
-  assert.equal(await page.locator('.core-navigation a[href="#/characters"]').isVisible(), true);
-  assert.equal(await page.locator('.core-navigation a[href="#/map/world"]').count(), 0);
-  assert.equal(await page.locator('.core-navigation a[href="#/timeline"]').count(), 0);
+  assert.equal(await page.locator('.core-navigation a[href="/characters"]').isVisible(), true);
+  assert.equal(await page.locator('.core-navigation a[href="/map/world"]').count(), 0);
+  assert.equal(await page.locator('.core-navigation a[href="/timeline"]').count(), 0);
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: `${output}/sidebar-desktop.png`, fullPage: true });
   const world = panel.locator('[data-section="world"]');
@@ -456,20 +456,20 @@ void test("phone sidebar conflicts keep the draft and cancel reloads the current
 
 void test("settings categories are linkable, and phones open a category list with a way back", async (t) => {
   const desktop = (await fixture(t)).page;
-  await desktop.goto(`${origin}/#/settings/map-markers`);
+  await desktop.goto(`${origin}/settings/map-markers`);
   await desktop.locator('[data-category="pinTypes"][aria-current="page"]').waitFor();
   const { page } = await fixture(t, { mobile: true });
   const list = page.locator(".settings-index");
   assert.equal(await list.isVisible(), true);
   assert.equal(await page.locator(".settings-personal-panel").isVisible(), false);
   await page.locator('[data-category="sidebar"]').click();
-  await page.waitForURL(/#\/settings\/sidebar$/u);
+  await page.waitForURL(/\/settings\/sidebar$/u);
   await page.locator("codex-sidebar-settings").waitFor();
   assert.equal(await list.isVisible(), false);
   await page.reload();
   await page.locator("codex-sidebar-settings").waitFor();
   await page.locator(".settings-back").click();
-  await page.waitForURL(/#\/settings$/u);
+  await page.waitForURL(/\/settings$/u);
   await list.waitFor();
   await page.goBack();
   await page.locator("codex-sidebar-settings").waitFor();
@@ -593,7 +593,7 @@ void test("add-on sidebar pages show by default and hide without disabling their
   await panel.getByRole("button", { name: "Save", exact: true }).click();
   await saved(page, "addonSidebarVisibility", 2);
   assert.equal(await page.locator(".addon-navigation-link").count(), 0);
-  await page.goto(`${origin}/#/addons/visual-fixture/tools`);
+  await page.goto(`${origin}/addons/visual-fixture/tools`);
   await page.locator("visual-fixture-addon").waitFor();
 });
 
@@ -610,7 +610,7 @@ for (const addon of [false, true])
     await page.locator("codex-sidebar-settings .sb-editor").waitFor();
     assert.equal(await page.locator(".sb-addon-panel").count(), shown);
     assert.equal(await page.locator(".account-panel small").count(), shown);
-    await page.goto(`${origin}/#/dm`);
+    await page.goto(`${origin}/dm`);
     await page.locator("#dm-hidden-title").waitFor();
     assert.equal(await page.locator("#dm-addon-health-title").count(), shown);
   });

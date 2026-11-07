@@ -29,7 +29,7 @@ const card = (
   key: graphNodeKey(kind, key),
   recordKey: key,
   name: text(value["name"]) || key,
-  route: `#/${route}/${encodeURIComponent(key)}`,
+  route: `/${route}/${encodeURIComponent(key)}`,
   color: nodeColor,
   faction: "",
   factionName: "",

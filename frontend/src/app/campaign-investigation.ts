@@ -1,7 +1,7 @@
 import { isRecord } from "../core/boundary.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import { projectEntities } from "./campaign-projection.js";
-import { campaignPages, recordEditHash } from "./routes.js";
+import { campaignPages, recordEditHref } from "./routes.js";
 import { searchable, searchTokens } from "./campaign-search.js";
 
 export interface InvestigationQuestion {
@@ -70,7 +70,7 @@ export function investigationQueue(
             ...question,
             source: entity.name,
             route: entity.route,
-            editRoute: recordEditHash(page, entity.key, "#/mysteries"),
+            editRoute: recordEditHref(page, entity.key, "/mysteries"),
             kind,
             visibility: entity.visibility,
           }));

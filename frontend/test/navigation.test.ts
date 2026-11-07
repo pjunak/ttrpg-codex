@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   BrowserNavigationOutlet,
-  browserAddonRouteHash,
-  isBrowserAddonRouteHash,
+  browserAddonRouteHref,
+  isBrowserAddonRouteHref,
   listBrowserNavigation,
   parseBrowserAddonLocation,
 } from "../src/addons/navigation.js";
@@ -17,13 +17,13 @@ const generationId = "a".repeat(64);
 
 describe("browser add-on navigation", () => {
   it("decodes bounded ordered query pairs without changing route ownership", () => {
-    const routeHash = "#/addons/dm-tools/planner";
+    const routePath = "/addons/dm-tools/planner";
     expect(
       parseBrowserAddonLocation(
-        `${routeHash}?item=quest-a&item=quest-b&label=%C4%8Caj+%26+k%C3%A1va`,
+        `${routePath}?item=quest-a&item=quest-b&label=%C4%8Caj+%26+k%C3%A1va`,
       ),
     ).toEqual({
-      routeHash,
+      routePath,
       query: [
         ["item", "quest-a"],
         ["item", "quest-b"],
@@ -31,26 +31,26 @@ describe("browser add-on navigation", () => {
       ],
     });
     expect(
-      parseBrowserAddonLocation(`${routeHash}?route=%23%2Faddons%2Fother%2Fpage`)?.routeHash,
-    ).toBe(routeHash);
-    expect(parseBrowserAddonLocation(routeHash)).toEqual({ routeHash, query: [] });
+      parseBrowserAddonLocation(`${routePath}?route=%23%2Faddons%2Fother%2Fpage`)?.routePath,
+    ).toBe(routePath);
+    expect(parseBrowserAddonLocation(routePath)).toEqual({ routePath, query: [] });
   });
 
   it("rejects malformed paths, escapes, controls and oversized parameters", () => {
-    const routeHash = "#/addons/dm-tools/planner";
+    const routePath = "/addons/dm-tools/planner";
     for (const hash of [
-      "#/addons/",
-      "#/addons/dm-tools/../settings",
-      "#/addons/dm-tools/planner/",
-      "#/addons/dm-tools/%70lanner",
-      `${routeHash}?x=%`,
-      `${routeHash}?x=%FF`,
-      `${routeHash}?x=%00`,
-      `${routeHash}?=empty`,
-      `${routeHash}?${"k".repeat(65)}=x`,
-      `${routeHash}?x=${"v".repeat(1025)}`,
-      `${routeHash}?${Array(33).fill("x=y").join("&")}`,
-      `${routeHash}?x=${"%E2%82%AC".repeat(500)}`,
+      "/addons/",
+      "/addons/dm-tools/../settings",
+      "/addons/dm-tools/planner/",
+      "/addons/dm-tools/%70lanner",
+      `${routePath}?x=%`,
+      `${routePath}?x=%FF`,
+      `${routePath}?x=%00`,
+      `${routePath}?=empty`,
+      `${routePath}?${"k".repeat(65)}=x`,
+      `${routePath}?x=${"v".repeat(1025)}`,
+      `${routePath}?${Array(33).fill("x=y").join("&")}`,
+      `${routePath}?x=${"%E2%82%AC".repeat(500)}`,
     ]) {
       expect(parseBrowserAddonLocation(hash), hash).toBeUndefined();
     }
@@ -60,14 +60,14 @@ describe("browser add-on navigation", () => {
     const registry = new BrowserContributionRegistry();
     const session = registry.open(descriptor(), new GenerationScope("dm-tools@generation"));
     const root = new FakeElement("nav");
-    let hash = "#/addons/dm-tools/planner";
+    let hash = "/addons/dm-tools/planner";
     const counts: number[] = [];
     const outlet = new BrowserNavigationOutlet({
       document: new FakeDocument() as unknown as Document,
       root: root as unknown as HTMLElement,
       registry,
       role: "dm",
-      currentHash: () => hash,
+      currentHref: () => hash,
       onCountChange: (count) => counts.push(count),
     });
 
@@ -81,7 +81,7 @@ describe("browser add-on navigation", () => {
     expect(root.hidden).toBe(false);
     expect(root.children).toHaveLength(1);
     const anchor = root.children[0] as FakeElement;
-    expect(anchor.href).toBe("#/addons/dm-tools/planner");
+    expect(anchor.href).toBe("/addons/dm-tools/planner");
     expect(anchor.textContent).toBe("Story Planner");
     expect(anchor.attributes.get("aria-current")).toBe("page");
     expect(anchor.dataset).toEqual({
@@ -89,11 +89,11 @@ describe("browser add-on navigation", () => {
       contributionId: "planner.sidebar",
     });
 
-    hash = "#/addons/dm-tools/planner?item=quest-a";
+    hash = "/addons/dm-tools/planner?item=quest-a";
     outlet.refresh();
     expect(anchor.attributes.get("aria-current")).toBe("page");
     expect(root.children[0]).toBe(anchor);
-    hash = "#/";
+    hash = "/";
     outlet.refresh();
     expect(anchor.attributes.has("aria-current")).toBe(false);
     expect(root.children[0]).toBe(anchor);
@@ -119,7 +119,7 @@ describe("browser add-on navigation", () => {
         contributionId: "planner.sidebar",
         label: "Story Planner",
         routeContributionId: "planner.route",
-        hash: "#/addons/dm-tools/planner",
+        href: "/addons/dm-tools/planner",
       },
     ]);
     expect(Object.isFrozen(entries)).toBe(true);
@@ -135,7 +135,7 @@ describe("browser add-on navigation", () => {
       root: new ThrowingRoot() as unknown as HTMLElement,
       registry,
       role: "dm",
-      currentHash: () => "#/",
+      currentHref: () => "/",
       onError,
     });
 
@@ -143,8 +143,8 @@ describe("browser add-on navigation", () => {
     session.context.ui.bind("planner.route", { kind: "element", tag: "dm-tools-planner" });
 
     expect(onError).toHaveBeenCalled();
-    expect(isBrowserAddonRouteHash("#/addons/dm-tools/planner")).toBe(true);
-    expect(isBrowserAddonRouteHash("#/dashboard")).toBe(false);
+    expect(isBrowserAddonRouteHref("/addons/dm-tools/planner")).toBe(true);
+    expect(isBrowserAddonRouteHref("/dashboard")).toBe(false);
     outlet.dispose();
   });
 
@@ -156,10 +156,10 @@ describe("browser add-on navigation", () => {
     const route = registry.list("route", "dm")[0];
     const sidebar = registry.list("sidebar", "dm")[0];
 
-    expect(route === undefined ? undefined : browserAddonRouteHash(route)).toBe(
-      "#/addons/dm-tools/planner",
+    expect(route === undefined ? undefined : browserAddonRouteHref(route)).toBe(
+      "/addons/dm-tools/planner",
     );
-    expect(() => (sidebar === undefined ? undefined : browserAddonRouteHash(sidebar))).toThrow(
+    expect(() => (sidebar === undefined ? undefined : browserAddonRouteHref(sidebar))).toThrow(
       "only route contributions",
     );
   });

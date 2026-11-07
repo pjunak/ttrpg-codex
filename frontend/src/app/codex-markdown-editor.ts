@@ -757,7 +757,7 @@ export class CodexMarkdownEditor extends LitElement {
     const href = this.querySelector<HTMLInputElement>(".writer-insert-url")?.value.trim() ?? "";
     const label = this.querySelector<HTMLInputElement>(".writer-insert-label")?.value.trim() ?? "";
     const kind = this.menu;
-    if (!safeCampaignMarkdownLink(href) || (kind === "image" && /^(?:mailto:|#\/)/u.test(href))) {
+    if (!safeCampaignMarkdownLink(href) || (kind === "image" && href.startsWith("mailto:"))) {
       this.issue = uiText("Enter a valid link.");
       return;
     }

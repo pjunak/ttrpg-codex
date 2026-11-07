@@ -4,7 +4,7 @@ import { BrowserContributionRegistry } from "../src/addons/browser-sdk.js";
 import { GenerationScope } from "../src/addons/generation-scope.js";
 import {
   addonGraphId,
-  addonGraphHash,
+  addonGraphHref,
   addonGraphKey,
   graphModelRequest,
   graphProviders,
@@ -178,7 +178,7 @@ describe("campaign add-on graphs", () => {
         graphModelRequest(base, "relationships", permissions),
         routes,
       );
-    expect(parseWith([route]).graph.nodes[0]!.route).toBe("#/addons/graph-example/notes");
+    expect(parseWith([route]).graph.nodes[0]!.route).toBe("/addons/graph-example/notes");
     expect(() => parseWith([{ ...route, generationId: "b".repeat(64) }])).toThrow();
     expect(() => parseWith([{ ...route, addonId: "other" }])).toThrow();
   });
@@ -285,7 +285,7 @@ describe("campaign add-on graphs", () => {
     expect(graphProviders(registry, "dm", "factions")).toHaveLength(0);
     expect(graphProviders(registry, "dm", "relationships")).toHaveLength(1);
     const selected = graphViews(registry, "dm")[0]!;
-    expect(parseAppRoute(addonGraphHash(addonGraphId(selected)))).toEqual({
+    expect(parseAppRoute(addonGraphHref(addonGraphId(selected)))).toEqual({
       kind: "campaign-graph",
       mode: "addon:graph-example:board",
     });

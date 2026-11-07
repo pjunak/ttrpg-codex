@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   parseAppRoute,
-  contextualCreateHash,
-  recordEditHash,
+  contextualCreateHref,
+  recordEditHref,
   campaignPages,
 } from "../src/app/routes.js";
-import { creationBackHash, contextualCreationFields } from "../src/app/context-creation.js";
+import { creationBackHref, contextualCreationFields } from "../src/app/context-creation.js";
 import { parseCampaignDataset } from "../src/core/campaign-data.js";
 const campaign = parseCampaignDataset({
   contractVersion: "campaign-data.v1",
@@ -41,26 +41,26 @@ describe("contextual creation and editor return routes", () => {
       "faction-member": "faction",
     } as const;
     for (const action of Object.keys(fields) as (keyof typeof fields)[]) {
-      const route = parseAppRoute(contextualCreateHash(action, "gate/upper%2F"));
+      const route = parseAppRoute(contextualCreateHref(action, "gate/upper%2F"));
       if (route.kind !== "create") throw Error("Expected create route");
       expect(route.context?.key).toBe("gate/upper%2F");
       expect(contextualCreationFields(route, campaign)).toMatchObject({
         [fields[action]]: action === "event-here" ? ["gate/upper%2F"] : "gate/upper%2F",
         visibility: "dm",
       });
-      expect(creationBackHash(route, campaign)).toBe(
+      expect(creationBackHref(route, campaign)).toBe(
         action === "faction-member"
-          ? "#/factions/gate%2Fupper%252F"
-          : "#/locations/gate%2Fupper%252F",
+          ? "/factions/gate%2Fupper%252F"
+          : "/locations/gate%2Fupper%252F",
       );
     }
-    const missing = parseAppRoute(contextualCreateHash("sub-location", "missing"));
+    const missing = parseAppRoute(contextualCreateHref("sub-location", "missing"));
     if (missing.kind !== "create") throw Error("Expected create route");
     expect(contextualCreationFields(missing, campaign)).toEqual({});
-    expect(creationBackHash(missing, campaign)).toBe("#/locations");
+    expect(creationBackHref(missing, campaign)).toBe("/locations");
   });
   it("starts a contextual event in the latest session", () => {
-    const route = parseAppRoute(contextualCreateHash("event-here", "gate/upper%2F"));
+    const route = parseAppRoute(contextualCreateHref("event-here", "gate/upper%2F"));
     if (route.kind !== "create") throw Error("Expected create route");
     expect(contextualCreationFields(route, campaign)).toMatchObject({ sitting: 1 });
     const later = {
@@ -81,8 +81,8 @@ describe("contextual creation and editor return routes", () => {
   });
   it("keeps internal collection views and rejects nested or external return destinations", () => {
     const page = campaignPages.find((page) => page.id === "characters")!;
-    const returnTo = "#/characters?q=Gate&sort=name";
-    expect(parseAppRoute(recordEditHash(page, "id/%2F", returnTo))).toMatchObject({
+    const returnTo = "/characters?q=Gate&sort=name";
+    expect(parseAppRoute(recordEditHref(page, "id/%2F", returnTo))).toMatchObject({
       kind: "record",
       key: "id/%2F",
       editing: true,
@@ -90,20 +90,20 @@ describe("contextual creation and editor return routes", () => {
     });
     for (const bad of [
       "https://example.com",
-      "#/settings",
-      "#/characters/id/edit?return=%23%2F",
-      "#/characters#extra",
+      "/settings",
+      "/characters/id/edit?return=%2F",
+      "/characters#extra",
     ]) {
-      expect(parseAppRoute("#/characters/id/edit?return=" + encodeURIComponent(bad)).kind).toBe(
+      expect(parseAppRoute("/characters/id/edit?return=" + encodeURIComponent(bad)).kind).toBe(
         "not-found",
       );
     }
     for (const bad of [
-      "#/create/character-here/%00",
-      "#/create/character-here/%E0%A4%A",
-      "#/create/unknown/id",
-      "#/characters/id/edit?return=%23%2F&return=%23%2Fparty",
-      "#/characters/id/edit?unknown=1",
+      "/create/character-here/%00",
+      "/create/character-here/%E0%A4%A",
+      "/create/unknown/id",
+      "/characters/id/edit?return=%2F&return=%2Fparty",
+      "/characters/id/edit?unknown=1",
     ])
       expect(parseAppRoute(bad).kind).toBe("not-found");
   });

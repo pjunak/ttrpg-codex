@@ -24,7 +24,7 @@ group holding the strongest match comes first, so an exact name is never buried
 under weaker text matches. The overlay limits core results to 24;
 the full page retains its 60-result limit. Provider loading, unavailable results
 and Retry retain their existing behavior. Open full search carries the query
-into `#/search?q=...`; queries are bounded to 200 characters.
+into `/search?q=...`; queries are bounded to 200 characters.
 
 Results remain real links with normal touch, Tab, modified-click and browser
 navigation. Up/Down move focus through visible results; Enter in the search

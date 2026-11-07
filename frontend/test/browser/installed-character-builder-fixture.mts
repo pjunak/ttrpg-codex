@@ -96,7 +96,7 @@ export async function openSheet(
   await context.addInitScript((locale) => localStorage.setItem("codex_lang", locale), locale);
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(f.origin + "/#/characters/" + key);
+  await page.goto(f.origin + "/characters/" + key);
   await page.locator("#character-view-addons").click();
   const sheet = page.locator(".addon-dnd-character");
   await sheet.locator("#dnd-tab-" + initialTab).click();

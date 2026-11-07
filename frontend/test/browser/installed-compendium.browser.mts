@@ -29,7 +29,7 @@ const archivePath = process.env.CODEX_COMPENDIUM_ZIP;
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const output = resolve(root, "frontend/test-results/installed-compendium");
 const id = "dnd-2024-compendium",
-  route = `#/addons/${id}/compendium`;
+  route = `/addons/${id}/compendium`;
 let directory: string,
   host: ChildProcessByStdio<null, Readable, Readable>,
   browser: Browser,
@@ -138,7 +138,7 @@ async function open(t: TestContext, role = "dm", mobile = false, locale = "en", 
   page.setDefaultTimeout(15_000);
   page.on("pageerror", (error) => errors.push(error.message));
   if (navigate) {
-    await page.goto(`/${route}`);
+    await page.goto(route);
     await page
       .locator(".comp-reading-pane h1")
       .waitFor()
@@ -344,7 +344,7 @@ void test(
     await pane.getByLabel("Hledat…", { exact: true }).fill("Fireball");
     await pane.locator(".codex-link-row").first().click();
     await pane.getByRole("heading", { name: /Fireball/ }).waitFor();
-    await page.goto(`/#/addons/${id}/bestiary?kind=spell&id=aboleth`);
+    await page.goto(`/addons/${id}/bestiary?kind=spell&id=aboleth`);
     await pane.getByRole("heading", { name: /Aboleth/ }).waitFor();
     assert.equal(await pane.locator(".codex-tile-compact").count(), 6);
     await fits(page);
@@ -381,7 +381,7 @@ for (const mobile of [false, true])
         }),
       );
       const page = await open(t, "dm", mobile, "en", false);
-      await page.goto(`/#/characters/${key}`);
+      await page.goto(`/characters/${key}`);
       const details = (name: string) =>
         page
           .locator("codex-addon-rule-details")
@@ -420,7 +420,7 @@ for (const mobile of [false, true])
         .getByRole("button", { name: "Ward", exact: true })
         .waitFor();
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
-      await page.goto("/#/search");
+      await page.goto("/search");
       await page.locator(".campaign-search-field input").fill("shield");
       const results = page.locator('.search-group[aria-label="Compendium"]');
       await results.locator("a").first().waitFor();

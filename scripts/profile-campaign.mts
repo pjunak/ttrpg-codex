@@ -328,7 +328,7 @@ try {
             (response) => new URL(response.url()).pathname === "/api/campaign",
           );
           const cold = await measure(
-            () => page.goto("/#/"),
+            () => page.goto("/"),
             () => page.locator(".session-section").waitFor(),
           );
           const campaignHeaders = (await campaignResponse).headers();
@@ -357,7 +357,7 @@ try {
             () => page.reload(),
             () => page.locator(".session-section").waitFor(),
           );
-          await page.goto("/#/search");
+          await page.goto("/search");
           const search = page.locator("#campaign-query");
           await search.waitFor();
           const searchMs = await measure(
@@ -370,7 +370,7 @@ try {
             () => page.locator("#record-title").filter({ hasText: "Person 1799" }).waitFor(),
           );
           const mapLoad = await measure(
-            () => page.goto("/#/map/world"),
+            () => page.goto("/map/world"),
             () => page.locator('.sc-marker[title="Place 210"]').waitFor(),
           );
           const zoom = await measure(

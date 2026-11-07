@@ -153,7 +153,7 @@ async function open(t: TestContext, role = "dm", mobile = false) {
   );
   await context.addInitScript(() => localStorage.setItem("codex_lang", "en"));
   const page = await context.newPage();
-  await page.goto("/#/graph/relationships");
+  await page.goto("/graph/relationships");
   await page.locator('.cm-node[data-key="captain"]').waitFor();
   return page;
 }
@@ -216,7 +216,7 @@ for (const mobile of [false, true])
     await card(player, id).waitFor();
     assert.equal(await player.getByRole("link", { name: "Trail board", exact: true }).count(), 0);
     assert.equal(await player.locator('.cm-node[data-key="secret"]').count(), 0);
-    await player.goto(`/#/graph/addons/${id}/board`);
+    await player.goto(`/graph/addons/${id}/board`);
     await player.getByText("This add-on view is currently unavailable for your role.").waitFor();
     assert.equal(await card(player, id, "board").count(), 0);
   });
@@ -235,10 +235,10 @@ void test("invalid and replaced installed graph models cannot leave stale cards 
     label: "Late old card",
   });
   await page.getByText("Loading add-on cards…").waitFor();
-  await page.goto("/#/graph/mysteries");
+  await page.goto("/graph/mysteries");
   await sleep(1100);
   assert.equal(await card(page, id).count(), 0);
-  await page.goto("/#/graph/relationships");
+  await page.goto("/graph/relationships");
   await page.getByText("Loading add-on cards…").waitFor();
   await installGraphPackage(admin, csrf, {
     id,

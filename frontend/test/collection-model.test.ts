@@ -206,7 +206,7 @@ describe("shared collection browsing", () => {
     };
     const query = serializeCollectionView(view);
     expect(parseCollectionView(query)).toEqual(view);
-    expect(parseAppRoute(`#/characters?${query}`)).toMatchObject({
+    expect(parseAppRoute(`/characters?${query}`)).toMatchObject({
       kind: "collection",
       view: query,
     });

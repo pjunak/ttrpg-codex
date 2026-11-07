@@ -95,7 +95,7 @@ describe("public wiki links", () => {
   });
   it("constructs encoded same-generation routes and rejects stale or arbitrary targets", () => {
     expect(parseWikiMatches(response(), provider, [route], request)[0]?.href).toBe(
-      "#/addons/reference-fixture/library?kind=spell&id=shield+%2F%26%3F",
+      "/addons/reference-fixture/library?kind=spell&id=shield+%2F%26%3F",
     );
     for (const routes of [
       [],

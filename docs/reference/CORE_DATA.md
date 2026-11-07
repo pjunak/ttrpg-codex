@@ -312,7 +312,7 @@ World/local map viewing and editing use the same transaction and media
 boundaries. Coordinates, map scope, saved views, draft revisions, and image
 replacement are described in [`MAPS.md`](MAPS.md).
 
-The session timeline at `#/timeline` uses the role-filtered `events` collection;
+The session timeline at `/timeline` uses the role-filtered `events` collection;
 historical events remain a separate archive. Columns use stored `sitting`
 numbers and stable `order` sorting. Missing, zero, or invalid session numbers
 display in session 1 without rewriting the stored value. Empty columns remain
@@ -352,8 +352,8 @@ uses real reviewed ZIPs and a disposable Go host to verify the board,
 widget state across refreshes, role/read grants, replacement and disable, and
 protection of core order drafts.
 
-Mind Palace has faction, relationship, and mystery modes at `#/graph/factions`,
-`#/graph/relationships`, and `#/graph/mysteries`. `projectRelationshipGraph` reads characters, relationship records,
+Mind Palace has faction, relationship, and mystery modes at `/graph/factions`,
+`/graph/relationships`, and `/graph/mysteries`. `projectRelationshipGraph` reads characters, relationship records,
 shared enum definitions, and faction/party presentation
 from the current role projection. Canonical relationship record keys identify
 edges, including multiple relationships between the same characters. Missing

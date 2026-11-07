@@ -145,7 +145,7 @@ string:
 ~~~
 
 `$ref` names an entry in this bundle. `$id` names an existing record, whose ID
-is the last part of its page address, `#/<collection>/<id>`. Either form must
+is the last part of its page address, `/<collection>/<id>`. Either form must
 name the collection the field expects, and an `$id` record must exist.
 
 | Field | Expected collection |

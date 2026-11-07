@@ -13,7 +13,7 @@ import {
   type MapUploadDetail,
 } from "./campaign-map.js";
 import { recordValue, safeMediaURL, text } from "./campaign-projection.js";
-import { mapHash } from "./routes.js";
+import { mapHref } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 import {
@@ -124,7 +124,7 @@ export class CodexMapSettings extends LitElement {
                   this.preview = "error";
                 }} /></div>`
           }
-          <a class="ui-action" href=${mapHash(this.parentId)}>${this.#ui.t("map.openMap")}</a>
+          <a class="ui-action" href=${mapHref(this.parentId)}>${this.#ui.t("map.openMap")}</a>
           <label class="settings-map-upload">${this.#ui.t("map.upload")}<input type="file" aria-label=${this.#ui.t("map.upload")}
             accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" ?disabled=${this.#locked || missing} @change=${this.#upload} /></label>
           ${saveFailure(this.error)}
@@ -145,7 +145,7 @@ export class CodexMapSettings extends LitElement {
           }
           <div class="settings-map-views"><h3>${this.#ui.t("map.savedViews")}</h3>
             ${views.length ? html`<ul>${views.map((view) => html`<li>${view.icon} ${view.label}</li>`)}</ul>` : html`<p class="settings-hint">${this.#ui.t("map.noViews")}</p>`}
-            <a class="ui-action" href=${mapHash(this.parentId)}>${this.#ui.t("map.manageViews")}</a>
+            <a class="ui-action" href=${mapHref(this.parentId)}>${this.#ui.t("map.manageViews")}</a>
           </div>
         </section>
       </div>

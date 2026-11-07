@@ -77,7 +77,7 @@ describe("record contribution contract", () => {
         id: "harbor",
         revision: 7,
         label: "Harbor",
-        href: "#/locations/harbor",
+        href: "/locations/harbor",
       },
     });
     expect(

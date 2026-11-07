@@ -16,7 +16,7 @@ import { once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 import { chromium, request } from "playwright";
 import { jsonResponse } from "./installed-graph-fixture.mts";
-import { attemptHash, unloadBlocked } from "./installed-planner-navigation-fixture.mts";
+import { attemptNavigation, unloadBlocked } from "./installed-planner-navigation-fixture.mts";
 import { holdCoreWrite } from "./core-write-lifetime-fixture.mts";
 import { trackBrowserContext } from "./browser-diagnostics.mts";
 
@@ -143,7 +143,7 @@ async function open(t: TestContext, mobile = false, password: string | null = dm
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
   page.setDefaultTimeout(12_000);
-  await page.goto("/#/settings");
+  await page.goto("/settings");
   await page.locator(".settings-page").waitFor();
   if (mobile) {
     // Phones open settings as a category list.
@@ -181,7 +181,7 @@ for (const mobile of [false, true])
     assert.match(await page.getByRole("alert").innerText(), mobile ? /neshodují/ : /do not match/);
     assert.equal(await unloadBlocked(page), true);
     if (!mobile) {
-      await attemptHash(page, "#/dashboard");
+      await attemptNavigation(page, "/dashboard");
       assert.equal(
         await form(page, "player").locator("input[type=password]").nth(1).inputValue(),
         `player-${mobile}`,
@@ -240,9 +240,11 @@ void test("password writes block navigation and uncertain outcomes retain the re
   await waiting;
   assert.equal(await page.locator("[data-category=language]").isDisabled(), true);
   await page.evaluate(() => {
-    location.hash = "#/dashboard";
+    window.dispatchEvent(
+      new CustomEvent("codex-navigate", { cancelable: true, detail: { href: "/dashboard" } }),
+    );
   });
-  await page.waitForURL("**/#/settings/access");
+  await page.waitForURL("**/settings/access");
   release();
   await page.getByRole("alert").filter({ hasText: "Could not confirm" }).waitFor();
   dmPassword = "rotated-local-dm";

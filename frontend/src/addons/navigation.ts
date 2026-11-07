@@ -8,7 +8,7 @@ export interface BrowserNavigationEntry {
   readonly contributionId: string;
   readonly label: string;
   readonly routeContributionId: string;
-  readonly hash: string;
+  readonly href: string;
 }
 
 export interface BrowserNavigationOutletOptions {
@@ -16,7 +16,7 @@ export interface BrowserNavigationOutletOptions {
   readonly root: HTMLElement;
   readonly registry: BrowserContributionRegistry;
   readonly role: BrowserRole;
-  readonly currentHash: () => string;
+  readonly currentHref: () => string;
   readonly locale?: () => string;
   readonly include?: (entry: BrowserNavigationEntry) => boolean;
   readonly onError?: (cause: unknown) => void;
@@ -28,38 +28,41 @@ interface MountedNavigationEntry {
   readonly anchor: HTMLAnchorElement;
 }
 
-/** Returns the host-owned hash for one already-validated route declaration. */
-export function browserAddonRouteHash(active: ActiveBrowserContribution): string {
+/** Returns the host-owned address for one already-validated route declaration. */
+export function browserAddonRouteHref(active: ActiveBrowserContribution): string {
   if (active.descriptor.surface !== "route") {
-    throw new TypeError("only route contributions have an add-on route hash");
+    throw new TypeError("only route contributions have an add-on route address");
   }
   const path = active.descriptor.config["path"];
   if (typeof path !== "string") {
     throw new TypeError(`route ${active.addonId}:${active.descriptor.id} has no canonical path`);
   }
-  return `#/addons/${encodeURIComponent(active.addonId)}/${path}`;
+  return `/addons/${encodeURIComponent(active.addonId)}/${path}`;
 }
 
-export function isBrowserAddonRouteHash(value: string): boolean {
+export function isBrowserAddonRouteHref(value: string): boolean {
   return parseBrowserAddonLocation(value) !== undefined;
 }
 
-/** Query values are navigation input, never record identity or write authority. */
+/**
+ * Splits a canonical app address into its add-on route path and query. Query
+ * values are navigation input, never record identity or write authority.
+ */
 export function parseBrowserAddonLocation(
-  hash: string,
+  href: string,
 ):
-  | { readonly routeHash: string; readonly query: readonly (readonly [string, string])[] }
+  | { readonly routePath: string; readonly query: readonly (readonly [string, string])[] }
   | undefined {
-  if (new TextEncoder().encode(hash).length > 4096) return undefined;
-  const separator = hash.indexOf("?");
-  const routeHash = separator === -1 ? hash : hash.slice(0, separator);
+  if (new TextEncoder().encode(href).length > 4096) return undefined;
+  const separator = href.indexOf("?");
+  const routePath = separator === -1 ? href : href.slice(0, separator);
   if (
-    !/^#\/addons\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/u.test(
-      routeHash,
+    !/^\/addons\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/u.test(
+      routePath,
     )
   )
     return undefined;
-  const raw = separator === -1 ? "" : hash.slice(separator + 1);
+  const raw = separator === -1 ? "" : href.slice(separator + 1);
   try {
     decodeURIComponent(raw.replace(/\+/gu, " "));
   } catch {
@@ -74,7 +77,7 @@ export function parseBrowserAddonLocation(
     )
   )
     return undefined;
-  return { routeHash, query };
+  return { routePath, query };
 }
 
 /** Projects declarative sidebar metadata only when its exact route is active. */
@@ -114,7 +117,7 @@ export function listBrowserNavigation(
         contributionId: active.descriptor.id,
         label: activeContributionLabel(active, locale, registry.catalogs),
         routeContributionId,
-        hash: browserAddonRouteHash(route),
+        href: browserAddonRouteHref(route),
       }),
     );
   }
@@ -127,7 +130,7 @@ export class BrowserNavigationOutlet {
   readonly #root: HTMLElement;
   readonly #registry: BrowserContributionRegistry;
   readonly #role: BrowserRole;
-  readonly #currentHash: () => string;
+  readonly #currentHref: () => string;
   readonly #locale: () => string;
   readonly #include: (entry: BrowserNavigationEntry) => boolean;
   readonly #onError: (cause: unknown) => void;
@@ -141,7 +144,7 @@ export class BrowserNavigationOutlet {
     this.#root = options.root;
     this.#registry = options.registry;
     this.#role = options.role;
-    this.#currentHash = options.currentHash;
+    this.#currentHref = options.currentHref;
     this.#locale = options.locale ?? (() => "en");
     this.#include = options.include ?? (() => true);
     this.#onError = options.onError ?? (() => undefined);
@@ -157,23 +160,23 @@ export class BrowserNavigationOutlet {
     try {
       const ordered: HTMLAnchorElement[] = [];
       const retained = new Set<string>();
-      const currentHash = this.#currentHash();
+      const currentHref = this.#currentHref();
       for (const entry of listBrowserNavigation(this.#registry, this.#role, this.#locale())) {
         if (!this.#include(entry)) continue;
         const key = `${entry.addonId}:${entry.generationId}:${entry.contributionId}`;
-        const identity = `${entry.hash}:${entry.label}`;
+        const identity = `${entry.href}:${entry.label}`;
         let mounted = this.#mounted.get(key);
         if (mounted === undefined || mounted.identity !== identity) {
           const anchor = this.#document.createElement("a");
           anchor.className = "addon-navigation-link";
-          anchor.href = entry.hash;
+          anchor.href = entry.href;
           anchor.textContent = entry.label;
           anchor.dataset["addonId"] = entry.addonId;
           anchor.dataset["contributionId"] = entry.contributionId;
           mounted = { identity, anchor };
           this.#mounted.set(key, mounted);
         }
-        if (entry.hash === parseBrowserAddonLocation(currentHash)?.routeHash) {
+        if (entry.href === parseBrowserAddonLocation(currentHref)?.routePath) {
           mounted.anchor.setAttribute("aria-current", "page");
         } else {
           mounted.anchor.removeAttribute("aria-current");

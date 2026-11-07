@@ -9,11 +9,11 @@ export async function unloadBlocked(page: Page) {
   });
 }
 
-export async function attemptHash(page: Page, hash: string, accept = false) {
+export async function attemptNavigation(page: Page, href: string, accept = false) {
   const dialogSeen = page.waitForEvent("dialog", { timeout: 5000 });
   page.once("dialog", (dialog) => (accept ? dialog.accept() : dialog.dismiss()));
-  await page.evaluate((hash) => {
-    location.hash = hash;
-  }, hash);
+  await page.evaluate((href) => {
+    window.dispatchEvent(new CustomEvent("codex-navigate", { cancelable: true, detail: { href } }));
+  }, href);
   assert.match((await dialogSeen).message(), /Discard the unsaved changes/u);
 }

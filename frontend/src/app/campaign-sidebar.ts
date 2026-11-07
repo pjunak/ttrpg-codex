@@ -33,7 +33,7 @@ export interface SidebarSaveDetail {
 }
 export type SidebarAddonMode = "everyone" | "dm" | "hidden";
 export function addonSidebarKey(entry: BrowserNavigationEntry): string {
-  return `${entry.addonId}:${entry.hash.slice(1)}`;
+  return `${entry.addonId}:${entry.href}`;
 }
 export function addonSidebarRecord(campaign: CampaignDataset) {
   return campaignCollection(campaign, "settings").records.find(

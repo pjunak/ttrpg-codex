@@ -1,4 +1,5 @@
 import { LitElement, html, nothing } from "lit";
+import { appNavigationHref } from "./address.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
@@ -16,7 +17,7 @@ export class CodexQuickSearch extends LitElement {
     campaign: { attribute: false },
     registry: { attribute: false },
     actorRole: { attribute: false },
-    currentHash: { attribute: false },
+    currentHref: { attribute: false },
     fallbackFocus: { attribute: false },
     open: { state: true },
   };
@@ -25,7 +26,7 @@ export class CodexQuickSearch extends LitElement {
   declare registry: BrowserContributionRegistry | undefined;
   declare actorRole: BrowserRole | undefined;
   /** The address shown; a link to it closes the search instead of navigating. */
-  declare currentHash: string;
+  declare currentHref: string;
   /** Where focus goes when the element the search was opened from is gone. */
   declare fallbackFocus: () => HTMLElement | null;
   declare private open: boolean;
@@ -35,7 +36,7 @@ export class CodexQuickSearch extends LitElement {
     super();
     new UiLocalizationController(this);
     this.campaign = undefined;
-    this.currentHash = "#/";
+    this.currentHref = "/";
     this.fallbackFocus = () => null;
     this.open = false;
   }
@@ -97,7 +98,8 @@ export class CodexQuickSearch extends LitElement {
     const link =
       event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
     if (
-      link?.hash === this.currentHash &&
+      link !== null &&
+      appNavigationHref(link.getAttribute("href") ?? "") === this.currentHref &&
       !event.ctrlKey &&
       !event.metaKey &&
       !event.shiftKey &&

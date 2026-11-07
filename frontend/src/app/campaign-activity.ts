@@ -10,7 +10,7 @@ export function describeActivity(campaign: CampaignDataset, entity: EntitySummar
   const change = recordActivity(entity.raw);
   if (!change) return uiText("activity.updated");
   if (change.kind === "created") return uiText("activity.created");
-  const page = campaignPages.find((page) => entity.route.startsWith(`#/${page.id}/`));
+  const page = campaignPages.find((page) => entity.route.startsWith(`/${page.id}/`));
   const definitions = page ? editorFieldsFor(page.collection) : [];
   const messages = definitions
     .filter((field) => change.fields.includes(field.key))

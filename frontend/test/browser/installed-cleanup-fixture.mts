@@ -100,7 +100,7 @@ export async function exercisePackageCleanup({
 
   const page = await open(t, "dm", mobile);
   page.setDefaultTimeout(15000);
-  await page.goto("/#/settings");
+  await page.goto("/settings");
   await page.locator('[data-category="addons"]').click();
   const manager = page.locator("codex-addon-manager");
   for (const cs of [false, true]) {

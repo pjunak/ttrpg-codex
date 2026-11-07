@@ -13,7 +13,8 @@ import { isPlayerPreview, previewResourceURL } from "../core/player-preview.js";
 import { activeContributionLabel } from "../addons/contribution-label.js";
 import { listBrowserNavigation } from "../addons/navigation.js";
 import { applyBrandingFavicon, campaignBranding, defaultLogo } from "./campaign-branding.js";
-import { parseAppRoute, canonicalAppHash, type AppRoute } from "./routes.js";
+import { parseAppRoute, canonicalAppHref, type AppRoute } from "./routes.js";
+import { addressFor, currentAppHref } from "./address.js";
 import { UiLocalizationController, uiText } from "./ui-localization.js";
 import "./codex-dashboard.js";
 import "./codex-dm-dashboard.js";
@@ -98,6 +99,7 @@ export class CodexApp extends LitElement {
     auth: () => this.#session.auth,
     route: () => this.route,
     campaign: () => this.#campaign.campaign,
+    currentHref: () => this.#guard.href,
     locale: () => this.#ui.locale,
     canEdit: () => this.#session.authenticated,
     recoveryRequested: async () => {
@@ -112,7 +114,7 @@ export class CodexApp extends LitElement {
   readonly #guard = new NavigationGuard(this, {
     busy: () => this.busy,
     registry: () => this.#addons.contributions,
-    navigated: (hash) => this.#navigated(hash),
+    navigated: (href) => this.#navigated(href),
     edited: () => {
       this.recordSaved = false;
     },
@@ -131,7 +133,7 @@ export class CodexApp extends LitElement {
       this.errorMessage = append ? this.errorMessage + message : message;
     },
     signedOut: () => {
-      if (this.route.kind === "addon") window.location.hash = "#/";
+      if (this.route.kind === "addon") this.#guard.navigate("/", { confirmed: true });
     },
     resumed: () => {
       void this.updateComplete.then(() => {
@@ -160,7 +162,7 @@ export class CodexApp extends LitElement {
     super();
     this.route = { kind: "dashboard" };
     this.errorMessage = "";
-    this.characterView = preferredCharacterView(window.location.hash);
+    this.characterView = preferredCharacterView(currentAppHref());
     this.recordSaved = false;
     this.contextNotice = "";
     this.menuOpen = false;
@@ -174,8 +176,8 @@ export class CodexApp extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback();
     this.#disposeRuleDetails = bindRuleDetails(this, this.#links);
-    this.route = parseAppRoute(this.#guard.hash);
-    this.#shownPath = this.#guard.hash.split("?")[0]!;
+    this.route = parseAppRoute(this.#guard.href);
+    this.#shownPath = this.#guard.href.split("?")[0]!;
     window.addEventListener("keydown", this.#onKeyDown);
     this.#mobileMedia.addEventListener("change", this.#onViewportChange);
     const listening = new AbortController();
@@ -232,7 +234,7 @@ export class CodexApp extends LitElement {
       <div class="codex-shell">
         <aside id="campaign-sidebar" class=${`campaign-sidebar ${this.menuOpen ? "is-open" : ""}`} .inert=${this.mobileViewport && !this.menuOpen}>
           <header class="campaign-brand">
-            <a href="#/" aria-label=${this.#ui.t("shell.openOverview")}>
+            <a href="/" aria-label=${this.#ui.t("shell.openOverview")}>
               <img class="campaign-sigil" src=${previewResourceURL(branding.logoUrl || defaultLogo)} alt="" @error=${(
                 event: Event,
               ) => {
@@ -242,15 +244,15 @@ export class CodexApp extends LitElement {
               <span><strong>${branding.title}</strong><small>${branding.subtitle}</small></span>
             </a>
           </header>
-          <a class="sidebar-search" href="#/search" aria-haspopup="dialog" @click=${this.#openQuickSearch}><span aria-hidden="true">🔍</span>${this.#ui.t("shell.search")}…<kbd>Ctrl K</kbd></a>
+          <a class="sidebar-search" href="/search" aria-haspopup="dialog" @click=${this.#openQuickSearch}><span aria-hidden="true">🔍</span>${this.#ui.t("shell.search")}…<kbd>Ctrl K</kbd></a>
           <codex-shell-navigation .campaign=${campaign} .route=${this.route} .canManage=${session.canManage}></codex-shell-navigation>
           <section class="addon-navigation-section" aria-labelledby="addon-navigation-title" ?hidden=${this.#addons.navigationCount === 0}>
             <h2 id="addon-navigation-title">${this.#ui.t("shell.addons")}</h2>
             <nav class="addon-navigation" data-addon-navigation hidden></nav>
           </section>
           <footer class="sidebar-footer">
-            ${session.canManage ? html`<a href="#/dm" aria-current=${this.route.kind === "dm" ? "page" : nothing}>🛡 ${this.#ui.t("dm.title")}</a>` : nothing}
-            <a href="#/settings" aria-current=${coreRouteActive(this.route, "settings") ? "page" : nothing}>⚙ ${this.#ui.t("shell.settings")}</a>
+            ${session.canManage ? html`<a href="/dm" aria-current=${this.route.kind === "dm" ? "page" : nothing}>🛡 ${this.#ui.t("dm.title")}</a>` : nothing}
+            <a href="/settings" aria-current=${coreRouteActive(this.route, "settings") ? "page" : nothing}>⚙ ${this.#ui.t("shell.settings")}</a>
             <codex-account-menu .authority=${session.authority} .readiness=${session.readiness}
               .liveState=${session.liveState} .addonState=${this.#addons.state} .busy=${this.busy}
               .signIn=${(password: string) => session.login(password)}
@@ -310,7 +312,7 @@ export class CodexApp extends LitElement {
         ${mobileNavigation(this.route, this.menuOpen, this.#toggleMenu)}
       </div>
       <codex-quick-search .campaign=${campaign} .registry=${this.#addons.contributions}
-        .actorRole=${session.role} .currentHash=${this.#guard.hash}
+        .actorRole=${session.role} .currentHref=${this.#guard.href}
         .fallbackFocus=${this.#searchFallbackFocus}></codex-quick-search>
     `;
   }
@@ -485,7 +487,7 @@ export class CodexApp extends LitElement {
         }
         return nothing;
       case "not-found":
-        return html`<section class="unavailable-page"><p class="page-kicker">${this.#ui.t("shell.campaignArchive")}</p><h1>${this.#ui.t("shell.pageMissing")}</h1><p>${this.#ui.t("shell.pageMissingHint")}</p><a class="primary-link" href="#/">${this.#ui.t("shell.returnOverview")}</a></section>`;
+        return html`<section class="unavailable-page"><p class="page-kicker">${this.#ui.t("shell.campaignArchive")}</p><h1>${this.#ui.t("shell.pageMissing")}</h1><p>${this.#ui.t("shell.pageMissingHint")}</p><a class="primary-link" href="/">${this.#ui.t("shell.returnOverview")}</a></section>`;
     }
   }
 
@@ -515,7 +517,7 @@ export class CodexApp extends LitElement {
     if (campaign === undefined) return false;
     if (target.closest("input, textarea, select, [contenteditable], .ui-menu, dialog"))
       return false;
-    const link = target.closest<HTMLAnchorElement>("a[href^='#/']");
+    const link = target.closest<HTMLAnchorElement>("a[href^='/']");
     let route = link ? parseAppRoute(link.getAttribute("href") ?? "") : undefined;
     if (
       route?.kind !== "record" &&
@@ -531,11 +533,13 @@ export class CodexApp extends LitElement {
         this.route.page.id === route.page.id &&
         this.route.key === route.key,
       writeBlocked: this.busy || this.#guard.editing ? uiText("menu.blocked") : "",
-      navigate: (hash) => {
-        window.location.hash = hash;
+      navigate: (href) => {
+        this.#guard.navigate(href);
       },
-      openInNewTab: (hash) => {
-        window.open(new URL(hash, window.location.href).href, "_blank", "noopener");
+      openInNewTab: (href) => {
+        // A preview tab shares its token with the new tab (see addressFor).
+        if (isPlayerPreview()) window.open(addressFor(href), "_blank");
+        else window.open(new URL(href, window.location.href).href, "_blank", "noopener");
       },
       copy: (text, done) => {
         navigator.clipboard.writeText(text).then(
@@ -566,16 +570,16 @@ export class CodexApp extends LitElement {
   }
 
   /** The guard accepted a new address. */
-  #navigated(hash: string): void {
+  #navigated(href: string): void {
     if (this.#refusal !== "" && this.errorMessage === this.#refusal) this.errorMessage = "";
     this.#refusal = "";
     this.menuOpen = false;
-    if (hash !== this.#recordSaveDestination) this.recordSaved = false;
+    if (href !== this.#recordSaveDestination) this.recordSaved = false;
     if (this.#quickSearch?.isOpen) this.#quickSearch.hide(false);
-    this.route = parseAppRoute(hash);
-    this.characterView = preferredCharacterView(hash);
+    this.route = parseAppRoute(href);
+    this.characterView = preferredCharacterView(href);
     // Another page opens at its top; a query change keeps the reader's place.
-    const path = hash.split("?")[0]!;
+    const path = href.split("?")[0]!;
     const scroll = path !== this.#shownPath;
     this.#shownPath = path;
     void this.updateComplete.then(() => {
@@ -586,20 +590,20 @@ export class CodexApp extends LitElement {
 
   /** The confirmation stays visible on the page the saved form returns to. */
   readonly #onRecordSaved = (event: CustomEvent<CampaignRecordSavedDetail>): void => {
-    this.#recordSaveDestination = canonicalAppHash(event.detail.destination);
+    this.#recordSaveDestination = canonicalAppHref(event.detail.destination);
     this.recordSaved = true;
   };
 
   /** A collection's filters changed; the address follows without a navigation. */
-  readonly #onCollectionView = (event: CustomEvent<{ hash: string }>): void => {
-    const route = parseAppRoute(event.detail.hash);
+  readonly #onCollectionView = (event: CustomEvent<{ href: string }>): void => {
+    const route = parseAppRoute(event.detail.href);
     if (
       route.kind !== "collection" ||
       this.route.kind !== "collection" ||
       route.page.id !== this.route.page.id
     )
       return;
-    this.#guard.replace(event.detail.hash);
+    this.#guard.replace(event.detail.href);
     this.route = route;
   };
 
@@ -686,8 +690,8 @@ export class CodexApp extends LitElement {
   };
 }
 
-function preferredCharacterView(hash: string): "profile" | "addons" {
-  const route = parseAppRoute(hash);
+function preferredCharacterView(href: string): "profile" | "addons" {
+  const route = parseAppRoute(href);
   if (route.kind === "record" && route.editing) return "profile";
   try {
     if (

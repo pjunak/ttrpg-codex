@@ -28,7 +28,7 @@ import { recordValue, safeMediaURL, text } from "./campaign-projection.js";
 import { saveCampaign } from "./campaign-writes.js";
 import type { CodexMarkdownEditor } from "./codex-markdown-editor.js";
 import type { CodexPortraitEditor } from "./codex-portrait-editor.js";
-import { contextualCreationFields, creationBackHash, creationSource } from "./context-creation.js";
+import { contextualCreationFields, creationBackHref, creationSource } from "./context-creation.js";
 import {
   editorValue,
   fieldFormValue,
@@ -38,7 +38,7 @@ import {
   submittedFieldFormValue,
 } from "./record-field-controls.js";
 import { locationPlacementLinks } from "./record-map-links.js";
-import { mapHash, recordHash, type AppRoute, type CampaignPageDefinition } from "./routes.js";
+import { mapHref, recordHref, type AppRoute, type CampaignPageDefinition } from "./routes.js";
 import { saveFailure } from "./save-failure.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
@@ -242,7 +242,7 @@ export class CodexRecordForm extends LitElement {
         record === undefined
           ? html`<p class="field-help">${this.#ui.t("map.saveLocationFirst")}</p>`
           : html`<div class="location-map-actions">${locationPlacementLinks(record, true)}
-            <a class="ui-action" href=${mapHash(record.key)}>${this.#ui.t("map.local")}</a>
+            <a class="ui-action" href=${mapHref(record.key)}>${this.#ui.t("map.local")}</a>
           </div>
           ${image === undefined ? nothing : html`<img class="location-map-preview" src=${previewResourceURL(image)} alt=${this.#ui.t("map.local")} />`}`
       }
@@ -553,10 +553,10 @@ export class CodexRecordForm extends LitElement {
         detail: {
           destination:
             route.kind === "create" && route.context
-              ? creationBackHash(route, result.campaign)
+              ? creationBackHref(route, result.campaign)
               : route.kind === "record" && route.editing && route.returnTo
                 ? route.returnTo
-                : recordHash(this.page, detail.key),
+                : recordHref(this.page, detail.key),
         },
         bubbles: true,
         composed: true,

@@ -15,7 +15,7 @@ const node = (key: string): GraphNode => ({
   recordKey: key,
   kind: "character",
   name: key,
-  route: `#/characters/${key}`,
+  route: `/characters/${key}`,
   faction: "",
   factionName: "",
   badge: "",

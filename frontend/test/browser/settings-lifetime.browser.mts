@@ -124,7 +124,7 @@ async function open(t: TestContext, mobile = false) {
     else throw new Error(`Unexpected fixture endpoint ${path}`);
     await route.fulfill({ json: value });
   });
-  await page.goto("/#/settings", { waitUntil: "domcontentloaded" });
+  await page.goto("/settings", { waitUntil: "domcontentloaded" });
   await page.locator(".settings-page").waitFor();
   return { page, state };
 }

@@ -68,7 +68,7 @@ export function registerCharacterCreationTests(enabled: boolean, fixture: () => 
         await context.addInitScript((value) => localStorage.setItem("codex_lang", value), locale);
         const page = await context.newPage();
         page.on("pageerror", (error) => errors.push(error.message));
-        await page.goto("/#/characters/" + key);
+        await page.goto("/characters/" + key);
         await page.locator("#character-view-addons").click();
         const sheet = page.locator(".addon-dnd-character"),
           status = sheet.locator("[data-character-status]");

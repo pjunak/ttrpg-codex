@@ -138,12 +138,12 @@ for (const scenario of [
     async (t) => {
       const { page } = await fixture(t, scenario.width, scenario.theme, scenario.locale);
       for (const [route] of collections) {
-        await page.goto(origin + "/#/" + route);
+        await page.goto(origin + "/" + route);
         await page.locator(".record-row-shell").nth(3).waitFor();
-        const good = page.locator(`.record-row[href="#/${route}/art"] .record-row-mark`);
+        const good = page.locator(`.record-row[href="/${route}/art"] .record-row-mark`);
         const goodBounds = required(await good.boundingBox());
         for (const key of ["missing", "corrupt", "empty"]) {
-          const mark = page.locator(`.record-row[href="#/${route}/${key}"] .record-row-mark`);
+          const mark = page.locator(`.record-row[href="/${route}/${key}"] .record-row-mark`);
           await fallback(mark);
           const box = required(await mark.boundingBox());
           if (key === "empty" && route !== "characters") {
@@ -158,7 +158,7 @@ for (const scenario of [
           assert.ok(Math.abs(box.height - goodBounds.height) < 1);
         }
         const edit = page
-          .locator(`.record-row[href="#/${route}/missing"]`)
+          .locator(`.record-row[href="/${route}/missing"]`)
           .locator("..")
           .locator(".ui-card-action");
         assert.ok(await edit.isVisible(), "the failed image keeps the edit action reachable");
@@ -167,7 +167,7 @@ for (const scenario of [
             path: output + `collection-${scenario.width}-${scenario.theme}.png`,
             fullPage: true,
           });
-        await page.goto(origin + `/#/${route}/missing`);
+        await page.goto(origin + `/${route}/missing`);
         await page.locator("#record-title").waitFor();
         await fallback(page.locator(".record-portrait"));
         if (route === "characters")
@@ -183,7 +183,7 @@ for (const scenario of [
         ["companions", ".companion-mark"],
       ]) {
         for (const key of ["missing", "corrupt", "empty"])
-          await fallback(page.locator(`a[href="#/${route}/${key}"] ${selector}`).first());
+          await fallback(page.locator(`a[href="/${route}/${key}"] ${selector}`).first());
       }
       await page.screenshot({
         path: output + `fallback-${scenario.width}-${scenario.theme}.png`,
@@ -203,8 +203,8 @@ for (const scenario of [
       const { page } = await fixture(t, scenario.width, scenario.theme);
       await page.goto(origin);
       await page.locator(".party-portrait").first().waitFor();
-      await fitsImage(page.locator('a[href="#/characters/art"] .party-portrait'));
-      await fitsImage(page.locator('a[href="#/companions/art"] .companion-mark'));
+      await fitsImage(page.locator('a[href="/characters/art"] .party-portrait'));
+      await fitsImage(page.locator('a[href="/companions/art"] .companion-mark'));
     },
   );
 }
@@ -224,7 +224,7 @@ void test(
     try {
       await page.goto(origin);
       await started.promise;
-      const mark = page.locator('a[href="#/characters/art"] .party-portrait');
+      const mark = page.locator('a[href="/characters/art"] .party-portrait');
       assert.equal(await mark.getAttribute("data-ui-artwork-state"), "loading");
       assert.ok(await mark.locator(".ui-artwork-fallback").isVisible());
       const loadingBounds = required(await mark.boundingBox());
@@ -241,7 +241,7 @@ void test(
       }, campaign);
       await page.waitForFunction(
         () =>
-          document.querySelector<HTMLImageElement>('a[href="#/characters/art"] .party-portrait img')
+          document.querySelector<HTMLImageElement>('a[href="/characters/art"] .party-portrait img')
             ?.naturalWidth === 144,
       );
       await obsolete.evaluate((node) => node.dispatchEvent(new Event("error")));
@@ -258,7 +258,7 @@ void test(
       await page.waitForFunction(
         () =>
           document
-            .querySelector('a[href="#/characters/art"] .party-portrait')
+            .querySelector('a[href="/characters/art"] .party-portrait')
             ?.getAttribute("data-ui-artwork-state") === "loading",
       );
       await obsolete.evaluate((node) => node.dispatchEvent(new Event("error")));
@@ -267,7 +267,7 @@ void test(
       await page.waitForFunction(
         () =>
           document
-            .querySelector('a[href="#/characters/art"] .party-portrait')
+            .querySelector('a[href="/characters/art"] .party-portrait')
             ?.getAttribute("data-ui-artwork-state") === "ready",
       );
       await fitsImage(mark);
@@ -296,7 +296,7 @@ void test(
       await page.goto(origin);
       await started.promise;
       const dashboard = required(await page.locator("codex-dashboard").elementHandle());
-      const image = required(await page.locator('a[href="#/characters/art"] img').elementHandle());
+      const image = required(await page.locator('a[href="/characters/art"] img').elementHandle());
       await dashboard.evaluate((node) => node.remove());
       held.resolve();
       await image.evaluate(async (node: HTMLImageElement) => {
@@ -310,11 +310,11 @@ void test(
         }
       });
       await dashboard.evaluate((node) => document.querySelector("#campaign-content")!.append(node));
-      const mark = page.locator('a[href="#/characters/art"] .party-portrait');
+      const mark = page.locator('a[href="/characters/art"] .party-portrait');
       await page.waitForFunction(
         () =>
           document
-            .querySelector('a[href="#/characters/art"] .party-portrait')
+            .querySelector('a[href="/characters/art"] .party-portrait')
             ?.getAttribute("data-ui-artwork-state") === "ready",
       );
       await fitsImage(mark);
@@ -329,9 +329,9 @@ void test(
   { timeout: 15000 },
   async (t) => {
     const { page } = await fixture(t, 390, "moonlit", "cs");
-    await page.goto(origin + "/#/characters");
+    await page.goto(origin + "/characters");
     await page
-      .locator('.record-row[href="#/characters/missing"]')
+      .locator('.record-row[href="/characters/missing"]')
       .locator("..")
       .locator(".ui-card-action")
       .click();
@@ -368,9 +368,9 @@ void test(
   { timeout: 15000 },
   async (t) => {
     const { page } = await fixture(t);
-    await page.goto(origin + "/#/characters");
+    await page.goto(origin + "/characters");
     await page
-      .locator('.record-row[href="#/characters/missing"]')
+      .locator('.record-row[href="/characters/missing"]')
       .locator("..")
       .locator(".ui-card-action")
       .click();

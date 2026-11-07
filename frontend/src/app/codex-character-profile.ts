@@ -147,7 +147,7 @@ export class CodexCharacterProfile extends LitElement {
       ["faction", "location", "rank"].some((key) => this.#hasValue(key)) ||
       entity.attitudes.length > 0;
     return html`<article class=${`record-article character-profile direct-character${entity.portrait ? "" : " no-artwork"}`} aria-labelledby="record-title">
-      ${recordPageBar(this.crumbs ?? [{ label: uiText("Characters"), href: "#/characters" }], {
+      ${recordPageBar(this.crumbs ?? [{ label: uiText("Characters"), href: "/characters" }], {
         status: this.canEdit
           ? html`<span class="character-save-status" data-state=${this.#feedback() === uiText("save.saved") ? "saved" : "active"}><span role="status">${this.#feedback()}</span>${this.#undo ? html`<button type="button" class="ui-action" data-ui-variant="quiet" ?disabled=${this.#saves > 0} @click=${this.#undoSave}>${uiText("Undo")}</button>` : nothing}</span>`
           : undefined,

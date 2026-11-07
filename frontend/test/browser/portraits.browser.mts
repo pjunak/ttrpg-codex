@@ -154,7 +154,7 @@ async function open(t: TestContext, key: string, mobile = false, role: string | 
   const page = await context.newPage();
   page.setDefaultTimeout(12000);
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto(`/#/characters/${key}`);
+  await page.goto(`/characters/${key}`);
   await page.locator("#record-title").waitFor();
   return { page, context };
 }
@@ -444,7 +444,7 @@ void test("portrait controls localize, explain creation and obey signed-in visib
   const anonymous = await open(t, "access", false, null);
   assert.equal(await anonymous.page.locator("codex-portrait-editor").count(), 0);
   assert.equal(await anonymous.page.getByRole("button", { name: "Edit", exact: true }).count(), 0);
-  await page.goto("/#/party/new");
+  await page.goto("/party/new");
   await page
     .getByText("Nejprve postavu uložte. Poté ji upravte a přidejte portrét.", { exact: true })
     .waitFor();

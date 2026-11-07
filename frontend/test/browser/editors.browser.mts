@@ -20,6 +20,7 @@ import {
   type RealHostBuild,
 } from "./real-host.mts";
 import { editWiki } from "./record-actions.mts";
+import { openInPlace } from "./app-address.mts";
 
 // Every test runs the real app against its own real host and campaign, so a
 // save goes through the app's write path and the stored record is read back.
@@ -94,7 +95,7 @@ async function open(
   page.setDefaultTimeout(10_000);
   page.on("pageerror", (error) => errors.push(error.message));
   const writes = transactions(page);
-  await page.goto(`/${route}`);
+  await page.goto(route);
   await ready(page);
   return {
     page,
@@ -155,10 +156,8 @@ async function reload(page: Page) {
   await ready(page);
 }
 
-async function go(page: Page, hash: string) {
-  await page.evaluate((hash) => {
-    window.location.hash = hash;
-  }, hash);
+async function go(page: Page, href: string) {
+  await openInPlace(page, href);
 }
 
 /** Waits until the page shows the record at `revision`, or shows it gone. */
@@ -267,7 +266,7 @@ async function screenshotForReview(page: Page, name: string) {
 
 void test("Markdown survives reload, requires review, and is removed after confirmed campaign save", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await editWiki(page);
   await sourceView(page);
   await page.locator(".writer-source").fill("## Durable prose\n\nA **deliberate** edit.");
@@ -300,10 +299,10 @@ void test("Markdown survives reload, requires review, and is removed after confi
 
 void test("separate tabs retain independent Markdown drafts when one is recovered and saved", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page, context } = await open(t, host, "#/characters/ryn");
+  const { page, context } = await open(t, host, "/characters/ryn");
   const second = await context.newPage();
   second.setDefaultTimeout(10_000);
-  await second.goto("/#/characters/ryn");
+  await second.goto("/characters/ryn");
   await ready(second);
   for (const [tab, value] of [
     [page, "First tab work"],
@@ -341,7 +340,7 @@ void test("separate tabs retain independent Markdown drafts when one is recovere
 
 void test("recovery compares changed saved text and a subsequent remote change still rejects stale saves", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await editWiki(page);
   await sourceView(page);
   await page.locator(".writer-source").fill("My recovered text");
@@ -378,7 +377,7 @@ void test("recovery compares changed saved text and a subsequent remote change s
 
 void test("current editor text is retained as another draft before recovering a different copy", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page } = await open(t, host, "#/characters/ryn");
+  const { page } = await open(t, host, "/characters/ryn");
   await editWiki(page);
   await sourceView(page);
   await page.locator(".writer-source").fill("Original recovered draft");
@@ -413,7 +412,7 @@ void test("current editor text is retained as another draft before recovering a 
 
 void test("generic create forms recover Markdown by field and role without changing saved campaign records", async (t) => {
   const host = await campaign(t, { locations: [{ key: "keep", value: { name: "Keep" } }] });
-  const editor = await open(t, host, "#/locations");
+  const editor = await open(t, host, "/locations");
   const { page, writes } = editor;
   await page.getByRole("button", { name: "Add location", exact: true }).click();
   const writer = page.locator("codex-markdown-editor").first();
@@ -437,7 +436,7 @@ void test("generic create forms recover Markdown by field and role without chang
   );
   assert.equal(writes.length, 0);
   page.once("dialog", (dialog) => dialog.accept());
-  await go(page, "#/locations/keep");
+  await go(page, "/locations/keep");
   await page.getByRole("heading", { name: "Keep", exact: true }).waitFor();
   await editRecordOrDefinition(page);
   assert.equal(await page.locator(".writer-recovery-review").count(), 0);
@@ -461,7 +460,7 @@ void test("collection views apply compound filters and persist sorting/grouping 
     ],
     factions: [{ key: "watch", value: { name: "Noční hlídka" } }],
   });
-  const { page } = await open(t, host, "#/characters");
+  const { page } = await open(t, host, "/characters");
   await page.getByRole("button", { name: "Add character", exact: true }).click();
   await page.locator('.record-editor [name="name"]').fill("Unsubmitted character");
   const search = page.getByRole("searchbox", { name: "Search this collection", exact: true });
@@ -509,7 +508,7 @@ void test("collection views apply compound filters and persist sorting/grouping 
 
 void test("Czech phone collection controls remain usable and announce zero results with a clear recovery action", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page } = await open(t, host, "#/characters", { mobile: true, locale: "cs" });
+  const { page } = await open(t, host, "/characters", { mobile: true, locale: "cs" });
   await page
     .getByRole("searchbox", { name: "Prohledat tuto sbírku", exact: true })
     .fill("nenalezeno");
@@ -526,7 +525,7 @@ void test("Czech phone collection controls remain usable and announce zero resul
 
 void test("blocked browser draft storage reports the limitation and still allows campaign Save", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page } = await open(t, host, "#/characters/ryn");
+  const { page } = await open(t, host, "/characters/ryn");
   await page.evaluate(() => {
     Object.defineProperty(IDBFactory.prototype, "open", {
       configurable: true,
@@ -548,7 +547,7 @@ void test("blocked browser draft storage reports the limitation and still allows
 
 void test("explicit wiki cancellation removes its local copy while failed campaign saves retain it", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page } = await open(t, host, "#/characters/ryn");
+  const { page } = await open(t, host, "/characters/ryn");
   await editWiki(page);
   await sourceView(page);
   await page.locator(".writer-source").fill("Retain after failure");
@@ -573,12 +572,12 @@ void test("a linked collection view survives article navigation and role changes
   const host = await campaign(t, {
     characters: [character(), { key: "other", value: { name: "Other" } }],
   });
-  const editor = await open(t, host, "#/characters?view=1&q=Ryn&direction=desc");
+  const editor = await open(t, host, "/characters?view=1&q=Ryn&direction=desc");
   const { page } = editor;
   await page.getByText("1 of 2 entries", { exact: true }).waitFor();
-  await go(page, "#/characters/ryn");
+  await go(page, "/characters/ryn");
   await page.getByRole("heading", { name: "Ryn", exact: true }).waitFor();
-  await go(page, "#/characters");
+  await go(page, "/characters");
   await page.getByText("1 of 2 entries", { exact: true }).waitFor();
   await editor.signInAs("player");
   await page.getByText("2 of 2 entries", { exact: true }).waitFor();
@@ -593,7 +592,7 @@ void test("a linked collection view survives article navigation and role changes
 
 void test("a deleted record's draft remains downloadable from its collection without recreating data", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const editor = await open(t, host, "#/characters/ryn");
+  const editor = await open(t, host, "/characters/ryn");
   const { page, writes } = editor;
   await editWiki(page);
   await sourceView(page);
@@ -601,7 +600,7 @@ void test("a deleted record's draft remains downloadable from its collection wit
   await localCopySaved(page);
   await removedElsewhere(host, page, "characters", "ryn");
   page.once("dialog", (dialog) => dialog.accept());
-  await go(page, "#/characters");
+  await go(page, "/characters");
   await page.getByText("There are no entries in this collection yet.", { exact: true }).waitFor();
   // An empty collection has nothing to search, sort or group.
   assert.equal(await page.locator(".collection-controls").count(), 0);
@@ -633,7 +632,7 @@ void test("a deleted record's draft remains downloadable from its collection wit
 
 void test("an empty mysteries page shows its empty states without search tools", async (t) => {
   const host = await campaign(t);
-  const { page } = await open(t, host, "#/mysteries");
+  const { page } = await open(t, host, "/mysteries");
   await page.getByText("No unanswered questions.", { exact: true }).waitFor();
   await page.getByText("There are no entries in this collection yet.", { exact: true }).waitFor();
   assert.equal(
@@ -644,7 +643,7 @@ void test("an empty mysteries page shows its empty states without search tools",
 
 void test("direct character edits confirm with Enter, cancel with Escape and preserve the article", async (t) => {
   const host = await campaign(t, { characters: [character()], settings: [gender()] });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await page.getByRole("button", { name: /^Edit Name, / }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("Ryn of the Watch");
   await page.getByRole("textbox", { name: "Name", exact: true }).press("Enter");
@@ -679,7 +678,7 @@ void test("location facts edit in place: Enter saves the location, Escape keeps 
   const host = await campaign(t, {
     locations: [{ key: "gate", value: { name: "Gate", type: "Town" } }],
   });
-  const { page, writes } = await open(t, host, "#/locations/gate");
+  const { page, writes } = await open(t, host, "/locations/gate");
   await page.getByRole("button", { name: /^Edit Kind, / }).click();
   const kind = page.getByRole("textbox", { name: "Kind", exact: true });
   await kind.fill("City");
@@ -703,7 +702,7 @@ void test("multi-value location fields edit in place with the chip picker", asyn
       { key: "vale", value: { name: "Vale" } },
     ],
   });
-  const { page } = await open(t, host, "#/locations/gate");
+  const { page } = await open(t, host, "/locations/gate");
   await page.locator(".record-more-details > summary").click();
   await page.getByRole("button", { name: /^Edit Connected locations(, |$)/ }).click();
   const picker = page.getByRole("combobox", { name: "Connected locations", exact: true });
@@ -717,7 +716,7 @@ void test("multi-value location fields edit in place with the chip picker", asyn
 
 void test("an inline save shows the value read back from the campaign", async (t) => {
   const host = await campaign(t, { locations: [{ key: "gate", value: { name: "Gate" } }] });
-  const { page } = await open(t, host, "#/locations/gate");
+  const { page } = await open(t, host, "/locations/gate");
   await page.locator(".record-more-details > summary").click();
   await page.getByRole("button", { name: /^Edit Region, / }).click();
   const region = page.getByRole("textbox", { name: "Region", exact: true });
@@ -731,7 +730,7 @@ void test("an inline save shows the value read back from the campaign", async (t
 
 void test("circumstances autosave while wiki text remains an explicit draft, and Undo affects only the quick edit", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await editWiki(page);
   await sourceView(page);
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
@@ -764,7 +763,7 @@ void test("circumstances autosave while wiki text remains an explicit draft, and
 
 void test("known facts and open questions edit in place, each list saving as a whole", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await page.getByRole("button", { name: "+ Add fact", exact: true }).click();
   const fact = page.getByRole("textbox", { name: "Known facts", exact: true });
   await fact.fill("Owes the guild a debt");
@@ -818,7 +817,7 @@ void test("known facts and open questions edit in place, each list saving as a w
 
 void test("failed saves retain values for retry, and edits typed during a pending save are retained", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await failNextWrite(page);
   await page.getByRole("button", { name: /^Edit Name, / }).click();
   const name = page.getByRole("textbox", { name: "Name", exact: true });
@@ -851,7 +850,7 @@ void test("failed saves retain values for retry, and edits typed during a pendin
 
 void test("wiki conflicts retain the draft until the user reviews and explicitly retries", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await editWiki(page);
   await sourceView(page);
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
@@ -872,7 +871,7 @@ void test("wiki conflicts retain the draft until the user reviews and explicitly
 
 void test("a remotely removed character retains open inline and wiki drafts", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await editWiki(page);
   await sourceView(page);
   await page
@@ -891,7 +890,7 @@ void test("a remotely removed character retains open inline and wiki drafts", as
 
 void test("the compact writer applies formatting, preserves source, and retains one draft through expansion", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page } = await open(t, host, "#/characters/ryn");
+  const { page } = await open(t, host, "/characters/ryn");
   // Wide enough for the whole toolbar beside the shell's sidebar.
   await page.setViewportSize({ width: 1920, height: 1080 });
   await editWiki(page);
@@ -956,7 +955,7 @@ void test("the compact writer applies formatting, preserves source, and retains 
 
 void test("phone writer keeps one toolbar row and reachable formatting menus", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page } = await open(t, host, "#/characters/ryn", { mobile: true });
+  const { page } = await open(t, host, "/characters/ryn", { mobile: true });
   await editWiki(page);
   const toolbar = page.locator(".writer-toolbar");
   assert.ok(required(await toolbar.boundingBox()).height < 60);
@@ -980,7 +979,7 @@ void test("pasted formatted content retains campaign references and keeps unsafe
   const value = character();
   value.value.description = "Meet [[Scout|character:scout]].";
   const host = await campaign(t, { characters: [value] });
-  const { page } = await open(t, host, "#/characters/ryn");
+  const { page } = await open(t, host, "/characters/ryn");
   await editWiki(page);
   const rich = page.locator(".ProseMirror");
   const copied = await rich.locator(".writer-wiki-link").evaluate((element) => element.outerHTML);
@@ -1013,7 +1012,7 @@ void test("authored record and relationship values stay intact in either interfa
   const host = await campaign(t, {
     characters: [character(), { key: "peer", value: { id: "peer", name: "Title {0} $&" } }],
   });
-  const { page } = await open(t, host, "#/characters/ryn/edit");
+  const { page } = await open(t, host, "/characters/ryn/edit");
   await language(page, "cs");
   const form = page.locator("form.record-editor");
   await form.locator('[name="name"]').fill("Name {0} $&");
@@ -1037,14 +1036,14 @@ void test("authored record and relationship values stay intact in either interfa
     JSON.stringify(relationships).includes('"target":"peer"'),
     "the relationship to peer is stored",
   );
-  await go(page, "#/characters/ryn/edit");
+  await go(page, "/characters/ryn/edit");
   await language(page, "en");
   assert.equal(await page.getByLabel("Name", { exact: true }).inputValue(), "Name {0} $&");
 });
 
 void test("Czech campaign settings translate closed choices and retain authored definitions", async (t) => {
   const host = await campaign(t, { settings: [gender()] });
-  const { page } = await open(t, host, "#/settings/genders", { locale: "cs" });
+  const { page } = await open(t, host, "/settings/genders", { locale: "cs" });
   await page.getByRole("button", { name: "Upravit", exact: true }).click();
   await page.locator('[name="label"]').fill("Display name {0} $&");
   assert.equal(
@@ -1060,7 +1059,7 @@ void test("Czech campaign settings translate closed choices and retain authored 
 
 void test("character tabs reveal invalid fields and keep all groups in the saved draft", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await editRecordOrDefinition(page);
   const details = page.getByRole("tab", { name: "Details", exact: true });
   await page.getByLabel("Name", { exact: true }).fill("");
@@ -1093,7 +1092,7 @@ void test("character tabs reveal invalid fields and keep all groups in the saved
 for (const mobile of [false, true])
   void test(`character editor keeps description and preview usable on ${mobile ? "phone" : "desktop"}`, async (t) => {
     const host = await campaign(t, { characters: [character()] });
-    const { page } = await open(t, host, "#/characters/ryn", { mobile });
+    const { page } = await open(t, host, "/characters/ryn", { mobile });
     await editRecordOrDefinition(page);
     await page.evaluate(() => document.fonts.ready);
     // Read both rectangles in one frame: smooth scrolling changes viewport coordinates.
@@ -1166,7 +1165,7 @@ void test("a full-form save without changes keeps every stored value", async (t)
     ],
   });
   const before = await saved(host, "locations", "trip");
-  const { page } = await open(t, host, "#/locations/trip/edit");
+  const { page } = await open(t, host, "/locations/trip/edit");
   await page.getByRole("button", { name: "Save entry", exact: true }).click();
   await page.locator(".record-save-confirmation").waitFor();
   assert.equal(required(await storedRecord(host, "locations", "trip")).revision, 2);
@@ -1175,7 +1174,7 @@ void test("a full-form save without changes keeps every stored value", async (t)
 
 void test("record drafts retain their opening revision and fields across live refresh", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await editRecordOrDefinition(page);
   await page.locator('[name="name"]').fill("My draft");
   await sourceView(page);
@@ -1194,7 +1193,7 @@ void test("record drafts retain their opening revision and fields across live re
 
 void test("deleting an edited record uses its opening revision", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await editRecordOrDefinition(page);
   await remote(host, page, "characters", "ryn", character("Changed elsewhere").value);
   page.once("dialog", (dialog) => dialog.accept());
@@ -1209,7 +1208,7 @@ void test("deleting an edited record uses its opening revision", async (t) => {
 
 void test("a remotely deleted record keeps its draft available until explicitly cancelled", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page } = await open(t, host, "#/characters/ryn");
+  const { page } = await open(t, host, "/characters/ryn");
   await editRecordOrDefinition(page);
   await page.locator('[name="name"]').fill("Keep these notes");
   await removedElsewhere(host, page, "characters", "ryn");
@@ -1221,7 +1220,7 @@ void test("a remotely deleted record keeps its draft available until explicitly 
 
 void test("repeated Add entry cannot clear a new dirty draft or its unload guard", async (t) => {
   const host = await campaign(t);
-  const { page } = await open(t, host, "#/characters");
+  const { page } = await open(t, host, "/characters");
   await page.getByRole("button", { name: "Add character", exact: true }).click();
   await page.locator('[name="name"]').fill("New hero");
   assert.equal(
@@ -1240,7 +1239,7 @@ void test("repeated Add entry cannot clear a new dirty draft or its unload guard
 
 void test("enum drafts retain values and revisions, including remote removal", async (t) => {
   const host = await campaign(t, { settings: [gender()] });
-  const { page, writes } = await open(t, host, "#/settings/genders");
+  const { page, writes } = await open(t, host, "/settings/genders");
   await editRecordOrDefinition(page);
   await page.locator('[name="label"]').fill("My label");
   await remote(host, page, "settings", "genders", gender("Remote label").value);
@@ -1258,7 +1257,7 @@ void test("enum drafts retain values and revisions, including remote removal", a
 
 void test("an empty vocabulary offers a starter set saved as one write", async (t) => {
   const host = await campaign(t);
-  const { page, writes } = await open(t, host, "#/settings/genders");
+  const { page, writes } = await open(t, host, "/settings/genders");
   await page.getByRole("button", { name: "Add a starter set", exact: true }).click();
   await page.locator(".settings-definition").first().waitFor();
   assert.equal(writes.length, 1);
@@ -1273,7 +1272,7 @@ void test("site theme choices save immediately against the current appearance re
   const host = await campaign(t, {
     settings: [{ key: "appearance", value: { theme: "classic" } }],
   });
-  const { page, writes } = await open(t, host, "#/settings/appearance");
+  const { page, writes } = await open(t, host, "/settings/appearance");
   await page.locator('[name="siteTheme"][value="moonlit"]').check();
   await until(() => writes.length === 1, "the theme saves when picked");
   await page.waitForFunction(() => document.documentElement.dataset["theme"] === "moonlit");
@@ -1294,7 +1293,7 @@ void test("site theme choices save immediately against the current appearance re
 void test("saving an older character draft cannot delete a newly added relationship", async (t) => {
   const characters = [character(), { key: "bob", value: { id: "bob", name: "Bob" } }];
   const host = await campaign(t, { characters });
-  const { page, writes } = await open(t, host, "#/characters/ryn");
+  const { page, writes } = await open(t, host, "/characters/ryn");
   await editRecordOrDefinition(page);
   await page.locator('[name="title"]').fill("My title");
   const link = relationshipKey("ryn", "bob", "ally");
@@ -1312,7 +1311,7 @@ void test("unrelated live changes allow saving and reopening loads the latest re
   const original = character();
   Object.assign(original.value, { customNotes: { keep: true } });
   const host = await campaign(t, { characters: [original] });
-  const { page } = await open(t, host, "#/characters/ryn");
+  const { page } = await open(t, host, "/characters/ryn");
   await editRecordOrDefinition(page);
   await page.locator('[name="title"]').fill("My title");
   await remote(host, page, "locations", "new", { id: "new", name: "New town" });
@@ -1328,7 +1327,7 @@ void test("unrelated live changes allow saving and reopening loads the latest re
 
 void test("cancelling a conflicted wiki draft resets feedback and allows a fresh save", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page } = await open(t, host, "#/characters/ryn");
+  const { page } = await open(t, host, "/characters/ryn");
   await editWiki(page);
   await sourceView(page);
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
@@ -1364,7 +1363,7 @@ void test("cancelling a conflicted wiki draft resets feedback and allows a fresh
 
 void test("a confirmed field save leaves another field's open draft unsaved", async (t) => {
   const host = await campaign(t, { characters: [character()] });
-  const { page } = await open(t, host, "#/characters/ryn");
+  const { page } = await open(t, host, "/characters/ryn");
   await editWiki(page);
   await sourceView(page);
   const source = page.getByRole("textbox", { name: "Overview Markdown", exact: true });
@@ -1393,7 +1392,7 @@ void test("the writer links selected words, typed brackets and right-clicked tex
     factions: [{ key: "watch", value: { name: "Lantern Watch" } }],
     locations: [{ key: "keep", value: { name: "Keep" } }],
   });
-  const { page, writes } = await open(t, host, "#/locations");
+  const { page, writes } = await open(t, host, "/locations");
   await page.getByRole("button", { name: "Add location", exact: true }).click();
   const writer = page.locator("codex-markdown-editor").first();
   const text = writer.locator(".writer-rich .ProseMirror");

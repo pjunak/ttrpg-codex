@@ -12,6 +12,7 @@ import type { BrowserContentAPI } from "./content-client.js";
 import type { BrowserServiceAPI } from "./service-client.js";
 import { BrowserContributionEdits } from "./edit-state.js";
 import { showRuleDetails, type RuleDetails } from "./rule-details.js";
+import { requestNavigation } from "../app/address.js";
 import { enhanceControls, type UIControlsHandle } from "../ui/controls.js";
 import { BrowserCatalogStore } from "./catalog-store.js";
 import { createI18nAPI, type BrowserI18nAPI } from "./i18n.js";
@@ -56,6 +57,12 @@ export interface BrowserContributionHandle {
 export interface BrowserUIAPI {
   enhance(root: HTMLElement): UIControlsHandle;
   showRuleDetails(details: RuleDetails): Promise<void>;
+  /**
+   * Opens an app page such as `/addons/<id>/<path>?item=x`. `replace` changes
+   * only the query of the page that is showing, without reopening it.
+   * Returns false when the host refused, for example to keep unsaved edits.
+   */
+  navigate(href: string, options?: { readonly replace?: boolean }): boolean;
   declarations(): readonly BrowserContributionDescriptor[];
   bind(contributionId: string, binding: BrowserContributionBinding): BrowserContributionHandle;
 }
@@ -300,6 +307,11 @@ class RegistrySession {
           this.#assertOpen();
           this.context.capabilities.require("ui.rule-details");
           return showRuleDetails(details, signal);
+        },
+        navigate: (href: string, options?: { readonly replace?: boolean }) => {
+          this.#assertOpen();
+          if (typeof href !== "string") throw new TypeError("navigate needs an app address");
+          return requestNavigation(href, { replace: options?.replace === true });
         },
         declarations: () => {
           this.#assertOpen();

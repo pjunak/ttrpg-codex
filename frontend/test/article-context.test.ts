@@ -68,11 +68,11 @@ describe("connected article projections", () => {
   it("resolves exact references and never guesses unavailable targets", () => {
     expect(articleReference(data, "characters", "guard")).toEqual({
       label: "Gate guard",
-      href: "#/characters/guard",
+      href: "/characters/guard",
     });
     expect(articleReference(data, "characters", "missing")).toEqual({ label: "Unavailable entry" });
-    expect(articleOwner(data, { ownerType: "party" })[0]?.href).toBe("#/party");
-    expect(articleReference(data, "characters", "public").href).toBe("#/characters/public");
+    expect(articleOwner(data, { ownerType: "party" })[0]?.href).toBe("/party");
+    expect(articleReference(data, "characters", "public").href).toBe("/characters/public");
   });
   it("derives location surroundings and character mentions/ownership", () => {
     expect(entries("locations", "gate", "ancestors").map((item) => item.label)).toEqual(["World"]);

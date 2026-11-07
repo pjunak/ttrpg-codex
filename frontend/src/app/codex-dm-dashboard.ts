@@ -1,11 +1,11 @@
 import { LitElement, html, nothing } from "lit";
 import { BrowserContributionOutlet } from "../addons/contribution-outlet.js";
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
-import { browserAddonRouteHash } from "../addons/navigation.js";
+import { browserAddonRouteHref } from "../addons/navigation.js";
 import { activeContributionLabel } from "../addons/contribution-label.js";
 import { campaignCollection, type CampaignDataset } from "../core/campaign-data.js";
 import { isRecord } from "../core/boundary.js";
-import { campaignPages, collectionHash } from "./routes.js";
+import { campaignPages, collectionHref } from "./routes.js";
 import { UiLocalizationController, uiCollectionLabel } from "./ui-localization.js";
 
 export interface DmAddonHealth {
@@ -138,7 +138,7 @@ export class CodexDmDashboard extends LitElement {
         <h2 id="dm-tools-title">${this.#ui.t("dm.tools")}</h2>
         <nav class="dm-grid" aria-label=${this.#ui.t("dm.tools")}>${routes.map(
           (active) => html`
-          <a class="dm-count-card" href=${browserAddonRouteHash(active)}><strong>${activeContributionLabel(active, this.#ui.locale, this.registry?.catalogs)}</strong><span class="dm-count-meta">${active.addonId}</span></a>
+          <a class="dm-count-card" href=${browserAddonRouteHref(active)}><strong>${activeContributionLabel(active, this.#ui.locale, this.registry?.catalogs)}</strong><span class="dm-count-meta">${active.addonId}</span></a>
         `,
         )}</nav>
       </section>`;
@@ -165,7 +165,7 @@ export class CodexDmDashboard extends LitElement {
               ? html`<button ?disabled=${this.loading} @click=${() => this.dispatchEvent(new CustomEvent("dm-retry-addons", { bubbles: true, composed: true }))}>${this.#ui.t("dm.retry")}</button>`
               : nothing
           }
-          <a href="#/settings/addons">${this.#ui.t("addons.title")}</a>
+          <a href="/settings/addons">${this.#ui.t("addons.title")}</a>
         </div>
       </section>`;
   }
@@ -204,7 +204,7 @@ export class CodexDmDashboard extends LitElement {
           .filter(({ total }) => total > 0)
           .map(
             ({ page, total, hidden }) => html`
-          <a class=${`dm-count-card ${hidden ? "has-dm" : ""}`} data-dm-collection=${page.id} href=${page.id === "events" ? "#/timeline" : collectionHash(page)}>
+          <a class=${`dm-count-card ${hidden ? "has-dm" : ""}`} data-dm-collection=${page.id} href=${page.id === "events" ? "/timeline" : collectionHref(page)}>
             <span class="dm-count-label">${uiCollectionLabel(page.id, "other")}</span>
             <span class="dm-count-numbers"><strong>${number(hidden)}</strong> / ${number(total)}</span>
             <span class="dm-count-meta">${this.#ui.t("dm.onlyDm")}</span>

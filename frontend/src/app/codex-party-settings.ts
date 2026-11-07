@@ -7,7 +7,7 @@ import {
   type CampaignPartySaveDetail,
 } from "./campaign-party.js";
 import { recordValue, text } from "./campaign-projection.js";
-import { campaignPages, recordHash } from "./routes.js";
+import { campaignPages, recordHref } from "./routes.js";
 import { UiLocalizationController } from "./ui-localization.js";
 import { confirmDiscardUnsavedEdit, reportEditState } from "./unsaved-edit.js";
 import { saveCampaign } from "./campaign-writes.js";
@@ -86,7 +86,7 @@ export class CodexPartySettings extends LitElement {
             ? html`<p class="settings-hint">${this.#ui.t("settings.partyNoMembers")}</p>`
             : html`
           <ul>${members.map(
-            (member) => html`<li><a href=${recordHash(characters, member.key)}>
+            (member) => html`<li><a href=${recordHref(characters, member.key)}>
             <span aria-hidden="true">${party.badge}</span><span>${text(recordValue(member)["name"]) || member.key}</span>
             <span class="settings-party-open">${this.#ui.t("settings.partyOpen")}</span>
           </a></li>`,

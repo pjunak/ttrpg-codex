@@ -114,7 +114,7 @@ export async function exerciseRecordPanels({
   page.setDefaultTimeout(10000);
   const panel = page.locator(`codex-record-contributions [data-addon-id="${id}"]`);
   const view = panel;
-  await page.goto(`/#/map/world/location/${key}/show`);
+  await page.goto(`/map/world/location/${key}/show`);
   await view.getByLabel("Record context").waitFor();
   const map = JSON.parse((await view.getByLabel("Record context").textContent())!);
   assert.equal(map.readOnly, true);
@@ -127,7 +127,7 @@ export async function exerciseRecordPanels({
   ]);
   assert.equal(map.record.id, key);
   assert.doesNotMatch(JSON.stringify(map), /Private body/);
-  await page.goto(`/#/locations/${key}`);
+  await page.goto(`/locations/${key}`);
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await view.getByLabel("Panel draft").fill("Retained extension draft");
   assert.equal(
@@ -152,11 +152,11 @@ export async function exerciseRecordPanels({
   await view.getByRole("button", { name: "Discard panel draft", exact: true }).click();
   await core.getByRole("button", { name: "Cancel", exact: true }).click();
   const player = await open(t, "player");
-  await player.goto(`/#/map/world/location/${key}/show`);
+  await player.goto(`/map/world/location/${key}/show`);
   const playerPanel = player.locator(`codex-record-contributions [data-addon-id="${id}"]`);
   const playerView = playerPanel;
   await playerView.getByLabel("Record context").waitFor();
-  await player.goto(`/#/map/world/location/${hidden}/show`);
+  await player.goto(`/map/world/location/${hidden}/show`);
   await playerPanel.waitFor({ state: "detached" });
   assert.equal(await player.locator('[data-contribution-id="editor"]').count(), 0);
 }

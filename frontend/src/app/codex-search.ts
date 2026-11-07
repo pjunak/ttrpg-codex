@@ -128,7 +128,7 @@ export class CodexSearch extends LitElement {
               : nothing
           }
         </div>
-        ${this.quick ? html`<a class="ui-action" href=${`#/search?q=${encodeURIComponent(this.query)}`}>${this.#ui.t("jump.full")}</a>` : nothing}
+        ${this.quick ? html`<a class="ui-action" href=${`/search?q=${encodeURIComponent(this.query)}`}>${this.#ui.t("jump.full")}</a>` : nothing}
       </article>
     `;
   }

@@ -141,7 +141,7 @@ for (const role of ["dm", "player"])
         await context.request.post("/api/login", { data: { password: `local-sheets-${role}` } }),
       );
       const page = await context.newPage();
-      await page.goto(`/#/characters/${key}`);
+      await page.goto(`/characters/${key}`);
       await page.locator("#character-view-addons").click();
       const sheet = page.locator(".addon-dnd-character");
       await sheet.locator("#dnd-tab-tools").click();

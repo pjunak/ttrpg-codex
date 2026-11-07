@@ -8,7 +8,7 @@ import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import { BrowserContributionOutlet } from "../addons/contribution-outlet.js";
 import {
   BrowserNavigationOutlet,
-  browserAddonRouteHash,
+  browserAddonRouteHref,
   parseBrowserAddonLocation,
 } from "../addons/navigation.js";
 import type { AuthState } from "../core/api.js";
@@ -35,6 +35,8 @@ export interface AddonOutletsOptions {
   /** The session the add-ons run for, once known; they start only when it is signed in. */
   auth(): AuthState | undefined;
   route(): AppRoute;
+  /** The app address the guard accepted, which add-on routes and links read. */
+  currentHref(): string;
   campaign(): CampaignDataset | undefined;
   locale(): string;
   canEdit(): boolean;
@@ -284,7 +286,7 @@ export class AddonOutletsController implements ReactiveController {
       root: navigationRoot,
       registry,
       role: auth.role,
-      currentHash: () => window.location.hash,
+      currentHref: () => this.#options.currentHref(),
       locale,
       include: (entry) => {
         const mode = addonSidebarMode(this.#options.campaign(), addonSidebarKey(entry));
@@ -345,14 +347,14 @@ export class AddonOutletsController implements ReactiveController {
       role: auth.role,
       locale,
       include: (active) =>
-        browserAddonRouteHash(active) ===
-        parseBrowserAddonLocation(window.location.hash)?.routeHash,
+        browserAddonRouteHref(active) ===
+        parseBrowserAddonLocation(this.#options.currentHref())?.routePath,
       hostContext: (active) => {
         const recordReferences = routeRecordReferences(this.#options.campaign(), active);
         return {
           contractVersion: "addon-route-context.v1",
           locale: this.#options.locale(),
-          query: parseBrowserAddonLocation(window.location.hash)?.query ?? [],
+          query: parseBrowserAddonLocation(this.#options.currentHref())?.query ?? [],
           ...(recordReferences ? { recordReferences } : {}),
         };
       },

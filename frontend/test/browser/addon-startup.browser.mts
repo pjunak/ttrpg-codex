@@ -86,7 +86,7 @@ void test(
       await route.fulfill({ json: auth() });
     });
     try {
-      await page.goto("/#/addons/visual-fixture/tools", { waitUntil: "domcontentloaded" });
+      await page.goto("/addons/visual-fixture/tools", { waitUntil: "domcontentloaded" });
       await checking.promise;
       await page.locator(".account-menu > summary").click();
       const account = page.locator(".account-panel");
@@ -102,7 +102,12 @@ void test(
       await freshCheck;
       await page.waitForFunction(() => document.querySelector("codex-app")?.busy === false);
       await page.evaluate(() => {
-        window.location.hash = "#/addons/visual-fixture/tools";
+        window.dispatchEvent(
+          new CustomEvent("codex-navigate", {
+            cancelable: true,
+            detail: { href: "/addons/visual-fixture/tools" },
+          }),
+        );
       });
       await page.getByText("Synthetic add-on page", { exact: true }).waitFor();
       release.resolve();
@@ -192,7 +197,7 @@ for (const asset of ["graph", "stylesheet", "module"] as const) {
         else await route.continue();
       });
       try {
-        await page.goto("/#/addons/visual-fixture/tools", { waitUntil: "domcontentloaded" });
+        await page.goto("/addons/visual-fixture/tools", { waitUntil: "domcontentloaded" });
         await started.promise;
         const account = page.locator(".account-panel");
         await page.locator(".account-menu > summary").click();
@@ -206,7 +211,7 @@ for (const asset of ["graph", "stylesheet", "module"] as const) {
         await account.locator('input[name="password"]').fill("synthetic-password");
         await account.getByRole("button", { name: "Sign in", exact: true }).click();
         await page.waitForFunction(() => document.querySelector("codex-app")?.busy === false);
-        await page.goto("/#/addons/visual-fixture/tools");
+        await page.goto("/addons/visual-fixture/tools");
         await page.getByText("Synthetic add-on page", { exact: true }).waitFor();
         if (asset === "graph") {
           release.resolve();

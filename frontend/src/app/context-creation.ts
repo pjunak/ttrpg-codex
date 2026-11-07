@@ -3,9 +3,9 @@ import { recordValue } from "./campaign-projection.js";
 import { latestTimelineSitting, timelineColumns } from "./campaign-timeline.js";
 import {
   campaignPages,
-  collectionHash,
+  collectionHref,
   contextCreationActions,
-  createReturnHash,
+  createReturnHref,
   type AppRoute,
 } from "./routes.js";
 
@@ -39,7 +39,7 @@ export function contextualCreationFields(
       : {}),
   };
 }
-export function creationBackHash(route: CreateRoute, campaign: CampaignDataset): string {
+export function creationBackHref(route: CreateRoute, campaign: CampaignDataset): string {
   const source = creationSource(route, campaign);
-  return source && !source.record ? collectionHash(source.page) : createReturnHash(route);
+  return source && !source.record ? collectionHref(source.page) : createReturnHref(route);
 }

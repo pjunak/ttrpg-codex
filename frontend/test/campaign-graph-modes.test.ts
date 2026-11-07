@@ -128,10 +128,10 @@ describe("faction and mystery graph modes", () => {
       priorityColor: "#C62828",
     });
     expect(graph.nodes.find((node) => node.key === key("character", "gate"))?.route).toBe(
-      "#/characters/gate",
+      "/characters/gate",
     );
     expect(graph.nodes.find((node) => node.key === key("mystery", "gate"))?.route).toBe(
-      "#/mysteries/gate",
+      "/mysteries/gate",
     );
     expect(graph.edges).toHaveLength(4);
     expect(graph.nodes.some((node) => node.recordKey === "scout")).toBe(false);

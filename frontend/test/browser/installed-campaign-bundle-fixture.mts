@@ -19,7 +19,7 @@ export async function exerciseCampaignBundle({
   mobile,
 }: InstalledFixture) {
   const page = await open(t, "dm", mobile);
-  await page.goto("/#/addons/dm-tools/imports");
+  await page.goto("/addons/dm-tools/imports");
   await page.getByRole("heading", { name: "Campaign bundle", exact: true }).waitFor();
   const suffix = mobile ? "phone" : "desktop",
     title = `Imported campaign ${suffix}`;

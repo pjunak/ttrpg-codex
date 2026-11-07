@@ -144,7 +144,7 @@ export function projectRelationshipGraph(campaign: CampaignDataset): CampaignGra
       recordKey: record.key,
       key: record.key,
       name: text(value["name"]) || record.key,
-      route: `#/characters/${encodeURIComponent(record.key)}`,
+      route: `/characters/${encodeURIComponent(record.key)}`,
       faction,
       factionName,
       badge: faction === "party" ? party.badge : text(factionValue?.["badge"]),

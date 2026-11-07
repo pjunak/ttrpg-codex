@@ -45,7 +45,7 @@ it("shares only approved visible labels and host-built record links", () => {
   expect(routeRecordReferences(campaign, active)).toEqual({
     ready: true,
     truncated: false,
-    records: [{ collection: "events", id: "a/b", label: "Arrival", href: "#/events/a%2Fb" }],
+    records: [{ collection: "events", id: "a/b", label: "Arrival", href: "/events/a%2Fb" }],
   });
   expect(routeRecordReferences(campaign, { ...active, permissions: [] })).toBeUndefined();
   expect(

@@ -96,7 +96,7 @@ export async function exerciseUninstall({
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, []));
-  await page.goto("/#/settings");
+  await page.goto("/settings");
   await page.locator('[data-category="addons"]').click();
   const manager = page.locator("codex-addon-manager"),
     row = manager.locator(`[data-addon-id="${id}"]`),

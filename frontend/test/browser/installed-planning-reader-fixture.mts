@@ -105,7 +105,7 @@ export async function exercisePlanningReader({
   );
   const page = await open(t, "dm", mobile);
   page.setDefaultTimeout(10000);
-  await page.goto(`/#/map/world/location/${location}/show`);
+  await page.goto(`/map/world/location/${location}/show`);
   await page.locator(".dm-map-planning a").waitFor();
   await page
     .locator(".sc-panel")
@@ -213,7 +213,7 @@ export async function exercisePlanningReader({
   await reader.waitFor();
   await reader.locator("strong").getByText("new detail", { exact: true }).waitFor();
   const player = await open(t, "player", mobile);
-  await player.goto(`/#/map/world/location/${location}/show`);
+  await player.goto(`/map/world/location/${location}/show`);
   await player.locator(".sc-panel").waitFor();
   assert.equal(await player.locator(".dm-map-planning").count(), 0);
 }

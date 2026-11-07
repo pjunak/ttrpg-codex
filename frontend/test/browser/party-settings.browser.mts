@@ -142,7 +142,7 @@ async function fixture(
       },
     });
   });
-  await page.goto(`${origin}/#/settings`);
+  await page.goto(`${origin}/settings`);
   await page.locator(".settings-page").waitFor();
   await page.waitForFunction(() => document.querySelector<HTMLElement>(".live-connected"));
   if (role === "dm") await page.locator('[data-category="playerParty"]').click();
@@ -234,7 +234,7 @@ for (const mobile of [false, true])
       .click();
     await page.locator("#record-title").waitFor();
     const badge = page.locator(".record-badges .faction-chip");
-    assert.equal(await badge.getAttribute("href"), "#/party");
+    assert.equal(await badge.getAttribute("href"), "/party");
     assert.equal(await badge.locator(".faction-chip-mark").textContent(), "🦉");
     assert.equal(await badge.locator(".faction-chip-name").textContent(), "Night Owls");
     assert.deepEqual(
@@ -273,7 +273,7 @@ for (const mobile of [false, true])
       await page.locator('[name="faction"] option[value="party"]').textContent().then(required),
       "🦉 Night Owls",
     );
-    await page.goto(`${origin}/#/party`);
+    await page.goto(`${origin}/party`);
     await page.locator("#party-heading").waitFor();
     assert.match(
       await page.locator("#party-heading").textContent().then(required),
@@ -311,7 +311,7 @@ void test("live changes protect the draft; cancel reloads and the next save uses
   assert.equal(await name.inputValue(), "My draft");
   page.once("dialog", (dialog) => dialog.dismiss());
   await panel(page).getByRole("link", { name: /Ryn/ }).click();
-  await page.waitForURL(/#\/settings\/party$/);
+  await page.waitForURL(/\/settings\/party$/);
   page.once("dialog", (dialog) => dialog.accept());
   await panel(page).getByRole("button", { name: "Cancel", exact: true }).click();
   assert.equal(await name.inputValue(), "Remote name");
@@ -394,7 +394,7 @@ for (const role of ["", "player"])
   void test(`${role || "anonymous"} readers see shared party identity without settings write controls`, async (t) => {
     const { page, writes } = await fixture(t, { role });
     assert.equal(await page.locator('[data-category="playerParty"]').count(), 0);
-    await page.goto(`${origin}/#/party`);
+    await page.goto(`${origin}/party`);
     await page.locator("#party-heading").waitFor();
     assert.match(
       await page.locator("#party-heading").textContent().then(required),

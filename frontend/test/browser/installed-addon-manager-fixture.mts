@@ -13,7 +13,7 @@ export async function exerciseAddonManager({
 }: Pick<InstalledFixture, "t" | "open" | "admin" | "csrf" | "output" | "mobile">) {
   const page = await open(t, "dm", mobile),
     id = `settings-${mobile ? "phone" : "desktop"}`;
-  await page.goto("/#/settings");
+  await page.goto("/settings");
   await page.locator('[data-category="addons"]').click();
   const manager = page.locator("codex-addon-manager"),
     review = manager.locator(".addon-review"),
@@ -178,7 +178,7 @@ export async function exerciseAddonManager({
   await page.reload();
   await manager.getByRole("button", { name: "Přidat doplněk", exact: true }).waitFor();
   const player = await open(t, "player");
-  await player.goto("/#/settings");
+  await player.goto("/settings");
   assert.equal(await player.locator('[data-category="addons"]').count(), 0);
   assert.equal((await player.context().request.get("/api/admin/addons")).status(), 403);
 }

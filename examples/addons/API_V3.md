@@ -19,7 +19,7 @@ requirements. Machine-readable definitions live in
 | Area | Available |
 | --- | --- |
 | Package lifecycle | ZIP inspection and staging, permission and compatibility review, approval, activation, reload, disable, uninstall and start-up recovery. Only the selected build of each add-on is kept; older builds must be uploaded again to roll back. |
-| Browser SDK | `addon`, `signal`, `capabilities`, `permissions`, `ui`, `data`, `content`, `services` and `i18n`. Contributions also receive host context, navigation and edit guards. |
+| Browser SDK | `addon`, `signal`, `capabilities`, `permissions`, `ui`, `data`, `content`, `services` and `i18n`. `ui.navigate` opens app pages ([navigation](#settings-navigation-events-and-logs)). Contributions also receive host context, navigation and edit guards. |
 | Languages | `message-catalog.v1` files per language, inspected and served by the host; `ui.i18n` lends `context.i18n` for translations that follow the site's language ([message catalogs](#message-catalogs)). |
 | Shared controls | `ui.controls.v1` lends `ui.enhance(ownRoot)` for native fields, searchable choices, states, actions, tabs and modal focus ([shared UI](../../docs/reference/UI_FOUNDATIONS.md)). |
 | UI contributions | Routes, sidebar items, settings panels, article actions and sections, editor panels, named slots, wiki providers, graph views and graph contributors. |
@@ -261,7 +261,7 @@ Route metadata is exact `{ "path": "segment[/segment]" }`; paths use lowercase
 letters, digits, and internal hyphens and never start with `/`. Sidebar
 metadata is exact `{ "route": "local.route-id" }` and may only name a route
 declared by the same add-on generation. The browser exposes the resulting page
-under the host-owned `#/addons/<addon-id>/<path>` namespace. It does not accept
+under the host-owned `/addons/<addon-id>/<path>` namespace. It does not accept
 manifest-provided URLs, executable click handlers, cross-add-on targets, or a
 sidebar link whose route is not active for the current role.
 Every callback is wrapped in the generation abort signal.
@@ -360,8 +360,8 @@ access or write authority. Reads still use the generation-scoped public SDK.
 
 `recordReferences` is present only for routes with approved `core.data.read`
 grants for supported campaign collections. It contains names and host-built
-hash links from the current role-visible campaign snapshot, restricted to those
-grants. It includes no record bodies, revisions, or write authority. The host
+page links (`/<collection-page>/<encoded key>`) from the current role-visible
+campaign snapshot, restricted to those grants. It includes no record bodies, revisions, or write authority. The host
 refreshes the context when that snapshot changes without replacing the mounted
 editor. `ready: false` means no campaign snapshot is available; an empty ready
 list means there are no matching visible records. At most 1,000 records and
@@ -370,10 +370,11 @@ list means there are no matching visible records. At most 1,000 records and
 catalog, not proof that an omitted record was deleted. Consumers must preserve
 unavailable saved references when editing unrelated fields.
 
-The full hash is limited to 4,096 UTF-8 bytes, with at most 32 pairs, nonempty
-keys of at most 64 UTF-16 code units and values of at most 1,024. Malformed
-percent escapes/UTF-8 and decoded control characters are rejected. `+` decodes
-to a space. Parameters are navigation input and must not contain secrets.
+The page address (path and query) is limited to 4,096 UTF-8 bytes, with at
+most 32 pairs, nonempty keys of at most 64 UTF-16 code units and values of at
+most 1,024. Malformed percent escapes/UTF-8 and decoded control characters are
+rejected. `+` decodes to a space. Parameters are navigation input; they reach
+the server and its logs like any URL, so they must not contain secrets.
 
 An `article-section` declaration targets one core record collection with
 `config.collection`. Its custom element receives the ordinary generation and
@@ -430,8 +431,8 @@ session role and granted capabilities. Add-ons without visible settings
 have no empty settings outlet; player views contain only their available settings,
 without installation, credential, sourcebook, or provider administration.
 
-`#/settings/addons` opens the add-on category. The stable
-`#/settings/addons/<addon-id>` link selects that add-on's tab. An absent,
+`/settings/addons` opens the add-on category. The stable
+`/settings/addons/<addon-id>` link selects that add-on's tab. An absent,
 disabled, loading, or role-inaccessible target shows an unavailable message;
 links never confer access. No additional route contribution is required.
 
@@ -683,7 +684,7 @@ transaction. Author narrow widgets that fit the board's design.
 
 ### DM dashboard
 
-The stable `#/dm` route accepts additive `slot` contributions with exact config
+The stable `/dm` route accepts additive `slot` contributions with exact config
 `{ "contractVersion": 1, "slot": "dm:dashboard" }`. Bind a custom element
 through the usual UI contract. The host checks
 DM authority before mounting this outlet, even if the manifest
@@ -715,7 +716,7 @@ controls, and browser-local movement. Add-ons do not receive graph-library
 objects or modify core nodes/edges.
 
 A named view declares exact config `{ "contractVersion": 1 }`. It appears as
-a role-visible tab at `#/graph/addons/<addon-id>/<contribution-id>`.
+a role-visible tab at `/graph/addons/<addon-id>/<contribution-id>`.
 A contributor declares exact config
 `{ "contractVersion": 1, "view": "relationships" }`; `factions` and `mysteries`
 are the other supported targets. Timeline extensions use the slot contract
@@ -1046,6 +1047,15 @@ and role (`context.i18n` translates; see
 public navigation and edit guards. Add-ons choose their own settings storage
 through permitted data APIs or personal browser state. `data.subscribe` supplies
 payload-free invalidation, not arbitrary package event publication.
+
+App pages are paths, such as `/locations/<encoded key>` or an add-on route at
+`/addons/<addon-id>/<path>?<query>`. The host opens same-origin links to them
+in place, so ordinary `<a href>` elements need no script. To navigate from
+code, call `context.ui.navigate(href, { replace })` (host 2.1.0 and later). It
+asks about unsaved edits first and returns false when the host refused.
+`replace: true` changes only the query of the page that is showing, without
+reopening it, for filters and selections. Add-ons must not write `location` or
+`history` themselves, because the host then loses track of the shown page.
 
 Scoped settings, event publication, job progress and add-on logging are not
 available. Source and provider credential controls are host-owned.

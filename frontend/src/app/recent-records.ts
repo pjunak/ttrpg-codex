@@ -6,7 +6,7 @@ import {
   recentCampaignActivity,
   type EntitySummary,
 } from "./campaign-projection.js";
-import { recordHash, campaignPages, type AppRoute } from "./routes.js";
+import { recordHref, campaignPages, type AppRoute } from "./routes.js";
 
 const maximumRecent = 12;
 const storageKey = (role: string): string => `codex:recent-records:${role}`;
@@ -38,7 +38,7 @@ export function rememberRecentRecord(
     )
   )
     return;
-  const path = recordHash(route.page, route.key);
+  const path = recordHref(route.page, route.key);
   const previous = readRecent(role);
   if (previous[0] === path) return;
   try {
@@ -63,7 +63,7 @@ export function recentSearchResults(
     for (const [key, representative] of twinRepresentatives(
       campaignCollection(campaign, page.collection).records,
     )) {
-      aliases.set(recordHash(page, key), recordHash(page, representative));
+      aliases.set(recordHref(page, key), recordHref(page, representative));
     }
   const opened = [...new Set(readRecent(role).map((path) => aliases.get(path) ?? path))].flatMap(
     (path) => byRoute.get(path) ?? [],

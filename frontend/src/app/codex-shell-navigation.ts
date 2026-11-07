@@ -30,10 +30,10 @@ export function mobileNavigation(route: AppRoute, menuOpen: boolean, toggleMenu:
   const current = (id: string) => (coreRouteActive(route, id) ? "page" : nothing);
   return html`
     <nav class="mobile-navigation" aria-label=${uiText("shell.primaryNavigation")}>
-      <a href="#/" aria-current=${current("dashboard")}><span aria-hidden="true">🏠</span>${uiText("shell.overview")}</a>
-      <a href="#/party" aria-current=${current("party")}><span aria-hidden="true">🛡</span>${uiText("shell.party")}</a>
-      <a href="#/search" aria-current=${current("search")}><span aria-hidden="true">🔍</span>${uiText("shell.search")}</a>
-      <a href="#/timeline" aria-current=${current("timeline")}><span aria-hidden="true">⏳</span>${uiText("timeline.title")}</a>
+      <a href="/" aria-current=${current("dashboard")}><span aria-hidden="true">🏠</span>${uiText("shell.overview")}</a>
+      <a href="/party" aria-current=${current("party")}><span aria-hidden="true">🛡</span>${uiText("shell.party")}</a>
+      <a href="/search" aria-current=${current("search")}><span aria-hidden="true">🔍</span>${uiText("shell.search")}</a>
+      <a href="/timeline" aria-current=${current("timeline")}><span aria-hidden="true">⏳</span>${uiText("timeline.title")}</a>
       <button type="button" data-menu-toggle aria-expanded=${menuOpen} aria-controls="campaign-sidebar" @click=${toggleMenu}><span aria-hidden="true">☰</span>${uiText("shell.menu")}</button>
     </nav>
   `;
@@ -94,7 +94,7 @@ export class CodexShellNavigation extends LitElement {
             }</h2>
             <div ?hidden=${!open}>${entries.map(
               (entry) => html`
-              <a href=${`#${entry.route}`} aria-current=${coreRouteActive(this.route, entry.id) ? "page" : nothing}>
+              <a href=${entry.route} aria-current=${coreRouteActive(this.route, entry.id) ? "page" : nothing}>
                 <span aria-hidden="true">${entry.icon}</span>${entry.label}
               </a>
             `,

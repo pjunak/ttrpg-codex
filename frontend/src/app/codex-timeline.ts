@@ -184,7 +184,7 @@ export class CodexTimeline extends LitElement {
           ✎ ${this.#ui.t(this.editing ? "timeline.done" : "timeline.edit")}</button>`
             : nothing
         }
-        ${this.editing ? html`<a class="ui-action" href=${`#/timeline/new/${latestTimelineSitting(columns)}`}>＋ ${this.#ui.t("timeline.newEvent")}</a>` : nothing}
+        ${this.editing ? html`<a class="ui-action" href=${`/timeline/new/${latestTimelineSitting(columns)}`}>＋ ${this.#ui.t("timeline.newEvent")}</a>` : nothing}
         ${this.#slot("timeline:toolbar", null, [])}
       </header>
       ${this.error === "" ? nothing : html`<p class="tl-message" role="alert">${this.error}</p>`}
@@ -225,7 +225,7 @@ export class CodexTimeline extends LitElement {
               ${
                 // With no events at all, the first one is a click away instead of behind Edit timeline.
                 records.size === 0 && this.canEdit && !this.editing
-                  ? html`<a class="tl-col-add" href=${`#/timeline/new/${sitting}`}>＋ ${this.#ui.t("timeline.newEvent")}</a>`
+                  ? html`<a class="tl-col-add" href=${`/timeline/new/${sitting}`}>＋ ${this.#ui.t("timeline.newEvent")}</a>`
                   : nothing
               }
               ${repeat(
@@ -247,7 +247,7 @@ export class CodexTimeline extends LitElement {
                   return html`${key === this.dragging ? nothing : this.#indicator(sitting, ids.slice(0, index).filter((id) => id !== this.dragging).length)}
                   <div class=${`tl-card${this.dragging === key ? " tl-drag-src" : ""}`} data-key=${key} style=${color === undefined ? "" : `--tc:${color}`}
                     draggable=${this.editing && !this.#locked ? "true" : "false"} @dragstart=${(event: DragEvent) => this.#dragStart(event, record, sitting)} @dragend=${this.#dragEnd}>
-                    <a class="tl-card-open" draggable="false" href=${`#/events/${encodeURIComponent(key)}`}
+                    <a class="tl-card-open" draggable="false" href=${`/events/${encodeURIComponent(key)}`}
                       @click=${(event: MouseEvent) => {
                         if (this.#lastDrag.key === key && Date.now() < this.#lastDrag.until)
                           event.preventDefault();
@@ -282,7 +282,7 @@ export class CodexTimeline extends LitElement {
                         }}>
                         ${editableSessions.map((target) => html`<option value=${target} ?selected=${target === sitting}>${this.#ui.t(target === next ? "timeline.newSession" : "timeline.session", { n: target })}</option>`)}
                       </select>
-                      <a href=${`#/events/${encodeURIComponent(key)}/edit`}>${this.#ui.t("timeline.editEvent")}</a>
+                      <a href=${`/events/${encodeURIComponent(key)}/edit`}>${this.#ui.t("timeline.editEvent")}</a>
                     </div>`
                         : nothing
                     }
@@ -296,7 +296,7 @@ export class CodexTimeline extends LitElement {
               sitting,
               ids.flatMap((key) => records.get(key) ?? []),
             )}
-            ${this.editing ? html`<a class="tl-col-add" href=${`#/timeline/new/${sitting}`}>＋ ${this.#ui.t("timeline.newEvent")}</a>` : nothing}
+            ${this.editing ? html`<a class="tl-col-add" href=${`/timeline/new/${sitting}`}>＋ ${this.#ui.t("timeline.newEvent")}</a>` : nothing}
           </section>`;
           },
         )}</div>

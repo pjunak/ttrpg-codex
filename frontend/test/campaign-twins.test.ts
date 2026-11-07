@@ -68,7 +68,7 @@ describe("reciprocal twin display", () => {
   });
   it("keeps direct articles addressable while lists/counts/search/activity group pairs", () => {
     expect(projectEntities(dataset, page).map((e) => e.key)).toEqual(["private"]);
-    expect(projectEntity(dataset, pair[0]!, page).route).toBe("#/locations/public");
+    expect(projectEntity(dataset, pair[0]!, page).route).toBe("/locations/public");
     expect(projectDashboard(dataset).counts["locations"]).toBe(1);
     expect(recentCampaignActivity(dataset).map((e) => e.key)).toEqual(["public"]);
     expect(searchCampaign(dataset, "town")[0]?.results).toHaveLength(1);

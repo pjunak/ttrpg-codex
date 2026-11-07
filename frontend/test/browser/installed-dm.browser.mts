@@ -41,7 +41,8 @@ import {
   planningImport,
   replacementImportPackage,
 } from "./installed-import-fixture.mts";
-import { unloadBlocked, attemptHash } from "./installed-planner-navigation-fixture.mts";
+import { unloadBlocked, attemptNavigation } from "./installed-planner-navigation-fixture.mts";
+import { openInPlace } from "./app-address.mts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const output = resolve(root, "frontend/test-results/installed-dm");
@@ -204,14 +205,16 @@ async function open(t: TestContext, role = "dm", mobile = false) {
       localStorage.setItem("codex_lang", "en");
   });
   const page = await context.newPage();
-  await page.goto("/#/dm");
+  await page.goto("/dm");
   await page.locator("#dm-page-title").waitFor();
   return page;
 }
 /** The player preview opens from Settings → Server access. */
 async function playerPreviewButton(page: Page) {
   await page.evaluate(() => {
-    location.hash = "#/settings/access";
+    window.dispatchEvent(
+      new CustomEvent("codex-navigate", { cancelable: true, detail: { href: "/settings/access" } }),
+    );
   });
   const button = page
     .locator("codex-credential-settings")
@@ -276,7 +279,7 @@ void test("DM panel preserves the fallback cards and its tool links on desktop a
     if (mobile) await page.locator("[data-menu-toggle]").click();
     // The pinned sidebar footer keeps the DM link on screen without scrolling the navigation.
     assert.equal(
-      await page.locator('.sidebar-footer a[href="#/dm"]').evaluate((link) => {
+      await page.locator('.sidebar-footer a[href="/dm"]').evaluate((link) => {
         const box = link.getBoundingClientRect();
         const bar = document.querySelector(".mobile-navigation")!;
         const limit =
@@ -317,7 +320,7 @@ void test("DM panel preserves the fallback cards and its tool links on desktop a
     });
     await tool.click();
     await page.getByRole("heading", { name: "Fixture planner page" }).waitFor();
-    await page.goto("/#/dm");
+    await page.goto("/dm");
     await page.locator('[data-dm-collection="events"]').click();
     await page.locator(".tl-shell").waitFor();
   }
@@ -421,9 +424,9 @@ void test(`installed DM dashboard mounts only in the DM route and cleans up on r
   assert.equal(await slot.getByLabel("Fixture notes").inputValue(), "Keep these notes");
   const player = await open(t, "player");
   assert.equal(await player.locator("[data-dm-dashboard-slot]").count(), 0);
-  await page.goto("/#/");
+  await page.goto("/");
   assert.equal(await page.locator(`[data-addon-slot] [data-addon-id="${id}"]`).count(), 0);
-  await page.goto(`/#/addons/${id}/planner?item=first`);
+  await page.goto(`/addons/${id}/planner?item=first`);
   const route = page.locator("[data-addon-route-outlet]");
   await route.getByRole("heading", { name: "Fixture planner page" }).waitFor();
   await route.getByLabel("Fixture notes").fill("Keep this draft");
@@ -431,7 +434,7 @@ void test(`installed DM dashboard mounts only in the DM route and cleans up on r
     JSON.parse(await route.getByLabel("Fixture context").textContent().then(required)),
     { contractVersion: "addon-route-context.v1", locale: "en", query: [["item", "first"]] },
   );
-  await page.goto(`/#/addons/${id}/planner?item=second&item=third`);
+  await openInPlace(page, `/addons/${id}/planner?item=second&item=third`);
   await route.getByLabel("Fixture context").filter({ hasText: "second" }).waitFor();
   assert.deepEqual(
     JSON.parse(await route.getByLabel("Fixture context").textContent().then(required)).query,
@@ -441,7 +444,7 @@ void test(`installed DM dashboard mounts only in the DM route and cleans up on r
     ],
   );
   assert.equal(await route.getByLabel("Fixture notes").inputValue(), "Keep this draft");
-  await page.goto("/#/dm");
+  await page.goto("/dm");
   await slotRoot(page).getByRole("heading", { name: "Fixture DM workspace 1.0.0" }).waitFor();
   await installDmPackage(admin, csrf, { id, version: "1.0.1" });
   await slotRoot(page).getByRole("heading", { name: "Fixture DM workspace 1.0.1" }).waitFor();
@@ -516,7 +519,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     await plannerTab(page, "Notes");
     await page.getByRole("button", { name: "Add DM note", exact: true }).click();
     await page.getByText("DM note added.", { exact: true }).waitFor();
-    await page.goto("/#/dm");
+    await page.goto("/dm");
     await dashboard
       .locator('[data-stat="total"] .dm-dashboard-value')
       .filter({ hasText: /^2$/u })
@@ -573,21 +576,21 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     await page.getByLabel("Title", { exact: true }).waitFor();
     assert.equal(await page.getByLabel("Title", { exact: true }).inputValue(), "Hidden meeting");
     const secondTab = await page.context().newPage();
-    await secondTab.goto(`/${eventLink}`);
+    await secondTab.goto(`${eventLink}`);
     await secondTab
       .locator(".dm-plan-card.selected h3")
       .filter({ hasText: "Hidden meeting" })
       .waitFor();
-    await secondTab.goto("/#/dm");
+    await secondTab.goto("/dm");
     await secondTab.locator(".dm-tools-dashboard").waitFor();
-    await secondTab.goto("/#/addons/dm-tools/planner?item=one&item=two");
+    await secondTab.goto("/addons/dm-tools/planner?item=one&item=two");
     await secondTab.getByRole("link", { name: "Open campaign canvas" }).click();
     await secondTab.locator(".dm-plan-card h3").filter({ hasText: "Northern trail" }).waitFor();
     await secondTab.close();
     await page.getByLabel("Title", { exact: true }).fill("Unsaved draft");
-    await page.evaluate(() => window.dispatchEvent(new HashChangeEvent("hashchange")));
+    await page.evaluate(() => window.dispatchEvent(new PopStateEvent("popstate")));
     assert.equal(await page.getByLabel("Title", { exact: true }).inputValue(), "Unsaved draft");
-    await page.goto(questURL);
+    await openInPlace(page, questURL);
     await page
       .locator(".dm-planner-breadcrumbs .active")
       .filter({ hasText: "Northern trail" })
@@ -599,23 +602,23 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
       .locator(".dm-planner-breadcrumbs .active")
       .filter({ hasText: "Northern trail" })
       .waitFor();
-    await page.goto("/#/addons/dm-tools/planner?item=quest-missing");
+    await openInPlace(page, "/addons/dm-tools/planner?item=quest-missing");
     await page.getByText("This planning item no longer exists.", { exact: true }).waitFor();
-    await page.goto("/#/addons/dm-tools/planner?item=one&item=two");
+    await openInPlace(page, "/addons/dm-tools/planner?item=one&item=two");
     await page.getByText("Invalid planner link.", { exact: true }).waitFor();
     assert.equal(await unloadBlocked(page), true);
-    await page.goto(`/${eventLink}`);
+    await openInPlace(page, required(eventLink));
     await page.getByRole("button", { name: "Edit item", exact: true }).click();
     assert.equal(await page.getByLabel("Title", { exact: true }).inputValue(), "Unsaved draft");
     await page
       .getByRole("form", { name: "Planning item details" })
       .getByRole("button", { name: "Discard edits", exact: true })
       .click();
-    await page.goto("/#/addons/dm-tools/planner");
+    await page.goto("/addons/dm-tools/planner");
     await page.locator(".dm-plan-card h3").filter({ hasText: "Northern trail" }).waitFor();
     const queryPattern = "**/api/addons/dm-tools/generations/*/data/query";
     await page.route(queryPattern, (route) => route.fulfill({ status: 503, body: "{}" }));
-    await page.goto("/#/dm");
+    await page.goto("/dm");
     await dashboard.getByRole("alert").waitFor();
     await dashboard.getByRole("link", { name: /Story Planner/ }).waitFor();
     await page.unroute(queryPattern);
@@ -625,7 +628,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
       .locator('[data-stat="total"] .dm-dashboard-value')
       .filter({ hasText: /^2$/u })
       .waitFor();
-    await page.goto("/#/dm");
+    await page.goto("/dm");
     await panel.getByRole("link", { name: /Import Center/ }).click();
     await page.getByRole("heading", { name: "Import Center", exact: true }).waitFor();
     await page.getByRole("heading", { name: "DM Tools planning", exact: true }).waitFor();
@@ -646,9 +649,9 @@ void test(`installed edit state protects navigation and expires with its mounted
   await installDmPackage(admin, csrf, { id, slot: false, edits: true });
   t.after(() => disable(id));
   const page = await open(t),
-    hash = `#/addons/${id}/planner`;
+    hash = `/addons/${id}/planner`;
   page.setDefaultTimeout(10_000);
-  await page.goto(`/${hash}`);
+  await page.goto(hash);
   const root = page.locator("[data-addon-route-outlet]");
   const surface = root;
   await surface.getByLabel("Fixture notes").fill("Keep this draft");
@@ -657,12 +660,12 @@ void test(`installed edit state protects navigation and expires with its mounted
     window.dispatchEvent(event);
     return event.defaultPrevented;
   });
-  await attemptHash(page, "#/timeline");
-  await page.waitForURL(`**/${hash}`);
+  await attemptNavigation(page, "/timeline");
+  await page.waitForURL(`**${hash}`);
   assert.equal(await surface.getByLabel("Fixture notes").inputValue(), "Keep this draft");
   // Query retention is explicit; this fixture does not opt in.
-  await attemptHash(page, `${hash}?item=another`);
-  await page.waitForURL(`**/${hash}`);
+  await attemptNavigation(page, `${hash}?item=another`);
+  await page.waitForURL(`**${hash}`);
   await surface.getByLabel("Fixture notes").fill("");
   await page.waitForFunction(() => {
     const event = new Event("beforeunload", { cancelable: true });
@@ -670,11 +673,13 @@ void test(`installed edit state protects navigation and expires with its mounted
     return !event.defaultPrevented;
   });
   await page.evaluate(() => {
-    location.hash = "#/timeline";
+    window.dispatchEvent(
+      new CustomEvent("codex-navigate", { cancelable: true, detail: { href: "/timeline" } }),
+    );
   });
   await page.locator(".tl-shell").waitFor();
   assert.equal(await unloadBlocked(page), false);
-  await page.goto(`/${hash}`);
+  await page.goto(hash);
   await surface.getByLabel("Fixture notes").fill("Retire this generation");
   await page.waitForFunction(() => {
     const event = new Event("beforeunload", { cancelable: true });
@@ -780,7 +785,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
         )
       ).documents;
     const page = await open(t);
-    await page.goto("/#/addons/dm-tools/imports");
+    await page.goto("/addons/dm-tools/imports");
     await page.getByRole("heading", { name: "DM Tools planning", exact: true }).waitFor();
     const chooser = page.locator('.dm-tools-import input[type="file"]');
     const select = async (document: unknown) =>
@@ -828,7 +833,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     assert.deepEqual(await records(), before);
     await preview(document);
     assert.deepEqual(await records(), before);
-    await page.evaluate(() => window.dispatchEvent(new HashChangeEvent("hashchange")));
+    await page.evaluate(() => window.dispatchEvent(new PopStateEvent("popstate")));
     await page.getByRole("button", { name: "Cancel preview", exact: true }).click();
     assert.equal(await page.locator(".dm-import-preview").count(), 0);
     assert.deepEqual(await records(), before);
@@ -841,7 +846,7 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     );
     await total.waitFor();
     const previousTotal = Number((await total.textContent().then(required)).replace(/\D/gu, ""));
-    await plannerWatcher.goto("/#/addons/dm-tools/planner");
+    await plannerWatcher.goto("/addons/dm-tools/planner");
     await plannerWatcher.locator('.dm-planner-shell[aria-busy="false"]').waitFor();
     const commitResponse = page.waitForResponse(
       (response) =>
@@ -995,10 +1000,10 @@ if (process.env.CODEX_DM_TOOLS_ZIP)
     });
     await select(planningImport([importQuest("import-cancelled")], 4000));
     await received;
-    await page.goto("/#/dm");
+    await page.goto("/dm");
     releaseResponse();
     await page.unroute(callPattern);
-    await page.goto("/#/addons/dm-tools/imports");
+    await page.goto("/addons/dm-tools/imports");
     await page.getByRole("heading", { name: "DM Tools planning", exact: true }).waitFor();
     assert.equal(await page.locator(".dm-import-preview").count(), 0);
     assert.equal(
@@ -1138,7 +1143,7 @@ void test("player preview opens in a separate tab with player data, media and li
       .filter({ hasText: "Your DM tab remains signed in." })
       .waitFor();
     assert.equal(await preview.evaluate(() => window.opener === null), true);
-    assert.match(preview.url(), /\?playerPreview=1#\/$/u);
+    assert.match(preview.url(), /\/#player-preview$/u);
     const token = await preview.evaluate(() => sessionStorage.getItem("codex_player_preview"));
     const headers = { "X-Codex-Player-Preview": required(token) };
     const player = await jsonResponse(await context.request.get("/api/auth", { headers }));
@@ -1146,10 +1151,15 @@ void test("player preview opens in a separate tab with player data, media and li
     assert.notEqual(player.csrfToken, original.csrfToken);
     assert.deepEqual(await jsonResponse(await context.request.get("/api/auth")), original);
     assert.equal(await dm.locator("#credentials-title").count(), 1);
-    assert.equal(await preview.locator('.sidebar-footer > a[href="#/dm"]').count(), 0);
+    assert.equal(await preview.locator('.sidebar-footer > a[href="/dm"]').count(), 0);
     assert.equal(await preview.locator('.account-panel input[name="password"]').count(), 0);
     await preview.evaluate(() => {
-      location.hash = "#/characters/preview-visible";
+      window.dispatchEvent(
+        new CustomEvent("codex-navigate", {
+          cancelable: true,
+          detail: { href: "/characters/preview-visible" },
+        }),
+      );
     });
     await preview.getByRole("heading", { name: "Preview visible hero", exact: true }).waitFor();
     const image = preview.locator(`img[src^="${portrait.url}?"]`).first();
@@ -1209,9 +1219,9 @@ void test("player preview opens in a separate tab with player data, media and li
       }),
     );
     await preview.getByRole("heading", { name: nextName, exact: true }).waitFor();
-    await preview.goto("/#/characters/preview-visible");
+    await preview.goto("/characters/preview-visible");
     await preview.getByRole("heading", { name: nextName, exact: true }).waitFor();
-    assert.match(preview.url(), /\?playerPreview=1#/u);
+    assert.match(preview.url(), /\/characters\/preview-visible#player-preview$/u);
     await preview.reload();
     await preview.getByRole("heading", { name: nextName, exact: true }).waitFor();
     await preview.screenshot({
@@ -1257,7 +1267,7 @@ void test("player preview fails closed after missing storage or DM logout and re
   const dm = await open(t),
     context = dm.context();
   const blank = await context.newPage();
-  await blank.goto("/?playerPreview=1#/dm");
+  await blank.goto("/dm#player-preview");
   await blank
     .locator(".player-preview-notice")
     .filter({ hasText: "unavailable or expired" })
@@ -1288,7 +1298,7 @@ void test("player preview fails closed after missing storage or DM logout and re
     .locator(".player-preview-notice")
     .filter({ hasText: "unavailable or expired" })
     .waitFor();
-  assert.equal(await preview.locator('.sidebar-footer > a[href="#/dm"]').count(), 0);
+  assert.equal(await preview.locator('.sidebar-footer > a[href="/dm"]').count(), 0);
   assert.equal(await preview.locator('.account-panel input[name="password"]').count(), 0);
 });
 
@@ -1331,7 +1341,7 @@ void test(`installed route reference catalogs respect grants and player visibili
   t.after(() => disable(id));
   for (const role of ["dm", "player"]) {
     const page = await open(t, role);
-    await page.goto(`/#/addons/${id}/planner`);
+    await page.goto(`/addons/${id}/planner`);
     const route = page.locator("[data-addon-route-outlet]");
     const context = route.getByLabel("Fixture context");
     await context.filter({ hasText: '"ready":true' }).waitFor();

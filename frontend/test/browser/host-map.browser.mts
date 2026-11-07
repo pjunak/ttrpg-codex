@@ -183,7 +183,7 @@ for (const mobile of [false, true])
     const manifestResponse = page.waitForResponse((response) =>
       response.url().endsWith("/tiles/v1/manifest"),
     );
-    await page.goto("/#/map/world");
+    await page.goto("/map/world");
     const manifest = await jsonResponse(await manifestResponse);
     assert.equal(manifest.width, 1280);
     assert.equal(manifest.height, 800);

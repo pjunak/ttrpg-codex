@@ -86,7 +86,7 @@ for (const phase of ["startup", "refresh"] as const) {
         }
       });
       try {
-        await page.goto("/#/characters", { waitUntil: "domcontentloaded" });
+        await page.goto("/characters", { waitUntil: "domcontentloaded" });
         await started.promise;
         await page.locator(".account-menu > summary").click();
         const account = page.locator(".account-panel");

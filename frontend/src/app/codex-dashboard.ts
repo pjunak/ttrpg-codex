@@ -1,4 +1,5 @@
 import { previewResourceURL } from "../core/player-preview.js";
+import { requestNavigation } from "./address.js";
 import { cardEditLink } from "../ui/card-actions.js";
 import { artwork } from "../ui/artwork.js";
 import { LitElement, html, nothing } from "lit";
@@ -10,7 +11,7 @@ import {
   type DashboardModel,
   type EntitySummary,
 } from "./campaign-projection.js";
-import { campaignPages, parseAppRoute, recordEditHash } from "./routes.js";
+import { campaignPages, parseAppRoute, recordEditHref } from "./routes.js";
 import { describeActivity } from "./campaign-activity.js";
 import { uiText, UiLocalizationController } from "./ui-localization.js";
 import { campaignIdentityRecord, type CampaignIdentityField } from "./campaign-identity.js";
@@ -147,14 +148,14 @@ export class CodexDashboard extends LitElement {
       this.#requestSignIn();
       return;
     }
-    window.location.hash = "#/party/new";
+    requestNavigation("/party/new");
   };
 
   #partyPage(model: DashboardModel) {
     return html`
       <article class="campaign-dashboard party-page" aria-labelledby="party-title">
         <header class="page-heading">
-          <a href="#/" class="breadcrumb-link">${this.#ui.t("dashboard.campaignOverview")}</a>
+          <a href="/" class="breadcrumb-link">${this.#ui.t("dashboard.campaignOverview")}</a>
           <h1 id="party-title">${this.#ui.t("dashboard.partyTitle")}</h1>
           <p>${this.#ui.t("dashboard.partyIntro")}</p>
         </header>
@@ -170,7 +171,7 @@ export class CodexDashboard extends LitElement {
         <div class="section-heading">
           <h2 id="party-heading"><span aria-hidden="true">${model.partyIdentity.badge}</span> ${model.partyIdentity.name}</h2>
           <div class="party-section-actions">
-            ${compact ? html`<a href="#/party">${this.#ui.t("dashboard.openRoster")}</a>` : nothing}
+            ${compact ? html`<a href="/party">${this.#ui.t("dashboard.openRoster")}</a>` : nothing}
             <button class="ui-action" type="button" title=${this.#ui.t("dashboard.addPartyMember")}
               @click=${this.#addPartyMember} ?disabled=${this.busy}>＋ ${this.#ui.t("dashboard.add")}</button>
           </div>
@@ -193,7 +194,7 @@ export class CodexDashboard extends LitElement {
     const route = parseAppRoute(entity.route);
     return this.canEdit && route.kind === "record"
       ? cardEditLink(
-          recordEditHash(route.page, route.key, this.partyOnly ? "#/party" : "#/"),
+          recordEditHref(route.page, route.key, this.partyOnly ? "/party" : "/"),
           uiText("Edit {0}", { "0": entity.name }),
         )
       : nothing;
@@ -230,7 +231,7 @@ export class CodexDashboard extends LitElement {
         </div>
         ${
           model.lastSession === undefined
-            ? html`<p class="empty-state">${this.#ui.t("dashboard.emptySession")} <a href="#/timeline">${this.#ui.t("dashboard.openTimeline")}</a></p>`
+            ? html`<p class="empty-state">${this.#ui.t("dashboard.emptySession")} <a href="/timeline">${this.#ui.t("dashboard.openTimeline")}</a></p>`
             : html`<ol class="session-events">
           ${model.lastSessionEvents.map((event) => this.#sessionEvent(event))}
         </ol>`
@@ -267,7 +268,7 @@ export class CodexDashboard extends LitElement {
           ${model.recent.map(
             (entity) => html`
             <a href=${entity.route}>
-              <span><i class="recent-kind" aria-hidden="true">${campaignPages.find((page) => entity.route.startsWith(`#/${page.id}/`))?.icon ?? "📜"}</i>${entity.name}
+              <span><i class="recent-kind" aria-hidden="true">${campaignPages.find((page) => entity.route.startsWith(`/${page.id}/`))?.icon ?? "📜"}</i>${entity.name}
                 <small class="recent-summary">${describeActivity(this.campaign!, entity)}</small></span>
               <time datetime=${entity.updatedAt ?? ""}>${this.#ui.relativeDate(entity.updatedAt)}</time>
             </a>

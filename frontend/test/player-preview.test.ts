@@ -94,28 +94,28 @@ describe("tab-scoped player preview", () => {
   });
 
   it("removes bootstrap credentials and keeps the preview tab scoped across same-site navigation", () => {
-    const opened = scope(playerPreviewURL(credential, "https://codex.test/#/dm"));
+    const opened = scope(playerPreviewURL(credential, "https://codex.test/dm?sort=name"));
     initializePlayerPreview(opened);
     expect(isPlayerPreview()).toBe(true);
     // oxlint-disable-next-line typescript/unbound-method -- This matcher inspects a spy; it does not call an unbound method.
     expect(opened.history.replaceState).toHaveBeenCalledWith(
       null,
       "",
-      "https://codex.test/?playerPreview=1#/",
+      "https://codex.test/#player-preview",
     );
     expect(opened.sessionStorage.getItem("codex_player_preview")).toBe(credential);
-    initializePlayerPreview(scope("https://codex.test/?playerPreview=1#/characters", credential));
+    initializePlayerPreview(scope("https://codex.test/characters#player-preview", credential));
     expect(isPlayerPreview()).toBe(true);
-    initializePlayerPreview(scope("https://codex.test/#/dm", credential));
+    initializePlayerPreview(scope("https://codex.test/dm", credential));
     expect(isPlayerPreview()).toBe(true);
-    initializePlayerPreview(scope("https://codex.test/#/dm"));
+    initializePlayerPreview(scope("https://codex.test/dm"));
     expect(isPlayerPreview()).toBe(false);
   });
 
   it.each([null, "", "invalid"])(
     "keeps explicit preview mode with missing or invalid credentials %s",
     async (stored) => {
-      vi.stubGlobal("location", new URL("https://codex.test/?playerPreview=1#/"));
+      vi.stubGlobal("location", new URL("https://codex.test/#player-preview"));
       const fetch = vi.fn(async () => new Response());
       vi.stubGlobal("fetch", fetch);
       initializePlayerPreview(scope(location.href, stored));
@@ -155,7 +155,7 @@ describe("tab-scoped player preview", () => {
     expect(previewResourceURL("/api/media/b_example/tiles/v1/{z}/{x}/{y}")).toContain(
       "/{z}/{x}/{y}?playerPreviewToken=",
     );
-    initializePlayerPreview(scope("https://codex.test/?playerPreview=1", null, true));
+    initializePlayerPreview(scope("https://codex.test/#player-preview", null, true));
     expect(previewResourceURL("/api/events")).toBe("/api/events?playerPreviewToken=");
   });
 

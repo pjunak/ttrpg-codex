@@ -325,6 +325,13 @@ export interface UIAPI {
   enhance(root: HTMLElement): UIControlsHandle;
   /** Requires ui.rule-details. Settles when the panel closes. */
   showRuleDetails(details: RuleDetails): Promise<void>;
+  /**
+   * Opens an app page such as `/addons/<addon-id>/<path>?item=x`, asking about
+   * unsaved edits first. With `replace`, only the query of the page that is
+   * showing changes, without reopening it. Returns false when the host refused.
+   * Host 2.1.0 and later.
+   */
+  navigate(href: string, options?: { readonly replace?: boolean }): boolean;
   declarations(): readonly ContributionDeclaration[];
   bind(contributionId: string, binding: ContributionBinding): ContributionHandle;
 }

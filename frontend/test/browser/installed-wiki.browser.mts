@@ -150,7 +150,7 @@ async function open(t: TestContext, role = "dm", mobile = false) {
     if (window === window.top) localStorage.setItem("codex_lang", "en");
   });
   const page = await context.newPage();
-  await page.goto("/#/graph/relationships");
+  await page.goto("/graph/relationships");
   await page.locator('.cm-node[data-key="captain"]').waitFor();
   return page;
 }
@@ -256,19 +256,19 @@ for (const mobile of [false, true])
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     t.after(() => assert.deepEqual(errors, []));
-    await page.goto(`/#/characters/${id}`);
+    await page.goto(`/characters/${id}`);
     const ward = page
       .locator("codex-addon-rule-details")
       .filter({ has: page.getByRole("button", { name: "Ward", exact: true }) });
     await ward.waitFor();
     assert.equal(
       await page.locator("a.wiki-link").filter({ hasText: "Captain" }).getAttribute("href"),
-      "#/characters/captain",
+      "/characters/captain",
     );
     await ward.getByRole("button", { name: "Ward", exact: true }).click();
     const full = ward.getByRole("link", { name: "Open full rule", exact: true });
     await full.waitFor();
-    assert.equal(await full.getAttribute("href"), `#/addons/${id}/library?id=shield`);
+    assert.equal(await full.getAttribute("href"), `/addons/${id}/library?id=shield`);
     await installReviewedPackage(admin, csrf, id, wikiPackage(id, { version: "1.0.1" }), []);
     await ward.waitFor();
     await ward.getByRole("button", { name: "Ward", exact: true }).click();
@@ -281,7 +281,7 @@ for (const mobile of [false, true])
     await page.keyboard.press("Escape");
     await installReviewedPackage(admin, csrf, id, archive, []);
     await ward.waitFor();
-    await page.goto("/#/search");
+    await page.goto("/search");
     await page.locator(".campaign-search-field input").fill("shield");
     await page.getByRole("link", { name: "Shield reference" }).waitFor();
     await installReviewedPackage(
@@ -291,7 +291,7 @@ for (const mobile of [false, true])
       wikiPackage(id, { version: "1.0.2", roles: ["dm"] }),
       [],
     );
-    await page.goto(`/#/characters/${id}`);
+    await page.goto(`/characters/${id}`);
     await ward.getByRole("button", { name: "Ward", exact: true }).click();
     await ward.getByRole("status").filter({ hasText: "current source is unavailable" }).waitFor();
     assert.equal(await full.count(), 0);

@@ -126,10 +126,13 @@ campaign refresh, core navigation, generic record editing, media clients, and
 browser add-on composition. `codex-app` wires one controller for each: the
 session (`session-controller.ts`), campaign loading (`campaign-controller.ts`),
 writes (`campaign-write-controller.ts`), add-on outlets
-(`addon-outlets-controller.ts`) and leaving open edits (`navigation-guard.ts`).
-Add-ons own specialized campaign experiences. The
-production Go server serves only `index.html` and fingerprinted `/assets/`
-output from Vite; Node.js is absent from the runtime image.
+(`addon-outlets-controller.ts`) and the address bar with open edits
+(`navigation-guard.ts`). Pages are paths (`/locations/<key>`); the guard opens
+same-origin links in place through the History API. Add-ons own specialized
+campaign experiences. The production Go server answers `/api/`, the
+fingerprinted `/assets/` output from Vite and the default icons itself, and
+serves `index.html` for every other path. Node.js is absent from the runtime
+image.
 
 The [shared UI foundations](reference/UI_FOUNDATIONS.md) preserve the goal of
 reusable, themeable controls serving both the host and add-ons. The versioned

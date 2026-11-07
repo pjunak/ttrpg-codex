@@ -8,7 +8,7 @@ Leaflet's image-coordinate behavior is documented in its
 
 ## Coordinates and ownership
 
-- World map route: `#/map/world`; local map route: `#/map/local/<encoded key>`.
+- World map route: `/map/world`; local map route: `/map/local/<encoded key>`.
   Event article links append `/event/<encoded key>/show` or `/place`. Show
   enables the overlay and centers the event; Place opens a pending placement
   for an authenticated editor. Neither action writes data by navigating.
@@ -160,8 +160,8 @@ the previous referenced image; no old handle is deleted by this UI.
 The DM Maps settings panel uses the original brown/gold settings layout with
 a map selector, image preview/upload, marker scaling, and links to the map and
 its saved-view editor. It includes unplaced locations so their local maps can
-be uploaded. `#/settings/maps` opens the world map configuration;
-`#/settings/maps/local/<encoded key>` opens a location's configuration.
+be uploaded. `/settings/maps` opens the world map configuration;
+`/settings/maps/local/<encoded key>` opens a location's configuration.
 
 Shared `settings/mapConfigs` holds `world` and `local-<key>`
 entries. Each entry's `zoomScaleRatio` ranges from 0 to 1, defaulting to 0.

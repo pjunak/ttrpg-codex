@@ -64,7 +64,7 @@ describe("campaign product projection", () => {
       statusLabel: "Living",
       visibility: "public",
       portrait: "/api/media/b_11111111111111111111111111111111",
-      route: "#/characters/aria",
+      route: "/characters/aria",
       attitudes: [{ id: "party", label: "Ember Company", color: "#f5f0e4", strength: 1 }],
     });
     expect(summaries[0]?.attitudeRing).toContain("rgba(245, 240, 228, 1)");

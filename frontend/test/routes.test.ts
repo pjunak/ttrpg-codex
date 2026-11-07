@@ -1,165 +1,165 @@
 import { describe, expect, it } from "vitest";
 import {
   campaignPages,
-  collectionHash,
+  collectionHref,
   parseAppRoute,
-  recordHash,
-  eventMapHash,
-  locationMapHash,
-  mapSettingsHash,
-  addonSettingsHash,
-  settingsHash,
+  recordHref,
+  eventMapHref,
+  locationMapHref,
+  mapSettingsHref,
+  addonSettingsHref,
+  settingsHref,
 } from "../src/app/routes.js";
 
 describe("application routes", () => {
   it("opens an add-on settings disclosure through a bounded direct route", () => {
-    expect(parseAppRoute("#/settings/addons")).toEqual({ kind: "settings", addonId: null });
-    expect(parseAppRoute(addonSettingsHash("sample-addon"))).toEqual({
+    expect(parseAppRoute("/settings/addons")).toEqual({ kind: "settings", addonId: null });
+    expect(parseAppRoute(addonSettingsHref("sample-addon"))).toEqual({
       kind: "settings",
       addonId: "sample-addon",
     });
     for (const hash of [
-      "#/settings/addons/../maps",
-      "#/settings/addons/%2F",
-      "#/settings/addons/UPPER",
-      `#/settings/addons/${"a".repeat(101)}`,
+      "/settings/addons/sample-addon/extra",
+      "/settings/addons/%2F",
+      "/settings/addons/UPPER",
+      `/settings/addons/${"a".repeat(101)}`,
     ]) {
       expect(parseAppRoute(hash).kind).toBe("not-found");
     }
   });
   it("opens the restored relationship graph without accepting unfinished graph routes", () => {
-    for (const hash of ["#/graph/relationships"])
+    for (const hash of ["/graph/relationships"])
       expect(parseAppRoute(hash)).toEqual({ kind: "campaign-graph", mode: "relationships" });
-    for (const hash of ["#/graph/factions"])
+    for (const hash of ["/graph/factions"])
       expect(parseAppRoute(hash)).toEqual({ kind: "campaign-graph", mode: "factions" });
-    for (const hash of ["#/graph/mysteries"])
+    for (const hash of ["/graph/mysteries"])
       expect(parseAppRoute(hash)).toEqual({ kind: "campaign-graph", mode: "mysteries" });
-    for (const hash of ["#/graph/relationships/extra", "#/graph/unknown", "#/mapa/vztahy"])
+    for (const hash of ["/graph/relationships/extra", "/graph/unknown", "/mapa/vztahy"])
       expect(parseAppRoute(hash).kind).toBe("not-found");
   });
   it("opens the timeline and the session-aware shared event editor", () => {
-    expect(parseAppRoute("#/timeline")).toEqual({ kind: "timeline" });
-    expect(parseAppRoute("#/casova-osa").kind).toBe("not-found");
-    expect(parseAppRoute("#/timeline/new/3")).toMatchObject({
+    expect(parseAppRoute("/timeline")).toEqual({ kind: "timeline" });
+    expect(parseAppRoute("/casova-osa").kind).toBe("not-found");
+    expect(parseAppRoute("/timeline/new/3")).toMatchObject({
       kind: "create",
       preset: "event",
       sitting: 3,
       page: { collection: "events" },
     });
-    expect(parseAppRoute("#/events/river%2Fcamp/edit")).toMatchObject({
+    expect(parseAppRoute("/events/river%2Fcamp/edit")).toMatchObject({
       kind: "record",
       key: "river/camp",
       editing: true,
     });
     for (const hash of [
-      "#/timeline/new/0",
-      "#/timeline/new/2.5",
-      "#/timeline/new/9007199254740992",
-      "#/events/%00/edit",
-      "#/events/river/edit/extra",
+      "/timeline/new/0",
+      "/timeline/new/2.5",
+      "/timeline/new/9007199254740992",
+      "/events/%00/edit",
+      "/events/river/edit/extra",
     ]) {
       expect(parseAppRoute(hash).kind).toBe("not-found");
     }
   });
   it("maps the campaign title page, search, party, collections, records, and add-ons", () => {
     expect(parseAppRoute("")).toEqual({ kind: "dashboard" });
-    expect(parseAppRoute("#/search")).toEqual({ kind: "search" });
-    expect(parseAppRoute("#/party")).toEqual({ kind: "party" });
-    expect(parseAppRoute("#/party/new")).toMatchObject({
+    expect(parseAppRoute("/search")).toEqual({ kind: "search" });
+    expect(parseAppRoute("/party")).toEqual({ kind: "party" });
+    expect(parseAppRoute("/party/new")).toMatchObject({
       kind: "create",
       preset: "party",
       page: { collection: "characters" },
     });
-    expect(parseAppRoute("#/characters/new")).toMatchObject({ kind: "record", key: "new" });
-    expect(parseAppRoute("#/settings")).toEqual({ kind: "settings" });
-    expect(parseAppRoute(settingsHash("map-markers"))).toEqual({
+    expect(parseAppRoute("/characters/new")).toMatchObject({ kind: "record", key: "new" });
+    expect(parseAppRoute("/settings")).toEqual({ kind: "settings" });
+    expect(parseAppRoute(settingsHref("map-markers"))).toEqual({
       kind: "settings",
       category: "map-markers",
     });
-    expect(parseAppRoute("#/settings/unknown").kind).toBe("not-found");
-    expect(parseAppRoute("#/dm")).toEqual({ kind: "dm" });
-    expect(parseAppRoute("#/map/world")).toEqual({ kind: "map", parentId: null });
-    expect(parseAppRoute("#/map/local/gate%2Fupper")).toEqual({
+    expect(parseAppRoute("/settings/unknown").kind).toBe("not-found");
+    expect(parseAppRoute("/dm")).toEqual({ kind: "dm" });
+    expect(parseAppRoute("/map/world")).toEqual({ kind: "map", parentId: null });
+    expect(parseAppRoute("/map/local/gate%2Fupper")).toEqual({
       kind: "map",
       parentId: "gate/upper",
     });
-    expect(parseAppRoute("#/map/world")).toEqual({ kind: "map", parentId: null });
-    expect(parseAppRoute("#/map/local/%00").kind).toBe("not-found");
-    expect(parseAppRoute("#/locations")).toMatchObject({
+    expect(parseAppRoute("/map/world")).toEqual({ kind: "map", parentId: null });
+    expect(parseAppRoute("/map/local/%00").kind).toBe("not-found");
+    expect(parseAppRoute("/locations")).toMatchObject({
       kind: "collection",
       page: { collection: "locations" },
     });
-    expect(parseAppRoute("#/locations/greenest%20keep")).toMatchObject({
+    expect(parseAppRoute("/locations/greenest%20keep")).toMatchObject({
       kind: "record",
       key: "greenest keep",
       page: { collection: "locations" },
     });
-    expect(parseAppRoute("#/addons/dm-tools/planner")).toEqual({ kind: "addon" });
+    expect(parseAppRoute("/addons/dm-tools/planner")).toEqual({ kind: "addon" });
   });
 
   it("round-trips record keys without allowing malformed paths", () => {
     const locations = campaignPages.find((page) => page.collection === "locations");
     expect(locations).toBeDefined();
     if (locations === undefined) return;
-    expect(collectionHash(locations)).toBe("#/locations");
-    expect(recordHash(locations, "keep/upper hall")).toBe("#/locations/keep%2Fupper%20hall");
-    expect(parseAppRoute(recordHash(locations, "keep/upper hall"))).toMatchObject({
+    expect(collectionHref(locations)).toBe("/locations");
+    expect(recordHref(locations, "keep/upper hall")).toBe("/locations/keep%2Fupper%20hall");
+    expect(parseAppRoute(recordHref(locations, "keep/upper hall"))).toMatchObject({
       kind: "record",
       key: "keep/upper hall",
     });
-    expect(parseAppRoute("#/locations/%E0%A4%A").kind).toBe("not-found");
-    expect(parseAppRoute("#/locations/a/extra").kind).toBe("not-found");
-    expect(parseAppRoute("#/unknown").kind).toBe("not-found");
+    expect(parseAppRoute("/locations/%E0%A4%A").kind).toBe("not-found");
+    expect(parseAppRoute("/locations/a/extra").kind).toBe("not-found");
+    expect(parseAppRoute("/unknown").kind).toBe("not-found");
   });
   it("round-trips event map links with explicit show/place intent and rejects malformed targets", () => {
-    expect(parseAppRoute(eventMapHash(null, "camp/river", "show"))).toEqual({
+    expect(parseAppRoute(eventMapHref(null, "camp/river", "show"))).toEqual({
       kind: "map",
       parentId: null,
       event: { key: "camp/river", mode: "show" },
     });
-    expect(parseAppRoute(eventMapHash("gate/upper", "camp ?#", "place"))).toEqual({
+    expect(parseAppRoute(eventMapHref("gate/upper", "camp ?#", "place"))).toEqual({
       kind: "map",
       parentId: "gate/upper",
       event: { key: "camp ?#", mode: "place" },
     });
     for (const hash of [
-      "#/map/world/event/%00/place",
-      "#/map/world/event/%E0%A4%A/show",
-      "#/map/local/%00/event/camp/show",
-      "#/map/world/event/camp/delete",
-      "#/map/world/event/camp/show/extra",
-      "#/map/world/event//place",
+      "/map/world/event/%00/place",
+      "/map/world/event/%E0%A4%A/show",
+      "/map/local/%00/event/camp/show",
+      "/map/world/event/camp/delete",
+      "/map/world/event/camp/show/extra",
+      "/map/world/event//place",
     ]) {
       expect(parseAppRoute(hash).kind).toBe("not-found");
     }
   });
   it("opens map settings in the requested world or local scope", () => {
-    expect(parseAppRoute(mapSettingsHash(null))).toEqual({ kind: "settings", mapParentId: null });
-    expect(parseAppRoute(mapSettingsHash("gate/upper"))).toEqual({
+    expect(parseAppRoute(mapSettingsHref(null))).toEqual({ kind: "settings", mapParentId: null });
+    expect(parseAppRoute(mapSettingsHref("gate/upper"))).toEqual({
       kind: "settings",
       mapParentId: "gate/upper",
     });
-    expect(parseAppRoute("#/settings/maps/local/%00").kind).toBe("not-found");
-    expect(parseAppRoute("#/settings/maps/local/%E0%A4%A").kind).toBe("not-found");
+    expect(parseAppRoute("/settings/maps/local/%00").kind).toBe("not-found");
+    expect(parseAppRoute("/settings/maps/local/%E0%A4%A").kind).toBe("not-found");
   });
   it("round-trips location show/place links and rejects malformed or unknown actions", () => {
-    expect(parseAppRoute(locationMapHash(null, "gate/north ?#", "show"))).toEqual({
+    expect(parseAppRoute(locationMapHref(null, "gate/north ?#", "show"))).toEqual({
       kind: "map",
       parentId: null,
       location: { key: "gate/north ?#", mode: "show" },
     });
-    expect(parseAppRoute(locationMapHash("gate/upper", "room", "place"))).toEqual({
+    expect(parseAppRoute(locationMapHref("gate/upper", "room", "place"))).toEqual({
       kind: "map",
       parentId: "gate/upper",
       location: { key: "room", mode: "place" },
     });
     for (const hash of [
-      "#/map/world/location/%00/place",
-      "#/map/world/location/%E0%A4%A/show",
-      "#/map/local/%00/location/room/show",
-      "#/map/world/location/gate/delete",
-      "#/map/world/location/gate/show/extra",
-      "#/map/world/location//place",
+      "/map/world/location/%00/place",
+      "/map/world/location/%E0%A4%A/show",
+      "/map/local/%00/location/room/show",
+      "/map/world/location/gate/delete",
+      "/map/world/location/gate/show/extra",
+      "/map/world/location//place",
     ]) {
       expect(parseAppRoute(hash).kind).toBe("not-found");
     }
@@ -168,25 +168,25 @@ describe("application routes", () => {
 
 describe("core URLs", () => {
   it("opens records and creation pages without reinterpreting encoded keys", () => {
-    expect(parseAppRoute("#/characters/gate%2Fhorn%C3%AD%252F")).toMatchObject({
+    expect(parseAppRoute("/characters/gate%2Fhorn%C3%AD%252F")).toMatchObject({
       kind: "record",
       page: { id: "characters" },
       key: "gate/horní%2F",
     });
-    expect(parseAppRoute("#/create/characters")).toMatchObject({
+    expect(parseAppRoute("/create/characters")).toMatchObject({
       kind: "create",
       preset: "blank",
       page: { id: "characters" },
     });
-    expect(parseAppRoute("#/characters/new")).toMatchObject({ kind: "record", key: "new" });
+    expect(parseAppRoute("/characters/new")).toMatchObject({ kind: "record", key: "new" });
     for (const bad of [
-      "#/locations/%00",
-      "#/characters/%E0%A4%A",
-      "#/factions/a/extra",
-      "#/create/missing",
-      "#/create/characters/extra",
-      "#/postava/someone",
-      "#/postavy",
+      "/locations/%00",
+      "/characters/%E0%A4%A",
+      "/factions/a/extra",
+      "/create/missing",
+      "/create/characters/extra",
+      "/postava/someone",
+      "/postavy",
     ])
       expect(parseAppRoute(bad).kind).toBe("not-found");
   });

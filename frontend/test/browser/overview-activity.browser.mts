@@ -122,7 +122,7 @@ async function open(t: TestContext, role?: string, mobile = false) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, []));
-  await page.goto("/#/");
+  await page.goto("/");
   await page.locator(".session-section").waitFor();
   return { page, client: context.request, token: auth?.csrfToken };
 }
@@ -185,7 +185,7 @@ void test("private reference edits preserve the public summary and its timestamp
     visibility: "dm",
   });
   await put(admin, csrf, "activity-scout", { name: "Activity scout" }, 0, "characters");
-  const selector = '.recent-ledger a[href="#/characters/activity-scout"]';
+  const selector = '.recent-ledger a[href="/characters/activity-scout"]';
   await player.page.locator(selector).waitFor();
   const timestamp = await player.page.locator(`${selector} time`).getAttribute("datetime");
   const current = await record("activity-scout", "characters");
@@ -231,7 +231,7 @@ for (const mobile of [false, true])
       description: "New campaign content.",
       updatedAt: "2000-01-01T00:00:00Z",
     });
-    const link = `.recent-ledger a[href="#/locations/${key}"]`;
+    const link = `.recent-ledger a[href="/locations/${key}"]`;
     for (const { page } of [player, dm, anonymous]) await page.locator(link).waitFor();
     for (const { page } of [player, dm, anonymous])
       assert.equal(await page.locator(`${link} .recent-summary`).textContent(), "Created");
@@ -243,7 +243,7 @@ for (const mobile of [false, true])
       new Date(created.value.updatedAt).toISOString(),
     );
     await put(admin, csrf, hiddenKey, { name: "Private planning secret", visibility: "dm" });
-    await dm.page.locator(`.recent-ledger a[href="#/locations/${hiddenKey}"]`).waitFor();
+    await dm.page.locator(`.recent-ledger a[href="/locations/${hiddenKey}"]`).waitFor();
     await put(
       player.client,
       player.token,
@@ -259,13 +259,13 @@ for (const mobile of [false, true])
       );
       assert.equal(
         await page.locator(".recent-ledger a").first().getAttribute("href"),
-        `#/locations/${key}`,
+        `/locations/${key}`,
       );
     }
     assert.ok((await record(key)).value.updatedAt > created.value.updatedAt);
     for (const { page } of [player, anonymous])
       assert.equal(
-        await page.locator(`.recent-ledger a[href="#/locations/${hiddenKey}"]`).count(),
+        await page.locator(`.recent-ledger a[href="/locations/${hiddenKey}"]`).count(),
         0,
       );
     const session = await player.page.locator(".session-section").boundingBox().then(required),
@@ -288,10 +288,10 @@ for (const mobile of [false, true])
     const current = await record(key);
     await put(admin, csrf, key, { ...current.value, visibility: "dm" }, current.revision);
     await anonymous.page.waitForFunction(
-      (key) => !document.querySelector(`.recent-ledger a[href="#/locations/${key}"]`),
+      (key) => !document.querySelector(`.recent-ledger a[href="/locations/${key}"]`),
       key,
     );
-    await player.page.goto("/#/");
+    await player.page.goto("/");
     await player.page.locator(".session-section").waitFor();
     // Hash navigation reuses the campaign snapshot; this tab's live refresh is independent of the anonymous tab.
     await player.page.locator(link).waitFor({ state: "detached" });

@@ -1,7 +1,7 @@
 import type { ActiveBrowserContribution } from "../addons/browser-sdk.js";
 import type { CampaignCollectionName, CampaignRecord } from "../core/campaign-data.js";
 import { isRecord } from "../core/boundary.js";
-import { campaignPages, recordHash } from "./routes.js";
+import { campaignPages, recordHref } from "./routes.js";
 
 export type RecordContributionMode = "map" | "editor";
 
@@ -52,7 +52,7 @@ export function recordContributionContext(
       id: record.key,
       revision: record.revision,
       label: (typeof value["name"] === "string" ? value["name"] : record.key).slice(0, 200),
-      href: recordHash(page, record.key),
+      href: recordHref(page, record.key),
     },
   };
 }

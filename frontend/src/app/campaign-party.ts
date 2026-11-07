@@ -1,5 +1,5 @@
 import { cssHexColor, safeMediaURL } from "./campaign-projection.js";
-import { campaignPages, recordHash } from "./routes.js";
+import { campaignPages, recordHref } from "./routes.js";
 import { isRecord } from "../core/boundary.js";
 import { uiText } from "./ui-localization.js";
 import {
@@ -77,7 +77,7 @@ export function campaignFactionIdentity(
       icon: party.badge,
       color: party.color,
       picture: undefined,
-      href: "#/party",
+      href: "/party",
     });
   }
   if (typeof factionId !== "string" || factionId === "" || factionId === "neutral")
@@ -92,7 +92,7 @@ export function campaignFactionIdentity(
     icon: boundedLine(value["badge"], 100) || "⚑",
     color: hexColor(value["color"]),
     picture: safeMediaURL(value["portrait"]),
-    href: recordHash(
+    href: recordHref(
       campaignPages.find(({ collection }) => collection === "factions")!,
       record.key,
     ),

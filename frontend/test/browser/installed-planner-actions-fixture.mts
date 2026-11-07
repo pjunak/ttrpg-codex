@@ -97,7 +97,7 @@ export async function exercisePlannerActions({
     }),
   ]);
   const page = await open(t, "dm", mobile);
-  await page.goto(`/#/addons/dm-tools/planner?item=${scope}`);
+  await page.goto(`/addons/dm-tools/planner?item=${scope}`);
   const ready = () => page.locator('.dm-planner-shell[aria-busy="false"]').waitFor(),
     viewport = page.locator(".dm-planner-viewport");
   const card = (id: string) => page.locator(`[data-item-id="${id}"]`),
