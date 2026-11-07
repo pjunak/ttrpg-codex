@@ -87,9 +87,8 @@ reads can be translated.
 
 ## Consequences
 
-- One format and one translator replace four add-on systems. Each add-on
-  migrates on its own schedule; until then its own system keeps working, and
-  the Compendium's flat files show as catalog issues.
+- One format and one translator replace four add-on systems; every
+  first-party add-on now ships `message-catalog.v1` catalogs.
 - The site language travels with campaign backups and recovery points, as the
   theme does.
 - Published add-ons keep comparing `host.locale` with `"cs"`; current sites
