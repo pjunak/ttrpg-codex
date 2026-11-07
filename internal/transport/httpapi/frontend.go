@@ -24,10 +24,10 @@ func newFrontendHandler(files fs.FS) (http.Handler, error) {
 	assets := http.FileServerFS(files)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.URL.Path == "/":
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Header().Set("Cache-Control", "no-cache")
-			http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index))
+		case strings.HasPrefix(r.URL.Path, "/api/"):
+			// API requests that matched no route, such as a GET to a POST-only
+			// endpoint, stay errors instead of receiving the app.
+			http.NotFound(w, r)
 		case strings.HasPrefix(r.URL.Path, "/assets/"):
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			if asset, exists := compressed[r.URL.Path]; exists {
@@ -45,11 +45,10 @@ func newFrontendHandler(files fs.FS) (http.Handler, error) {
 				}
 			}
 			assets.ServeHTTP(w, r)
-		case r.URL.Path == "/logo.svg" ||
-			strings.HasPrefix(r.URL.Path, "/icons-defaults/") && strings.HasSuffix(r.URL.Path, ".svg"):
+		case r.URL.Path == "/logo.svg" || strings.HasPrefix(r.URL.Path, "/icons-defaults/"):
 			name := strings.TrimPrefix(r.URL.Path, "/")
 			info, err := fs.Stat(files, name)
-			if err != nil || !info.Mode().IsRegular() {
+			if !strings.HasSuffix(name, ".svg") || err != nil || !info.Mode().IsRegular() {
 				http.NotFound(w, r)
 				return
 			}
@@ -58,7 +57,10 @@ func newFrontendHandler(files fs.FS) (http.Handler, error) {
 			w.Header().Set("Cache-Control", "no-cache")
 			assets.ServeHTTP(w, r)
 		default:
-			http.NotFound(w, r)
+			// Every other path is a page of the browser app, which routes it.
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-cache")
+			http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(index))
 		}
 	}), nil
 }

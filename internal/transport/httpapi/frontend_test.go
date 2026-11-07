@@ -48,11 +48,35 @@ func TestFrontendServesIndexBuildAssetsAndMarkerArtwork(t *testing.T) {
 			}
 		}
 	}
-	for _, path := range []string{"/missing", "/api/missing", "/private.txt", "/icons-defaults/", "/icons-defaults/missing.svg"} {
+	for _, path := range []string{"/api/missing", "/api/login", "/assets/missing.js", "/icons-defaults/", "/icons-defaults/missing.svg", "/icons-defaults/city.txt"} {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
 		if response.Code != http.StatusNotFound || strings.Contains(response.Body.String(), "Codex") {
 			t.Fatalf("%s response = %d, %q", path, response.Code, response.Body.String())
+		}
+	}
+}
+
+func TestFrontendServesTheAppForPagePaths(t *testing.T) {
+	files := fstest.MapFS{
+		"index.html":  &fstest.MapFile{Data: []byte("<title>Codex</title>")},
+		"private.txt": &fstest.MapFile{Data: []byte("not a public asset")},
+	}
+	handler, err := New(Config{Frontend: files})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/locations/radov", "/addons/dm-tools/planner?item=a", "/settings/addons", "/missing", "/private.txt"} {
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, httptest.NewRequest(method, path, nil))
+			if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-cache" ||
+				!strings.HasPrefix(response.Header().Get("Content-Type"), "text/html") {
+				t.Fatalf("%s %s response = %d, %v", method, path, response.Code, response.Header())
+			}
+			if method == http.MethodGet && response.Body.String() != "<title>Codex</title>" {
+				t.Fatalf("%s body = %q", path, response.Body.String())
+			}
 		}
 	}
 }
