@@ -286,7 +286,7 @@ as a separate copy. Recovery refuses to replace it if this protective write
 fails. The normal campaign save still uses the editor's opening revision, so
 later concurrent writes fail visibly and retain the draft.
 
-Copies are scoped by site origin, effective role, collection, record key, and
+Copies are scoped by site origin, session role, collection, record key, and
 field; an unsaved entry uses a distinct null record key. Independent editor
 writers have independent random IDs. A tab never overwrites another tab's
 draft. After a confirmed campaign save, cleanup removes only the matching own

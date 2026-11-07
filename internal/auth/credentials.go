@@ -138,7 +138,7 @@ func (service *Service) ChangePassword(ctx context.Context, token, csrf, current
 	// not stall every other request's session lookup.
 	service.mu.Lock()
 	session, exists := service.sessions[digest]
-	authorized := exists && service.usableLocked(session, service.now()) && session.actor.RealRole == RoleDM && session.actor.Role == RoleDM && subtle.ConstantTimeCompare(csrfDigest[:], session.csrfDigest[:]) == 1
+	authorized := exists && service.usableLocked(session, service.now()) && session.actor.Role == RoleDM && subtle.ConstantTimeCompare(csrfDigest[:], session.csrfDigest[:]) == 1
 	service.mu.Unlock()
 	if !authorized {
 		return CredentialStatus{}, ErrRoleTransition
@@ -169,7 +169,7 @@ func (service *Service) ChangePassword(ctx context.Context, token, csrf, current
 	defer service.mu.Unlock()
 	revoked := make([][sha256.Size]byte, 0)
 	for key, candidate := range service.sessions {
-		if key != digest && (candidate.actor.RealRole == role || candidate.previewParent != nil) {
+		if key != digest && (candidate.actor.Role == role || candidate.previewParent != nil) {
 			revoked = append(revoked, key)
 		}
 	}

@@ -35,7 +35,7 @@ func TestCreateAndRestoreRoundTripDatabaseAndImmutableAddonFiles(t *testing.T) {
 	if _, err := database.Exec(`INSERT INTO restore_marker(value) VALUES ('from-backup')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.Exec(`INSERT INTO host_sessions VALUES (randomblob(32), 'dm', 'dm', ?, NULL, '2026-09-01T06:00:00Z', '2099-01-01T00:00:00Z')`,
+	if _, err := database.Exec(`INSERT INTO host_sessions VALUES (randomblob(32), 'dm', ?, NULL, '2026-09-01T06:00:00Z', '2099-01-01T00:00:00Z')`,
 		strings.Repeat("c", 43)); err != nil {
 		t.Fatal(err)
 	}

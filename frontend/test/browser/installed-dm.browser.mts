@@ -1143,7 +1143,6 @@ void test("player preview opens in a separate tab with player data, media and li
     const headers = { "X-Codex-Player-Preview": required(token) };
     const player = await jsonResponse(await context.request.get("/api/auth", { headers }));
     assert.equal(player.role, "player");
-    assert.equal(player.realRole, "player");
     assert.notEqual(player.csrfToken, original.csrfToken);
     assert.deepEqual(await jsonResponse(await context.request.get("/api/auth")), original);
     assert.equal(await dm.locator("#credentials-title").count(), 1);

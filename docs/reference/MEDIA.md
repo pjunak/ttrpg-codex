@@ -8,13 +8,13 @@ browser never learns the hash-addressed filesystem location.
 
 | Kind | Target | Upload/delete authority | Read visibility |
 |---|---|---|---|
-| `character-portrait` | existing character key | authenticated player for a public character; effective DM for any character | follows the character |
-| `faction-picture` | existing faction key | authenticated player for a public faction; effective DM for any faction | follows the faction |
-| `companion-portrait` | existing companion key | authenticated player or effective DM | public |
-| `location-map` | existing location key | authenticated player for a public location; effective DM for any location | follows the location |
-| `world-map` | `main` | effective DM | public |
-| `marker-icon` | existing `settings.pinTypes` key | effective DM | public |
-| `branding-logo` | `main` | effective DM | public |
+| `character-portrait` | existing character key | authenticated player for a public character; DM for any character | follows the character |
+| `faction-picture` | existing faction key | authenticated player for a public faction; DM for any faction | follows the faction |
+| `companion-portrait` | existing companion key | authenticated player or DM | public |
+| `location-map` | existing location key | authenticated player for a public location; DM for any location | follows the location |
+| `world-map` | `main` | DM | public |
+| `marker-icon` | existing `settings.pinTypes` key | DM | public |
+| `branding-logo` | `main` | DM | public |
 
 Every write also requires the session-bound CSRF token. A DM using player view
 has player authority. A request for DM-only media from any other role returns

@@ -32,10 +32,7 @@ func TestCampaignDatasetUsesPublicProjectionForAnonymousAndPlayer(t *testing.T) 
 	}{
 		{name: "anonymous"},
 		{name: "player", actor: &sessionauth.Actor{
-			SessionID: "player-session", RealRole: sessionauth.RolePlayer, Role: sessionauth.RolePlayer,
-		}},
-		{name: "DM viewing as player", actor: &sessionauth.Actor{
-			SessionID: "dm-session", RealRole: sessionauth.RoleDM, Role: sessionauth.RolePlayer,
+			SessionID: "player-session", Role: sessionauth.RolePlayer,
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -55,7 +52,7 @@ func TestCampaignDatasetUsesPublicProjectionForAnonymousAndPlayer(t *testing.T) 
 	}
 }
 
-func TestCampaignDatasetUsesEffectiveDMProjection(t *testing.T) {
+func TestCampaignDatasetUsesDMProjection(t *testing.T) {
 	t.Parallel()
 	source := &recordingCampaignData{dataset: campaigndata.Dataset{
 		ContractVersion: campaigndata.ContractVersion, Collections: []campaigndata.CollectionView{},
@@ -63,7 +60,7 @@ func TestCampaignDatasetUsesEffectiveDMProjection(t *testing.T) {
 	handler := campaignHandler(t, source)
 	request := httptest.NewRequest(http.MethodGet, "/api/campaign", nil)
 	request = request.WithContext(sessionauth.WithActor(request.Context(), sessionauth.Actor{
-		SessionID: "dm-session", RealRole: sessionauth.RoleDM, Role: sessionauth.RoleDM,
+		SessionID: "dm-session", Role: sessionauth.RoleDM,
 	}))
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)

@@ -18,40 +18,35 @@ describe("parseHealth", () => {
 });
 
 describe("parseAuthState", () => {
-  it("accepts anonymous and DM-as-player authority", () => {
-    expect(parseAuthState({ role: null, realRole: null })).toEqual({
-      authenticated: false,
-      role: null,
-      realRole: null,
-    });
+  it("accepts anonymous and signed-in authority", () => {
+    expect(parseAuthState({ role: null })).toEqual({ authenticated: false, role: null });
     expect(
       parseAuthState({
         ok: true,
         role: "player",
-        realRole: "dm",
         csrfToken: "a".repeat(32),
         expiresAt: "2026-09-30T12:00:00Z",
       }),
     ).toEqual({
       authenticated: true,
       role: "player",
-      realRole: "dm",
       csrfToken: "a".repeat(32),
       expiresAt: "2026-09-30T12:00:00Z",
     });
   });
 
   it.each([
-    { role: null, realRole: null, csrfToken: "unexpected" },
+    { role: null, csrfToken: "unexpected" },
+    { ok: true, role: "admin", csrfToken: "a".repeat(32), expiresAt: "2026-09-30T12:00:00Z" },
     {
       ok: true,
       role: "dm",
-      realRole: "player",
+      realRole: "dm",
       csrfToken: "a".repeat(32),
       expiresAt: "2026-09-30T12:00:00Z",
     },
-    { ok: true, role: "dm", realRole: "dm", csrfToken: "short", expiresAt: "2026-09-30T12:00:00Z" },
-    { ok: true, role: "dm", realRole: "dm", csrfToken: "a".repeat(32), expiresAt: "not-a-date" },
+    { ok: true, role: "dm", csrfToken: "short", expiresAt: "2026-09-30T12:00:00Z" },
+    { ok: true, role: "dm", csrfToken: "a".repeat(32), expiresAt: "not-a-date" },
   ])("rejects malformed authority %#", (value) => {
     expect(() => parseAuthState(value)).toThrow(BoundaryValidationError);
   });

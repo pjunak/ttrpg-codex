@@ -47,11 +47,10 @@ for (const phase of ["startup", "refresh"] as const) {
             ? {
                 ok: true,
                 role: "dm",
-                realRole: "dm",
                 csrfToken: "x".repeat(32),
                 expiresAt: "2099-01-01T00:00:00Z",
               }
-            : { role: null, realRole: null },
+            : { role: null },
         }),
       );
       await page.route("**/api/logout", async (route) => {

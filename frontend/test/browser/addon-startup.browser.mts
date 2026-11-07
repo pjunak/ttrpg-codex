@@ -50,11 +50,10 @@ void test(
         ? {
             ok: true,
             role: "dm",
-            realRole: "dm",
             csrfToken: csrf,
             expiresAt: "2099-01-01T00:00:00Z",
           }
-        : { role: null, realRole: null };
+        : { role: null };
     await page.route("**/api/auth", async (route) => {
       const snapshot = auth();
       const held = ++reads === 2;
@@ -142,11 +141,10 @@ for (const asset of ["graph", "stylesheet", "module"] as const) {
           ? {
               ok: true,
               role: "dm",
-              realRole: "dm",
               csrfToken: "x".repeat(32),
               expiresAt: "2099-01-01T00:00:00Z",
             }
-          : { role: null, realRole: null };
+          : { role: null };
       await page.route("**/api/auth", (route) => route.fulfill({ json: auth() }));
       await page.route("**/api/logout", async (route) => {
         authenticated = false;

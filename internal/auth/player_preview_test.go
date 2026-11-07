@@ -19,7 +19,7 @@ func TestPlayerPreviewKeepsDMAndBindsPlayerLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if preview.Actor.Role != RolePlayer || preview.Actor.RealRole != RolePlayer || preview.Token == dm.Token ||
+	if preview.Actor.Role != RolePlayer || preview.Token == dm.Token ||
 		preview.CSRFToken == dm.CSRFToken || preview.ExpiresAt != now.Add(time.Hour) {
 		t.Fatal("preview did not get independent bounded player authority")
 	}

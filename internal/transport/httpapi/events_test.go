@@ -29,7 +29,7 @@ func TestEventConfigurationFailsClosed(t *testing.T) {
 	}
 }
 
-func TestSessionEventAuthorizerUsesEffectiveAudience(t *testing.T) {
+func TestSessionEventAuthorizerUsesSessionAudience(t *testing.T) {
 	t.Parallel()
 	request := httptest.NewRequest(http.MethodGet, "/api/events", nil)
 	audience, err := SessionEventAuthorizer(request)
@@ -37,14 +37,14 @@ func TestSessionEventAuthorizerUsesEffectiveAudience(t *testing.T) {
 		t.Fatalf("anonymous audience = %q, %v", audience, err)
 	}
 	request = request.WithContext(sessionauth.WithActor(request.Context(), sessionauth.Actor{
-		SessionID: "dm-session", RealRole: sessionauth.RoleDM, Role: sessionauth.RolePlayer,
+		SessionID: "player-session", Role: sessionauth.RolePlayer,
 	}))
 	audience, err = SessionEventAuthorizer(request)
 	if err != nil || audience != events.AudiencePublic {
-		t.Fatalf("DM-as-player audience = %q, %v", audience, err)
+		t.Fatalf("player audience = %q, %v", audience, err)
 	}
 	request = request.WithContext(sessionauth.WithActor(request.Context(), sessionauth.Actor{
-		SessionID: "dm-session", RealRole: sessionauth.RoleDM, Role: sessionauth.RoleDM,
+		SessionID: "dm-session", Role: sessionauth.RoleDM,
 	}))
 	audience, err = SessionEventAuthorizer(request)
 	if err != nil || audience != events.AudienceDM {

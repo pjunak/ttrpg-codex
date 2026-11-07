@@ -154,9 +154,7 @@ export class AddonOutletsController implements ReactiveController {
     await stopping;
     if (signal.aborted || owner !== this.#owner) return;
     const auth = this.#options.auth();
-    browserDiagnostics.enable(
-      auth?.authenticated === true && auth.role === "dm" && auth.realRole === "dm",
-    );
+    browserDiagnostics.enable(auth?.authenticated === true && auth.role === "dm");
     if (auth?.authenticated !== true) return;
     this.#set({ state: "loading" });
     const current = () => owner === this.#owner;

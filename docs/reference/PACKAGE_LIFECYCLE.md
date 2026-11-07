@@ -125,7 +125,7 @@ Token inputs are cleared on submission, including uncertain responses; refresh
 reads configured state before an explicit retry. Credentials are not restored with campaign
 backups.
 
-All routes require real and effective DM authority; POST also requires CSRF:
+All routes require a DM session; POST also requires CSRF:
 
 | Method and path | Operation |
 |---|---|
@@ -509,8 +509,8 @@ the host monitor. Cleanup failure is reported separately from activation
 success. Live backup creation shares the same coordinator lock.
 
 Settings shows the policy and whether cleanup is still being retried, with no
-manual cleanup controls. `GET /api/admin/addon-package-storage` (real and
-effective DM only, no-store) returns `addon-package-storage.v1`:
+manual cleanup controls. `GET /api/admin/addon-package-storage` (DM only,
+no-store) returns `addon-package-storage.v1`:
 `{contractVersion, automatic, pending}`.
 
 Regression coverage includes `latest_retention_test.go`, `addon_storage_test.go`,
@@ -520,8 +520,8 @@ the strict client test, and desktop/phone installed-update browser scenarios.
 
 The retained operator API reviews the complete saved
 inventory, including archives of uninstalled add-ons. Settings has no cleanup
-controls; the server owns normal housekeeping. Only a real and effective
-DM with CSRF authority can use these diagnostic/operator endpoints.
+controls; the server owns normal housekeeping. Only a DM session with CSRF
+authority can use these diagnostic/operator endpoints.
 
 A count selection retains zero to five additional inactive packages per add-on,
 newest installation first (generation hash breaks timestamp ties). Active
@@ -601,7 +601,7 @@ The transport registers add-on administration only when both the lifecycle
 service and an `AdminAuthorizer` are supplied. Supplying only one is a startup
 configuration error. Authorization runs before path or body parsing, and a
 denial returns a generic response without exposing session details. The
-cookie-backed authorizer requires a real-and-effective DM session and a bound
+cookie-backed authorizer requires a DM session and a bound
 CSRF token for mutations.
 
 | Method and path | Operation |

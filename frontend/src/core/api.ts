@@ -1,8 +1,8 @@
 import { BoundaryValidationError, hasOnlyKeys, isRecord } from "./boundary.js";
 import { sessionFetch } from "./player-preview.js";
 
-const anonymousAuthKeys = new Set(["role", "realRole"]);
-const authenticatedAuthKeys = new Set(["ok", "role", "realRole", "csrfToken", "expiresAt"]);
+const anonymousAuthKeys = new Set(["role"]);
+const authenticatedAuthKeys = new Set(["ok", "role", "csrfToken", "expiresAt"]);
 const sessionTokenPattern = /^[A-Za-z0-9_-]{32,512}$/;
 
 export interface Health {
@@ -11,11 +11,10 @@ export interface Health {
 }
 
 export type AuthState =
-  | { readonly authenticated: false; readonly role: null; readonly realRole: null }
+  | { readonly authenticated: false; readonly role: null }
   | {
       readonly authenticated: true;
       readonly role: "dm" | "player";
-      readonly realRole: "dm" | "player";
       readonly csrfToken: string;
       readonly expiresAt: string;
     };
@@ -61,23 +60,18 @@ export function parseAuthState(value: unknown): AuthState {
   if (!isRecord(value)) {
     throw new BoundaryValidationError(boundary, "response must be an object");
   }
-  if (value["role"] === null && value["realRole"] === null) {
+  if (value["role"] === null) {
     if (!hasOnlyKeys(value, anonymousAuthKeys)) {
       throw new BoundaryValidationError(boundary, "anonymous response has unknown fields");
     }
-    return { authenticated: false, role: null, realRole: null };
+    return { authenticated: false, role: null };
   }
   if (!hasOnlyKeys(value, authenticatedAuthKeys) || value["ok"] !== true) {
     throw new BoundaryValidationError(boundary, "authenticated response has an invalid shape");
   }
   const role = value["role"];
-  const realRole = value["realRole"];
-  if (
-    (role !== "dm" && role !== "player") ||
-    (realRole !== "dm" && realRole !== "player") ||
-    (realRole === "player" && role !== "player")
-  ) {
-    throw new BoundaryValidationError(boundary, "roles contain an invalid authority transition");
+  if (role !== "dm" && role !== "player") {
+    throw new BoundaryValidationError(boundary, "role must be dm or player");
   }
   const csrfToken = value["csrfToken"];
   const expiresAt = value["expiresAt"];
@@ -89,7 +83,7 @@ export function parseAuthState(value: unknown): AuthState {
   ) {
     throw new BoundaryValidationError(boundary, "session metadata is invalid");
   }
-  return { authenticated: true, role, realRole, csrfToken, expiresAt };
+  return { authenticated: true, role, csrfToken, expiresAt };
 }
 
 export async function getAuth(signal: AbortSignal): Promise<AuthState> {

@@ -133,11 +133,10 @@ export function visualFixturePlugin({
               ? {
                   ok: true,
                   role,
-                  realRole: role,
                   csrfToken: "x".repeat(32),
                   expiresAt: "2099-01-01T00:00:00Z",
                 }
-              : { role: null, realRole: null },
+              : { role: null },
           "/api/campaign": getCampaign(),
           "/api/addons/browser-graph": {
             contractVersion: 2,

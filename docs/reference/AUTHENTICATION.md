@@ -2,8 +2,7 @@
 
 Authentication is deliberately small: one DM and one optional player password,
 with no accounts. It is a real authorization boundary, not a development
-bypass. The Go host owns credentials, sessions, effective roles,
-and CSRF checks. TypeScript may render the current authority but cannot create
+bypass. The Go host owns credentials, sessions, roles and CSRF checks. TypeScript may render the current authority but cannot create
 or upgrade it.
 
 ## Credentials and sessions
@@ -21,7 +20,7 @@ Successful login creates independent random 256-bit session and CSRF tokens.
 Only digests of the session and CSRF tokens are used for lookup/comparison;
 the CSRF value is retained only so the same-origin client can recover it after
 a page reload. Sessions are bounded and expire after 30 days by default. Each
-session is saved in the `host_sessions` table (token digest, roles, CSRF value,
+session is saved in the `host_sessions` table (token digest, role, CSRF value,
 times), so a restart or deploy keeps everyone signed in. A session change is
 saved before it takes effect; if saving fails, the request fails and the
 current session stays as it was. Backup images contain no sessions, so
@@ -38,34 +37,27 @@ client sent).
 
 ## Authority model
 
-Every resolved session carries two roles:
-
-- `realRole` is the authenticated identity class and never increases;
-- `role` is the effective projection used for data and browser UI.
-
-Every session currently has equal roles: a DM session is DM/DM, and player
-sessions and player previews are player/player. Authorization checks still
-name both where they require DM.
+Every resolved session has one role, `dm` or `player`, set by the password it
+signed in with; player previews are `player`. A session never changes role.
+To see the player view, a DM opens a player preview.
 
 `GET /api/auth` is the authoritative browser probe. Anonymous responses contain
-null roles. Authenticated responses contain the two roles, the current CSRF
-token, and the expiry time. Login and logout responses follow the same
-shape.
+a null role. Authenticated responses contain the role, the current CSRF token,
+and the expiry time. Login and logout responses follow the same shape.
 
 Protected browser graph and immutable asset reads accept either authenticated
-role. Administrative reads require real and effective DM. Administrative
-mutations additionally require the exact `X-Codex-CSRF` value bound to that
-session. These checks run before request path, query, or body parsing.
+role. Administrative reads require a DM session. Administrative mutations
+additionally require the exact `X-Codex-CSRF` value bound to that session. These checks run before request path, query, or body parsing.
 
 Campaign reading deliberately differs from those protected surfaces.
 `GET /api/campaign` is available anonymously because both current websites are
 public campaign references. Anonymous users and players receive the same
-closed public projection. Authentication can only expand that projection when
-the effective session role is DM.
+closed public projection. Authentication can only expand that projection for
+a DM session.
 
 The shared `GET /api/events` stream follows the same projection rule.
 Anonymous callers receive only public invalidations. Player sessions also
-receive the public audience, while an effective DM additionally
+receive the public audience, while a DM session additionally
 receives DM invalidations. The browser closes and reopens its single stream
 after an authority change so an older audience is never reused.
 Closing the source also cancels work already delivered by it. Live refresh and
@@ -94,17 +86,17 @@ action's busy state. A pending blank preview closes on cancellation, while a
 successfully opened preview keeps its independent lifetime.
 
 Campaign transactions accept either authenticated role and always require the
-exact CSRF value bound to the current cookie. The effective role selects DM or
+exact CSRF value bound to the current cookie. The session role selects DM or
 player mutation policy. Audit identity is derived from the resolved session and
 cannot be supplied or overridden in JSON.
 
 Twin create, link, and unlink are stricter because they can expose the
-existence of a hidden counterpart. They require both the real and effective
-role to be DM, as well as the exact CSRF value. Host-owned enum deletion
+existence of a hidden counterpart. They require a DM session and the exact
+CSRF value. Host-owned enum deletion
 uses the same stricter authority because its atomic usage rewrite spans public
 and DM-only records.
 
-`GET /api/backup` also requires both real and effective DM authority because
+`GET /api/backup` also requires a DM session because
 the bundle contains every DM-only record and add-on document. It is a download
 that at most saves an unchanged-data recovery point, so it does not use a CSRF
 header; same-origin cookie policy and the strict DM check remain required.
@@ -169,7 +161,7 @@ Password status/change JSON waits share their initiating cancellation signal;
 late success or failure cannot replace fresh inputs or current feedback. Stopping
 the browser wait does not undo an accepted password change or replay it.
 
-`GET /api/passwords` requires real and effective DM authority and returns only
+`GET /api/passwords` requires a DM session and returns only
 `credential-status.v1`, the credential revision and `playerEnabled`.
 `POST /api/passwords` also requires CSRF and takes `role`, `currentPassword`,
 `newPassword`, and `expectedRevision`. New passwords contain 4–4096 bytes and

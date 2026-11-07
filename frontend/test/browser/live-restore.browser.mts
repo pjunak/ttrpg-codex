@@ -268,11 +268,10 @@ void test("an old restore cannot restart add-ons belonging to a fresh sign-in", 
       ? {
           ok: true,
           role: "dm",
-          realRole: "dm",
           csrfToken: "x".repeat(32),
           expiresAt: "2099-01-01T00:00:00Z",
         }
-      : { role: null, realRole: null };
+      : { role: null };
   await page.route("**/api/auth", (route) => route.fulfill({ json: auth() }));
   await page.route("**/api/logout", (route) => {
     authenticated = false;
@@ -366,7 +365,6 @@ void test("a clean campaign restore still restarts add-ons after same-role token
       json: {
         ok: true,
         role: "dm",
-        realRole: "dm",
         csrfToken: "n".repeat(32),
         expiresAt: "2099-01-01T00:00:00Z",
       },

@@ -35,7 +35,7 @@ func TestAuthenticationRoutesIssueResolveRotateAndRevokeSessions(t *testing.T) {
 	cookie := login.Result().Cookies()[0]
 	csrf := jsonStringField(t, login.Body.Bytes(), "csrfToken")
 	probe := serveAuthRequest(handler, http.MethodGet, "/api/auth", "", cookie.String(), "")
-	if probe.Code != http.StatusOK || !strings.Contains(probe.Body.String(), `"realRole":"dm"`) ||
+	if probe.Code != http.StatusOK || !strings.Contains(probe.Body.String(), `"role":"dm"`) || strings.Contains(probe.Body.String(), "realRole") ||
 		jsonStringField(t, probe.Body.Bytes(), "csrfToken") != csrf {
 		t.Fatalf("auth probe = %d, %s", probe.Code, probe.Body.String())
 	}

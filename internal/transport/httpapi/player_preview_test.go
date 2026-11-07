@@ -84,7 +84,7 @@ func TestPlayerPreviewRoutesNeverReplaceOrFallBackToDMCookie(t *testing.T) {
 	}
 	token := jsonStringField(t, created.Body.Bytes(), "token")
 	probe := call("GET", "/api/auth", "", token, "", true)
-	if probe.Code != 200 || strings.Contains(probe.Body.String(), `"dm"`) || !strings.Contains(probe.Body.String(), `"realRole":"player"`) {
+	if probe.Code != 200 || strings.Contains(probe.Body.String(), `"dm"`) || !strings.Contains(probe.Body.String(), `"role":"player"`) {
 		t.Fatal("preview did not receive player authority")
 	}
 	csrf := jsonStringField(t, probe.Body.Bytes(), "csrfToken")

@@ -14,7 +14,6 @@ const sessionStoreTimeout = 5 * time.Second
 // never stored, only its digest.
 type StoredSession struct {
 	TokenDigest   [sha256.Size]byte
-	RealRole      Role
 	Role          Role
 	CSRFToken     string
 	PreviewParent *[sha256.Size]byte
@@ -40,13 +39,13 @@ func (service *Service) loadSessions(ctx context.Context) error {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	for _, session := range stored {
-		if !validRole(session.RealRole) || !validRole(session.Role) || !validToken(session.CSRFToken) {
+		if !validRole(session.Role) || !validToken(session.CSRFToken) {
 			return fmt.Errorf("%w: saved session is malformed", ErrInvalidConfig)
 		}
 		record := storedSession{
 			actor: Actor{
 				SessionID: hex.EncodeToString(session.TokenDigest[:12]),
-				RealRole:  session.RealRole, Role: session.Role,
+				Role:      session.Role,
 			},
 			csrfToken: session.CSRFToken, csrfDigest: sha256.Sum256([]byte(session.CSRFToken)),
 			createdAt: session.CreatedAt.UTC(), expiresAt: session.ExpiresAt.UTC(),
@@ -69,7 +68,7 @@ func (service *Service) applyLocked(save []sessionWrite, remove [][sha256.Size]b
 	records := make([]StoredSession, 0, len(save))
 	for _, write := range save {
 		records = append(records, StoredSession{
-			TokenDigest: write.digest, RealRole: write.record.actor.RealRole, Role: write.record.actor.Role,
+			TokenDigest: write.digest, Role: write.record.actor.Role,
 			CSRFToken: write.record.csrfToken, PreviewParent: write.record.previewParent,
 			CreatedAt: write.record.createdAt, ExpiresAt: write.record.expiresAt,
 		})

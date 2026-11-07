@@ -13,7 +13,7 @@ and underlying draft. A result for the current page simply closes the overlay.
 
 The empty query shows up to twelve recently opened accessible records, followed
 by recent campaign activity when needed. Recents store only bounded route
-identities in tab-local session storage, separately by effective role. Every
+identities in tab-local session storage, separately by session role. Every
 display resolves names and access from the current dataset. Hidden/deleted
 records disappear; unavailable storage falls back to current activity. This is
 convenience state, not campaign data or a cross-device history.

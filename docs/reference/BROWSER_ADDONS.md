@@ -124,7 +124,7 @@ The transport registers browser add-on routes only when both a
 `BrowserAddonSource` and `BrowserAuthorizer` are supplied. Partial
 configuration fails at startup, and authorization runs before query, ID, or
 asset-path validation. The implemented session authorizer accepts either
-authenticated effective role, and the host executable composes it with the
+authenticated role, and the host executable composes it with the
 recovered package manager.
 
 | Method and path | Cache contract |
@@ -328,7 +328,7 @@ The registry publishes host-only change notifications after a binding is
 added or removed. Observer failures are reported through the shell diagnostic
 boundary and cannot turn a valid add-on binding into a partial failure.
 `BrowserContributionOutlet` performs a keyed projection for one host-selected
-surface and effective role. It preserves an unchanged custom-element instance,
+surface and session role. It preserves an unchanged custom-element instance,
 orders panels by the registry contract, and removes stale elements on binding,
 generation, or authority teardown. Each mounted element receives a frozen
 `codexContribution` property containing its add-on and generation identity,
@@ -398,7 +398,7 @@ The real planner/overview cases also cover automatic refresh, draft conflicts,
 typing during a pending read, and retry after failed reads.
 
 The [DM dashboard contract](../../examples/addons/API_V3.md#dm-dashboard)
-uses `codex-dm-dashboard` at `#/dm`. Only real/effective DMs mount its exact
+uses `codex-dm-dashboard` at `#/dm`. Only DM sessions mount its exact
 `dm:dashboard` slots. Core hidden-content counts and browser lifecycle status
 always follow the contributions, with reload while an add-on is not ready.
 Empty, failed, and disabled

@@ -102,9 +102,8 @@ func TestCompressedCampaignPreservesEffectiveProjectionAndNeverCachesIt(t *testi
 		private bool
 	}{
 		{"anonymous", nil, false},
-		{"player", &sessionauth.Actor{SessionID: "player", RealRole: sessionauth.RolePlayer, Role: sessionauth.RolePlayer}, false},
-		{"preview", &sessionauth.Actor{SessionID: "dm", RealRole: sessionauth.RoleDM, Role: sessionauth.RolePlayer}, false},
-		{"dm", &sessionauth.Actor{SessionID: "dm", RealRole: sessionauth.RoleDM, Role: sessionauth.RoleDM}, true},
+		{"player", &sessionauth.Actor{SessionID: "player", Role: sessionauth.RolePlayer}, false},
+		{"dm", &sessionauth.Actor{SessionID: "dm", Role: sessionauth.RoleDM}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var original []byte

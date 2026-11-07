@@ -11,7 +11,7 @@ import (
 
 func (store Store) LoadSessions(ctx context.Context) ([]auth.StoredSession, error) {
 	rows, err := store.DB.QueryContext(ctx, `
-		SELECT token_digest, real_role, role, csrf_token, preview_parent, created_at, expires_at
+		SELECT token_digest, role, csrf_token, preview_parent, created_at, expires_at
 		FROM host_sessions`)
 	if err != nil {
 		return nil, err
@@ -20,11 +20,11 @@ func (store Store) LoadSessions(ctx context.Context) ([]auth.StoredSession, erro
 	sessions := make([]auth.StoredSession, 0)
 	for rows.Next() {
 		var digest, parent []byte
-		var realRole, role, csrf, createdAt, expiresAt string
-		if err := rows.Scan(&digest, &realRole, &role, &csrf, &parent, &createdAt, &expiresAt); err != nil {
+		var role, csrf, createdAt, expiresAt string
+		if err := rows.Scan(&digest, &role, &csrf, &parent, &createdAt, &expiresAt); err != nil {
 			return nil, err
 		}
-		session := auth.StoredSession{RealRole: auth.Role(realRole), Role: auth.Role(role), CSRFToken: csrf}
+		session := auth.StoredSession{Role: auth.Role(role), CSRFToken: csrf}
 		if len(digest) != sha256.Size || parent != nil && len(parent) != sha256.Size {
 			return nil, fmt.Errorf("saved session digest is malformed")
 		}
@@ -62,9 +62,9 @@ func (store Store) ApplySessions(ctx context.Context, save []auth.StoredSession,
 			parent = session.PreviewParent[:]
 		}
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO host_sessions(token_digest, real_role, role, csrf_token, preview_parent, created_at, expires_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			session.TokenDigest[:], string(session.RealRole), string(session.Role), session.CSRFToken, parent,
+			INSERT INTO host_sessions(token_digest, role, csrf_token, preview_parent, created_at, expires_at)
+			VALUES (?, ?, ?, ?, ?, ?)`,
+			session.TokenDigest[:], string(session.Role), session.CSRFToken, parent,
 			session.CreatedAt.UTC().Format(time.RFC3339Nano), session.ExpiresAt.UTC().Format(time.RFC3339Nano),
 		); err != nil {
 			return err

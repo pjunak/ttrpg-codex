@@ -31,7 +31,7 @@ func TestServiceAuthenticatesAndExpiresOpaqueSessions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dm.Actor.RealRole != RoleDM || dm.Actor.Role != RoleDM || dm.Actor.SessionID == "" {
+	if dm.Actor.Role != RoleDM || dm.Actor.SessionID == "" {
 		t.Fatalf("DM actor = %+v", dm.Actor)
 	}
 	if actor, ok := service.Resolve(dm.Token); !ok || actor != dm.Actor {
@@ -44,7 +44,7 @@ func TestServiceAuthenticatesAndExpiresOpaqueSessions(t *testing.T) {
 		t.Fatal("CSRF binding did not match the exact session token pair")
 	}
 	player, err := service.Login("party-member")
-	if err != nil || player.Actor.RealRole != RolePlayer || player.Actor.Role != RolePlayer {
+	if err != nil || player.Actor.Role != RolePlayer {
 		t.Fatalf("player login = %+v, %v", player, err)
 	}
 

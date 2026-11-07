@@ -242,7 +242,7 @@ remains independent and preserves current add-on saves.
 
 ### Host administration boundary
 
-These routes require real and effective DM authority, with CSRF on POST:
+These routes require a DM session, with CSRF on POST:
 
 - `POST /api/admin/addon-activation-reviews/{reviewID}/update/saved-data`: `{}`;
   prepares an active-safe data review for the exact prepared activation review.

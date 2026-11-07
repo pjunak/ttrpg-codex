@@ -12,7 +12,7 @@ There are three layers of recovery, from the finest to the whole server:
 
 ## Backup bundle
 
-`GET /api/backup` (real and effective DM) first makes every current part's
+`GET /api/backup` (DM only) first makes every current part's
 newest recovery point equal its current state: a part whose state differs
 from its newest point gets a `download` point; an unchanged part reuses its
 newest point, so repeated downloads add nothing. It then writes
@@ -235,7 +235,7 @@ from attaching to a different record. Add-on recovery across different package
 or schema identities is refused; campaign recovery is independent. Retiring an
 obsolete add-on build deletes that add-on's points which need it.
 
-The HTTP surface requires a real and effective DM, plus CSRF for writes:
+The HTTP surface requires a DM session, plus CSRF for writes:
 
 | Route | Request / response |
 | --- | --- |

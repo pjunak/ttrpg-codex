@@ -28,7 +28,7 @@ func (service *Service) CreatePlayerPreview(parentToken string) (Session, error)
 		return Session{}, err
 	}
 	parent, ok := service.sessions[parentDigest]
-	if !ok || parent.actor.RealRole != RoleDM || parent.actor.Role != RoleDM || parent.previewParent != nil {
+	if !ok || parent.actor.Role != RoleDM || parent.previewParent != nil {
 		return Session{}, ErrRoleTransition
 	}
 	count := 0
@@ -47,7 +47,7 @@ func (service *Service) CreatePlayerPreview(parentToken string) (Session, error)
 	if parent.expiresAt.Before(expires) {
 		expires = parent.expiresAt
 	}
-	actor := Actor{SessionID: hex.EncodeToString(digest[:12]), RealRole: RolePlayer, Role: RolePlayer}
+	actor := Actor{SessionID: hex.EncodeToString(digest[:12]), Role: RolePlayer}
 	record := storedSession{actor: actor, csrfToken: csrf, csrfDigest: sha256.Sum256([]byte(csrf)),
 		createdAt: now, expiresAt: expires, previewParent: &parentDigest}
 	if err := service.applyLocked([]sessionWrite{{digest, record}}, nil); err != nil {
@@ -84,5 +84,5 @@ func (service *Service) usableLocked(record storedSession, now time.Time) bool {
 		return true
 	}
 	parent, ok := service.sessions[*record.previewParent]
-	return ok && parent.previewParent == nil && parent.expiresAt.After(now) && parent.actor.RealRole == RoleDM && parent.actor.Role == RoleDM
+	return ok && parent.previewParent == nil && parent.expiresAt.After(now) && parent.actor.Role == RoleDM
 }

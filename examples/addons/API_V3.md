@@ -426,7 +426,7 @@ implementation; ordinary article sections and editor panels are additive.
 A `settings` contribution binds a custom element. The host lists its localized `label` in the owning add-on's tab in
 Settings → Add-ons, alongside its sourcebook and provider controls when
 available. Panels follow declaration `order` and normal registry ordering. The host filters declarations by
-effective role and granted capabilities. Add-ons without visible settings
+session role and granted capabilities. Add-ons without visible settings
 have no empty settings outlet; player views contain only their available settings,
 without installation, credential, sourcebook, or provider administration.
 
@@ -686,7 +686,7 @@ transaction. Author narrow widgets that fit the board's design.
 The stable `#/dm` route accepts additive `slot` contributions with exact config
 `{ "contractVersion": 1, "slot": "dm:dashboard" }`. Bind a custom element
 through the usual UI contract. The host checks
-real/effective DM authority before mounting this outlet, even if the manifest
+DM authority before mounting this outlet, even if the manifest
 declares broader roles. It passes the frozen host context
 `{ contractVersion: "dm-dashboard-context.v1", locale }`, with updates when the selected language changes. It passes no campaign
 bodies; add-ons read their own collections through the public SDK.

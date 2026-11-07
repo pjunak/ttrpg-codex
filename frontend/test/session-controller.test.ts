@@ -12,14 +12,13 @@ import type {
 } from "../src/core/event-stream.js";
 
 const token = (letter: string) => letter.repeat(32);
-const signedIn = (role: "dm" | "player", csrf = token("a"), realRole = role) => ({
+const signedIn = (role: "dm" | "player", csrf = token("a")) => ({
   ok: true,
   role,
-  realRole,
   csrfToken: csrf,
   expiresAt: "2026-10-20T12:00:00Z",
 });
-const signedOut = { role: null, realRole: null };
+const signedOut = { role: null };
 
 interface Lifecycle {
   hostConnected?: () => void;

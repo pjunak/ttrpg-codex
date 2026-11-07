@@ -115,7 +115,7 @@ func SessionBrowserAuthorizer(r *http.Request) error {
 func SessionAdminAuthorizer(service *sessionauth.Service) AdminAuthorizer {
 	return func(r *http.Request) error {
 		actor, ok := sessionauth.ActorFromContext(r.Context())
-		if !ok || actor.RealRole != sessionauth.RoleDM || actor.Role != sessionauth.RoleDM {
+		if !ok || actor.Role != sessionauth.RoleDM {
 			return errAuthorizationRequired
 		}
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
@@ -131,7 +131,7 @@ func SessionAdminAuthorizer(service *sessionauth.Service) AdminAuthorizer {
 func (s *server) authState(w http.ResponseWriter, r *http.Request) {
 	session, ok := s.authentication.Inspect(sessionToken(r))
 	if !ok {
-		writeJSON(w, http.StatusOK, map[string]any{"role": nil, "realRole": nil})
+		writeJSON(w, http.StatusOK, map[string]any{"role": nil})
 		return
 	}
 	writeJSON(w, http.StatusOK, authSessionResponse(session))
@@ -185,7 +185,7 @@ func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 
 func authSessionResponse(session sessionauth.Session) map[string]any {
 	return map[string]any{
-		"ok": true, "role": session.Actor.Role, "realRole": session.Actor.RealRole,
+		"ok": true, "role": session.Actor.Role,
 		"csrfToken": session.CSRFToken, "expiresAt": session.ExpiresAt.UTC().Format(time.RFC3339Nano),
 	}
 }

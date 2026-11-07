@@ -145,11 +145,7 @@ export class SessionController implements ReactiveController {
       try {
         const current = await waitForSignal(getAuth(signal), signal);
         if (signal.aborted || this.auth !== previous) return false;
-        if (
-          current.authenticated &&
-          current.realRole === previous.realRole &&
-          current.role === previous.role
-        ) {
+        if (current.authenticated && current.role === previous.role) {
           if (current.csrfToken !== previous.csrfToken) {
             this.#accept(current);
             this.#options.addons.renewCsrfToken(current.csrfToken);
@@ -198,11 +194,7 @@ export class SessionController implements ReactiveController {
     try {
       const current = await waitForSignal(loginSession(password, signal), signal);
       if (signal.aborted) return false;
-      if (
-        !current.authenticated ||
-        current.realRole !== previous.realRole ||
-        current.role !== previous.role
-      ) {
+      if (!current.authenticated || current.role !== previous.role) {
         this.recoveryError = uiText("session.sameRole");
         return false;
       }
@@ -482,11 +474,7 @@ export class SessionController implements ReactiveController {
 
   #accept(auth: AuthState): void {
     const previous = this.auth;
-    if (
-      previous !== undefined &&
-      (previous.role !== auth.role || previous.realRole !== auth.realRole)
-    )
-      this.#events.close();
+    if (previous !== undefined && previous.role !== auth.role) this.#events.close();
     this.#cancelCheck();
     this.authority = { state: "known", auth };
     this.#host.requestUpdate();
@@ -501,5 +489,5 @@ export class SessionController implements ReactiveController {
 }
 
 function anonymousAuth(): AuthState {
-  return { authenticated: false, role: null, realRole: null };
+  return { authenticated: false, role: null };
 }

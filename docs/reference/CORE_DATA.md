@@ -82,7 +82,7 @@ The application layer publishes `GET /api/campaign` as
 `campaign-data.v1`. Anonymous and player requests receive a closed public
 projection: DM records are removed, `linkedTwinId` is stripped, references to
 hidden identities are removed, and relationship/map settings are filtered so
-they cannot disclose hidden records. An effective DM receives the exact stored
+they cannot disclose hidden records. A DM session receives the exact stored
 snapshot. The transport never accepts a requested role; authority comes only
 from the resolved session.
 

@@ -38,7 +38,7 @@ deduplication prevents them from being delivered twice.
 
 The HTTP route is registered only with both an event source and an audience
 resolver. Anonymous requests receive the public audience. A session maps its
-effective role to the public or DM audience before cursor or query parsing.
+role to the public or DM audience before cursor or query parsing.
 Responses disable proxy buffering, retain authorization variance, and send
 heartbeat comments every 20 seconds. Write deadlines are advanced after
 successful output so a stalled client cannot hold a handler forever.

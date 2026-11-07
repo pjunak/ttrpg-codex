@@ -36,7 +36,6 @@ const (
 
 type Actor struct {
 	SessionID string
-	RealRole  Role
 	Role      Role
 }
 
@@ -49,7 +48,6 @@ func WithActor(ctx context.Context, actor Actor) context.Context {
 func ActorFromContext(ctx context.Context) (Actor, bool) {
 	actor, ok := ctx.Value(actorContextKey{}).(Actor)
 	return actor, ok && actor.SessionID != "" &&
-		(actor.RealRole == RoleDM || actor.RealRole == RolePlayer) &&
 		(actor.Role == RoleDM || actor.Role == RolePlayer)
 }
 
@@ -150,7 +148,7 @@ func (service *Service) Login(password string) (Session, error) {
 	if role == "" {
 		return Session{}, ErrInvalidCredentials
 	}
-	return service.createSession(role, role)
+	return service.createSession(role)
 }
 
 func (service *Service) Resolve(token string) (Actor, bool) {
@@ -216,7 +214,7 @@ func (service *Service) Revoke(token string) error {
 	return nil
 }
 
-func (service *Service) createSession(realRole, role Role) (Session, error) {
+func (service *Service) createSession(role Role) (Session, error) {
 	token, csrfToken, err := service.generateSessionTokens()
 	if err != nil {
 		return Session{}, err
@@ -235,11 +233,7 @@ func (service *Service) createSession(realRole, role Role) (Session, error) {
 	if _, collision := service.sessions[tokenDigest]; collision {
 		return Session{}, fmt.Errorf("%w: generated duplicate token", ErrSessionUnavailable)
 	}
-	actor := Actor{
-		SessionID: hex.EncodeToString(tokenDigest[:12]),
-		RealRole:  realRole,
-		Role:      role,
-	}
+	actor := Actor{SessionID: hex.EncodeToString(tokenDigest[:12]), Role: role}
 	record := storedSession{
 		actor: actor, csrfToken: csrfToken,
 		csrfDigest: sha256.Sum256([]byte(csrfToken)),
