@@ -391,7 +391,7 @@ export class CodexSettings extends LitElement {
 
   #appearancePanel() {
     return html`<codex-appearance-settings .campaign=${this.campaign} ?canManage=${this.canManageCampaign}
-      ?busy=${this.busy}></codex-appearance-settings>`;
+      ?busy=${this.busy} .catalogs=${this.registry?.catalogs}></codex-appearance-settings>`;
   }
 
   #definitionRow(item: CampaignEnumItem, revision: number, items: readonly CampaignEnumItem[]) {

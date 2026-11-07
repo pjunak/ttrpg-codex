@@ -1,5 +1,6 @@
 import { LitElement, html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
+import type { BrowserCatalogStore } from "../addons/catalog-store.js";
 import type { CampaignDataset } from "../core/campaign-data.js";
 import {
   campaignAppearanceRecord,
@@ -13,6 +14,7 @@ import {
 } from "./campaign-appearance.js";
 import { saveCampaign } from "./campaign-writes.js";
 import "./codex-branding-settings.js";
+import "./codex-interface-consistency.js";
 import { saveFailure } from "./save-failure.js";
 import { UiLocalizationController } from "./ui-localization.js";
 
@@ -25,6 +27,7 @@ export class CodexAppearanceSettings extends LitElement {
     campaign: { attribute: false },
     canManage: { type: Boolean },
     busy: { type: Boolean },
+    catalogs: { attribute: false },
     pending: { state: true },
     error: { state: true },
     notice: { state: true },
@@ -34,6 +37,8 @@ export class CodexAppearanceSettings extends LitElement {
   declare canManage: boolean;
   /** The app is saving or otherwise busy, so no write may start. */
   declare busy: boolean;
+  /** The add-on session's catalogs, which name the add-ons in the consistency map. */
+  declare catalogs: BrowserCatalogStore | undefined;
   /** The site theme being saved, shown until that save finishes or fails. */
   declare private pending: CampaignThemeID | undefined;
   declare private error: string;
@@ -105,7 +110,8 @@ export class CodexAppearanceSettings extends LitElement {
         ${this.canManage && this.campaign !== undefined ? this.#siteForm(this.pending ?? site) : nothing}
         ${
           this.canManage && this.campaign !== undefined
-            ? html`<codex-branding-settings .campaign=${this.campaign} .busy=${this.busy}></codex-branding-settings>`
+            ? html`<codex-branding-settings .campaign=${this.campaign} .busy=${this.busy}></codex-branding-settings>
+              <codex-interface-consistency .catalogs=${this.catalogs}></codex-interface-consistency>`
             : nothing
         }
       </section>`;

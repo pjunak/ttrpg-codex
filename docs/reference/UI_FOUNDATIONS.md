@@ -242,6 +242,19 @@ their own sources (host tokens by name, no redefinitions or fallbacks, colours
 named once as their own properties). A `[data-theme-sample]`
 element gets its own copy of a theme, which is how Settings previews both.
 
+### Interface consistency
+
+Settings → Appearance shows the DM, for each active add-on with styles, how
+much it adds on top of the shared controls. It reads the add-on stylesheets
+the page has loaded (`link[data-codex-addon]`), so it needs no package access,
+and counts style rules, the add-on's own class names, rules whose selector
+targets a native `button`, `input`, `textarea` or `select` or a host `ui`
+primitive (`.ui-*`, `[data-ui…]`), and padding, margin and gap declarations
+written as lengths instead of `--space-*` tokens. Each add-on expands to the
+list of those selectors and declarations, the place to start unifying.
+`frontend/src/app/style-coverage.ts` holds the rules; tokens are not counted
+because the style check already enforces them.
+
 [Control CSS](../../frontend/src/ui/controls.css) supplies defaults from those
 tokens. A skin overrides these public variables at its container:
 

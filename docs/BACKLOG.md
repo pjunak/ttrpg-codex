@@ -182,7 +182,8 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 - **Spacing in add-on styles** add-on UIs — The host's gaps follow the space
   scale and add-ons use the host's type, layer and motion scales, but add-on
   padding, margins and gaps are still literals. Move them to `--space-*` when
-  a stylesheet is next touched.
+  a stylesheet is next touched; Settings → Appearance → Interface consistency
+  lists them per add-on.
 - **Finish typing the rules paths** `addon-dnd-engine`,
   `addon-dnd-character-sheets` — Rules-engine 6 returns typed results, but the
   Engine's internal decisions map still reads records field by field, its

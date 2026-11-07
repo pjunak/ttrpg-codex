@@ -94,7 +94,7 @@ function interfacePackage(): Buffer {
       version: "1.0.0",
       compatibility,
       capabilities: { required: ["ui.contributions", "ui.i18n"], optional: [] },
-      runtime: { ui: { mode: "integrated", entry: "web/index.js" } },
+      runtime: { ui: { mode: "integrated", entry: "web/index.js", styles: ["web/index.css"] } },
       permissions: [],
       contributions: [
         {
@@ -115,6 +115,10 @@ function interfacePackage(): Buffer {
       locales: { en: "locales/en.json", cs: "locales/cs.json" },
     }),
     "web/index.js": entry,
+    "web/index.css": `.lang-fixture { padding: var(--space-2) 6px; }
+.lang-fixture button { color: var(--accent-gold); }
+@media (min-width: 40rem) { .lang-fixture select { gap: var(--space-2); } }
+`,
     "locales/en.json": catalog("en", {
       main: {
         "main.title": "Fixture title",
@@ -299,3 +303,33 @@ for (const mobile of [false, true])
       fullPage: true,
     });
   });
+
+void test("the DM sees which add-on styles restyle shared controls", async (t) => {
+  const page = await open(t, "dm");
+  await page.goto("/#/settings/appearance");
+  const map = page.locator("codex-interface-consistency");
+  const addon = map.locator('[data-addon="lang-ui"]');
+  await addon
+    .locator('[data-figure="overrides"]')
+    .filter({ hasText: "Restyled shared controls: 2" })
+    .waitFor();
+  assert.match(
+    await addon.locator("summary").textContent().then(String),
+    /Style rules: 3 · Own parts: 1 · Fixed spacing: 1/u,
+  );
+  await addon.locator("summary").click();
+  assert.deepEqual(await addon.locator('[data-kind="buttons"] li').allTextContents(), [
+    ".lang-fixture button",
+  ]);
+  assert.deepEqual(await addon.locator('[data-kind="selects"] li').allTextContents(), [
+    ".lang-fixture select",
+  ]);
+  assert.deepEqual(await addon.locator('[data-kind="spacing"] li').allTextContents(), [
+    ".lang-fixture padding: var(--space-2) 6px",
+  ]);
+  assert.equal(
+    await map.locator('[data-addon="lang-engine"]').count(),
+    0,
+    "headless add-ons have no styles",
+  );
+});
