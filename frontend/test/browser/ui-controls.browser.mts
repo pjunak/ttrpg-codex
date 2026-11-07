@@ -239,6 +239,24 @@ void test("required, form reset and disabled state retain native semantics and f
   await page.evaluate(() => window.uiControlsFixture.disabled(true));
   assert.equal(await page.locator(".ui-popup:popover-open").count(), 0);
 });
+void test("disabled joined choices fade their labels and keep the native radios hidden", async (t) => {
+  const page = await fixture(t),
+    pace = page.locator("#pace");
+  await pace.evaluate((node: HTMLFieldSetElement) => (node.disabled = true));
+  assert.equal(await page.getByRole("radio", { name: "Slow", exact: true }).isDisabled(), true);
+  const styles = await pace
+    .locator("label")
+    .evaluateAll((labels) =>
+      labels.map((label) => [
+        getComputedStyle(label).opacity,
+        getComputedStyle(label.querySelector("input")!).opacity,
+      ]),
+    );
+  assert.deepEqual(styles, [
+    ["0.55", "0"],
+    ["0.55", "0"],
+  ]);
+});
 void test("search publishes complete IME input once and clear preserves focus", async (t) => {
   const page = await fixture(t),
     search = page.getByRole("searchbox", { name: "Search records", exact: true });

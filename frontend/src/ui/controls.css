@@ -74,7 +74,8 @@
     outline: 3px solid var(--ui-focus);
     outline-offset: 3px;
   }
-  [data-codex-ui] :is(.ui-control, .ui-button):disabled,
+  /* Joined choices fade their label instead; their radio must stay invisible. */
+  [data-codex-ui] :is(.ui-control, .ui-button):disabled:not([data-ui="choices"] > label > input),
   [data-codex-ui] .ui-button[aria-disabled="true"] {
     cursor: not-allowed;
     opacity: 0.65;
