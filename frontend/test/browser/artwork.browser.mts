@@ -9,6 +9,7 @@ import type { Browser, Locator } from "playwright";
 import { preview } from "vite";
 import type { PreviewServer } from "vite";
 import { required } from "./fixture-types.mts";
+import { openInPlace } from "./app-address.mts";
 import { trackBrowserContext } from "./browser-diagnostics.mts";
 import { visualCampaign, visualFixturePlugin } from "./visual-fixture.mts";
 
@@ -137,9 +138,13 @@ for (const scenario of [
     { timeout: 20000 },
     async (t) => {
       const { page } = await fixture(t, scenario.width, scenario.theme, scenario.locale);
+      // Load the app once and switch pages in place; a reload per page would
+      // restart the whole app for each of the two dozen pages checked here.
+      await page.goto(origin);
+      await page.locator(".party-member").first().waitFor();
       for (const [route] of collections) {
-        await page.goto(origin + "/" + route);
-        await page.locator(".record-row-shell").nth(3).waitFor();
+        assert.ok(await openInPlace(page, "/" + route));
+        await page.locator(`.record-row[href^="/${route}/"]`).nth(3).waitFor();
         const good = page.locator(`.record-row[href="/${route}/art"] .record-row-mark`);
         const goodBounds = required(await good.boundingBox());
         for (const key of ["missing", "corrupt", "empty"]) {
@@ -167,7 +172,7 @@ for (const scenario of [
             path: output + `collection-${scenario.width}-${scenario.theme}.png`,
             fullPage: true,
           });
-        await page.goto(origin + `/${route}/missing`);
+        assert.ok(await openInPlace(page, `/${route}/missing`));
         await page.locator("#record-title").waitFor();
         await fallback(page.locator(".record-portrait"));
         if (route === "characters")
@@ -176,7 +181,7 @@ for (const scenario of [
             fullPage: true,
           });
       }
-      await page.goto(origin);
+      assert.ok(await openInPlace(page, "/"));
       await page.locator(".party-member").first().waitFor();
       for (const [route, selector] of [
         ["characters", ".party-portrait"],
