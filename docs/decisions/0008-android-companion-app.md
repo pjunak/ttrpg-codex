@@ -72,14 +72,16 @@ What is true today:
   retries; a conflict reloads the character as the web sheet does.
 - **The host gains client service access:** `POST /api/services/connect` and
   `POST /api/services/call` for a signed-in session that is not an add-on. The
-  session is the actor, provider selection follows the operator's selection as
-  for add-on consumers, and schemas, deadlines and typed errors match the
-  add-on service routes. Any active provider's contract can be connected;
-  workers already enforce each method's actor rules.
-- **The host documents its client API.** A new
-  `docs/reference/CLIENT_API.md` lists the routes the app relies on and how
-  they may change. The app checks `GET /api/version` against the host range it
-  supports.
+  session is the actor, and schemas, deadlines and typed errors match the
+  add-on service routes. Connecting lists every live worker provider of the
+  contract within the requested range and the client chooses; operator
+  bindings belong to consuming add-ons and do not apply. Any provider's worker
+  contract can be connected, so workers check the actor in every method that
+  needs a role, as the first-party add-ons already do.
+- **The host documents its client API.**
+  [`docs/reference/CLIENT_API.md`](../reference/CLIENT_API.md) lists the
+  routes the app relies on and how they may change. The app checks
+  `GET /api/version` against the host range it supports.
 - **`dnd5e.character` gains an outside consumer.** Breaking changes bump its
   major version. The app generates its Kotlin types from the schemas of a
   pinned contract version and hides the module, asking for an app update, when

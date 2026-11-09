@@ -1729,6 +1729,13 @@ type fakeRuntimeFactory struct {
 	log          []string
 	specs        []RuntimeSpec
 	failVersions map[string]error
+	lastActor    workerrpc.Actor
+}
+
+func (factory *fakeRuntimeFactory) LastActor() workerrpc.Actor {
+	factory.mu.Lock()
+	defer factory.mu.Unlock()
+	return factory.lastActor
 }
 
 func (factory *fakeRuntimeFactory) New(spec RuntimeSpec) (Runtime, error) {
@@ -1784,6 +1791,11 @@ func (runtime *fakeRuntime) Call(
 ) (json.RawMessage, error) {
 	if !runtime.started || meta == nil || meta.Generation != runtime.spec.Identity.Generation {
 		return nil, errors.New("fake runtime is not active for requested generation")
+	}
+	if meta.Actor != nil {
+		runtime.factory.mu.Lock()
+		runtime.factory.lastActor = *meta.Actor
+		runtime.factory.mu.Unlock()
 	}
 	return json.RawMessage(`{"result":8}`), nil
 }

@@ -188,7 +188,9 @@ declare them in the manifest:
 - **Services** are namespaced contracts with semantic versions and JSON Schema
   request/response documents. Consumers ask for a contract and version range,
   never a provider add-on ID, and stay useful when no provider is installed.
-  Include the provider's generation in cache keys.
+  Include the provider's generation in cache keys. Signed-in clients such as
+  the Android companion can call worker services too, so check the actor in
+  every method that needs a role.
 - **Content sets** are immutable package files with stable `(kind, id)`
   identity and provenance. Store user choices in data, not in package files.
 - **Rules packages** declare `rules.supports`; a package that defines a complete

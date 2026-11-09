@@ -43,9 +43,12 @@ type Config struct {
 	ContentAuthorizer        BrowserAuthorizer
 	BrowserServices          BrowserServices
 	BrowserServiceAuthorizer BrowserServiceAuthorizer
-	Events                   EventSource
-	EventAuthorizer          EventAuthorizer
-	EventHeartbeat           time.Duration
+	// ClientServices lets signed-in clients that are not add-ons (the Android
+	// companion) reach services by contract; it uses BrowserServiceAuthorizer.
+	ClientServices  ClientServices
+	Events          EventSource
+	EventAuthorizer EventAuthorizer
+	EventHeartbeat  time.Duration
 	// ShuttingDown closes when the host begins shutting down; event streams
 	// end so graceful shutdown does not wait for them.
 	ShuttingDown <-chan struct{}
@@ -81,6 +84,7 @@ type server struct {
 	contentAuthorizer        BrowserAuthorizer
 	browserServices          BrowserServices
 	browserServiceAuthorizer BrowserServiceAuthorizer
+	clientServices           ClientServices
 	loginLimiter             *loginLimiter
 	events                   EventSource
 	eventAuthorizer          EventAuthorizer
@@ -102,6 +106,7 @@ func New(config Config) (http.Handler, error) {
 		(config.AddonData == nil) != (config.AddonDataAuthorizer == nil) ||
 		(config.AddonContent == nil) != (config.ContentAuthorizer == nil) ||
 		(config.BrowserServices == nil) != (config.BrowserServiceAuthorizer == nil) ||
+		config.ClientServices != nil && config.BrowserServiceAuthorizer == nil ||
 		(config.Events == nil) != (config.EventAuthorizer == nil) ||
 		config.EventHeartbeat < 0 || config.EventHeartbeat > 5*time.Minute ||
 		config.EventHeartbeat > 0 && config.EventHeartbeat < time.Second {
@@ -131,6 +136,7 @@ func New(config Config) (http.Handler, error) {
 		addonContent: config.AddonContent, contentAuthorizer: config.ContentAuthorizer,
 		browserServices:          config.BrowserServices,
 		browserServiceAuthorizer: config.BrowserServiceAuthorizer,
+		clientServices:           config.ClientServices,
 		loginLimiter:             newLoginLimiter(), events: config.Events,
 		eventAuthorizer: config.EventAuthorizer, eventHeartbeat: config.EventHeartbeat,
 		shuttingDown: config.ShuttingDown, frontend: frontend,
@@ -173,6 +179,9 @@ func New(config Config) (http.Handler, error) {
 	}
 	if s.browserServices != nil {
 		s.registerBrowserServiceRoutes(mux)
+	}
+	if s.clientServices != nil {
+		s.registerClientServiceRoutes(mux)
 	}
 	if s.frontend != nil {
 		mux.Handle("GET /", s.frontend)

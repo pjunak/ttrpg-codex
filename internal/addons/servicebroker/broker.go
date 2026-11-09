@@ -440,6 +440,9 @@ func (broker *Broker) validateHandle(ctx context.Context, handle Handle) (Provid
 		}
 		return provider, nil
 	}
+	if handle.hostClient {
+		return broker.clientProvider(ctx, handle)
+	}
 	requirement := Requirement{
 		ConsumerAddonID: handle.ConsumerAddonID,
 		Contract:        handle.Contract,

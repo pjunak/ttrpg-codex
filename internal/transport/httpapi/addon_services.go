@@ -64,8 +64,8 @@ func (s *server) requireBrowserService(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		actor, err := s.browserServiceAuthorizer(r)
 		if err != nil {
-			s.logger.Warn("browser add-on service access denied", "method", r.Method, "path", r.URL.Path)
-			writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "browser add-on service authorization is required")
+			s.logger.Warn("add-on service access denied", "method", r.Method, "path", r.URL.Path)
+			writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "a signed-in session and its CSRF token are required")
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), browserServiceAuthorityKey{}, actor)))
@@ -250,7 +250,7 @@ func (s *server) writeBrowserServiceError(w http.ResponseWriter, r *http.Request
 	default:
 		status, kind, message = http.StatusInternalServerError, "INTERNAL", "the add-on service request failed"
 	}
-	s.logger.Error("browser add-on service request failed", "method", r.Method, "path", r.URL.Path, "kind", kind, "error", err)
+	s.logger.Error("add-on service request failed", "method", r.Method, "path", r.URL.Path, "kind", kind, "error", err)
 	if issue.Text == "" {
 		writeAPIError(w, status, kind, message)
 		return

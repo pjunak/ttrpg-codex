@@ -75,6 +75,7 @@ docs/                 Operator guide, architecture, references, backlog
 | Host code | `npm run check` |
 | Worker, broker, event or lifecycle concurrency | Also `go test -race` on the package |
 | Public add-on contract (manifest, SDK, services) | Host tests plus the affected add-ons' gates |
+| [Client API](docs/reference/CLIENT_API.md) routes | `npm run check` plus the Android companion's `gradlew test` |
 | Installed add-on behaviour | `npm --workspace @ttrpg-codex/frontend run test:installed` with the five `CODEX_*_ZIP` variables ([how](CONTRIBUTING.md#installed-add-on-smoke-test)) |
 
 ## Where to read more

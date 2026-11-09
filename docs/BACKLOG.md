@@ -95,14 +95,6 @@ not obvious. Move an entry between sections instead of duplicating it.
   per-tab context bars, pips and floating windows; the owner keeps refining it.
   Known gaps: carrying capacity ignores size and features that change it (such
   as Powerful Build), and Classic shows no carried weight or coin-weight toggle.
-- **Client service access** `ttrpg-codex` — The Android companion
-  ([ADR-0008](decisions/0008-android-companion-app.md)) needs
-  `POST /api/services/connect` and `/call` for a signed-in session that is not
-  an add-on, with the session as actor and the same selection, schemas and
-  errors as the add-on service routes. Write `reference/CLIENT_API.md` for the
-  routes the app uses, and add a client-API row to the validation table.
-  **Done when** a host test signed in as a player loads a character through
-  the new routes from a fixture `dnd5e.character` provider.
 - **Companion maps and language** `ttrpg-companion` — The app
   ([ADR-0008](decisions/0008-android-companion-app.md)) reads, searches,
   caches and live-updates the campaign; maps still open in the web view. Add a
@@ -110,7 +102,8 @@ not obvious. Move an entry between sections instead of duplicating it.
   that follow the site's language.
 - **Companion character module** `ttrpg-companion` — Get the owner's approval
   of a phone mockup of the play screens, then build them over
-  `dnd5e.character` once client service access exists: keypad hit points,
+  `dnd5e.character` through the host's
+  [client service routes](reference/CLIENT_API.md#add-on-services): keypad hit points,
   conditions and concentration, slots and casting, limited uses, rests,
   attacks, abilities and skills, quick-use items and inspiration.
 

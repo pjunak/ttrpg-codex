@@ -129,4 +129,5 @@ type Handle struct {
 	BindingRevision int64       `json:"bindingRevision"`
 
 	ownBrowserProvider bool
+	hostClient         bool
 }

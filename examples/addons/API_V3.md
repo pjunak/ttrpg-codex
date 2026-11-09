@@ -951,8 +951,15 @@ const loaded = await sheets.call("load", request);
 The manifest must provide that contract with `transport: "worker"`; no consumer
 declaration is needed and calls need no `providerAddonId`. The handle's `range`
 is the provided version, and `available` is false while the worker is stopped.
-A contract used only this way is private in practice: no other package needs
-to consume it, so its version and schema can change with your own UI.
+A contract used only this way needs no other package to consume it, but
+signed-in clients outside the browser can still call it (see below); version
+it like any contract another program relies on.
+
+Signed-in clients that are not add-ons, such as the Android companion, reach
+any worker service by contract through the host's
+[client API](../../docs/reference/CLIENT_API.md#add-on-services), acting as the
+session's DM or player. Treat every method as callable by any signed-in session
+and check the actor it receives.
 
 This is browser discovery, not an additional permission or a worker dependency.
 Workers continue to exclude themselves from service resolution and initialization

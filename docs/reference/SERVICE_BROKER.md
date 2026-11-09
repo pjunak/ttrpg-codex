@@ -88,6 +88,15 @@ An `own` connection (`context.services.own`) skips the consumer declaration: the
 manager only requires that the active manifest provides the contract with a
 worker transport, and returns that own handle or none.
 
+Signed-in clients that are not add-ons (the Android companion) connect through
+`ConnectClient` ([client API](CLIENT_API.md#add-on-services)). It returns a
+handle for every live worker provider of the contract within the requested
+range, sorted by add-on ID. Client handles have no consumer, so operator
+bindings, worker initialization and dependency ordering never see them; they
+are marked privately in memory like own handles. Validation requires the same
+provider, contract version and generation to be live, and a call for an exact
+version rebuilds the handle from current state instead of trusting the client.
+
 Own handles use the same call pipeline, compiled schemas and actor leases as
 external handles. Validation checks the current catalog/runtime both before
 execution and after the response. The manager also checks the exact active UI

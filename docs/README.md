@@ -28,6 +28,7 @@ then the [API reference](../examples/addons/API_V3.md) and the
 | Area | References |
 | --- | --- |
 | Records, access and mutations | [Core data](reference/CORE_DATA.md), [authentication](reference/AUTHENTICATION.md) |
+| Clients outside the web app (Android companion) | [Client API](reference/CLIENT_API.md) |
 | Files and durable storage | [Media](reference/MEDIA.md), [blobs](reference/BLOBS.md), [backups](reference/BACKUP_RESTORE.md) |
 | Live updates | [Event stream](reference/EVENT_STREAM.md) |
 | Campaign views | [Maps](reference/MAPS.md), [editing and browsing](reference/EDITOR_BROWSING.md), [performance](reference/PERFORMANCE.md) |

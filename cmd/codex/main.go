@@ -340,6 +340,7 @@ func composeHost(
 		ContentAuthorizer:        httpapi.SessionBrowserAuthorizer,
 		BrowserServices:          httpapi.WithCampaignImports(addons, campaignImports),
 		BrowserServiceAuthorizer: httpapi.SessionBrowserServiceAuthorizer(authentication),
+		ClientServices:           addons,
 		AddonLifecycle:           addons, AdminAuthorizer: httpapi.SessionAdminAuthorizer(authentication),
 		BrowserAddons: addons, BrowserAuthorizer: httpapi.SessionBrowserAuthorizer,
 		Events: eventBroker, EventAuthorizer: httpapi.SessionEventAuthorizer, ShuttingDown: stopping,

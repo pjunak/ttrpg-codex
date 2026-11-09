@@ -2,4 +2,4 @@
 // backups. Add-on host-compatibility ranges are checked against it.
 package version
 
-const Host = "2.1.0"
+const Host = "2.2.0"
