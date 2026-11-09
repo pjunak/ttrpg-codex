@@ -91,6 +91,26 @@ not obvious. Move an entry between sections instead of duplicating it.
   per-tab context bars, pips and floating windows; the owner keeps refining it.
   Known gaps: carrying capacity ignores size and features that change it (such
   as Powerful Build), and Classic shows no carried weight or coin-weight toggle.
+- **Client service access** `ttrpg-codex` — The Android companion
+  ([ADR-0008](decisions/0008-android-companion-app.md)) needs
+  `POST /api/services/connect` and `/call` for a signed-in session that is not
+  an add-on, with the session as actor and the same selection, schemas and
+  errors as the add-on service routes. Write `reference/CLIENT_API.md` for the
+  routes the app uses, and add a client-API row to the validation table.
+  **Done when** a host test signed in as a player loads a character through
+  the new routes from a fixture `dnd5e.character` provider.
+- **TTRPG Companion app** `ttrpg-companion` — Create the repository
+  ([ADR-0008](decisions/0008-android-companion-app.md)) on Baton's stack:
+  `AGENTS.md`, CI that signs the APK and publishes a GitHub release, update
+  checks, site list and sign-in, the cached campaign with search, articles,
+  images, maps and live updates, and the signed-in web view for pages without a
+  native screen. List it in the TTRPG and workspace `AGENTS.md` files and in
+  this repository's planning docs.
+- **Companion character module** `ttrpg-companion` — Get the owner's approval
+  of a phone mockup of the play screens, then build them over
+  `dnd5e.character` once client service access exists: keypad hit points,
+  conditions and concentration, slots and casting, limited uses, rests,
+  attacks, abilities and skills, quick-use items and inspiration.
 
 ## Quality pass
 
