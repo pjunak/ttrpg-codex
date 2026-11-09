@@ -50,10 +50,6 @@ not obvious. Move an entry between sections instead of duplicating it.
   sheets stay), install the latest Homebrew build, import
   `homebrew-imports/cursed-cards.json` (beside the repositories), set the item
   set's rarity and curse, and publish.
-- **Publish TTRPG Companion** `ttrpg-companion` — Create the public
-  `pjunak/ttrpg-companion` repository, generate the release signing key (kept
-  outside the repository) and add the four `KEYSTORE_*` Actions secrets from the
-  app's README, then push `main`. The first build publishes `v0.1.1`.
 
 ## Next
 
