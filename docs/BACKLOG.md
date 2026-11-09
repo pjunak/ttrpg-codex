@@ -91,11 +91,13 @@ not obvious. Move an entry between sections instead of duplicating it.
   per-tab context bars, pips and floating windows; the owner keeps refining it.
   Known gaps: carrying capacity ignores size and features that change it (such
   as Powerful Build), and Classic shows no carried weight or coin-weight toggle.
-- **Companion maps and language** `ttrpg-companion` — The app
+- **Companion world map** `ttrpg-companion` — The app
   ([ADR-0008](decisions/0008-android-companion-app.md)) reads, searches,
-  caches and live-updates the campaign; maps still open in the web view. Add a
-  native viewer for the host's map tiles with location pins, and Czech strings
-  that follow the site's language.
+  caches and live-updates the campaign in English or Czech, and shows a
+  location's own map as a zoomable image; the world map still opens in the web
+  view. Add a native viewer for the host's map tiles
+  ([maps](reference/MAPS.md)) with location pins, for the world map and local
+  maps.
 - **Companion character module** `ttrpg-companion` — Get the owner's approval
   of a phone mockup of the play screens, then build them over
   `dnd5e.character` through the host's
