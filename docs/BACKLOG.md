@@ -50,6 +50,10 @@ not obvious. Move an entry between sections instead of duplicating it.
   sheets stay), install the latest Homebrew build, import
   `homebrew-imports/cursed-cards.json` (beside the repositories), set the item
   set's rarity and curse, and publish.
+- **Publish TTRPG Companion** `ttrpg-companion` — Create the public
+  `pjunak/ttrpg-companion` repository, generate the release signing key (kept
+  outside the repository) and add the four `KEYSTORE_*` Actions secrets from the
+  app's README, then push `main`. The first build publishes `v0.1.1`.
 
 ## Next
 
@@ -99,13 +103,11 @@ not obvious. Move an entry between sections instead of duplicating it.
   routes the app uses, and add a client-API row to the validation table.
   **Done when** a host test signed in as a player loads a character through
   the new routes from a fixture `dnd5e.character` provider.
-- **TTRPG Companion app** `ttrpg-companion` — Create the repository
-  ([ADR-0008](decisions/0008-android-companion-app.md)) on Baton's stack:
-  `AGENTS.md`, CI that signs the APK and publishes a GitHub release, update
-  checks, site list and sign-in, the cached campaign with search, articles,
-  images, maps and live updates, and the signed-in web view for pages without a
-  native screen. List it in the TTRPG and workspace `AGENTS.md` files and in
-  this repository's planning docs.
+- **Companion maps and language** `ttrpg-companion` — The app
+  ([ADR-0008](decisions/0008-android-companion-app.md)) reads, searches,
+  caches and live-updates the campaign; maps still open in the web view. Add a
+  native viewer for the host's map tiles with location pins, and Czech strings
+  that follow the site's language.
 - **Companion character module** `ttrpg-companion` — Get the owner's approval
   of a phone mockup of the play screens, then build them over
   `dnd5e.character` once client service access exists: keypad hit points,

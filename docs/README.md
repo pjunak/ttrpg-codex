@@ -40,7 +40,7 @@ then the [API reference](../examples/addons/API_V3.md) and the
 
 | Kind | Where | Lifetime |
 | --- | --- | --- |
-| Future work for all six repositories | [BACKLOG.md](BACKLOG.md): owner checks, next, undecided, later, ideas, watch-for | Entry deleted when done |
+| Future work for all TTRPG repositories | [BACKLOG.md](BACKLOG.md): owner checks, next, undecided, later, ideas, watch-for | Entry deleted when done |
 | Problems the owner has not decided yet | [design/](design/), marked **Undecided** | Until a decision becomes an ADR |
 | Accepted design decisions and their reasons | [decisions/](decisions/) ([template](decisions/TEMPLATE.md)) | Kept current; edit or delete when the decision changes |
 | A plan for the change in progress | `plans/` (git-ignored) | Deleted when the change lands |
