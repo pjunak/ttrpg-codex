@@ -38,6 +38,24 @@ and survive host restarts ([authentication](AUTHENTICATION.md)). Errors are
 Pages without a native screen can open in a web view: the app's own pages
 (`/characters/<key>` and so on) accept the same session cookie.
 
+## Writing session notes
+
+The companion writes events (its session notes) with the website's record
+transaction ([core data](CORE_DATA.md)):
+
+| Route | Behaviour |
+| --- | --- |
+| `POST /api/campaign/transactions` | `{"contractVersion":"campaign-mutation.v1","mutations":[…]}` with `X-Codex-CSRF`. Each mutation is `put` (with the whole record `value`) or `delete`, names `collection` and `key`, and carries `expectedRevision` (0 to create). Answers a `campaign-commit.v1` receipt with `commitId`. |
+
+A client builds a put from the record it read and changes only the fields it
+edits, so unknown fields survive. New keys follow the website's
+`createCampaignRecordKey` (a name slug and a random suffix); an event states
+its `sitting` and gets an `order` after the session's last event. The host
+forces player writes to public visibility and keeps references the player
+cannot see. Errors: `409 WRITE_CONFLICT` when any expected revision is stale
+(nothing is written; refresh and prepare again), `403 FORBIDDEN`,
+`400 INVALID_REQUEST` or `MANAGED_FIELD`, `404 NOT_FOUND`.
+
 ## Add-on services
 
 Since host 2.2.0, signed-in clients reach worker services by contract, as

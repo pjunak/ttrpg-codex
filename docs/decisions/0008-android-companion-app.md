@@ -53,8 +53,16 @@ What is true today:
   device.
 - **Core, always available:** campaign reading from a cached copy of the
   role-projected campaign (readable offline), search, articles, images, maps
-  from the tile pyramid, and live updates from the event stream. Native
-  editing of core records is out of scope.
+  from the tile pyramid, and live updates from the event stream.
+- **Session notes, the one native editor of core records.** Notes at the
+  table are events: a signed-in player or DM lists sessions (events'
+  `sitting` numbers), starts the next one, adds a note whose first line is the
+  event's name, and edits or deletes events (name, session, date, priority,
+  summary, description, characters and locations; DM-only for the DM) through
+  `POST /api/campaign/transactions`, as the website's timeline does. Saves are
+  online only and keep fields the app does not edit; a save that races with
+  another change merges different fields and asks before overwriting the same
+  field. Other core records are edited on the website.
 - **Optional modules, found by contract.** The app connects to services by
   contract and version range, never by add-on ID. The character module appears
   only when a `dnd5e.character` provider in its supported range answers. It is
@@ -98,6 +106,9 @@ What is true today:
   contract between two repositories: changing them needs the app's gate as
   well as the host's tests.
 - Changes to `dnd5e.character` need the app checked against the new schemas.
+- How events are written (record keys, `sitting` and `order` placement, the
+  fields the timeline edits) exists in the website's timeline and in the
+  app's session notes; a change to one needs the other.
 - Sheet presentation exists twice, as the web Compact layout and the native
   play screens. Rules stay in the Engine, so only presentation and the
   autosave session are duplicated. Character building stays on the web.
