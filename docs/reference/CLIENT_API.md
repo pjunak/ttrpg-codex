@@ -33,7 +33,10 @@ and survive host restarts ([authentication](AUTHENTICATION.md)). Errors are
 | --- | --- |
 | `GET /api/campaign` | The whole campaign as `campaign-data.v1`, projected for the session's role; signed out and player sessions get the public projection ([core data](CORE_DATA.md)). Compressed with gzip when asked. |
 | `GET /api/events` | Server-sent events: `hello` and `reset` on connection, `campaign-data-changed` per committed change, plus add-on and recovery topics. Resume with `Last-Event-ID`; a heartbeat comment arrives every 20 seconds ([event stream](EVENT_STREAM.md)). |
-| `GET /api/media/{blobID}` | A portrait or other image referenced as `/api/media/b_…` in records ([media](MEDIA.md)); map tiles live under `/api/media/{blobID}/tiles/v1/` ([maps](MAPS.md)). |
+| `GET /api/media/{blobID}` | A portrait or other image referenced as `/api/media/b_…` in records ([media](MEDIA.md)). |
+| `GET /api/media/latest/{kind}/{target}` | The current blob for a media slot as `media-blob.v1`; `latest/world-map/main` finds the world map image. A location's own map is its `localMap` field. |
+| `GET /api/media/{blobID}/tiles/v1/manifest` | The image's tile pyramid as `map-tiles.v1` (size, tile size, depth). An error answer means the image is not tiled (an SVG, for example); show the original image instead ([maps](MAPS.md)). |
+| `GET /api/media/{blobID}/tiles/v1/{level}/{x}/{y}` | One tile of that pyramid. |
 
 Pages without a native screen can open in a web view: the app's own pages
 (`/characters/<key>` and so on) accept the same session cookie.
