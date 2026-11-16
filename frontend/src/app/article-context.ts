@@ -21,6 +21,8 @@ export interface ArticleReference {
 export interface ArticleContextGroup {
   readonly title?: string;
   readonly entries: readonly ArticleReference[];
+  /** A faction rank group; its menu assigns members and reorders the rank. */
+  readonly rank?: { readonly chain: string; readonly rank: string };
 }
 export interface ArticleContextSection {
   readonly id: string;
@@ -207,6 +209,7 @@ export function articleContext(
         groups.push({
           title: [text(chain["name"]), rank].filter(Boolean).join(" — "),
           entries: references("characters", occupants),
+          rank: { chain: chainId, rank },
         });
       }
       if (!ranks.length) groups.push({ title: text(chain["name"]), entries: [] });

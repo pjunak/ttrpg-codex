@@ -159,6 +159,26 @@ Editors also get Edit and actions that use the same field rules as the editor:
 | Event | Characters, locations, show or place on map |
 | Mystery, history | Characters, locations |
 
+Characters also get **Rank** (their faction's rank chains) and
+**Relationship**, a submenu of relationship types and then targets; a checked
+target removes that relationship and the others are kept.
+
+Views add their own actions after the record's:
+
+| Where | Everyone | Editors |
+| --- | --- | --- |
+| Location pin on a map | Zoom to, local map | Move marker (click the new spot), remove from map |
+| Event pin on a map | | Move or place the marker, remove its own marker |
+| Empty map space | Zoom in, whole map | New location here, place an unplaced location here, place an event without a marker here |
+| Timeline card | | Move to session, move earlier or later, new event in this session |
+| Timeline session column | Show all or fewer events | New event in this session |
+| Faction rank heading | | Members with this rank (assign or unassign), move the rank up or down its chain |
+
+Map placements open the usual marker panel to save. Timeline moves save at
+once, or join the open draft while the timeline is being edited. A view adds
+actions by answering the `codex-context-menu-request` event the app dispatches
+at the element under the pointer (`app/context-menu-request.ts`).
+
 Long lists are searchable submenus; current values show as check marks or a
 trailing detail. Writes go through the in-place patch path (one field, current
 revision, conflicts reported) and confirm with a short notice. While another

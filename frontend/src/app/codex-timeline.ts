@@ -24,6 +24,10 @@ import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import { isTimelineSlot, type TimelineSlot } from "./timeline-contributions.js";
 import "./codex-timeline-slot.js";
+import { contextMenuRequestEvent, isContextMenuRequest } from "./context-menu-request.js";
+import { campaignPages } from "./routes.js";
+import { requestNavigation } from "./address.js";
+import { uiText } from "./ui-localization.js";
 
 export class CodexTimeline extends LitElement {
   static override properties = {
@@ -88,6 +92,7 @@ export class CodexTimeline extends LitElement {
     this.registry = undefined;
     this.actorRole = undefined;
     this.addonRevision = 0;
+    this.addEventListener(contextMenuRequestEvent, this.#onMenuRequest);
   }
   protected override createRenderRoot() {
     return this;
@@ -342,6 +347,107 @@ export class CodexTimeline extends LitElement {
       this.#setDirty(true);
     }
   }
+  /**
+   * Moves an event from the context menu. While the board is being edited the
+   * move joins the open draft; otherwise it is saved at once.
+   */
+  async #menuMove(key: string, sitting: number, index: number): Promise<void> {
+    if (this.editing) {
+      this.#move(key, sitting, index);
+      return;
+    }
+    const campaign = this.campaign;
+    if (!this.canEdit || this.#locked || campaign === undefined) return;
+    let draft: TimelineDraft;
+    try {
+      draft = moveTimelineEvent(timelineDraft(campaign), key, sitting, index);
+    } catch {
+      this.error = this.#ui.t("timeline.invalid");
+      return;
+    }
+    if (sameTimelineOrder(draft.columns, timelineColumns(campaign))) return;
+    this.saving = true;
+    this.error = "";
+    const result = await saveCampaign(this, "timeline", draft);
+    this.saving = false;
+    if (this.isConnected && !result.ok) this.error = result.message;
+  }
+  /** Card and session actions, added to the app's context menu. */
+  readonly #onMenuRequest = (event: Event): void => {
+    if (!isContextMenuRequest(event)) return;
+    const detail = event.detail,
+      target = event.target as Element;
+    const campaign = this.#baseCampaign ?? this.campaign;
+    const column = target.closest<HTMLElement>(".tl-col[data-sitting]");
+    if (campaign === undefined || column === null || target.closest("codex-timeline-slot")) return;
+    const sitting = Number(column.dataset["sitting"]);
+    const columns = this.draft?.columns ?? timelineColumns(campaign);
+    const sessions = timelineSessions(columns),
+      next = nextTimelineSitting(columns);
+    const editable = detail.canEdit && this.canEdit;
+    const blocked = detail.writeBlocked || (this.#locked ? uiText("menu.blocked") : "") || false;
+    const sessionLabel = (value: number) =>
+      this.#ui.t(
+        value === next && !sessions.includes(value) ? "timeline.newSession" : "timeline.session",
+        {
+          n: value,
+        },
+      );
+    const newEvent = {
+      label: uiText("menu.newEventHere"),
+      icon: "＋",
+      run: () => requestNavigation(`/timeline/new/${sitting}`),
+    };
+    const key = target.closest<HTMLElement>(".tl-card[data-key]")?.dataset["key"];
+    if (key === undefined) {
+      detail.title = sessionLabel(sitting);
+      const ids = columns.find((item) => item.sitting === sitting)?.ids ?? [];
+      if (ids.length > 4 && !this.editing)
+        detail.items.push({
+          label: uiText(this.expanded.includes(sitting) ? "menu.collapse" : "menu.expand"),
+          icon: "↕",
+          run: () => {
+            this.expanded = this.expanded.includes(sitting)
+              ? this.expanded.filter((value) => value !== sitting)
+              : [...this.expanded, sitting];
+          },
+        });
+      if (editable) detail.items.push(newEvent);
+      return;
+    }
+    detail.record = { page: campaignPages.find((page) => page.id === "events")!, key };
+    if (!editable) return;
+    const ids = columns.find((item) => item.sitting === sitting)?.ids ?? [];
+    const index = ids.indexOf(key);
+    detail.items.push(
+      {
+        label: uiText("menu.moveToSession"),
+        icon: "⇆",
+        detail: sessionLabel(sitting),
+        disabled: blocked,
+        searchable: sessions.length > 8,
+        children: () =>
+          [...new Set([...sessions, next])].map((target) => ({
+            label: sessionLabel(target),
+            checked: target === sitting,
+            run: () => void this.#menuMove(key, target, Number.MAX_SAFE_INTEGER),
+          })),
+      },
+      {
+        label: uiText("menu.moveEarlier"),
+        icon: "↑",
+        disabled: blocked || index <= 0,
+        run: () => void this.#menuMove(key, sitting, index - 1),
+      },
+      {
+        label: uiText("menu.moveLater"),
+        icon: "↓",
+        disabled: blocked || index < 0 || index >= ids.length - 1,
+        run: () => void this.#menuMove(key, sitting, index + 1),
+      },
+      newEvent,
+    );
+  };
   #dragStart(event: DragEvent, record: CampaignRecord, sitting: number): void {
     if (
       !this.editing ||

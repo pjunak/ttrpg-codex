@@ -76,8 +76,10 @@ export function renderArticleContext(sections: readonly ArticleContextSection[])
         <ol class="article-ancestor-list">${section.groups.flatMap((group) => group.entries).map((entry) => html`<li>${renderArticleReference(entry)}</li>`)}</ol></nav>`
       : html`<section class="article-context-section" data-context=${section.id} aria-label=${section.title}><h2 class="record-section-title">${section.title}</h2>
       <div class="article-context-groups">${section.groups.map(
-        (group) => html`<div>
-        ${group.title ? html`<h3>${group.title}</h3>` : nothing}
+        (
+          group,
+        ) => html`<div data-rank-chain=${group.rank?.chain ?? nothing} data-rank=${group.rank?.rank ?? nothing}>
+        ${group.title ? html`<h3 tabindex=${group.rank ? "0" : nothing}>${group.title}</h3>` : nothing}
         ${
           !group.entries.length
             ? html`<p class="field-help">${uiText("None")}</p>`

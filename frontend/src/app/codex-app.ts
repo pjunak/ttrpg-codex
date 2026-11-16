@@ -1,5 +1,10 @@
 import { bindLongPress, openContextMenu } from "../ui/context-menu.js";
-import { recordContextMenu } from "./record-context-menu.js";
+import {
+  factionRankMenu,
+  recordContextMenu,
+  type RecordMenuActions,
+} from "./record-context-menu.js";
+import { requestViewMenu } from "./context-menu-request.js";
 import { BusyLeases, busyLeaseRequestEvent, type BusyLeaseRequest } from "./busy-lease.js";
 import { CampaignWriteController } from "./campaign-write-controller.js";
 import type { CampaignRecordSavedDetail } from "./codex-record-page.js";
@@ -511,28 +516,88 @@ export class CodexApp extends LitElement {
       event.preventDefault();
   };
 
-  /** Opens the record menu for a record link or the current record's header. */
+  /**
+   * Opens the menu for a record link, the current record's header, or an
+   * element whose view answers a context-menu request (map pins, timeline
+   * cards, faction ranks).
+   */
   #openRecordMenu(target: Element, point: { x: number; y: number }): boolean {
     const campaign = this.#campaign.campaign;
     if (campaign === undefined) return false;
     if (target.closest("input, textarea, select, [contenteditable], .ui-menu, dialog"))
       return false;
+    const canEdit = this.#session.authenticated;
+    const writeBlocked = this.busy || this.#guard.editing ? uiText("menu.blocked") : "";
+    const request = requestViewMenu(target, { point, canEdit, writeBlocked });
     const link = target.closest<HTMLAnchorElement>("a[href^='/']");
     let route = link ? parseAppRoute(link.getAttribute("href") ?? "") : undefined;
+    if (request.record)
+      route = { kind: "record", page: request.record.page, key: request.record.key };
     if (
       route?.kind !== "record" &&
       this.route.kind === "record" &&
       target.closest(".record-masthead")
     )
       route = this.route;
-    if (route?.kind !== "record") return false;
+    if (route?.kind !== "record") {
+      if (
+        this.route.kind === "record" &&
+        this.route.page.collection === "factions" &&
+        request.items.length === 0
+      ) {
+        const group = target.closest<HTMLElement>("[data-rank-chain]");
+        const rank = group
+          ? factionRankMenu(
+              campaign,
+              this.route.key,
+              group.dataset["rankChain"] ?? "",
+              group.dataset["rank"] ?? "",
+              this.#menuActions(canEdit, writeBlocked),
+            )
+          : undefined;
+        if (rank) {
+          openContextMenu(document, point, rank.items, {
+            title: rank.title,
+            returnFocus: target.closest<HTMLElement>("[tabindex], button, a"),
+          });
+          return true;
+        }
+      }
+      if (request.items.length === 0) return false;
+      openContextMenu(document, point, request.items, {
+        ...(request.title ? { title: request.title } : {}),
+        returnFocus: target.closest<HTMLElement>("[tabindex], button, a"),
+      });
+      return true;
+    }
     const menu = recordContextMenu(campaign, route.page, route.key, {
-      canEdit: this.#session.authenticated,
+      ...this.#menuActions(canEdit, writeBlocked),
       current:
         this.route.kind === "record" &&
         this.route.page.id === route.page.id &&
         this.route.key === route.key,
-      writeBlocked: this.busy || this.#guard.editing ? uiText("menu.blocked") : "",
+    });
+    if (!menu) return false;
+    const extra = request.items;
+    openContextMenu(
+      document,
+      point,
+      extra.length
+        ? [...menu.items, { ...extra[0]!, separator: true }, ...extra.slice(1)]
+        : menu.items,
+      {
+        title: menu.title,
+        returnFocus: link ?? target.closest<HTMLElement>("[tabindex], button, a"),
+      },
+    );
+    return true;
+  }
+
+  #menuActions(canEdit: boolean, writeBlocked: string): RecordMenuActions {
+    return {
+      canEdit,
+      canManageVisibility: this.#session.canManage,
+      writeBlocked,
       navigate: (href) => {
         this.#guard.navigate(href);
       },
@@ -547,18 +612,12 @@ export class CodexApp extends LitElement {
           () => this.#notify(uiText("menu.copyFailed")),
         );
       },
-      patch: (collection, record, fields, done) => {
+      patch: (collection, record, fields, done, extra) => {
         void this.#writes
-          .save("record-patch", { collection, base: record, fields })
+          .save("record-patch", { collection, base: record, fields, ...extra })
           .then((result) => this.#notify(result.ok ? done : result.message));
       },
-    });
-    if (!menu) return false;
-    openContextMenu(document, point, menu.items, {
-      title: menu.title,
-      returnFocus: link ?? target.closest<HTMLElement>("[tabindex], button, a"),
-    });
-    return true;
+    };
   }
 
   #notify(message: string): void {

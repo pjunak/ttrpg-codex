@@ -4,7 +4,7 @@ import { previewResourceURL } from "../core/player-preview.js";
 import { LitElement, html, nothing } from "lit";
 import { markerGlowLayers } from "./campaign-attitude-glow.js";
 import * as L from "leaflet";
-import type { CampaignDataset } from "../core/campaign-data.js";
+import type { CampaignDataset, CampaignRecord } from "../core/campaign-data.js";
 import { MediaClient, MediaHTTPError } from "../core/media.js";
 import { createCampaignRecordKey, editorOptionsFor } from "./campaign-record-editor.js";
 import {
@@ -48,6 +48,8 @@ import { saveCampaign, type CampaignWriteKind, type CampaignWrites } from "./cam
 import type { BrowserContributionRegistry } from "../addons/browser-sdk.js";
 import type { BrowserRole } from "../addons/generation-manager.js";
 import "./codex-record-contributions.js";
+import { contextMenuRequestEvent, isContextMenuRequest } from "./context-menu-request.js";
+import type { ContextMenuItem } from "../ui/context-menu.js";
 
 type MapRoute = Extract<AppRoute, { kind: "map" }>;
 type LocationDraft = Extract<MapSaveDetail, { kind: "location" }>;
@@ -152,6 +154,7 @@ export class CodexMap extends LitElement {
     this.eventUnavailable = false;
     this.locationUnavailable = false;
     this.minZoom = -8;
+    this.addEventListener(contextMenuRequestEvent, this.#onMenuRequest);
   }
   protected override createRenderRoot() {
     return this;
@@ -255,13 +258,7 @@ export class CodexMap extends LitElement {
               a.key.localeCompare(b.key),
           )
       : [];
-    const unplaced = campaignCollection(this.campaign, "locations").records.filter((record) => {
-      const value = recordValue(record);
-      return (
-        mapParent(value) === this.route!.parentId &&
-        (!mapCoordinate(value["x"]) || !mapCoordinate(value["y"]))
-      );
-    });
+    const unplaced = this.#unplaced();
     const events = campaignCollection(this.campaign, "events").records.filter((record) => {
       const value = recordValue(record);
       return !hasEventPin(value) || eventMapParent(value) === this.route!.parentId;
@@ -662,6 +659,7 @@ export class CodexMap extends LitElement {
           this.eventDraft === undefined &&
           (!this.#dirty || this.draft?.key === location.key),
       }).addTo(this.#layers);
+      marker.getElement()?.setAttribute("data-location-key", location.key);
       const label = document.createElement("span");
       label.textContent = location.name;
       marker.bindTooltip(label);
@@ -756,6 +754,7 @@ export class CodexMap extends LitElement {
           (this.eventDraft === undefined ||
             (this.eventDraft.key === point.key && this.eventDraft.x !== null)),
       }).addTo(this.#eventLayers!);
+      marker.getElement()?.setAttribute("data-event-key", point.key);
       const tooltip = document.createElement("span");
       tooltip.textContent = point.name;
       marker.bindTooltip(tooltip);
@@ -988,6 +987,194 @@ export class CodexMap extends LitElement {
     this.selected = key || undefined;
     this.placing = key;
   }
+  #unplaced(): readonly CampaignRecord[] {
+    if (this.campaign === undefined || this.route === undefined) return [];
+    const parentId = this.route.parentId;
+    return campaignCollection(this.campaign, "locations").records.filter((record) => {
+      const value = recordValue(record);
+      return (
+        mapParent(value) === parentId && (!mapCoordinate(value["x"]) || !mapCoordinate(value["y"]))
+      );
+    });
+  }
+  /** Places a location ("" for a new one) at a map point, as a click in placing mode would. */
+  #placeAt(key: string, x: number, y: number): void {
+    this.editing = true;
+    this.#place(key);
+    if (this.placing === key) this.#mapClick(this.#point(x, y));
+  }
+  #pinEventAt(key: string, x: number, y: number): void {
+    this.editing = true;
+    this.#openEvent(key, true);
+    if (this.eventDraft?.key === key && this.eventDraft.x === null)
+      this.#mapClick(this.#point(x, y));
+  }
+  /** Map actions for a pin or an empty spot, added to the app's context menu. */
+  readonly #onMenuRequest = (event: Event): void => {
+    if (!isContextMenuRequest(event)) return;
+    const detail = event.detail,
+      target = event.target as Element,
+      map = this.#map,
+      campaign = this.campaign,
+      route = this.route;
+    if (map === undefined || campaign === undefined || route === undefined) return;
+    if (this.status !== "ready" || !target.closest(".sc-map") || target.closest(".leaflet-control"))
+      return;
+    const editable = detail.canEdit && this.canEdit;
+    const blocked = detail.writeBlocked || (this.#locked ? uiText("menu.blocked") : "") || false;
+    const items: ContextMenuItem[] = detail.items;
+    const locationKey = target.closest<HTMLElement>("[data-location-key]")?.dataset["locationKey"];
+    const eventKey = target.closest<HTMLElement>("[data-event-key]")?.dataset["eventKey"];
+    if (locationKey !== undefined) {
+      const location = mapLocations(campaign, route.parentId).find(
+        (item) => item.key === locationKey,
+      );
+      const record = mapLocationRecord(campaign, locationKey);
+      if (location === undefined || record === undefined) return;
+      detail.record = { page: locationPage, key: locationKey };
+      items.push({
+        label: uiText("menu.zoomTo"),
+        icon: "🔍",
+        run: () => {
+          map.setView(this.#point(location.x, location.y), Math.max(map.getZoom(), 0));
+          this.#select(location);
+        },
+      });
+      if (safeMediaURL(recordValue(record)["localMap"]) !== undefined)
+        items.push({
+          label: uiText("map.local"),
+          icon: "🗺",
+          run: () => requestNavigation(mapHref(locationKey)),
+        });
+      if (editable)
+        items.push(
+          {
+            label: uiText("menu.movePin"),
+            icon: "✥",
+            disabled: blocked,
+            run: () => {
+              this.editing = true;
+              this.#place(locationKey);
+            },
+          },
+          {
+            label: uiText("map.removePin"),
+            icon: "✕",
+            danger: true,
+            disabled: blocked,
+            run: () => {
+              if (!this.#discard()) return;
+              this.#emitSave({
+                kind: "location",
+                key: locationKey,
+                expectedRevision: record.revision,
+                parentId: route.parentId,
+                x: null,
+                y: null,
+              });
+            },
+          },
+        );
+      return;
+    }
+    if (eventKey !== undefined) {
+      const record = mapEventRecord(campaign, eventKey);
+      if (record === undefined) return;
+      detail.record = { page: eventPage, key: eventKey };
+      const value = recordValue(record);
+      const ownPin = hasEventPin(value) && eventMapParent(value) === route.parentId;
+      if (!editable) return;
+      items.push({
+        label: uiText(ownPin ? "menu.movePin" : "map.placeEvent"),
+        icon: "✥",
+        disabled: blocked,
+        run: () => {
+          this.editing = true;
+          this.#openEvent(eventKey, true);
+        },
+      });
+      if (ownPin)
+        items.push({
+          label: uiText("map.removeEvent"),
+          icon: "✕",
+          danger: true,
+          disabled: blocked,
+          run: () => {
+            if (!this.#discard()) return;
+            this.#emitSave({
+              kind: "event",
+              key: eventKey,
+              expectedRevision: record.revision,
+              parentId: route.parentId,
+              x: null,
+              y: null,
+            });
+          },
+        });
+      return;
+    }
+    const box = map.getContainer().getBoundingClientRect();
+    const latlng = map.containerPointToLatLng(
+      L.point(detail.point.x - box.left, detail.point.y - box.top),
+    );
+    const x = latlng.lng / this.#width,
+      y = -latlng.lat / this.#height;
+    const parent =
+      route.parentId === null ? undefined : mapLocationRecord(campaign, route.parentId);
+    detail.title = parent
+      ? text(recordValue(parent)["name"]) || route.parentId!
+      : uiText("map.world");
+    items.push(
+      {
+        label: uiText("map.zoomIn"),
+        icon: "+",
+        run: () => map.setView(latlng, Math.min(2, map.getZoom() + 1)),
+      },
+      { label: uiText("map.fit"), icon: "🌐", run: this.#fit },
+    );
+    if (!editable || !mapCoordinate(x) || !mapCoordinate(y)) return;
+    const named = (records: readonly CampaignRecord[]) =>
+      records
+        .map((record) => ({ record, name: text(recordValue(record)["name"]) || record.key }))
+        .sort((a, b) => a.name.localeCompare(b.name, this.#ui.locale, { numeric: true }));
+    const unplaced = named(this.#unplaced());
+    const unpinned = named(
+      campaignCollection(campaign, "events").records.filter(
+        (record) => !hasEventPin(recordValue(record)),
+      ),
+    );
+    items.push(
+      {
+        label: uiText("menu.newLocationHere"),
+        icon: "📍",
+        separator: true,
+        disabled: blocked,
+        run: () => this.#placeAt("", x, y),
+      },
+      {
+        label: uiText("menu.placeLocationHere"),
+        icon: "⌖",
+        disabled: blocked || (unplaced.length === 0 ? uiText("menu.nothingToPlace") : false),
+        searchable: unplaced.length > 8,
+        children: () =>
+          unplaced.map(({ record, name }) => ({
+            label: name,
+            run: () => this.#placeAt(record.key, x, y),
+          })),
+      },
+      {
+        label: uiText("menu.pinEventHere"),
+        icon: "✦",
+        disabled: blocked || (unpinned.length === 0 ? uiText("menu.nothingToPlace") : false),
+        searchable: unpinned.length > 8,
+        children: () =>
+          unpinned.map(({ record, name }) => ({
+            label: name,
+            run: () => this.#pinEventAt(record.key, x, y),
+          })),
+      },
+    );
+  };
   #mapClick(point: L.LatLng): void {
     if (!this.canEdit || !this.editing || this.#locked || this.route === undefined) return;
     const x = point.lng / this.#width,
