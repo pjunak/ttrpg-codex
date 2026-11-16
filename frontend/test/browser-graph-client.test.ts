@@ -104,6 +104,25 @@ describe("parseBrowserGenerationSet", () => {
     expect(parseBrowserGenerationSet(indexed({ locales: [locale] })).catalogs).toEqual([
       { addonId: "dnd-engine", addonName: "D&D Engine", generationId, locales: [locale] },
     ]);
+    const packs = [
+      { locale: "cs", status: "installed", version: "6.1.0" },
+      { locale: "de", status: "failed", error: "rate-limited" },
+      { locale: "fr", status: "available" },
+    ];
+    const merged = { ...locale, source: "package+pack" };
+    expect(parseBrowserGenerationSet(indexed({ locales: [merged], packs })).catalogs).toEqual([
+      { addonId: "dnd-engine", addonName: "D&D Engine", generationId, locales: [merged], packs },
+    ]);
+    for (const pack of [
+      { locale: "de", status: "downloading" },
+      { locale: "de", status: "failed", error: "https://example.test?token=x" },
+      { locale: "DE", status: "none" },
+      { locale: "de", status: "installed", version: 6 },
+      { locale: "de", status: "none", extra: true },
+    ])
+      expect(() => parseBrowserGenerationSet(indexed({ packs: [pack] }))).toThrow(
+        BoundaryValidationError,
+      );
     for (const invalid of [
       { url: `/api/addons/other/generations/${generationId}/locales/cs/${sha256}` },
       { locale: "cs-cz" },

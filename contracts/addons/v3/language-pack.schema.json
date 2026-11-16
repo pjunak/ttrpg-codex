@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://junak.eu/ttrpg-codex/contracts/addons/v3/language-pack.schema.json",
+  "title": "TTRPG Codex language pack v1",
+  "description": "The pack.json manifest of a language pack: a data-only ZIP holding one language's translation of one add-on for a range of its versions. The pack holds pack.json, the declared catalog and the declared content files, nothing else.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["packFormat", "addonId", "locale", "addonVersions", "builtFrom"],
+  "anyOf": [{ "required": ["catalog"] }, { "required": ["content"] }],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri-reference"
+    },
+    "packFormat": {
+      "const": 1
+    },
+    "addonId": {
+      "description": "The add-on the pack translates.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "maxLength": 80
+    },
+    "locale": {
+      "description": "A canonical BCP 47 tag other than English, which every package must ship.",
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$",
+      "not": { "const": "en" }
+    },
+    "addonVersions": {
+      "description": "Add-on versions the pack applies to, as a semantic version range such as \">=3.6.0 <4.0.0\". It must include builtFrom.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "builtFrom": {
+      "description": "The add-on version whose English catalog the pack was checked against.",
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "catalog": {
+      "description": "The language's message-catalog.v1 file. The host merges it with the package's own catalog for the language, package messages first.",
+      "$ref": "#/$defs/packPath"
+    },
+    "content": {
+      "description": "Reserved for content translation overlays, such as record overlays of a content set. The host stores and validates the files but does not apply them yet.",
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": {
+        "allOf": [{ "$ref": "#/$defs/packPath" }, { "pattern": "^content/.+\\.json$" }]
+      }
+    }
+  },
+  "$defs": {
+    "packPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^[^/\\\\][^\\\\]*$",
+      "not": { "const": "pack.json" }
+    }
+  }
+}

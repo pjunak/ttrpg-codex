@@ -68,9 +68,42 @@ export interface BrowserCatalogLocale {
   readonly url: string;
   readonly sha256: string;
   readonly messages: number;
-  readonly source: "package" | "pack";
+  /**
+   * The add-on's own package, a language pack, or the package's catalog with
+   * keys it lacks filled from a language pack.
+   */
+  readonly source: "package" | "pack" | "package+pack";
   /** Messages or files the host dropped from this language. */
   readonly issues: readonly string[];
+}
+
+export const languagePackStatuses = [
+  "available",
+  "installed",
+  "outdated",
+  "none",
+  "failed",
+] as const;
+export const languagePackErrors = [
+  "unavailable",
+  "rate-limited",
+  "tls",
+  "invalid",
+  "storage",
+] as const;
+
+/** One language's pack for an active add-on linked to a GitHub repository. */
+export interface BrowserLanguagePack {
+  readonly locale: string;
+  /**
+   * Published but the language is not enabled, in use, stored for other
+   * add-on versions, not published for this version, or failed.
+   */
+  readonly status: (typeof languagePackStatuses)[number];
+  /** The add-on version a stored pack was built from. */
+  readonly version?: string;
+  /** Why the latest check or the stored pack failed. */
+  readonly error?: (typeof languagePackErrors)[number];
 }
 
 /** An active add-on's languages; headless add-ons are listed too. */
@@ -79,6 +112,8 @@ export interface BrowserCatalogIndexEntry {
   readonly addonName: string;
   readonly generationId: string;
   readonly locales: readonly BrowserCatalogLocale[];
+  /** Language packs by language; empty for add-ons without a GitHub source. */
+  readonly packs?: readonly BrowserLanguagePack[];
 }
 
 export interface BrowserGenerationSet {

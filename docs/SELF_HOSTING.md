@@ -101,6 +101,7 @@ data/
 ├── codex.db, codex.db-wal, codex.db-shm   SQLite: records, passwords, recovery points, add-on data
 ├── blobs/sha256/                          uploaded images and maps, named by content hash
 ├── addons/<id>/generations/<hash>/        installed add-on packages
+├── addons/.language-packs/<hash>.zip      downloaded add-on language packs
 ├── credentials/github.db                  saved GitHub tokens (never in backups)
 └── cache/map-tiles-v1/                    generated map tiles (safe to delete while stopped)
 ```
@@ -195,6 +196,16 @@ limit to 5,000 an hour.
 If a token-save response is lost, the wizard refreshes configured state and
 clears the input; retrying does not silently repeat the token write.
 
+Linked add-ons can also publish language packs: translations the host downloads
+with the same tokens for the languages enabled in **Settings → Language**. The
+host checks for them in the background at start, when the enabled languages
+change, when an add-on is installed or updated, and when the DM presses **Check
+for language packs** there; each check uses one request per linked add-on. A
+failed download never blocks enabling a language or activating an add-on; the
+Languages page shows it, and the next check tries again. Packs are stored in
+`addons/.language-packs/`, travel with the full archive and are deleted when
+their language is disabled.
+
 The popup keeps keyboard focus inside it and returns focus on close. Escape or
 Cancel closes it when no request is running; requests finish before it can close.
 On small screens the content scrolls while the title and Cancel button stay visible.
@@ -252,8 +263,8 @@ not in this ZIP; moving a whole server uses the full archive below. See the
 ### Verify and restore a full backup
 
 A full archive covers the whole installation: campaign, files, recovery
-points, saved passwords and installed add-on packages. GitHub access tokens are
-excluded; configure them again on a new server. Only the maintenance command
+points, saved passwords, installed add-on packages and their downloaded
+language packs. GitHub access tokens are excluded; configure them again on a new server. Only the maintenance command
 makes, verifies and restores it. Use the maintenance binary from the same image
 or source revision as the host, and the actual data directory used by that
 installation.

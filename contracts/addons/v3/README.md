@@ -38,7 +38,14 @@ boundaries validate browser models.
   `frontend/src/core/message-catalog.ts` add the translation rules (keys from
   English, same section, same placeholders, the reserved `manifest` section)
   and both run the cases in `examples/catalogs/`.
+- `language-pack.schema.json` validates `pack.json`, the manifest of a
+  language pack (`language-pack.v1`): one add-on's translation into one
+  language for a range of its versions. The Go inspector adds the archive
+  rules (declared files only, bounded sizes, a catalog in the pack's
+  language) and checks the catalog against the package's English when it
+  merges it; see [language packs](../../../examples/addons/API_V3.md#language-packs).
 - `examples/reference-addon.json` exercises the main manifest features.
+- `examples/language-pack.json` is a language pack manifest.
 - `examples/import-adapter.service.json` shows a package-owned service
   document.
 

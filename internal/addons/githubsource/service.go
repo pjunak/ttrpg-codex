@@ -93,6 +93,9 @@ type Service struct {
 	lifecycle Lifecycle
 	inspector *packageinspect.Inspector
 	client    *http.Client
+	// packs runs language pack checks; set once by NewPackSync before the
+	// host serves requests.
+	packs *PackSync
 }
 
 // downloadTimeout gives a package of up to 128 MiB time to arrive on a slow

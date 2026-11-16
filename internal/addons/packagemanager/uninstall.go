@@ -222,5 +222,8 @@ func (manager *Manager) Uninstall(ctx context.Context, addonID, reviewSHA256 str
 	transitionCtx, cancel := detachTransition(ctx)
 	defer cancel()
 	result, err := manager.reconfigureLocked(transitionCtx, func() error { return manager.store.uninstall(transitionCtx, review) })
+	if err == nil {
+		manager.forgetLanguagePacksLocked(addonID)
+	}
 	return UninstallResult{ConfigurationResult: result, AddonID: addonID}, err
 }

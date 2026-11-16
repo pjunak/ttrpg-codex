@@ -129,6 +129,24 @@ describe("browser catalog store", () => {
       "Starý popisek",
     );
   });
+
+  it("lists the languages add-ons publish language packs for", () => {
+    const store = new BrowserCatalogStore({ fetch: fakeFetch() });
+    store.settleIndex([
+      {
+        ...entry("sheets", ["en", "cs"]),
+        packs: [
+          { locale: "cs", status: "installed", version: "1.0.0" },
+          { locale: "de", status: "available" },
+          { locale: "pl", status: "none" },
+          { locale: "it", status: "failed", error: "unavailable" },
+        ],
+      },
+      entry("engine", ["en"]),
+    ]);
+    expect(store.packLocales()).toEqual(["cs", "de"]);
+    expect(store.locales()).toEqual(["en", "cs"]);
+  });
 });
 
 describe("ui.i18n", () => {

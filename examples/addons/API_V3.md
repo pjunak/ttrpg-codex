@@ -1588,7 +1588,52 @@ Browsers receive each active add-on's effective catalogs (validated, with the
 built manifest section and any folded labels), headless add-ons included. The
 browser graph's `catalogs` index names each language's
 `GET /api/addons/{addonId}/generations/{generationId}/locales/{locale}/{sha256}`
-URL; responses are immutable and cached for good.
+URL; responses are immutable and cached for good. A language may come from
+the package (`source: "package"`), a language pack (`"pack"`) or both
+(`"package+pack"`).
+
+### Language packs
+
+A language pack adds one language's translation of your add-on without a new
+package. It is a data-only ZIP
+([`language-pack.v1`](../../contracts/addons/v3/language-pack.schema.json))
+named `<package file name without .zip>.<locale>.langpack.zip` and published
+as an asset of a GitHub release of the add-on's repository, beside the
+package:
+
+```json
+{
+  "packFormat": 1,
+  "addonId": "story-planner",
+  "locale": "de",
+  "addonVersions": ">=1.4.0 <2.0.0",
+  "builtFrom": "1.4.0",
+  "catalog": "messages.json",
+  "content": ["content/i18n/de.json"]
+}
+```
+
+- `pack.json` is the manifest. `locale` is never `en`; `addonVersions` is a
+  semantic version range that must include `builtFrom`, the version whose
+  English the pack was checked against.
+- `catalog` is a `message-catalog.v1` file in the pack's language, with the
+  same rules as a package's translation, the `manifest` section included.
+- `content` lists `content/**.json` translation overlays, such as the
+  Compendium's `kind: "i18n"` records. It is reserved: the host validates and
+  stores them but applies none yet.
+- The ZIP holds `pack.json` and the declared files only: at most 32 MiB
+  compressed, 64 MiB expanded, 256 content files of at most 16 MiB, and the
+  catalog limits above.
+
+Hosts download packs only for add-ons linked to a GitHub repository and only
+for the languages the site enables, from the repository's 30 newest published
+releases; a pack built from the active version is preferred. The package's
+own catalog for a language wins key by key; a pack only fills keys the
+package's catalog lacks, and its messages are checked against the active
+package's English. `codex-addon-inspect -pack <pack.zip> [package.zip]`
+inspects a pack, against a package's English when one is given, and fails on
+any issue. Building and publishing packs is in the
+[authoring guide](AUTHORING.md#language-packs).
 
 ### Translating in the browser
 

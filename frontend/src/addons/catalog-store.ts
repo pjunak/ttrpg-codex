@@ -72,6 +72,18 @@ export class BrowserCatalogStore {
     return [...locales];
   }
 
+  /**
+   * Languages an active add-on publishes language packs for. Enabling one
+   * makes the host download its packs.
+   */
+  packLocales(): readonly string[] {
+    const locales = new Set<string>();
+    for (const entry of this.#index.values())
+      for (const { locale, status } of entry.packs ?? [])
+        if (status !== "none" && status !== "failed") locales.add(locale);
+    return [...locales];
+  }
+
   /** Replaces the index from the latest browser graph. */
   settleIndex(entries: readonly BrowserCatalogIndexEntry[] | undefined): void {
     const next = new Map((entries ?? []).map((entry) => [entry.addonId, entry] as const));

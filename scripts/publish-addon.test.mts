@@ -3,7 +3,12 @@ import { test } from "node:test";
 import { mkdtempSync, readdirSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { github, packageFile, publish } from "../.github/actions/publish-addon/publish.mts";
+import {
+  github,
+  packageFile,
+  packFiles,
+  publish,
+} from "../.github/actions/publish-addon/publish.mts";
 
 const repo = "example/addon",
   sha = "a".repeat(40),
@@ -151,4 +156,91 @@ void test("GitHub transport uses fixed origins and does not blindly repeat write
   await assert.rejects(client.upload(repo)(8, pkg.name, pkg.bytes), /503/);
   assert.equal(requests.length, 2);
   assert.ok(requests[1]!.startsWith("https://uploads.github.com/repos/example/addon/"));
+});
+
+void test("language packs are published beside the package, package first", async () => {
+  const pack = {
+    name: "addon-1.0.0.cs.langpack.zip",
+    bytes: new Uint8Array([80, 75, 5, 6]),
+    digest: "sha256:" + "c".repeat(64),
+  };
+  const packAsset = { name: pack.name, digest: pack.digest, state: "uploaded" };
+  const run = async (existing: unknown) => {
+    const uploads: string[] = [];
+    const writes: unknown[] = [];
+    await publish({
+      api: async (path, method = "GET", body) => {
+        if (method !== "GET") writes.push(body);
+        if (path.endsWith(`compare/${sha}...main`)) return { status: "identical" };
+        if (path.includes("/git/ref/")) return existing === null ? null : { object: { sha } };
+        if (path.endsWith("/releases/tags/" + tag)) return existing;
+        if (method === "POST") return release;
+        if (path.endsWith("/releases/latest")) return null;
+        if (method === "PATCH") return { ...release, draft: false };
+        throw new Error("Unexpected API path: " + path);
+      },
+      upload: async (_id, name) => {
+        uploads.push(name);
+        return name === pkg.name ? asset : packAsset;
+      },
+      repo,
+      sha,
+      runId: "42",
+      package: pkg,
+      packs: [pack],
+    });
+    return { uploads, writes };
+  };
+  const first = await run(null);
+  assert.deepEqual(first.uploads, [pkg.name, pack.name]);
+  assert.match(
+    String((first.writes[0] as Record<string, unknown>)["body"]),
+    /Language pack: addon-1\.0\.0\.cs\.langpack\.zip/,
+  );
+  // An interrupted draft uploads only the missing pack; a published release
+  // reuses both and never gains or loses assets.
+  assert.deepEqual((await run({ ...release, assets: [asset] })).uploads, [pack.name]);
+  assert.deepEqual(
+    (await run({ ...release, draft: false, assets: [asset, packAsset] })).uploads,
+    [],
+  );
+  await assert.rejects(
+    run({ ...release, draft: false, assets: [asset] }),
+    /lacks a package or pack/,
+  );
+  await assert.rejects(
+    run({ ...release, assets: [asset, { ...packAsset, digest: "wrong" }] }),
+    /differs/,
+  );
+  await assert.rejects(
+    run({ ...release, assets: [asset, { ...packAsset, name: "addon-1.0.0.de.langpack.zip" }] }),
+    /unexpected assets/,
+  );
+});
+
+void test("language pack input accepts only packs named after the package", () => {
+  const dir = mkdtempSync(join(tmpdir(), "addon-packs-"));
+  try {
+    assert.deepEqual(packFiles(dir, pkg), []);
+    writeFileSync(join(dir, "addon-1.0.0.pt-BR.langpack.zip"), pkg.bytes);
+    assert.deepEqual(
+      packFiles(dir, pkg).map((pack) => pack.name),
+      ["addon-1.0.0.pt-BR.langpack.zip"],
+    );
+    for (const name of [
+      "addon-1.0.0.en.langpack.zip",
+      "other-1.0.0.cs.langpack.zip",
+      "addon-1.0.0.cs.zip",
+      "addon-1.0.0.CS.langpack.zip",
+    ]) {
+      writeFileSync(join(dir, name), pkg.bytes);
+      assert.throws(() => packFiles(dir, pkg));
+      rmSync(join(dir, name));
+    }
+    writeFileSync(join(dir, "addon-1.0.0.pt-BR.langpack.zip"), "not zip");
+    assert.throws(() => packFiles(dir, pkg));
+  } finally {
+    for (const name of readdirSync(dir)) rmSync(join(dir, name));
+    rmdirSync(dir);
+  }
 });

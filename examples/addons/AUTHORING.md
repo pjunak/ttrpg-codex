@@ -217,5 +217,42 @@ updating the add-on; publishing never installs anything. Private repositories
 work too: the DM saves a token with Contents read access in the host. See
 [add-on installation](../../docs/SELF_HOSTING.md#add-on-installation).
 
+### Language packs
+
+Language packs let a site download a translation of your add-on that the
+package does not ship, or complete one it does, for the languages its DM
+enables ([contract](API_V3.md#language-packs)). They are optional; publishing
+works unchanged without them.
+
+1. Keep each language's sources in `packs/<locale>/`: `messages.json`, a
+   `message-catalog.v1` catalog, and later `content/**.json` overlays.
+2. In the test job, after inspecting the package, build and check the packs:
+
+   ```text
+   go tool -modfile=go.tools.mod codex-addon-inspect -build-packs packs -out dist/packs dist/story-planner-1.4.0.zip
+   ```
+
+   It writes `story-planner-1.4.0.<locale>.langpack.zip` per language,
+   applying to `>=1.4.0 <2.0.0` unless `-pack-versions` names another range,
+   and fails if a message is not a valid translation of the package's English.
+3. Upload `dist/packs` as a second artifact and pass its name to the publish
+   action as `packs-artifact`; the action uploads every pack beside the
+   package in the same release.
+
+```yaml
+      - uses: actions/upload-artifact@v7
+        with:
+          name: reviewed-language-packs
+          path: dist/packs/*.langpack.zip
+  publish:
+    steps:
+      - uses: pjunak/ttrpg-codex/.github/actions/publish-addon@<commit>
+        with:
+          packs-artifact: reviewed-language-packs
+```
+
+The package's own catalog wins over a pack key by key, so a pack never
+replaces a translation the package ships.
+
 If something you need is missing from the public API, ask for a public
 contract rather than reaching into host internals.

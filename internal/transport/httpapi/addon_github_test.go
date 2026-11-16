@@ -40,6 +40,10 @@ func (s *githubStub) Stage(context.Context, githubsource.Source, string, string)
 	s.calls++
 	return packagemanager.Generation{}, s.err
 }
+func (s *githubStub) CheckLanguagePacks() error {
+	s.calls++
+	return s.err
+}
 
 func TestGitHubRoutesRequireRealDMAndCSRFBeforeParsing(t *testing.T) {
 	auth := testAuthService(t)
@@ -57,7 +61,7 @@ func TestGitHubRoutesRequireRealDMAndCSRFBeforeParsing(t *testing.T) {
 	player := serveAuthRequest(handler, "POST", "/api/login", `{"password":"party-member"}`, "", "")
 	playerCookie := player.Result().Cookies()[0].String()
 	playerCSRF := jsonStringField(t, player.Body.Bytes(), "csrfToken")
-	for _, suffix := range []string{"", "/token", "/source", "/discover", "/stage"} {
+	for _, suffix := range []string{"", "/token", "/source", "/discover", "/stage", "/language-packs"} {
 		method := "POST"
 		if suffix == "" {
 			method = "GET"
@@ -78,6 +82,10 @@ func TestGitHubRoutesRequireRealDMAndCSRFBeforeParsing(t *testing.T) {
 	result := serveAuthRequest(handler, "POST", "/api/admin/addon-github/token", `{"repo":"owner/repo","token":"secret-token"}`, cookie, csrf)
 	if result.Code != 200 || github.repo != "owner/repo" || github.token != "secret-token" || result.Header().Get("Cache-Control") != "no-store" || strings.Contains(result.Body.String(), "secret-token") {
 		t.Fatalf("token boundary: %d %s", result.Code, result.Body.String())
+	}
+	result = serveAuthRequest(handler, "POST", "/api/admin/addon-github/language-packs", `{}`, cookie, csrf)
+	if result.Code != http.StatusAccepted || result.Body.String() != "{\"accepted\":true}\n" {
+		t.Fatalf("language pack check: %d %q", result.Code, result.Body.String())
 	}
 	before := github.calls
 	for _, body := range []string{`{"repo":"owner/repo","token":"secret","unexpected":true}`, `{} {}`, strings.Repeat("a", maxAdminRequestBytes+1)} {

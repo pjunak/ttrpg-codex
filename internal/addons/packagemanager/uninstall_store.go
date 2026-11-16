@@ -95,6 +95,9 @@ func (store *store) uninstall(ctx context.Context, review UninstallReview) error
 	if _, err := tx.ExecContext(ctx, `UPDATE addon_github_sources SET deleted = 1, source_json = '{}', revision = revision + 1 WHERE addon_id = ? AND deleted = 0`, review.AddonID); err != nil {
 		return err
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM addon_language_packs WHERE addon_id = ?`, review.AddonID); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO addon_package_uninstalls(addon_id, review_sha256, removed_at) VALUES (?, ?, ?)`, review.AddonID, review.ReviewSHA256, now.Format(time.RFC3339Nano)); err != nil {
 		return err
 	}

@@ -34,6 +34,39 @@ export function packageFile(directory: string): {
   };
 }
 
+type ReleaseFile = ReturnType<typeof packageFile>;
+
+const maximumPacks = 64;
+
+/**
+ * The inspected language packs built for `pkg`: every file in `directory`
+ * must be `<package name without .zip>.<locale>.langpack.zip`, as
+ * `codex-addon-inspect -build-packs` writes them.
+ */
+export function packFiles(directory: string, pkg: ReleaseFile): ReleaseFile[] {
+  const stem = pkg.name.replace(/\.zip$/i, "");
+  const files = readdirSync(directory).sort();
+  if (files.length > maximumPacks) throw new Error("Too many language packs");
+  return files.map((name) => {
+    const locale = name.startsWith(stem + ".")
+      ? name.slice(stem.length + 1, -".langpack.zip".length)
+      : "";
+    if (
+      !name.endsWith(".langpack.zip") ||
+      !/^[a-z]{2,3}(?:-[A-Z][a-z]{3})?(?:-(?:[A-Z]{2}|[0-9]{3}))?$/.test(locale) ||
+      locale === "en"
+    )
+      throw new Error(`Unexpected language pack ${name}; expected ${stem}.<locale>.langpack.zip`);
+    const file = join(directory, name);
+    const stat = lstatSync(file);
+    if (!stat.isFile() || stat.size < 4 || stat.size > 32 * 1024 * 1024)
+      throw new Error("Invalid language pack file");
+    const bytes = new Uint8Array(readFileSync(file));
+    if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) throw new Error("Language pack is not a ZIP");
+    return { name, bytes, digest: "sha256:" + createHash("sha256").update(bytes).digest("hex") };
+  });
+}
+
 export async function publish({
   api,
   upload,
@@ -41,13 +74,16 @@ export async function publish({
   sha,
   runId,
   package: pkg,
+  packs = [],
 }: {
   api: API;
   upload: (releaseId: number, name: string, bytes: Uint8Array) => Promise<unknown>;
   repo: string;
   sha: string;
   runId: string;
-  package: ReturnType<typeof packageFile>;
+  package: ReleaseFile;
+  /** Language packs published beside the package. */
+  packs?: readonly ReleaseFile[];
 }): Promise<string> {
   if (
     !/^[A-Za-z0-9][\w.-]*\/[A-Za-z0-9][\w.-]*$/.test(repo) ||
@@ -71,7 +107,7 @@ export async function publish({
             tag_name: tag,
             target_commitish: sha,
             name: `Tested commit ${sha.slice(0, 12)}`,
-            body: `Package built and inspected in https://github.com/${repo}/actions/runs/${runId}.\n\nSource commit: ${sha}\nPackage: ${pkg.name}\nSHA-256: ${pkg.digest}\n\nInstall or update through your website, review the package, then activate it when ready. Publishing does not update any installation.`,
+            body: `Package built and inspected in https://github.com/${repo}/actions/runs/${runId}.\n\nSource commit: ${sha}\nPackage: ${pkg.name}\nSHA-256: ${pkg.digest}\n${packs.map((pack) => `Language pack: ${pack.name} (${pack.digest})\n`).join("")}\nInstall or update through your website, review the package, then activate it when ready. Publishing does not update any installation. Sites download language packs for the languages they enable.`,
             draft: true,
             prerelease: false,
             make_latest: "false",
@@ -87,18 +123,24 @@ export async function publish({
     !Array.isArray(release.assets)
   )
     throw new Error("Release identity differs from the tested commit");
-  if (release.assets.length > 1) throw new Error("Commit release contains unexpected assets");
-  const asset = release.assets.length ? record(release.assets[0]) : null;
-  if (
-    asset &&
-    (asset.name !== pkg.name || asset.digest !== pkg.digest || asset.state !== "uploaded")
-  )
-    throw new Error("Published package differs; existing assets will not be overwritten");
-  if (!asset) {
+  const files = [pkg, ...packs];
+  const uploaded = new Map<string, Record<string, unknown>>();
+  for (const value of release.assets) {
+    const asset = record(value);
+    const expected = files.find((file) => file.name === asset.name);
+    if (!expected || uploaded.has(expected.name))
+      throw new Error("Commit release contains unexpected assets");
+    if (asset.digest !== expected.digest || asset.state !== "uploaded")
+      throw new Error("Published package differs; existing assets will not be overwritten");
+    uploaded.set(expected.name, asset);
+  }
+  // The package goes first, so a release never holds packs without it.
+  for (const file of files) {
+    if (uploaded.has(file.name)) continue;
     if (!release.draft)
-      throw new Error("Published release has no package; inspect it before retrying");
-    const saved = record(await upload(releaseId, pkg.name, pkg.bytes));
-    if (saved.name !== pkg.name || saved.digest !== pkg.digest || saved.state !== "uploaded")
+      throw new Error("Published release lacks a package or pack; inspect it before retrying");
+    const saved = record(await upload(releaseId, file.name, file.bytes));
+    if (saved.name !== file.name || saved.digest !== file.digest || saved.state !== "uploaded")
       throw new Error("Uploaded package verification failed");
   }
   if (release.draft) {
@@ -189,14 +231,16 @@ async function main() {
   )
     throw new Error("Only tested main builds may publish");
   const repo = env("GITHUB_REPOSITORY"),
-    client = github(env("GH_TOKEN"));
+    client = github(env("GH_TOKEN")),
+    pkg = packageFile(env("PACKAGE_DIRECTORY"));
   const url = await publish({
     api: client.api,
     upload: client.upload(repo),
     repo,
     sha: env("GITHUB_SHA"),
     runId: env("GITHUB_RUN_ID"),
-    package: packageFile(env("PACKAGE_DIRECTORY")),
+    package: pkg,
+    packs: process.env["PACKS_DIRECTORY"] ? packFiles(env("PACKS_DIRECTORY"), pkg) : [],
   });
   console.log("Tested add-on release: " + url);
   if (process.env["GITHUB_STEP_SUMMARY"])

@@ -103,6 +103,12 @@ type Manager struct {
 	// manifestTexts caches translated manifest texts by generation ID;
 	// generations are immutable.
 	manifestTexts map[string]map[string]map[string]string
+	// languagePacks holds the stored language packs by add-on and language,
+	// packChecks the latest check of each add-on and packCatalogs the merged
+	// catalogs by generation and pack.
+	languagePacks map[string]map[string]storedLanguagePack
+	packChecks    map[string]LanguagePackCheck
+	packCatalogs  map[string]mergedPackCatalog
 }
 
 func New(config Config) (*Manager, error) {
@@ -184,6 +190,9 @@ func New(config Config) (*Manager, error) {
 		eventPublisher:        config.EventPublisher,
 		runtimes:              make(map[string]activeRuntime),
 		manifestTexts:         make(map[string]map[string]map[string]string),
+		languagePacks:         map[string]map[string]storedLanguagePack{},
+		packChecks:            map[string]LanguagePackCheck{},
+		packCatalogs:          map[string]mergedPackCatalog{},
 	}, nil
 }
 

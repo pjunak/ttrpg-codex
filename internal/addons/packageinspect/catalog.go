@@ -171,6 +171,11 @@ func (catalog *messageCatalog) find(key string) (string, catalogMessage, bool) {
 	return "", catalogMessage{}, false
 }
 
+// unknownEnglish checks a translation whose English catalog is not at hand,
+// such as a language pack on its own: only the shape and the manifest section
+// rules apply. The pack is checked against English when the host merges it.
+var unknownEnglish = &messageCatalog{locale: "en"}
+
 // checkCatalog applies the catalog rules to one file. A file with the wrong
 // shape or language is rejected whole (nil catalog); a message that breaks a
 // translation rule is dropped. A nil english marks a source catalog, which
@@ -235,7 +240,7 @@ func catalogMessageIssue(sectionID string, entry catalogEntry, seen map[string]s
 		}
 		return "the manifest section holds only manifest keys"
 	}
-	if english == nil {
+	if english == nil || english == unknownEnglish {
 		return ""
 	}
 	englishSection, englishMessage, found := english.find(entry.key)

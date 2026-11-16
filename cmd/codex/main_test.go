@@ -8,13 +8,72 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/pjunak/ttrpg-codex/internal/application/campaigndata"
+	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
+	"github.com/pjunak/ttrpg-codex/internal/events"
 	storage "github.com/pjunak/ttrpg-codex/internal/storage/sqlite"
+	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/campaignstore"
 	"github.com/pjunak/ttrpg-codex/internal/storage/sqlite/migrations"
 )
+
+func TestEnabledSiteLocalesFollowsTheLanguageSetting(t *testing.T) {
+	t.Parallel()
+	// Until the DM saves languages, the site enables what the browser bundle ships.
+	files, err := filepath.Glob("../../frontend/src/locales/*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundled := []string{}
+	for _, file := range files {
+		bundled = append(bundled, strings.TrimSuffix(filepath.Base(file), ".json"))
+	}
+	if !slices.Equal(slices.Sorted(slices.Values(bundled)), slices.Sorted(slices.Values(hostLocales))) {
+		t.Fatalf("hostLocales %v, bundled %v", hostLocales, bundled)
+	}
+	ctx := context.Background()
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "codex.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if _, err := storage.Migrate(ctx, db, migrations.FS); err != nil {
+		t.Fatal(err)
+	}
+	broker, err := events.New(events.Config{DB: db})
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, err := campaignstore.New(campaignstore.Config{DB: db, Events: broker})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if locales, err := enabledSiteLocales(ctx, records); err != nil || !slices.Equal(locales, hostLocales) {
+		t.Fatalf("unsaved = %v, %v", locales, err)
+	}
+	revision := int64(0)
+	for _, test := range []struct {
+		value string
+		want  []string
+	}{
+		{`{"defaultLocale":"de","enabledLocales":["en","de","pt-BR"]}`, []string{"en", "de", "pt-BR"}},
+		{`{"defaultLocale":"en","enabledLocales":["en","not a tag"]}`, hostLocales},
+	} {
+		commit, err := records.Transact(ctx, campaignstore.Transaction{ActorID: "session-dm", Mutations: []campaignstore.Mutation{{
+			Kind: campaignstore.Put, Collection: campaign.Settings, Key: "language", Value: json.RawMessage(test.value), ExpectedRevision: revision,
+		}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		revision = commit.Results[0].AfterRevision
+		if locales, err := enabledSiteLocales(ctx, records); err != nil || !slices.Equal(locales, test.want) {
+			t.Fatalf("%s = %v, %v", test.value, locales, err)
+		}
+	}
+}
 
 func TestComposeHostWiresAuthenticatedBrowserGraphAndEvents(t *testing.T) {
 	t.Parallel()
@@ -39,7 +98,7 @@ func TestComposeHostWiresAuthenticatedBrowserGraphAndEvents(t *testing.T) {
 	if runtime.campaign == nil {
 		t.Fatal("campaign data service was not composed")
 	}
-	t.Cleanup(func() { _ = runtime.addons.Shutdown(context.Background()) })
+	t.Cleanup(func() { _ = runtime.close(context.Background()) })
 
 	anonymous := serve(runtime.handler, http.MethodGet, "/api/addons/browser-graph", "", nil)
 	if anonymous.Code != http.StatusForbidden {

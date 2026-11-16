@@ -16,6 +16,7 @@ type AddonGitHub interface {
 	SaveSource(context.Context, githubsource.LinkedSource, bool) error
 	Discover(context.Context, githubsource.Source, string) (githubsource.Discovery, error)
 	Stage(context.Context, githubsource.Source, string, string) (packagemanager.Generation, error)
+	CheckLanguagePacks() error
 }
 
 func (s *server) registerAddonGitHubRoutes(mux *http.ServeMux) {
@@ -24,6 +25,22 @@ func (s *server) registerAddonGitHubRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/admin/addon-github/source", s.requireAdmin(http.HandlerFunc(s.githubSource)))
 	mux.Handle("POST /api/admin/addon-github/discover", s.requireAdmin(http.HandlerFunc(s.githubDiscover)))
 	mux.Handle("POST /api/admin/addon-github/stage", s.requireAdmin(http.HandlerFunc(s.githubStage)))
+	mux.Handle("POST /api/admin/addon-github/language-packs", s.requireAdmin(http.HandlerFunc(s.githubLanguagePacks)))
+}
+
+// githubLanguagePacks starts a language pack check of every linked add-on;
+// the results appear on the browser graph.
+func (s *server) githubLanguagePacks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	var request struct{}
+	if !decodeAdminJSON(w, r, &request) {
+		return
+	}
+	if err := s.addonGitHub.CheckLanguagePacks(); err != nil {
+		s.writeGitHubError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]bool{"accepted": true})
 }
 func (s *server) githubStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")

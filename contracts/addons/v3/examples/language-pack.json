@@ -1,0 +1,10 @@
+{
+  "$schema": "../language-pack.schema.json",
+  "packFormat": 1,
+  "addonId": "dnd-2024-compendium",
+  "locale": "de",
+  "addonVersions": ">=3.6.0 <4.0.0",
+  "builtFrom": "3.6.0",
+  "catalog": "messages.json",
+  "content": ["content/i18n/de.json"]
+}

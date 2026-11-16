@@ -5,6 +5,7 @@ import {
   coveragePercent,
   coverageRows,
   missingCatalog,
+  packNotice,
 } from "../src/app/language-coverage.js";
 
 const english = parseMessageCatalog(
@@ -77,5 +78,33 @@ describe("language coverage", () => {
   it("never rounds an incomplete language up to 100 %", () => {
     expect(coveragePercent(999, 1000)).toBe(99);
     expect(coveragePercent(0, 0)).toBe(100);
+  });
+
+  it("describes language packs in use, missing and failed", () => {
+    expect(packNotice(undefined)).toBeUndefined();
+    expect(packNotice({ locale: "de", status: "installed", version: "3.6.0" })).toEqual({
+      key: "settings.packInstalled",
+      version: "3.6.0",
+      problem: false,
+    });
+    expect(
+      packNotice({ locale: "de", status: "installed", version: "3.6.0", error: "rate-limited" }),
+    ).toEqual({
+      key: "settings.packInstalledCheckFailed",
+      version: "3.6.0",
+      reason: "settings.packError.rate-limited",
+      problem: true,
+    });
+    expect(packNotice({ locale: "de", status: "failed", error: "tls" })).toMatchObject({
+      key: "settings.packFailed",
+      reason: "settings.packError.tls",
+      problem: true,
+    });
+    expect(packNotice({ locale: "de", status: "outdated", version: "2.0.0" })?.problem).toBe(true);
+    expect(packNotice({ locale: "de", status: "none" })).toMatchObject({
+      key: "settings.packNone",
+      problem: false,
+    });
+    expect(packNotice({ locale: "de", status: "available" })?.key).toBe("settings.packAvailable");
   });
 });

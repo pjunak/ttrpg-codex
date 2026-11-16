@@ -83,8 +83,10 @@ route serves the inspector's effective catalog (validated, with the built
 manifest section) only for the exact recovered generation and digest, with
 `private, max-age=31536000, immutable` caching; anything stale is
 `404 ADDON_CATALOG_NOT_FOUND`. `catalogIndexLocked` in the package manager is
-the single place that chooses catalog sources, so language packs can add
-theirs without browser changes. In the browser, `catalog-store.ts` loads an
+the single place that chooses catalog sources: the package's catalogs with
+stored language packs merged in (`source` `package`, `pack` or
+`package+pack`). Each entry's `packs` array reports the add-on's language pack
+states ([language packs](LOCALIZATION.md#language-packs)). In the browser, `catalog-store.ts` loads an
 add-on's catalogs for the reader's language and its fallbacks before its
 module activates and again when the language changes, and lends them through
 `context.i18n` (capability `ui.i18n`) and host-drawn contribution labels

@@ -139,8 +139,9 @@ func (manager *Manager) browserGraphLocked(ctx context.Context) (BrowserGraph, e
 }
 
 // catalogIndexLocked lists the interface languages of every recovered active
-// generation. It is the one place a catalog source is chosen: language packs
-// will add their catalogs here, and browsers fetch whatever it lists.
+// generation. It is the one place a catalog source is chosen: each package's
+// own catalogs with its applicable language packs merged in
+// (effectiveCatalogsLocked), and browsers fetch whatever it lists.
 func (manager *Manager) catalogIndexLocked(states []State) []BrowserCatalogs {
 	result := make([]BrowserCatalogs, 0, len(states))
 	for _, state := range states {
@@ -148,17 +149,19 @@ func (manager *Manager) catalogIndexLocked(states []State) []BrowserCatalogs {
 		if !recovered || active.generation.GenerationID != state.ActiveGenerationID {
 			continue
 		}
+		catalogs := manager.effectiveCatalogsLocked(state.AddonID, active)
 		entry := BrowserCatalogs{
 			AddonID: state.AddonID, AddonName: active.report.Manifest.Name,
 			GenerationID: active.generation.GenerationID,
-			Locales:      make([]BrowserCatalogLocale, 0, len(active.report.Locales)),
+			Locales:      make([]BrowserCatalogLocale, 0, len(catalogs)),
+			Packs:        manager.languagePackStatusesLocked(state.AddonID, active),
 		}
-		for _, catalog := range active.report.Locales {
+		for _, catalog := range catalogs {
 			issues := append([]string{}, catalog.Issues...)
 			entry.Locales = append(entry.Locales, BrowserCatalogLocale{
 				Locale: catalog.Locale, SHA256: catalog.SHA256, Messages: catalog.Messages,
 				URL:    localeCatalogURL(state.AddonID, active.generation.GenerationID, catalog.Locale, catalog.SHA256),
-				Source: "package", Issues: issues,
+				Source: catalog.source, Issues: issues,
 			})
 		}
 		result = append(result, entry)
@@ -191,7 +194,7 @@ func (manager *Manager) OpenLocaleCatalog(
 	if !recovered || active.generation.GenerationID != generationID {
 		return LocaleCatalog{}, ErrLocaleCatalogNotFound
 	}
-	for _, catalog := range active.report.Locales {
+	for _, catalog := range manager.effectiveCatalogsLocked(addonID, active) {
 		if catalog.Locale == locale && catalog.SHA256 == digest {
 			return LocaleCatalog{SHA256: catalog.SHA256, Body: catalog.Body()}, nil
 		}

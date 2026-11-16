@@ -13,12 +13,16 @@ import {
   type BrowserCatalogLocale,
   type BrowserGenerationDescriptor,
   type BrowserGenerationSet,
+  type BrowserLanguagePack,
+  languagePackErrors,
+  languagePackStatuses,
 } from "./generation-manager.js";
 
 const boundary = "GET /api/addons/browser-graph";
 const maximumGraphBytes = 512 * 1024;
 const graphKeys = new Set(["contractVersion", "graphRevision", "addons", "catalogs"]);
-const catalogEntryKeys = new Set(["addonId", "addonName", "generationId", "locales"]);
+const catalogEntryKeys = new Set(["addonId", "addonName", "generationId", "locales", "packs"]);
+const languagePackKeys = new Set(["locale", "status", "version", "error"]);
 const catalogLocaleKeys = new Set(["locale", "url", "sha256", "messages", "source", "issues"]);
 const descriptorKeys = new Set([
   "addonId",
@@ -207,13 +211,16 @@ function parseCatalogEntry(value: unknown, index: number): BrowserCatalogIndexEn
   const generationId = requiredString(value["generationId"], `${location}.generationId`);
   const addonName = value["addonName"];
   const locales = value["locales"];
+  const packs = value["packs"] ?? [];
   if (
     !addonIdPattern.test(addonId) ||
     !isSha256(generationId) ||
     typeof addonName !== "string" ||
     addonName.length > 100 ||
     !Array.isArray(locales) ||
-    locales.length > 32
+    locales.length > 32 ||
+    !Array.isArray(packs) ||
+    packs.length > 64
   ) {
     throw new BoundaryValidationError(boundary, `${location} is invalid`);
   }
@@ -224,6 +231,36 @@ function parseCatalogEntry(value: unknown, index: number): BrowserCatalogIndexEn
     locales: locales.map((locale, localeIndex) =>
       parseCatalogLocale(locale, `${location}.locales[${localeIndex}]`, addonId, generationId),
     ),
+    ...(value["packs"] === undefined
+      ? {}
+      : {
+          packs: packs.map((pack: unknown, packIndex) =>
+            parseLanguagePack(pack, `${location}.packs[${packIndex}]`),
+          ),
+        }),
+  };
+}
+
+function parseLanguagePack(value: unknown, location: string): BrowserLanguagePack {
+  if (!isRecord(value) || !hasOnlyKeys(value, languagePackKeys)) {
+    throw new BoundaryValidationError(boundary, `${location} must be an exact language pack`);
+  }
+  const { locale, status, version, error } = value;
+  const knownStatus = languagePackStatuses.find((item) => item === status);
+  const knownError = languagePackErrors.find((item) => item === error);
+  if (
+    !isLocaleTag(locale) ||
+    knownStatus === undefined ||
+    (version !== undefined && (typeof version !== "string" || version.length > 100)) ||
+    (error !== undefined && knownError === undefined)
+  ) {
+    throw new BoundaryValidationError(boundary, `${location} is invalid`);
+  }
+  return {
+    locale,
+    status: knownStatus,
+    ...(typeof version === "string" ? { version } : {}),
+    ...(knownError === undefined ? {} : { error: knownError }),
   };
 }
 
@@ -247,7 +284,7 @@ function parseCatalogLocale(
     !Number.isSafeInteger(messages) ||
     messages < 0 ||
     messages > maximumCatalogMessages ||
-    (source !== "package" && source !== "pack") ||
+    (source !== "package" && source !== "pack" && source !== "package+pack") ||
     !Array.isArray(issues) ||
     issues.length > 16 ||
     issues.some((issue) => typeof issue !== "string" || issue.length > 600)

@@ -202,6 +202,20 @@ type BrowserCatalogs struct {
 	AddonName    string                 `json:"addonName"`
 	GenerationID string                 `json:"generationId"`
 	Locales      []BrowserCatalogLocale `json:"locales"`
+	// Packs describes the add-on's language packs by language: published,
+	// installed or why none is in use.
+	Packs []BrowserLanguagePack `json:"packs"`
+}
+
+// BrowserLanguagePack is one language's pack state for an active add-on.
+type BrowserLanguagePack struct {
+	Locale string `json:"locale"`
+	// Status is available, installed, outdated, none or failed.
+	Status string `json:"status"`
+	// Version is the add-on version the stored pack was built from.
+	Version string `json:"version,omitempty"`
+	// Error is a short code when the latest check or the stored pack failed.
+	Error string `json:"error,omitempty"`
 }
 
 // BrowserCatalogLocale is one language an add-on supplies. Issues describe
@@ -211,7 +225,9 @@ type BrowserCatalogLocale struct {
 	URL      string `json:"url"`
 	SHA256   string `json:"sha256"`
 	Messages int    `json:"messages"`
-	// Source is "package" for catalogs in the add-on's own ZIP.
+	// Source is "package" for catalogs in the add-on's own ZIP, "pack" for a
+	// language only a language pack supplies and "package+pack" when a pack
+	// fills keys the package's catalog lacks.
 	Source string   `json:"source"`
 	Issues []string `json:"issues"`
 }

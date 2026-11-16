@@ -1,3 +1,4 @@
+import type { BrowserLanguagePack } from "../addons/generation-manager.js";
 import {
   flattenCatalog,
   messageCatalogContract,
@@ -107,6 +108,48 @@ export function missingCatalog(
     if (missing.length > 0) sections[sectionId] = Object.fromEntries(missing);
   }
   return { contractVersion: messageCatalogContract, locale, sections };
+}
+
+/** What the Languages page says about one add-on's language pack for a language. */
+export interface PackNotice {
+  readonly key:
+    | "settings.packInstalled"
+    | "settings.packInstalledCheckFailed"
+    | "settings.packOutdated"
+    | "settings.packNone"
+    | "settings.packFailed"
+    | "settings.packAvailable";
+  readonly version: string;
+  readonly reason?: `settings.packError.${NonNullable<BrowserLanguagePack["error"]>}`;
+  /** A problem the DM may want to act on. */
+  readonly problem: boolean;
+}
+
+/** The notice for `pack`; undefined when the add-on has no pack state for the language. */
+export function packNotice(pack: BrowserLanguagePack | undefined): PackNotice | undefined {
+  if (pack === undefined) return undefined;
+  const version = pack.version ?? "";
+  const reason =
+    pack.error === undefined ? undefined : (`settings.packError.${pack.error}` as const);
+  switch (pack.status) {
+    case "installed":
+      return reason === undefined
+        ? { key: "settings.packInstalled", version, problem: false }
+        : { key: "settings.packInstalledCheckFailed", version, reason, problem: true };
+    case "outdated":
+      return { key: "settings.packOutdated", version, problem: true };
+    case "none":
+      return { key: "settings.packNone", version, problem: false };
+    case "failed":
+      return {
+        key: "settings.packFailed",
+        version,
+        reason: reason ?? "settings.packError.unavailable",
+        problem: true,
+      };
+    case "available":
+      return { key: "settings.packAvailable", version, problem: false };
+  }
 }
 
 /** A share as a whole percentage, rounded down so incomplete never reads as 100%. */

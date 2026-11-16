@@ -88,6 +88,7 @@ type Inspector struct {
 	manifestSchema  *jsonschema.Schema
 	checksumsSchema *jsonschema.Schema
 	catalogSchema   *jsonschema.Schema
+	packSchema      *jsonschema.Schema
 	serviceCompiler *servicecontract.Compiler
 }
 
@@ -105,6 +106,10 @@ func New(limits Limits) (*Inspector, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compile message catalog schema: %w", err)
 	}
+	packSchema, err := compileSchema("language-pack.schema.json", addonv3.LanguagePackSchema())
+	if err != nil {
+		return nil, fmt.Errorf("compile language pack schema: %w", err)
+	}
 	serviceCompiler, err := servicecontract.NewCompiler()
 	if err != nil {
 		return nil, err
@@ -114,6 +119,7 @@ func New(limits Limits) (*Inspector, error) {
 		manifestSchema:  manifestSchema,
 		checksumsSchema: checksumsSchema,
 		catalogSchema:   catalogSchema,
+		packSchema:      packSchema,
 		serviceCompiler: serviceCompiler,
 	}, nil
 }
@@ -466,6 +472,10 @@ func (packageOfflineLoader) Load(location string) (any, error) {
 }
 
 func (i *Inspector) indexEntries(zipEntries []*zip.File) (map[string]*zip.File, map[string]struct{}, uint64, error) {
+	return indexEntriesWithin(zipEntries, i.limits)
+}
+
+func indexEntriesWithin(zipEntries []*zip.File, limits Limits) (map[string]*zip.File, map[string]struct{}, uint64, error) {
 	entries := make(map[string]*zip.File, len(zipEntries))
 	directories := make(map[string]struct{})
 	caseFolded := make(map[string]string, len(zipEntries))
@@ -497,14 +507,14 @@ func (i *Inspector) indexEntries(zipEntries []*zip.File) (map[string]*zip.File, 
 		}
 
 		fileCount++
-		if fileCount > i.limits.MaxFiles {
-			return nil, nil, 0, inspectionError(CodeTooManyFiles, "", fmt.Errorf("file count exceeds %d", i.limits.MaxFiles))
+		if fileCount > limits.MaxFiles {
+			return nil, nil, 0, inspectionError(CodeTooManyFiles, "", fmt.Errorf("file count exceeds %d", limits.MaxFiles))
 		}
-		if entry.UncompressedSize64 > i.limits.MaxFileBytes {
-			return nil, nil, 0, inspectionError(CodeExpandedTooLarge, normalized, fmt.Errorf("file exceeds %d bytes", i.limits.MaxFileBytes))
+		if entry.UncompressedSize64 > limits.MaxFileBytes {
+			return nil, nil, 0, inspectionError(CodeExpandedTooLarge, normalized, fmt.Errorf("file exceeds %d bytes", limits.MaxFileBytes))
 		}
-		if entry.UncompressedSize64 > i.limits.MaxExpandedBytes-expandedBytes {
-			return nil, nil, 0, inspectionError(CodeExpandedTooLarge, normalized, fmt.Errorf("expanded package exceeds %d bytes", i.limits.MaxExpandedBytes))
+		if entry.UncompressedSize64 > limits.MaxExpandedBytes-expandedBytes {
+			return nil, nil, 0, inspectionError(CodeExpandedTooLarge, normalized, fmt.Errorf("expanded package exceeds %d bytes", limits.MaxExpandedBytes))
 		}
 		expandedBytes += entry.UncompressedSize64
 		entries[normalized] = entry
@@ -842,6 +852,11 @@ func readEntry(ctx context.Context, entry *zip.File, maximum uint64) ([]byte, er
 		return nil, fmt.Errorf("expanded file exceeds %d bytes", maximum)
 	}
 	return body, nil
+}
+
+func sha256Hex(body []byte) string {
+	digest := sha256.Sum256(body)
+	return hex.EncodeToString(digest[:])
 }
 
 func hashFile(ctx context.Context, filename string, maximum int64) (string, error) {

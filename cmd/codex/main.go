@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
 	"github.com/pjunak/ttrpg-codex/internal/backuparchive"
 	"github.com/pjunak/ttrpg-codex/internal/backupbundle"
+	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
 	"github.com/pjunak/ttrpg-codex/internal/events"
 	"github.com/pjunak/ttrpg-codex/internal/maintenance/processlock"
 	"github.com/pjunak/ttrpg-codex/internal/storage/blobstore"
@@ -52,10 +54,46 @@ const (
 )
 
 type hostRuntime struct {
-	handler  http.Handler
-	addons   *packagemanager.Manager
-	campaign *campaigndata.Service
-	stopping func()
+	handler       http.Handler
+	addons        *packagemanager.Manager
+	languagePacks *githubsource.PackSync
+	campaign      *campaigndata.Service
+	stopping      func()
+}
+
+// close stops background language pack checks and the add-on runtimes.
+func (runtime *hostRuntime) close(ctx context.Context) error {
+	runtime.languagePacks.Stop()
+	return runtime.addons.Shutdown(ctx)
+}
+
+// hostLocales are the languages the browser bundle ships
+// (frontend/src/locales); the site enables them until the DM saves its
+// languages.
+var hostLocales = []string{"en", "cs"}
+
+// enabledSiteLocales reads settings/language the way the browser does: a
+// missing or unusable record means the host languages.
+func enabledSiteLocales(ctx context.Context, records *campaignstore.Store) ([]string, error) {
+	record, err := records.Get(ctx, campaign.Settings, "language")
+	if errors.Is(err, campaignstore.ErrNotFound) {
+		return hostLocales, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var value struct {
+		EnabledLocales []string `json:"enabledLocales"`
+	}
+	if json.Unmarshal(record.Value, &value) != nil || len(value.EnabledLocales) > 32 {
+		return hostLocales, nil
+	}
+	for _, locale := range value.EnabledLocales {
+		if !packageinspect.LocalePattern.MatchString(locale) {
+			return hostLocales, nil
+		}
+	}
+	return value.EnabledLocales, nil
 }
 
 func main() {
@@ -120,7 +158,7 @@ func run() error {
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err := runtime.addons.Shutdown(shutdownCtx); err != nil {
+		if err := runtime.close(shutdownCtx); err != nil {
 			logger.Error("shut down add-on runtimes", "error", err)
 		}
 	}()
@@ -350,9 +388,19 @@ func composeHost(
 		_ = addons.Shutdown(context.Background())
 		return nil, fmt.Errorf("configure HTTP API: %w", err)
 	}
+	languagePacks, err := githubsource.NewPackSync(githubsource.PackSyncConfig{
+		Service: githubAddons, Host: addons, Logger: logger,
+		EnabledLocales: func(ctx context.Context) ([]string, error) { return enabledSiteLocales(ctx, campaignRecords) },
+		Subscribe:      func() (*events.Subscription, error) { return eventBroker.Subscribe(events.AudienceDM) },
+	})
+	if err != nil {
+		_ = addons.Shutdown(context.Background())
+		return nil, fmt.Errorf("configure language packs: %w", err)
+	}
 	addons.StartMonitoring(ctx)
+	languagePacks.Start(ctx)
 	return &hostRuntime{
-		handler: handler, addons: addons, campaign: campaignData,
+		handler: handler, addons: addons, campaign: campaignData, languagePacks: languagePacks,
 		stopping: sync.OnceFunc(func() { close(stopping) }),
 	}, nil
 }

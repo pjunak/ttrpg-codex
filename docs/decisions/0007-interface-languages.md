@@ -61,8 +61,8 @@ reads can be translated.
   language's validated catalog, with the built manifest section, and its
   SHA-256. The browser graph lists every active add-on's catalogs, headless
   add-ons included, and `GET /api/addons/{id}/generations/{gen}/locales/{locale}/{sha256}`
-  serves one with immutable caching. One server function builds that index;
-  language packs will add their catalogs there without browser changes.
+  serves one with immutable caching. One server function
+  (`catalogIndexLocked`) builds that index, language packs included.
 - **The site language is a campaign setting.** `settings/language` holds
   `defaultLocale` and `enabledLocales` (English always enabled). Like the
   site theme, only the DM can change it, writes use revisions, and open browsers
@@ -90,22 +90,61 @@ reads can be translated.
   The DM also sets the site languages and sees a read-only coverage map of the
   host and every add-on, compares English with a translation side by side,
   and exports the missing texts as a `message-catalog.v1` file to translate.
+- **Language packs add translations without a new package.** A pack is a
+  data-only ZIP ([`language-pack.v1`](../../contracts/addons/v3/language-pack.schema.json)):
+  `pack.json` names one add-on, one language other than English, the add-on
+  versions it applies to (a semantic version range that includes
+  `builtFrom`, the version it was checked against) and its files: one
+  `message-catalog.v1` catalog and, reserved, `content/**.json` translation
+  overlays that the host validates and stores but does not apply yet. A pack
+  holds nothing else. Authors keep sources in `packs/<locale>/`;
+  `codex-addon-inspect -build-packs` builds and checks
+  `<package file name>.<locale>.langpack.zip` against the package's English,
+  and the publish action uploads them beside the package in its release.
+- **The package wins key by key.** For a language with an applicable pack,
+  `catalogIndexLocked` keeps every message of the package's own catalog and
+  fills only the keys it lacks from the pack, whose messages are checked
+  against the active package's English like any translation. The catalog's
+  source is `package`, `pack` (only the pack has the language) or
+  `package+pack`. A stored pack whose versions exclude the active add-on is
+  kept but unused.
+- **The host fetches packs from linked add-ons' GitHub repositories**, in the
+  background: at start, when the site's enabled languages change, when an
+  add-on's active generation changes, and when the DM asks on the Languages
+  page. It reads the repository's 30 newest releases with the stored token,
+  prefers packs built from the active version, otherwise the newest, and
+  downloads at most four per language and check. It stores each pack by its
+  SHA-256 under the package directory with one SQLite row per add-on and
+  language, deletes them when the language is disabled or the add-on
+  uninstalled, and keeps check results in memory. A failed check never
+  blocks enabling a language or activating an add-on: the browser graph
+  reports each add-on's pack states (`available`, `installed`, `outdated`,
+  `none`, `failed` with a short error code), and the Languages page shows
+  them. Languages only packs supply can be enabled.
 
 ## Consequences
 
 - One format and one translator replace four add-on systems; every
   first-party add-on now ships `message-catalog.v1` catalogs.
 - The site language travels with campaign backups and recovery points, as the
-  theme does.
+  theme does. Stored language packs travel with the full server archive,
+  like installed packages, and not with Settings backups; a restored server
+  fetches what is missing at its next check.
+- Each linked add-on costs one GitHub request per check, plus a download per
+  new pack. Unlinked add-ons, such as uploaded ZIPs, get no packs.
+- Hosts older than language packs list `.langpack.zip` release assets as
+  installable packages, so the host must be deployed before add-ons publish
+  packs.
 - Published add-ons keep comparing `host.locale` with `"cs"`; current sites
   produce only `en` and `cs`, so nothing changes for them until a third
   language is enabled.
 - The host bundle carries every built-in language; Czech adds about 30 KB
   compressed.
+- The host's own languages stay built in; there are no host packs until a
+  host language beyond English and Czech is wanted.
 - Follow-up work is in the [backlog](../BACKLOG.md): moving each add-on to the
-  catalog format and keyed worker messages, language-pack ZIPs that the host
-  downloads from an add-on's GitHub source when a language is enabled,
-  and Compendium record translations as pack content.
+  catalog format and keyed worker messages, and applying Compendium record
+  translations from pack content.
 
 ## Alternatives considered
 
@@ -126,3 +165,14 @@ reads can be translated.
 - **Translating in workers:** would need a per-request language on every
   worker call; English text with an optional key keeps workers simple and puts
   every translation in one place.
+- **A pack winning over the package's catalog:** a pack covers a range of
+  versions and may lag behind the code, while the package's catalog was
+  checked with exactly that code; filling gaps only also means a pack can
+  never make a shipped translation worse.
+- **Building packs in the publish action from the catalogs a package ships:**
+  would only duplicate the package. The action has no source checkout and
+  publishes only bytes the add-on's tests inspected, so packs are built and
+  checked in the test job and handed over as a second artifact.
+- **Storing packs in the blob store:** blobs are campaign files with owners,
+  visibility and recovery points; packs belong to add-ons like their
+  packages and are downloaded again when lost.

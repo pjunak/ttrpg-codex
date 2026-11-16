@@ -30,6 +30,7 @@ export class CodexLanguageSettings extends LitElement {
     canManage: { type: Boolean },
     busy: { type: Boolean },
     catalogs: { attribute: false },
+    csrfToken: { attribute: false },
     draft: { state: true },
     dirty: { state: true },
     saving: { state: true },
@@ -43,6 +44,8 @@ export class CodexLanguageSettings extends LitElement {
   declare busy: boolean;
   /** The add-on session's catalogs; their languages can be enabled too. */
   declare catalogs: BrowserCatalogStore | undefined;
+  /** The DM's CSRF token, for asking the host to look for language packs. */
+  declare csrfToken: string;
   declare private draft: CampaignLanguageSaveDetail | undefined;
   declare private dirty: boolean;
   declare private saving: boolean;
@@ -55,6 +58,7 @@ export class CodexLanguageSettings extends LitElement {
   constructor() {
     super();
     this.canManage = false;
+    this.csrfToken = "";
     this.busy = false;
     this.dirty = false;
     this.saving = false;
@@ -113,7 +117,8 @@ export class CodexLanguageSettings extends LitElement {
         ${
           this.canManage
             ? html`<codex-language-coverage .catalogs=${this.catalogs}
-              .locales=${site.enabledLocales.filter((locale) => locale !== "en")}></codex-language-coverage>`
+              .locales=${site.enabledLocales.filter((locale) => locale !== "en")}
+              .csrfToken=${this.csrfToken}></codex-language-coverage>`
             : nothing
         }
       </section>`;
@@ -175,12 +180,19 @@ export class CodexLanguageSettings extends LitElement {
       </form>`;
   }
 
-  /** English first, then every built-in, add-on and already enabled language. */
+  /**
+   * English first, then every built-in, add-on, language pack and already
+   * enabled language.
+   */
   #candidates(): readonly string[] {
     const draft = this.draft?.enabledLocales ?? [];
-    return ["en", ...hostLocales, ...(this.catalogs?.locales() ?? []), ...draft].filter(
-      (locale, index, all) => all.indexOf(locale) === index,
-    );
+    return [
+      "en",
+      ...hostLocales,
+      ...(this.catalogs?.locales() ?? []),
+      ...(this.catalogs?.packLocales() ?? []),
+      ...draft,
+    ].filter((locale, index, all) => all.indexOf(locale) === index);
   }
 
   #reset(campaign = this.campaign): void {

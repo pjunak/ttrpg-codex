@@ -32,6 +32,10 @@ func (manager *Manager) Recover(ctx context.Context) ([]RecoveryResult, error) {
 	if cleanup, err := manager.retryCleanupsLocked(ctx); err != nil || !cleanup.Complete {
 		manager.logger.Error("package cleanup remains pending at startup", "pending", cleanup.PendingCleanups, "error", err)
 	}
+	if err := manager.loadLanguagePacksLocked(ctx); err != nil {
+		// Packs only add translations; the next check stores them again.
+		manager.logger.Error("language packs are unavailable", "error", err)
+	}
 	results, err := manager.recoverLocked(ctx)
 	if err == nil {
 		manager.publishBrowserGraphChangeLocked(ctx, "", "recovered")

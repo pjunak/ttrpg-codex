@@ -56,6 +56,55 @@ package builds. See [browser add-ons](BROWSER_ADDONS.md) for how catalogs are
 served and the [API reference](../../examples/addons/API_V3.md#message-catalogs)
 for the author's view.
 
+## Language packs
+
+A language pack translates one add-on into one language without a new package
+([`language-pack.v1`](../../contracts/addons/v3/language-pack.schema.json)).
+It is a ZIP with `pack.json`, an optional `message-catalog.v1` catalog and
+optional `content/**.json` translation overlays, which the host checks and
+stores but does not apply yet. `pack.json` names the add-on, the language
+(never `en`), the add-on versions it fits (`addonVersions`, a semantic version
+range) and `builtFrom`, the version whose English it was checked against.
+`internal/addons/packageinspect/languagepack.go` inspects packs with bounded,
+containment-checked entries and refuses any file `pack.json` does not declare.
+
+**Publishing.** Authors keep pack sources in `packs/<locale>/messages.json`
+(and `content/`), build them with `codex-addon-inspect -build-packs`, and the
+publish action uploads `<package file name>.<locale>.langpack.zip` beside the
+package ([authoring](../../examples/addons/AUTHORING.md#language-packs)).
+
+**Fetching.** `githubsource.PackSync` checks every active add-on linked to a
+GitHub repository: at host start, when `settings/language` changes or a
+campaign is restored, when an add-on's active generation changes (the
+`browser-addons-changed` event), and when the DM presses **Check for language
+packs**. Checks run one at a time in the background. For each enabled
+language other than English it lists the repository's 30 newest published
+releases, tries packs built from the active add-on version first and then the
+newest, and downloads at most four. A pack whose digest is already stored is
+not downloaded again; one whose `addonVersions` exclude the active version is
+skipped. Failed add-ons are checked again on the next pass. Until the DM saves
+the site languages, the host languages (English and Czech) count as enabled.
+
+**Storing.** `packagemanager` stores each pack as
+`<data>/addons/.language-packs/<sha256>.zip` with a row in
+`addon_language_packs` (add-on, language, digest, versions, `builtFrom`), and
+re-inspects stored packs at start. Disabling a language deletes its packs;
+uninstalling an add-on deletes its packs in the same transaction; files no row
+uses are deleted. Check results (published languages, failures) are kept in
+memory only. Stored packs travel with the full server archive, as packages do,
+and not with Settings backups.
+
+**Merging.** `catalogIndexLocked` merges an applicable pack into the add-on's
+catalogs: the package's own messages win key by key and the pack fills the
+keys they lack, after the pack is checked against the active package's English
+(unknown keys and changed placeholders are dropped as `language pack:`
+issues). The catalog's `source` is `package`, `pack` or `package+pack`, and
+its URL names the merged catalog's digest. Each add-on's catalog entry also
+lists `packs`: per language `available` (published, language not enabled),
+`installed` (with `version`, the pack's `builtFrom`), `outdated` (stored but
+excluded by its versions), `none` (nothing published fits) or `failed`, with
+an `error` of `unavailable`, `rate-limited`, `tls`, `invalid` or `storage`.
+
 ## In the browser
 
 `frontend/src/addons/catalog-store.ts` holds one add-on session's catalogs. It
@@ -78,6 +127,9 @@ the Codex interface and every active add-on, the share of their keys the
 language translates, by section, where each catalog comes from and any catalog
 issues. A section can be compared side by side with English, optionally only
 the missing keys, and the missing texts export as a `message-catalog.v1` file
-to translate and merge back. The page reads catalogs only; translations change
-through package releases. Downloadable language packs are planned
-([backlog](../BACKLOG.md#next)).
+to translate and merge back. Each linked add-on also shows its language pack
+for the language: in use, published for other versions, none published, or
+why it failed. **Check for language packs** asks the host to look again. A
+language that only add-on language packs supply can be enabled, which
+downloads them. The page reads catalogs only; translations change through
+package and language pack releases.

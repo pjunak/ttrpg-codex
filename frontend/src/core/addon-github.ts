@@ -203,6 +203,11 @@ export class AddonGitHubClient {
   async discover(source: GitHubSource, addonId = ""): Promise<GitHubDiscovery> {
     return parseGitHubDiscovery(await this.#request("/discover", { source, addonId }));
   }
+  /** Asks the host to look for every linked add-on's language packs now. */
+  async checkLanguagePacks(): Promise<void> {
+    if (record(await this.#request("/language-packs", {}), ["accepted"])["accepted"] !== true)
+      fail();
+  }
   async stage(
     source: GitHubSource,
     candidateId: string,

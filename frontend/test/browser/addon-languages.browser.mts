@@ -341,6 +341,58 @@ for (const mobile of [false, true])
     });
   });
 
+void test("the DM sees each add-on's language packs and asks for a new check", async (t) => {
+  await setSiteLanguage("en");
+  const page = await open(t, "dm");
+  // The fixtures have no GitHub source, so add the pack states the host
+  // reports for linked add-ons to the real graph.
+  await page.route("**/api/addons/browser-graph", async (route) => {
+    const response = await route.fetch().catch(() => undefined);
+    if (response === undefined) return;
+    if (response.status() !== 200) {
+      await route.fulfill({ response });
+      return;
+    }
+    const graph = (await response.json()) as {
+      catalogs: { addonId: string; packs: unknown[] }[];
+    };
+    for (const entry of graph.catalogs) {
+      if (entry.addonId === "lang-ui")
+        entry.packs = [
+          { locale: "cs", status: "installed", version: "1.0.0", error: "rate-limited" },
+          { locale: "de", status: "available" },
+        ];
+      if (entry.addonId === "lang-engine")
+        entry.packs = [{ locale: "cs", status: "failed", error: "unavailable" }];
+    }
+    await route.fulfill({ response, json: graph });
+  });
+  const checks: number[] = [];
+  page.on("response", (response) => {
+    if (response.url().endsWith("/api/admin/addon-github/language-packs"))
+      checks.push(response.status());
+  });
+  await page.goto("/settings/language");
+  const coverage = page.locator("codex-language-coverage");
+  const pack = (addonId: string) =>
+    coverage.locator(`[data-source="${addonId}"] .language-coverage-pack`);
+  await pack("lang-ui").waitFor();
+  assert.equal(
+    await pack("lang-ui").textContent(),
+    "Language pack for version 1.0.0 in use; looking for a newer one failed: the GitHub request limit was reached; try again later",
+  );
+  assert.equal(
+    await pack("lang-engine").textContent(),
+    "The language pack could not be downloaded: GitHub could not be reached or refused access",
+  );
+  assert.equal(await pack("codex").count(), 0);
+  // A language only a pack supplies can be enabled, which downloads it.
+  await page.locator('input[name="enabledLocale"][value="de"]').waitFor();
+  await coverage.getByRole("button", { name: "Check for language packs", exact: true }).click();
+  await coverage.getByText("Checking the add-ons' repositories; results appear here.").waitFor();
+  assert.deepEqual(checks, [202]);
+});
+
 void test("the DM sees which add-on styles restyle shared controls", async (t) => {
   const page = await open(t, "dm");
   await page.goto("/settings/appearance");

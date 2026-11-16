@@ -1890,6 +1890,22 @@ codex-addon-settings {
   display: inline-block;
 }
 
+.language-coverage-pack {
+  flex-basis: 100%;
+}
+
+.language-coverage-pack[role="alert"] {
+  color: var(--color-danger-bright);
+}
+
+.language-coverage-packs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin-top: var(--space-3);
+}
+
 .interface-consistency h4 {
   margin: var(--space-3) 0 var(--space-1);
   color: var(--text-light);

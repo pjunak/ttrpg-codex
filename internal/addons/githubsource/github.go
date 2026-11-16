@@ -153,7 +153,8 @@ func (s *Service) discover(ctx context.Context, source Source, token string) ([]
 		}
 		candidates := []Candidate{}
 		for _, asset := range release.Assets {
-			if asset.ID <= 0 || asset.State != "uploaded" || !strings.HasSuffix(strings.ToLower(asset.Name), ".zip") || asset.Size <= 0 || asset.Size > packageinspect.DefaultLimits.MaxArchiveBytes {
+			// Language packs sit beside the package in the same release.
+			if asset.ID <= 0 || asset.State != "uploaded" || !strings.HasSuffix(strings.ToLower(asset.Name), ".zip") || packageinspect.IsPackFileName(asset.Name) || asset.Size <= 0 || asset.Size > packageinspect.DefaultLimits.MaxArchiveBytes {
 				continue
 			}
 			candidates = append(candidates, Candidate{ID: remoteID(asset.ID, asset.Digest, asset.UpdatedAt), Name: asset.Name, Version: release.Tag, Digest: asset.Digest, Provenance: provenance,
