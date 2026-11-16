@@ -4,13 +4,16 @@ The only task list for the host and the five first-party add-ons. Reference
 docs describe what exists; this file says what to do next. Delete an entry when
 it is done (Git keeps the history) and update the reference it changes.
 
+Development work only. Campaign content (characters, homebrew imports, session
+prep) and installing or updating add-ons on the sites are the owner's and are
+never tracked here or in `docs/plans/`.
+
 **Entry format.** A bold title, the affected repositories in backticks, then
 what and why in one or two sentences. Add **Done when** if the finish line is
 not obvious. Move an entry between sections instead of duplicating it.
 
 | Section | Meaning |
 | --- | --- |
-| [Owner checks](#owner-checks) | Live-site tasks only the owner does; each needs an explicit go-ahead |
 | [Next](#next) | Agreed development work, ready to start |
 | [Quality pass](#quality-pass) | Agreed fixes and cleanup from the full review, worked stage by stage |
 | [Undecided](#undecided) | The owner is still deciding; do not start |
@@ -18,86 +21,41 @@ not obvious. Move an entry between sections instead of duplicating it.
 | [Ideas](#ideas) | Only with a concrete need |
 | [Watch for](#watch-for) | Failures seen once; reopen with a fresh log |
 
-## Owner checks
-
-- **Nightly smoke test** `ttrpg-codex` — The **Installed add-on smoke test**
-  workflow runs at 02:41 UTC. Confirm it passes and that the
-  `ADDON_SUITE_TOKEN` secret still reads the compendium repository.
-- **Engine 5 and Sheets 5 on Asurai** `ttrpg-codex` — Download fresh backups
-  of both sites into `L:\Backups\ttrpg\`. After the host deploy, Sheets stops
-  until updated (its worker-only schema identity changed). In Settings →
-  Add-ons install Engine 5.0.0, then Sheets 5.1.0 (it needs this host) and choose **Remove data and
-  update**: existing character sheets are cleared. Re-import the characters
-  from the `character-imports/` folder beside the repositories. If DM Tools
-  reports dangling consequence targets, remove them with the planner's repair
-  buttons once its current build is installed (older builds only report them).
-- **Quality-pass add-on builds on Asurai** `ttrpg-codex` — The host with the
-  data-safety fixes is deployed to both sites. Download a fresh Asurai backup
-  into `L:\Backups\ttrpg\`, then in Settings → Add-ons update the Engine,
-  Compendium, Character Sheets and DM Tools to their latest builds, in that
-  order: an Engine older than 5.3.0 rejects the Compendium's newer condition
-  fields and turns conditions off until it is updated. If Character Sheets
-  asks, choose **Heal and update**; existing sheets stay. Then open each
-  character and choose **Adopt current rules** before play.
-- **Asurai characters** `addon-dnd-character-sheets` — The players are
-  rebuilding Bloodvell, Kael Vor, Ines and Talia in the new builder. The
-  September reconstructions are archived with the backups for reference.
-- **Tiamat** `ttrpg-codex` — Confirm Settings → Add-ons shows nothing
-  installed. Tiamat stays without add-ons.
-- **Homebrew on Asurai** `addon-dnd-homebrew` — Download a fresh Asurai
-  backup into `L:\Backups\ttrpg\`, update the Engine to 6.0.0 and then
-  Character Sheets to 6.0.0 (if it asks, choose **Heal and update**; saved
-  sheets stay), install the latest Homebrew build, import
-  `homebrew-imports/cursed-cards.json` (beside the repositories), set the item
-  set's rarity and curse, and publish.
-
 ## Next
 
-- **Source-text defects: book spot-check and remaining table cleanup**
-  `addon-dnd-2024-compendium` — Follow-ups from fixing the defects the
-  2026-10-21 excerpt pass flagged. Restore glamour Mantle of Majesty's
-  cut-off sentence ("…cast Command as a Bonus Action without expending a
-  spell slot,") from the printed PHB; no checkable source was available.
-  Spot-check against the book what was corrected from record prose alone:
-  the lightly/moderately-armored Shields swap, Shield Master's Strength-only
-  increase, Weapon Master's removed Martial-proficiency grant, and the
-  soulknife Rend Mind "use you[r]" and ritual-caster "spelicasting" typos.
-  The same broken one-cell table markup remains in 24 records outside the
-  flagged feature/feat/subclass scope (classes, species, spells, rules,
-  monsters, magic items), and the PHB wizard-subclass table lists
-  Bladesinger, which is neither a 2024 PHB subclass nor in the repository.
-- **Language packs** `ttrpg-codex`, first-party add-ons — Downloadable
-  translations ([ADR-0007](decisions/0007-interface-languages.md)): a
-  data-only pack ZIP holds one language's catalog (and later content
-  overlays) for one add-on version range, published by
-  `.github/actions/publish-addon` beside each release. When the DM enables a
-  language, and when an add-on is installed or updated, the host fetches the
-  matching packs through `githubsource` for every linked add-on, stores them
-  content-addressed, merges them in `catalogIndexLocked` with source `pack`,
-  and removes them when the language is disabled. Host packs only if a host
-  language beyond English and Czech is wanted.
-- **Compendium translation overlays** `addon-dnd-2024-compendium` — The
-  `data/i18n/` record overlays are specified in `data/SCHEMA.md` but nothing
-  loads or applies them. Implement them (planned for its own session) so the
-  browse UI and the rules-data service can show translated record fields;
-  ship them as language-pack content once packs exist.
-- **More context-menu targets** `ttrpg-codex` — Record menus exist
-  ([editing and browsing](reference/EDITOR_BROWSING.md#record-context-menus)).
-  Candidates the owner has not chosen between yet: map pins and empty map
-  space, timeline cards and session columns, relationships ("add relationship
-  to…"), faction ranks, and lending the menu to add-ons through the SDK (a
-  contract change). The writer has its own link menu.
+- **Source-text book spot-check** `addon-dnd-2024-compendium` — Needs the
+  printed PHB. Check glamour Mantle of Majesty's "…cast Command as a Bonus
+  Action without expending a spell slot." (the stray comma became a full stop;
+  confirm nothing was cut), the lightly/moderately-armored Shields swap, Shield
+  Master's Strength-only increase, Weapon Master's removed Martial-proficiency
+  grant, and the soulknife Rend Mind "use you[r]" and ritual-caster
+  "spelicasting" typos. Five rules tables (`dmg-guide-awarding-magic-items`,
+  `dmg-guide-mobs` twice, `dmg-guide-traps`, `phb-guide-exploration`) have
+  group headings spanning columns that Markdown cannot show; rebuild them from
+  the book.
+- **Compendium translation overlay size** `addon-dnd-2024-compendium` —
+  `data/i18n/` overlays load and apply in the browse UI, and rules-data
+  consumers can query `kind: "i18n"`. One overlay is one record, capped at
+  2 MiB, while all English `text` is about 3.1 MB, so a full translation does
+  not fit; allow several records per language (or raise the cap for them).
+  `excerpt` is not translatable yet. Language packs already store `content`
+  overlays but apply nothing; lend a pack's content to its add-on so the
+  Compendium can ship translations as packs.
 - **Character sheet refinement** `addon-dnd-character-sheets` — Compact has
   per-tab context bars, pips and floating windows; the owner keeps refining it.
-  Known gaps: carrying capacity ignores size and features that change it (such
-  as Powerful Build), and Classic shows no carried weight or coin-weight toggle.
-- **Companion world map** `ttrpg-companion` — The app
-  ([ADR-0008](decisions/0008-android-companion-app.md)) reads, searches,
-  caches and live-updates the campaign in English or Czech, and shows a
-  location's own map as a zoomable image; the world map still opens in the web
-  view. Add a native viewer for the host's map tiles
-  ([maps](reference/MAPS.md)) with location pins, for the world map and local
-  maps.
+- **Powerful Build carrying grant** `addon-dnd-2024-compendium` — Engine 6.5.0
+  scales carrying capacity by size and reads `grants.carryingSizeSteps`. After
+  the Engine is pushed and released: bump the Engine pin in
+  `tools/engine-grants.mts`, run `npm run sync:engine-grants`, add
+  `"grants": {"carryingSizeSteps": 1}` to `data/phb/species/goliath.json`,
+  document the grant in `data/SCHEMA.md`, and optionally declare
+  `constants.carrying.sizeMultipliers` in the 2024 ruleset (the Engine
+  defaults to ×½/×1/×1/×2/×4/×8).
+- **Companion map on a device** `ttrpg-companion` — The native map viewer
+  (host tiles, location pins, event paths, offline tiles) builds and passes
+  its unit tests but has not run on a phone. Check gestures, tile loading,
+  pins and labels, offline viewing and TalkBack against a real site, then
+  delete this entry.
 - **Companion character module** `ttrpg-companion` — Get the owner's approval
   of a phone mockup of the play screens, then build them over
   `dnd5e.character` through the host's
@@ -176,6 +134,11 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 
 ## Later
 
+- **Language pack gaps** `ttrpg-codex` — Packs translate browser catalogs
+  only: pack-translated manifest texts (names, labels) do not reach the add-on
+  manager, and add-ons uploaded as ZIPs without a GitHub link get no packs.
+  First-party add-ons publish packs only once they need a third language
+  ([how](../examples/addons/AUTHORING.md#language-packs)).
 - **Theme Mind Palace** `ttrpg-codex` — Mind Palace keeps Classic colours in
   `relationship-graph.css` (exempt from the style check) and in
   `campaign-graph*.ts`, so Moonlit shows it brown. Move them to tokens once its
@@ -233,6 +196,9 @@ with it.
   `context.imports/events/settings/navigation/log` SDK handles and native
   self-binding during worker start-up. Each needs its runtime, review UI and
   docs.
+- **Context menu for add-ons** `ttrpg-codex` — Lend the record context menu
+  to add-ons through the SDK so they can add actions (a public contract
+  change).
 - **Editor extensions** `ttrpg-codex` — Arbitrary add-on editor fields or
   combined core/add-on saves (panels save independently today).
 - **Operations** `ttrpg-codex` — A restart button in the web UI, per-session
