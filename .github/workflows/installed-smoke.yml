@@ -7,8 +7,6 @@ name: Installed add-on smoke test
 # compendium) enables the compendium, rules, character and homebrew cases.
 
 on:
-  schedule:
-    - cron: "41 2 * * *"
   workflow_dispatch:
   workflow_call:
     secrets:

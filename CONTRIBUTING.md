@@ -104,10 +104,10 @@ npm --workspace @ttrpg-codex/frontend run build
 npm --workspace @ttrpg-codex/frontend run test:installed
 ```
 
-It takes about two minutes. The **Installed add-on smoke test** workflow runs
-the same suite nightly against the latest published add-on releases, and
-**Build and dispatch** runs it before every deployment: a host change that
-breaks the released add-ons is not deployed. It needs the `ADDON_SUITE_TOKEN` secret (read access to the
+It takes about two minutes. **Build and dispatch** runs the same suite against
+the latest published add-on releases before every deployment (the **Installed
+add-on smoke test** workflow), so a host change that breaks the released
+add-ons is not deployed. It can also be started by hand. It needs the `ADDON_SUITE_TOKEN` secret (read access to the
 private compendium) for the compendium, rules, character and homebrew cases, and it does
 not upload traces because they can contain private compendium text.
 
@@ -120,7 +120,7 @@ and packages together.
 | Workflow | When | What |
 | --- | --- | --- |
 | Build and dispatch | Push to `main`, pull requests, manual | `npm run check`, image build and start-up check; on `main` also runs the installed add-on smoke test, then publishes the image and hands it to infra for both sites |
-| Installed add-on smoke test | Nightly, manual, before each deployment | Latest published add-ons on this host |
+| Installed add-on smoke test | Before each deployment, manual | Latest published add-ons on this host |
 | Quality maintenance | Weekly, manual | npm audit, actionlint, Go vulnerabilities |
 | Secret scan | Push, pull request | Gitleaks |
 

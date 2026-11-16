@@ -496,9 +496,10 @@ updates its requirement (see [contributing](../CONTRIBUTING.md#ci-and-releases))
 Keep public contracts compatible so the host and the installed add-ons keep
 working whichever is updated first.
 
-The nightly **Installed add-on smoke test** installs the latest published add-on
-releases into the current host and exercises their main workflows. A failure
-there does not block deployment; read its log and fix whichever side broke.
+Before each deployment, the **Installed add-on smoke test** installs the latest
+published add-on releases into the new host and exercises their main
+workflows. A failure stops the deployment; read its log and fix whichever side
+broke.
 
 ### Configure deployment once
 
