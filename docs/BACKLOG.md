@@ -71,6 +71,24 @@ not obvious. Move an entry between sections instead of duplicating it.
 - **Long rest and Exhaustion** `addon-dnd-engine` — A long rest restores hit
   points, temporary hit points and active features but leaves conditions as
   they are, so Exhaustion keeps its level; the 2024 rules lower it by one.
+- **Passive Perception and Advantage** `addon-dnd-engine` — Passive Perception
+  ignores Advantage and Disadvantage on Perception checks; the 2024 rules add
+  or subtract 5, so Poisoned leaves it unchanged on the sheet today.
+- **Poisoned and Initiative** `addon-dnd-engine`, `addon-dnd-2024-compendium` —
+  Initiative is its own roll kind in the Engine, so Poisoned (its data declares
+  `check` and `attack` Disadvantage, no `initiative` entry) leaves Initiative
+  unmarked, although a 2024 Initiative roll is a Dexterity check. Either let
+  the Engine apply Dexterity and unscoped check entries to Initiative, or
+  declare `initiative` on such conditions in the data.
+- **Sacred Weapon on unarmed strikes** `addon-dnd-2024-compendium` — The
+  activation matches `{"range": "melee"}`, so its Charisma bonus also lands on
+  the unarmed strike; add `"unarmed": false` as Pact of the Blade and
+  Bladesinger do. It still covers every melee weapon, not only the one held.
+- **Origin languages** `addon-dnd-2024-compendium`, `addon-dnd-engine` — The
+  languages chosen at character creation (Common plus two standard ones) are
+  in no record and the Builder offers no choice for them, so a sheet lists only
+  languages a feature grants (Thieves' Cant, Druidic) and every test character's
+  list is empty. Needs a source field the Engine reads and a Builder choice.
 - **Czech "History"** `addon-dnd-character-sheets` — `locales/cs.json` has
   every skill name but History, so the Czech sheet shows it in English (the
   companion says "Historie").
