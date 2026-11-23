@@ -56,12 +56,24 @@ not obvious. Move an entry between sections instead of duplicating it.
   its unit tests but has not run on a phone. Check gestures, tile loading,
   pins and labels, offline viewing and TalkBack against a real site, then
   delete this entry.
-- **Companion character module** `ttrpg-companion` — Get the owner's approval
-  of a phone mockup of the play screens, then build them over
-  `dnd5e.character` through the host's
-  [client service routes](reference/CLIENT_API.md#add-on-services): keypad hit points,
-  conditions and concentration, slots and casting, limited uses, rests,
-  attacks, abilities and skills, quick-use items and inspiration.
+- **Companion character sheet on a phone** `ttrpg-companion` — The native
+  sheet over `dnd5e.character` (header, five tabs, the phone's copy, "My
+  character") is built and passed an emulator check against a throwaway host.
+  Check it on a phone against a site with host 2.2.0 and Character Sheets 6.x,
+  then delete this entry. Known rough edges: the fixed header takes most of a
+  small or landscape screen; opening a sheet loads it twice (the event
+  stream's `hello` reloads it); a rules policy change reaches an open sheet
+  only when its screen returns.
+- **Companion campaign copy and roles** `ttrpg-companion` — The campaign copy
+  on the phone is kept without the role it was read under, so a site whose
+  session ended or changed role can still show the earlier role's copy while
+  offline. Keep the role with the copy as the sheet copies do.
+- **Long rest and Exhaustion** `addon-dnd-engine` — A long rest restores hit
+  points, temporary hit points and active features but leaves conditions as
+  they are, so Exhaustion keeps its level; the 2024 rules lower it by one.
+- **Czech "History"** `addon-dnd-character-sheets` — `locales/cs.json` has
+  every skill name but History, so the Czech sheet shows it in English (the
+  companion says "Historie").
 
 ## Quality pass
 
@@ -134,6 +146,10 @@ File-level findings are in the local, git-ignored `docs/plans/quality-pass.md`.
 
 ## Later
 
+- **Spell duration wording** `addon-dnd-2024-compendium` — Durations are
+  worded unevenly: Bless reads "Concentration, up to 1 minute-" with a stray
+  dash, others "Concentration up to 10 minutes" without the comma. Clean the
+  data when the spells are next touched.
 - **Language pack gaps** `ttrpg-codex` — Packs translate browser catalogs
   only: pack-translated manifest texts (names, labels) do not reach the add-on
   manager, and add-ons uploaded as ZIPs without a GitHub link get no packs.

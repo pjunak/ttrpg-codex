@@ -102,11 +102,26 @@ shrinks to about a fifth). A request that accepts neither gzip nor identity
 gets `406 ENCODING_UNAVAILABLE` before the call runs.
 The call reaches only the exact provider version and generation from the
 connection; after an add-on update or reload it fails with
-`409 STALE_BINDING`, and the client connects again.
+`409 STALE_BINDING`, and the client connects again. The host also answers
+`STALE_BINDING` when the provider changed while it ran the call, so the call
+may have taken effect: a client asks a load again, and sends a save again
+unchanged, with the same operation ID, to a provider that recognizes a
+repeated one (as `dnd5e.character` does with `operationId`).
 
 Errors follow the add-on service routes: `400 INVALID_REQUEST` (with an
 optional one-line `issue` from the provider), `403 FORBIDDEN`,
-`404 NOT_FOUND` or `METHOD_NOT_FOUND`, `409 CONFLICT` or `STALE_BINDING`,
-`429 RATE_LIMITED`, `503 SERVICE_UNAVAILABLE` and `504 DEADLINE_EXCEEDED`.
+`404 NOT_FOUND` or `METHOD_NOT_FOUND`, `408 CANCELLED`,
+`409 CONFLICT` or `STALE_BINDING`, `429 RATE_LIMITED`, `500 INTERNAL`,
+`503 SERVICE_UNAVAILABLE` and `504 DEADLINE_EXCEEDED`. `403 FORBIDDEN` means
+either that the session ended (or the CSRF token belongs to an earlier one)
+or that the provider refused the call; `GET /api/auth` tells them apart.
 Content-transport services (rules data from the Compendium) are not reachable
 this way.
+
+When an add-on saves its data, `GET /api/events` sends `addon-data-changed`
+to the audience of that data, with `resourceId`
+`<addonId>/<kind>/<dataId>` and the data set's `revision`. It names neither
+the record nor who saved, so a client's own saves bring it too. A client
+showing a service answer loads it again when the resource ID starts with the
+add-on ID of the provider it connected to; it takes that ID from the
+connection, never from its own code.

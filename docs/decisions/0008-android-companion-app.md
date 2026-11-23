@@ -91,9 +91,9 @@ What is true today:
   routes the app relies on and how they may change. The app checks
   `GET /api/version` against the host range it supports.
 - **`dnd5e.character` gains an outside consumer.** Breaking changes bump its
-  major version. The app generates its Kotlin types from the schemas of a
-  pinned contract version and hides the module, asking for an app update, when
-  a site's provider is outside its range.
+  major version. The app reads the answers by hand and checks its requests and
+  readers against pinned copies of the contract's schemas and recorded
+  answers; it hides the sheet when a site offers no provider within its range.
 - **Distribution through GitHub releases.** CI builds and signs the APK on
   `main` and publishes it as a release. Players sideload it once; the app
   checks the repository's releases for updates. The signing key lives in CI
