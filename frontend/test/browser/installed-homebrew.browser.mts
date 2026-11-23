@@ -15,6 +15,7 @@ import { once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 import { request as playwrightRequest } from "playwright";
 import {
+  consumedRange,
   jsonResponse,
   installReviewedPackage,
   enableAllRuleSources,
@@ -52,6 +53,7 @@ let directory: string,
   player: APIRequestContext,
   dmCsrf: string,
   playerCsrf: string,
+  engineRange: string,
   hostOutput = "";
 
 before(async () => {
@@ -59,6 +61,8 @@ before(async () => {
   const [engine, sheets, compendium, homebrew] = await Promise.all(
     paths.map((path) => readFile(resolve(required(path)))),
   );
+  // The range Sheets declares, whichever release is installed.
+  engineRange = consumedRange(sheets, "dnd5e.rules-engine");
   await mkdir(output, { recursive: true });
   directory = await mkdtemp(resolve(output, "host-"));
   model = await homebrewModel(homebrew, resolve(directory, "homebrew"));
@@ -183,7 +187,7 @@ async function connect(
 const engineAs = (request: APIRequestContext, csrf: string) =>
   connect(request, csrf, "dnd-sheets", {
     contract: "dnd5e.rules-engine",
-    range: "^6.0.0",
+    range: engineRange,
     cardinality: "one",
   });
 

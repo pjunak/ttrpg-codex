@@ -2,7 +2,7 @@ import type { APIRequestContext, APIResponse } from "playwright";
 import type { FixturePermission } from "./fixture-types.mts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { crc32 } from "node:zlib";
+import { crc32, inflateRawSync } from "node:zlib";
 
 // Small deterministic stored ZIPs exercise the real inspector without a package build dependency.
 export function zip(
@@ -207,4 +207,43 @@ export async function enableAllRuleSources(
       },
     }),
   );
+}
+
+// Reads a package ZIP's files, stored or deflated.
+export function unpack(archive: Buffer): Record<string, string | Buffer> {
+  const end = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06])),
+    files: Record<string, string | Buffer> = Object.create(null);
+  assert.ok(end >= 0);
+  const count = archive.readUInt16LE(end + 10);
+  assert.ok(count < 10000);
+  let cursor = archive.readUInt32LE(end + 16);
+  for (let i = 0; i < count; i++) {
+    assert.equal(archive.readUInt32LE(cursor), 0x02014b50);
+    const method = archive.readUInt16LE(cursor + 10),
+      compressed = archive.readUInt32LE(cursor + 20),
+      nameSize = archive.readUInt16LE(cursor + 28);
+    const name = archive.subarray(cursor + 46, cursor + 46 + nameSize).toString(),
+      local = archive.readUInt32LE(cursor + 42);
+    const start = local + 30 + archive.readUInt16LE(local + 26) + archive.readUInt16LE(local + 28),
+      body = archive.subarray(start, start + compressed);
+    assert.ok(method === 0 || method === 8);
+    if (!name.endsWith("/"))
+      files[name] =
+        method === 8 ? inflateRawSync(body, { maxOutputLength: 32 * 1024 * 1024 }) : body;
+    cursor += 46 + nameSize + archive.readUInt16LE(cursor + 30) + archive.readUInt16LE(cursor + 32);
+  }
+  return files;
+}
+
+// The range a package declares for a contract it consumes: a browser connects
+// with exactly that range, so tests read it rather than pin one release's.
+export function consumedRange(archive: Buffer, contract: string): string {
+  const manifest = JSON.parse(String(unpack(archive)["addon.json"])) as {
+    services?: { consumes?: { contract: string; range: string }[] };
+  };
+  const range = manifest.services?.consumes?.find(
+    (service) => service.contract === contract,
+  )?.range;
+  assert.ok(range, "the package does not consume " + contract);
+  return range;
 }
