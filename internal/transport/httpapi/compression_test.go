@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -13,9 +14,11 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/pjunak/ttrpg-codex/internal/addons/servicebroker"
 	"github.com/pjunak/ttrpg-codex/internal/application/campaigndata"
 	sessionauth "github.com/pjunak/ttrpg-codex/internal/auth"
 	"github.com/pjunak/ttrpg-codex/internal/domain/campaign"
+	"github.com/pjunak/ttrpg-codex/sdk/go/workerrpc"
 )
 
 func TestEncodingNegotiationRespectsExclusionsAndPreferences(t *testing.T) {
@@ -230,5 +233,96 @@ func TestFrontendCompressionSkipsOversizedAssets(t *testing.T) {
 	assets, err := compressFrontendAssets(fstest.MapFS{"assets/huge.js": &fstest.MapFile{Data: make([]byte, (8<<20)+1)}})
 	if err != nil || len(assets) != 0 {
 		t.Fatalf("oversized compression = %v, %v", assets, err)
+	}
+}
+
+func TestServiceCallAnswersAreCompressedWhenAccepted(t *testing.T) {
+	t.Parallel()
+	result := json.RawMessage(`{"sheet":"` + strings.Repeat("Bless and Cure Wounds. ", 400) + `"}`)
+	generation := strings.Repeat("b", 64)
+
+	authentication := testAuthService(t)
+	client := &recordingClientServices{result: result}
+	handler, err := New(Config{
+		Version: "test", Logger: slog.New(slog.DiscardHandler), Authentication: authentication,
+		BrowserServices: &recordingBrowserServices{}, BrowserServiceAuthorizer: SessionBrowserServiceAuthorizer(authentication),
+		ClientServices: client,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	login := serveAuthRequest(handler, http.MethodPost, "/api/login", `{"password":"party-member"}`, "", "")
+	cookie := login.Result().Cookies()[0].String()
+	csrf := jsonStringField(t, login.Body.Bytes(), "csrfToken")
+	clientCall := `{"contractVersion":"client-service-call.v1","contract":"dnd5e.character","providerAddonId":"dnd-sheets",` +
+		`"providerVersion":"4.0.0","providerGeneration":"` + generation + `","method":"load","params":{"key":"kael"},"deadlineMs":5000}`
+
+	browser := &recordingBrowserServices{result: result}
+	browserHandler := newBrowserServiceHandler(t, browser, func(*http.Request) (workerrpc.Actor, error) {
+		return workerrpc.Actor{Role: "player", ID: "session-7"}, nil
+	})
+	browserCall := `{"contractVersion":"addon-service-call.v1","contract":"dnd5e.character","providerAddonId":"dnd-sheets",` +
+		`"providerVersion":"4.0.0","providerGeneration":"` + generation + `","bindingRevision":0,"method":"load","params":{"key":"kael"},"deadlineMs":5000}`
+
+	serve := func(handler http.Handler, path, body, encoding string, headers map[string]string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		for name, value := range headers {
+			request.Header.Set(name, value)
+		}
+		if encoding != "" {
+			request.Header.Set("Accept-Encoding", encoding)
+		}
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		return response
+	}
+	for name, route := range map[string]struct {
+		serve  func(encoding string) *httptest.ResponseRecorder
+		called func() bool
+		forget func()
+	}{
+		"client": {
+			serve: func(encoding string) *httptest.ResponseRecorder {
+				return serve(handler, "/api/services/call", clientCall, encoding, map[string]string{"Cookie": cookie, csrfHeaderName: csrf})
+			},
+			called: func() bool { return client.callCalls > 0 },
+			forget: func() { client.callCalls = 0 },
+		},
+		"browser": {
+			serve: func(encoding string) *httptest.ResponseRecorder {
+				return serve(browserHandler, "/api/addons/dnd-sheets/generations/"+strings.Repeat("a", 64)+"/services/call", browserCall, encoding, nil)
+			},
+			called: func() bool { return browser.call.Method != "" },
+			forget: func() { browser.call = servicebroker.MethodCall{} },
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			plain := route.serve("")
+			if plain.Code != http.StatusOK || plain.Header().Get("Content-Encoding") != "" ||
+				plain.Header().Get("Vary") != "Accept-Encoding" || plain.Header().Get("Cache-Control") != "no-store" {
+				t.Fatalf("identity = %d %v", plain.Code, plain.Header())
+			}
+			if !strings.Contains(plain.Body.String(), "Bless and Cure Wounds.") {
+				t.Fatalf("identity body = %.80s", plain.Body.String())
+			}
+			compressed := route.serve("gzip, deflate, br")
+			if compressed.Code != http.StatusOK || compressed.Header().Get("Content-Encoding") != "gzip" ||
+				compressed.Header().Get("Vary") != "Accept-Encoding" || compressed.Header().Get("Cache-Control") != "no-store" ||
+				compressed.Body.Len() >= plain.Body.Len() {
+				t.Fatalf("gzip = %d %v, %d of %d bytes", compressed.Code, compressed.Header(), compressed.Body.Len(), plain.Body.Len())
+			}
+			if !bytes.Equal(decodedGzip(t, compressed.Body.Bytes()), plain.Body.Bytes()) {
+				t.Fatal("compression changed the service answer")
+			}
+			route.forget()
+			refused := route.serve("gzip;q=0, identity;q=0")
+			if refused.Code != http.StatusNotAcceptable || strings.Contains(refused.Body.String(), "Bless") {
+				t.Fatalf("refused encoding = %d, %.80s", refused.Code, refused.Body.String())
+			}
+			if route.called() {
+				t.Fatal("the service ran although its answer could not be sent")
+			}
+		})
 	}
 }

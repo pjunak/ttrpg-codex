@@ -1,10 +1,45 @@
 package httpapi
 
 import (
+	"compress/gzip"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
 )
+
+// answerEncoding negotiates how a large JSON answer will be sent, before any
+// work is done for it: gzip when the client accepts it, otherwise identity.
+// When the client accepts neither, it answers 406 and returns false.
+func answerEncoding(w http.ResponseWriter, r *http.Request, what string) (useGzip, ok bool) {
+	w.Header().Add("Vary", "Accept-Encoding")
+	useGzip, acceptable := negotiateGzip(r, true)
+	if !acceptable {
+		writeAPIError(w, http.StatusNotAcceptable, "ENCODING_UNAVAILABLE", "no acceptable "+what+" encoding")
+		return false, false
+	}
+	return useGzip, true
+}
+
+// writeAnswer writes a 200 JSON answer, gzipped when [answerEncoding] chose
+// gzip. Only projected answers (the campaign, service results) use it; session
+// secrets, authentication replies and event streams are never compressed.
+func writeAnswer(w http.ResponseWriter, r *http.Request, value any, useGzip bool) {
+	if !useGzip {
+		writeJSON(w, http.StatusOK, value)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Encoding", "gzip")
+	w.WriteHeader(http.StatusOK)
+	if r.Method == http.MethodHead {
+		return
+	}
+	writer, _ := gzip.NewWriterLevel(w, gzip.BestSpeed)
+	_ = json.NewEncoder(writer).Encode(value)
+	_ = writer.Close()
+}
 
 // Gzip is opt-in; explicit identity preferences and exclusions win over a
 // wildcard. Invalid or conflicting weights fail closed for that coding.

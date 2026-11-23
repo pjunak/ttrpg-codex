@@ -142,6 +142,11 @@ func (s *server) browserServiceCall(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "browser service call is invalid")
 		return
 	}
+	// Decided before the call: a refused encoding must not follow a save that already ran.
+	useGzip, ok := answerEncoding(w, r, "service answer")
+	if !ok {
+		return
+	}
 	actor, _ := r.Context().Value(browserServiceAuthorityKey{}).(workerrpc.Actor)
 	result, err := s.browserServices.CallBrowserService(
 		r.Context(), addonID, generationID,
@@ -162,12 +167,12 @@ func (s *server) browserServiceCall(w http.ResponseWriter, r *http.Request) {
 		s.writeBrowserServiceError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	writeAnswer(w, r, map[string]any{
 		"contractVersion":    browserServiceResultVersion,
 		"providerAddonId":    request.ProviderAddonID,
 		"providerGeneration": request.ProviderGeneration,
 		"result":             json.RawMessage(append([]byte(nil), result...)),
-	})
+	}, useGzip)
 }
 
 func browserServiceIdentity(w http.ResponseWriter, r *http.Request) (string, string, bool) {

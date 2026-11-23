@@ -96,7 +96,10 @@ do not apply.
 `params` is a JSON object or array, `deadlineMs` is 1 to 30,000 (the method's
 own limit may be shorter), and `idempotencyKey` is added when the method
 declares one. The answer is
-`{"contractVersion":"client-service-result.v1","providerAddonId","providerGeneration","result"}`.
+`{"contractVersion":"client-service-result.v1","providerAddonId","providerGeneration","result"}`,
+compressed with gzip when asked, as the campaign is (a character sheet load
+shrinks to about a fifth). A request that accepts neither gzip nor identity
+gets `406 ENCODING_UNAVAILABLE` before the call runs.
 The call reaches only the exact provider version and generation from the
 connection; after an add-on update or reload it fails with
 `409 STALE_BINDING`, and the client connects again.

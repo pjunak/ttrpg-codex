@@ -89,6 +89,11 @@ func (s *server) clientServiceCall(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, "INVALID_REQUEST", "client service call is invalid")
 		return
 	}
+	// Decided before the call: a refused encoding must not follow a save that already ran.
+	useGzip, ok := answerEncoding(w, r, "service answer")
+	if !ok {
+		return
+	}
 	actor, _ := r.Context().Value(browserServiceAuthorityKey{}).(workerrpc.Actor)
 	result, err := s.clientServices.CallClientService(
 		r.Context(),
@@ -108,12 +113,12 @@ func (s *server) clientServiceCall(w http.ResponseWriter, r *http.Request) {
 		s.writeBrowserServiceError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	writeAnswer(w, r, map[string]any{
 		"contractVersion":    clientServiceResultVersion,
 		"providerAddonId":    request.ProviderAddonID,
 		"providerGeneration": request.ProviderGeneration,
 		"result":             json.RawMessage(append([]byte(nil), result...)),
-	})
+	}, useGzip)
 }
 
 func noQuery(w http.ResponseWriter, r *http.Request) bool {
